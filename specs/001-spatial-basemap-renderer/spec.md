@@ -169,6 +169,125 @@ zero MapLibre GL JSON knowledge.
 
 ---
 
+### User Story 5 - Layer Filtering and Discovery (Priority: P5)
+
+A data scientist has a multi-layer basemap style and wants to isolate specific visual
+layers — for example, rendering only water features or suppressing road and label layers
+— so they can composite basemap elements independently beneath their own data overlays.
+They also want to inspect unfamiliar style schemas to discover which layer IDs are
+available before deciding which ones to include or exclude.
+
+**Why this priority**: Layer isolation enables advanced cartographic compositing workflows
+(e.g., a water-only underlay with a label-only overlay). Discovering layer IDs removes
+the need to read raw MapLibre GL JSON, lowering the barrier for users unfamiliar with a
+provider's schema. P5 because it extends multi-format rendering (US3) and requires the
+Rust core filtering infrastructure to be in place first.
+
+**Independent Test**: Call `render_basemap_raw()` with a style that contains water, roads,
+and labels layers, passing `layers=["water"]` (Python) or `layers=c("water")` (R). The
+returned pixel array contains only the water layer on a fully transparent background.
+Call `list_layers(style_url)` and receive a complete list of available layer IDs without
+any manual JSON inspection.
+
+**Acceptance Scenarios**:
+
+1. **Given** a style JSON with layers `["water", "roads", "labels"]`, **When**
+   `render_basemap_raw(layers=["water", "roads"])` (Python) or
+   `render_basemap_raw(layers=c("water", "roads"))` (R) is called, **Then** only the
+   "water" and "roads" layers appear in the rendered output and the "labels" layer is
+   absent.
+
+2. **Given** a style JSON with layers `["water", "roads", "labels"]`, **When**
+   `render_basemap_raw(layers=["-roads", "-labels"])` (Python) or
+   `render_basemap_raw(layers=c("-roads", "-labels"))` (R) is called, **Then** all
+   layers except "roads" and "labels" are rendered (only "water" remains).
+
+3. **Given** a `layers` list containing both a plain entry and a minus-prefixed entry
+   (e.g., `["water", "-roads"]`), **When** `render_basemap_raw` is called, **Then** the
+   library raises a clear validation error before any style fetching or tile downloading,
+   explaining that positive and negation filters cannot be mixed in the same list.
+
+4. **Given** any filtered render (i.e., `layers` is non-empty), **When** the render
+   completes, **Then** the output pixel array uses a fully transparent background
+   (alpha = 0 for all background pixels) so the isolated layer can be composited
+   seamlessly over other plot elements without masking them.
+
+5. **Given** a style URL or inline style JSON string, **When** `list_layers(style_input)`
+   is called in Python or R, **Then** the function returns all layer `id` values as a
+   Python `List[str]` or R `character` vector, and prints a two-column human-readable
+   table of `id` and `type` to the console for interactive exploration.
+
+---
+
+### User Story 6 - tmap Integration (Priority: P6)
+
+A data scientist working in R has built a spatial map using tmap v4 (`tm_shape()` +
+`tm_sf()` or similar layers). They want to add a Rust-rendered styled basemap as the
+bottommost layer in the same tmap pipeline without manually specifying coordinates,
+reprojecting data, or leaving the tmap syntax.
+
+**Why this priority**: tmap is one of the most widely used spatial visualisation
+packages in R alongside ggplot2. Supporting it natively extends the library's reach to
+a large community that does not use ggplot2 for maps. P6 because it requires the US1
+bbox/reprojection infrastructure and introduces a new soft dependency (`stars`) for
+wrapping the pixel array as a georeferenced raster.
+
+**Independent Test**: Build a tmap pipeline `tm_shape(sf_object) + tm_basemap(style_input) + tm_sf()` and confirm a styled basemap renders beneath the sf layer with no
+manual bbox argument and no coordinate reprojection by the caller.
+
+**Acceptance Scenarios**:
+
+1. **Given** a tmap pipeline with a primary `tm_shape(sf_object)`, **When**
+   `tm_basemap(style_input)` is added, **Then** the bounding box is inferred from the
+   primary shape via `tmap::bb()`, tiles are fetched, and a georeferenced raster
+   basemap renders beneath all subsequent tmap layers.
+
+2. **Given** an explicit `bbox` argument passed to `tm_basemap()`, **When** the function
+   is called, **Then** the provided bbox overrides any shape-inferred extent.
+
+3. **Given** `tm_basemap()` is called with no active shape context and no `bbox`
+   argument, **When** tmap evaluates the pipeline, **Then** a clear, informative error
+   is raised before any tile fetching begins.
+
+4. **Given** an `alpha` argument between 0 and 1 is passed to `tm_basemap()`, **When**
+   the map renders, **Then** the basemap layer is composited at that opacity beneath
+   the overlying sf layers.
+
+---
+
+### User Story 7 - plotnine Integration (Priority: P7)
+
+A data scientist working in Python with plotnine wants to add a styled basemap to their
+grammar-of-graphics spatial plot using a single `geom_basemap()` call added to the plot
+chain. The basemap must render lazily at draw time, aligned to the established plot
+coordinate bounds, with no manual matplotlib interaction required.
+
+**Why this priority**: plotnine mirrors ggplot2's grammar-of-graphics in Python and
+shares matplotlib as its rendering backend, making the integration path closely analogous
+to the existing ggplot2 implementation. P7 because it requires the plotnine soft
+dependency and a new Geom subclass, but reuses the existing `bbox_utils` and
+`render_basemap_raw` infrastructure with no Rust changes.
+
+**Independent Test**: Build a plotnine plot with `geom_sf(data=gdf)` and add
+`geom_basemap(style_url=...)`. The plot renders a styled basemap beneath the sf layer
+with no explicit bbox argument and no manual `ax` interaction.
+
+**Acceptance Scenarios**:
+
+1. **Given** a plotnine plot with spatial data and a geographic coordinate system,
+   **When** `geom_basemap(style_url=style)` is added as the first geom, **Then** the
+   basemap is rendered lazily at draw time, aligned to the established coordinate
+   bounds, and composited beneath subsequent geom layers.
+
+2. **Given** `geom_basemap` with `alpha=0.5`, **When** the plot renders, **Then** the
+   basemap is drawn at 50% opacity via the underlying `ax.imshow(alpha=0.5)` call.
+
+3. **Given** `geom_basemap` with a `layers` filter list, **When** the plot renders,
+   **Then** only the specified layers are visible in the basemap, consistent with the
+   `add_basemap()` `layers` behaviour.
+
+---
+
 ### Edge Cases
 
 - What happens when tiles for the requested bounding box / zoom level are unavailable
@@ -247,11 +366,61 @@ zero MapLibre GL JSON knowledge.
   template (e.g., an ArcGIS MapServer tile endpoint of the form
   `https://.../MapServer/tile/{z}/{y}/{x}`) and return a fully compliant MapLibre GL
   Style JSON string with a raster source configured with `tileSize: 256`.
+- **FR-019**: The `RenderRequest` struct MUST include an optional `layers: Option<Vec<String>>`
+  field. When `None`, all layers in the style JSON are rendered unchanged. When `Some`,
+  the field drives the filtering rules in FR-020 and FR-021.
+- **FR-020**: When all entries in `layers` are plain strings (no `-` prefix), the Rust core
+  MUST filter the style JSON `layers` array to retain **only** those entries whose `id`
+  matches one of the provided values. Layer IDs not present in the style MUST be silently
+  ignored.
+- **FR-021**: When all entries in `layers` are minus-prefixed strings (e.g., `"-roads"`), the
+  Rust core MUST filter the style JSON `layers` array to exclude every entry whose `id`
+  matches the de-prefixed value, retaining all other layers.
+- **FR-022**: When `layers` contains a mix of plain and minus-prefixed entries, the library
+  MUST return `BasemapError::InvalidLayerFilter` immediately — before any style fetching or
+  tile downloading — with a message that identifies the conflicting entries.
+- **FR-023**: When `layers` is `Some(...)`, the wgpu render texture MUST be initialised with
+  a fully transparent clear color (`[0, 0, 0, 0]`) so that the caller can composite the
+  filtered output over other plot elements without masking the underlying content.
+- **FR-024**: The `add_basemap()` Python function and `geom_basemap()` R function MUST each
+  expose an optional `layers` parameter (`layers=None` in Python; `layers=NULL` in R) and
+  pass it through the FFI layer to `RenderRequest.layers`.
+- **FR-025**: The library MUST provide a `list_layers(style_input)` function in both Python
+  and R. The function MUST accept a style URL or inline JSON string, fetch the style if a URL,
+  parse the `layers` array, and return all `id` values. Both implementations MUST also print
+  a two-column human-readable table of `id` and `type` to the console for interactive use.
+- **FR-026**: `add_basemap()` (Python) and `geom_basemap()` (R) MUST each expose an optional
+  `alpha` parameter (Python `float`, R `numeric`; range 0.0–1.0; default 1.0) that controls
+  the opacity of the composited basemap. In Python the value is passed to `ax.imshow(...,
+  alpha=alpha)`; in R it is passed to `grid::rasterGrob(..., gp=grid::gpar(alpha=alpha))`.
+  No Rust changes are required — this is a host-language compositing concern only.
+- **FR-027**: The library MUST provide a `tm_basemap(style_input, bbox=NULL, zoom=NULL,
+  alpha=1, layers=NULL, ...)` R function compatible with tmap v4. When `bbox` is NULL,
+  the function MUST derive the map extent from the tmap pipeline's primary shape via
+  `tmap::bb()`. It MUST reproject to EPSG:3857, call `render_basemap_raw()`, wrap the
+  pixel array as a georeferenced `stars` object, and return a composable tmap element
+  (`tmap::tm_shape(stars_obj) + tmap::tm_rgb(alpha=alpha)`) that renders beneath
+  subsequent tmap layers.
+- **FR-028**: When `tm_basemap()` is called with no shape context and `bbox=NULL`, the
+  function MUST raise an informative error via `stop()` before any style fetching or
+  tile downloading.
+- **FR-029**: The library MUST provide a `geom_basemap` class in the Python package,
+  inheriting from `plotnine.geoms.geom.geom`, that defers all tile fetching to draw
+  time. At draw time it MUST extract the panel coordinate bounds from the plotnine
+  coordinate system, reproject to EPSG:3857 via `bbox_utils.py`, call
+  `render_basemap_raw()`, and inject the result via the underlying matplotlib
+  `ax.imshow()` using the same injection logic as `add_basemap()`.
+- **FR-030**: The plotnine `geom_basemap` class MUST accept `style_url`, `zoom=None`,
+  `alpha=1.0`, and `layers=None` parameters, consistent with the `add_basemap()`
+  interface. The class MUST be importable from the top-level `basemapper` namespace
+  only when `plotnine` is installed; the base package MUST remain importable without it.
 
 ### Key Entities
 
 - **BasemapRequest**: Encapsulates tile source, optional style definition, target pixel
-  dimensions (width, height, DPI), and spatial bounds — either inferred or caller-supplied.
+  dimensions (width, height, DPI), spatial bounds (either inferred or caller-supplied),
+  and an optional layer filter list (`layers: Option<Vec<String>>`). When the filter list
+  is present, only matching layers are rendered on a transparent canvas.
 - **SpatialBounds**: A geographic bounding box (min/max longitude and latitude) paired
   with a coordinate reference system identifier.
 - **TileSource**: A discriminated configuration for one of three tile formats: raster
@@ -295,6 +464,16 @@ zero MapLibre GL JSON knowledge.
   basemap in R or Python using a single provider helper call with no MapLibre GL JSON
   knowledge; the full workflow from URL to rendered basemap requires no more than two
   function calls total.
+- **SC-008**: A data scientist can isolate a single named layer from any MapLibre GL style
+  using one additional argument to `render_basemap_raw()`, and the resulting pixel array
+  composites seamlessly over an existing plot with no masking artifacts (transparent
+  background verified by inspecting the alpha channel of all non-rendered pixels).
+- **SC-009**: A data scientist using tmap v4 in R can add a styled basemap to a tmap
+  pipeline using a single `tm_basemap()` call with no manual bbox specification; the
+  rendered map shows the basemap correctly aligned beneath sf data layers.
+- **SC-010**: A data scientist using plotnine in Python can add `+ geom_basemap(style_url=...)`
+  to a plotnine plot chain and receive a correctly positioned, lazily-rendered basemap
+  beneath their data geoms, with no manual matplotlib interaction required.
 
 ## Assumptions
 
