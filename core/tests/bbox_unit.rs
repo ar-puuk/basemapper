@@ -34,7 +34,10 @@ fn xmin_ge_xmax_returns_invalid_bbox() {
 fn zero_width_returns_invalid_dimensions() {
     let mut req = base_request();
     req.width = 0;
-    assert!(matches!(req.validate(), Err(BasemapError::InvalidDimensions(0, _))));
+    assert!(matches!(
+        req.validate(),
+        Err(BasemapError::InvalidDimensions(0, _))
+    ));
 }
 
 #[test]
@@ -49,7 +52,10 @@ fn zoom_formula_produces_reasonable_result() {
     // SF bbox at ~100 km wide → zoom 12–14 at 800 px
     let bbox = [-13_700_000.0_f64, 4_500_000.0, -13_600_000.0, 4_600_000.0];
     let z = compute_zoom(bbox, 800);
-    assert!(z >= 10 && z <= 16, "unexpected zoom {z} for 100 km bbox at 800 px");
+    assert!(
+        z >= 10 && z <= 16,
+        "unexpected zoom {z} for 100 km bbox at 800 px"
+    );
 }
 
 #[test]
@@ -57,7 +63,10 @@ fn tile_count_guard_reduces_zoom() {
     // Very large bbox at high zoom would explode tile count.
     let bbox = [-20_037_508.0, -20_037_508.0, 20_037_508.0, 20_037_508.0];
     let z = compute_zoom(bbox, 256);
-    assert!(tile_count(bbox, z) <= 256, "tile count should fit in 256 at zoom {z}");
+    assert!(
+        tile_count(bbox, z) <= 256,
+        "tile count should fit in 256 at zoom {z}"
+    );
 }
 
 #[test]

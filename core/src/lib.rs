@@ -13,9 +13,8 @@ use once_cell::sync::Lazy;
 use tokio::runtime::Runtime;
 
 // Thread-local tokio runtime shared across all render calls from binding crates.
-static RUNTIME: Lazy<Runtime> = Lazy::new(|| {
-    Runtime::new().expect("failed to create basemapper tokio runtime")
-});
+static RUNTIME: Lazy<Runtime> =
+    Lazy::new(|| Runtime::new().expect("failed to create basemapper tokio runtime"));
 
 /// Render a basemap tile mosaic to a flat RGBA byte array.
 ///
@@ -27,7 +26,9 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
 
     RUNTIME.block_on(async {
         let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_millis(request.tile_timeout_ms as u64))
+            .timeout(std::time::Duration::from_millis(
+                request.tile_timeout_ms as u64,
+            ))
             .use_rustls_tls()
             .build()
             .map_err(|e| BasemapError::RenderError(e.to_string()))?;
@@ -111,17 +112,16 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
 }
 
 /// Extract a `TileSource` from the first entry in a style's "sources" object.
-fn extract_tile_source_from_style(
-    style: &serde_json::Value,
-) -> Result<TileSource, BasemapError> {
+fn extract_tile_source_from_style(style: &serde_json::Value) -> Result<TileSource, BasemapError> {
     let sources = style
         .get("sources")
         .and_then(|s| s.as_object())
         .ok_or_else(|| BasemapError::StyleParseError("missing \"sources\" object".into()))?;
 
-    let source = sources.values().next().ok_or_else(|| {
-        BasemapError::StyleParseError("\"sources\" object is empty".into())
-    })?;
+    let source = sources
+        .values()
+        .next()
+        .ok_or_else(|| BasemapError::StyleParseError("\"sources\" object is empty".into()))?;
 
     let src_type = source
         .get("type")
