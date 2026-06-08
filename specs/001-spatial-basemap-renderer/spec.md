@@ -110,6 +110,55 @@ reflects the greyscale style with no additional tooling required.
 
 ---
 
+### User Story 4 - Provider Generator Helpers (Priority: P4)
+
+A data scientist has been given a bare tile URL (e.g., from a GIS colleague, a data
+portal, or a cloud provider's documentation) and wants to use it as a basemapper source
+immediately — without learning the MapLibre GL Style Specification or writing any JSON
+by hand. The library should provide simple helper functions that accept a raw tile URL
+and return a ready-to-use style string.
+
+**Why this priority**: The MapLibre GL Style JSON format is verbose and unfamiliar to
+most data scientists. Without these helpers, every user who starts from a raw tile URL
+faces a steep learning curve just to supply the `style_url` parameter. P4 because the
+helpers build on the established tile source infrastructure (US3) and are ergonomic
+enhancements, not blockers for core functionality.
+
+**Independent Test**: Call `RasterProvider("https://tile.openstreetmap.org/{z}/{x}/{y}.png")`
+(Python) or `raster_provider("https://tile.openstreetmap.org/{z}/{x}/{y}.png")` (R)
+and pass the returned string directly to `add_basemap()` / `geom_basemap()` with no
+other arguments. The map renders a recognisable basemap with a single helper call and
+zero MapLibre GL JSON knowledge.
+
+**Acceptance Scenarios**:
+
+1. **Given** a bare XYZ raster tile URL, **When** `RasterProvider(url)` (Python) or
+   `raster_provider(url)` (R) is called, **Then** the returned value is a valid JSON
+   string containing `"version": 8`, a raster source entry whose `tiles` array contains
+   the provided URL, and at least one raster layer — and can be passed directly to
+   `add_basemap()` or `render_basemap_raw()` without further modification.
+
+2. **Given** a bare MVT tile URL and a paint dictionary `{"fill-color": "#e8e0d8",
+   "line-color": "#aaa", "line-width": 1}`, **When** `VectorProvider(url, paint=paint)`
+   (Python) or `vector_provider(url, paint=list(...))` (R) is called, **Then** the
+   returned JSON contains a vector source and at least one fill layer using `fill-color`
+   and one line layer using `line-color` and `line-width`.
+
+3. **Given** a `VectorProvider` is called with no `paint` argument, **When** the result
+   is passed to `render_basemap_raw`, **Then** the map renders with sensible default
+   styling (light grey fill, medium grey lines) without requiring any additional input.
+
+4. **Given** a bare ESRI tile URL, **When** `EsriRasterProvider(url)` (Python) or
+   `esri_raster_provider(url)` (R) is called, **Then** the returned JSON contains a
+   raster source configured with `tileSize: 256` and the provided URL template.
+
+5. **Given** a `VectorProvider` paint argument containing an unrecognised key (e.g.,
+   `{"circle-radius": 5}`), **When** the helper is called, **Then** the unrecognised
+   key is silently dropped, a user-visible warning is emitted naming the dropped key,
+   and the returned JSON is still valid and renderable.
+
+---
+
 ### Edge Cases
 
 - What happens when tiles for the requested bounding box / zoom level are unavailable
@@ -119,6 +168,11 @@ reflects the greyscale style with no additional tooling required.
   require more than a configurable maximum number of tile downloads?
 - What happens when the JSON style references a font or sprite sheet that is not
   bundled with the library?
+- What happens when a `VectorProvider` paint dictionary contains exclusively
+  unrecognised keys — does it produce a style JSON with empty layers, and will the
+  Rust core accept a layers array that has no renderable content?
+- What if a provider URL template is missing the `{z}`, `{x}`, or `{y}` placeholders
+  required by the slippy-map convention?
 
 ## Requirements *(mandatory)*
 
@@ -154,6 +208,26 @@ reflects the greyscale style with no additional tooling required.
 - **FR-013**: When tile fetching fails (network error, HTTP 4xx/5xx), the library MUST
   surface a clear error with the tile URL and HTTP status; it MUST NOT silently return
   blank tiles.
+- **FR-014**: The library MUST provide a `RasterProvider` class (Python) and
+  `raster_provider()` function (R) that each accept a bare XYZ tile URL template and
+  return a fully compliant MapLibre GL Style JSON string containing a raster source and
+  a raster layer definition.
+- **FR-015**: The library MUST provide a `VectorProvider` class (Python) and
+  `vector_provider()` function (R) that each accept a bare MVT tile URL template, an
+  optional paint parameter (Python `dict`, R named `list`), and return a fully compliant
+  MapLibre GL Style JSON string. Recognised paint keys are the fill family
+  (`fill-color`, `fill-opacity`, `fill-outline-color`) and the line family
+  (`line-color`, `line-width`, `line-opacity`). Unrecognised keys MUST be dropped
+  silently with a user-visible warning naming each dropped key. An absent or empty
+  paint parameter MUST produce a sensible default style (light grey fill, medium grey
+  lines).
+- **FR-016**: The library MUST provide an `EsriRasterProvider` class (Python) and
+  `esri_raster_provider()` function (R) that each accept an ESRI tile URL template and
+  return a fully compliant MapLibre GL Style JSON string with a raster source configured
+  with `tileSize: 256`.
+- **FR-017**: The JSON strings returned by all three providers MUST be accepted without
+  error by `render_basemap_raw()` and `add_basemap()` / `geom_basemap()` when passed
+  directly as the `style_input` / `style_url` argument.
 
 ### Key Entities
 
@@ -168,6 +242,13 @@ reflects the greyscale style with no additional tooling required.
   layer specification that governs the visual rendering of vector features.
 - **RenderedBasemap**: The output of a render call — a raw RGBA pixel array at the
   requested dimensions, paired with a `SpatialBounds` for downstream alignment.
+- **StyleProvider**: A pure host-language helper (no Rust involvement) that accepts a
+  tile URL template and optional styling parameters and serialises a valid MapLibre GL
+  Style JSON string. The three concrete providers — `RasterProvider`,
+  `VectorProvider`, and `EsriRasterProvider` (Python) / `raster_provider()`,
+  `vector_provider()`, `esri_raster_provider()` (R) — are the public entry points.
+  Their output is consumed directly by `render_basemap_raw()` as the `style_input`
+  argument.
 
 ## Success Criteria *(mandatory)*
 
@@ -189,6 +270,10 @@ reflects the greyscale style with no additional tooling required.
   tooling.
 - **SC-006**: Tile fetch errors surface a human-readable error message within 10 seconds
   of request (accounting for configurable timeout), rather than hanging indefinitely.
+- **SC-007**: A data scientist who has only a bare tile URL can produce a working
+  basemap in R or Python using a single provider helper call with no MapLibre GL JSON
+  knowledge; the full workflow from URL to rendered basemap requires no more than two
+  function calls total.
 
 ## Assumptions
 

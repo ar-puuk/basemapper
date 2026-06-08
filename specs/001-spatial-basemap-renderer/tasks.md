@@ -8,7 +8,7 @@ description: "Task list for Spatial Basemap Renderer implementation"
 
 **Prerequisites**: plan.md ✅ | spec.md ✅ | research.md ✅ | data-model.md ✅ | contracts/ ✅
 
-**Tests**: Not explicitly requested in spec — test tasks included in Phase 6 (Polish) only.
+**Tests**: Not explicitly requested in spec — test tasks included in Phase 6 (US4 unit tests) and Phase 7 (Polish integration tests).
 
 **Organization**: Tasks are grouped by user story to enable independent implementation
 and testing. Each story can be developed, tested, and demonstrated independently once
@@ -129,7 +129,36 @@ three tile source variants must render a recognizable city-scale basemap.
 
 ---
 
-## Phase 6: Polish & Cross-Cutting Concerns
+## Phase 6: User Story 4 — Provider Generator Helpers (Priority: P4)
+
+**Goal**: Data scientists can call a single helper with a bare tile URL — no MapLibre
+GL JSON knowledge required — and pass the returned string directly to `add_basemap()`
+or `geom_basemap()`. `VectorProvider` accepts an optional paint dictionary to control
+fill and line styling of raw vector geometries.
+
+**Independent Test**: Call `RasterProvider("https://tile.openstreetmap.org/{z}/{x}/{y}.png")`
+(Python) or `raster_provider("https://tile.openstreetmap.org/{z}/{x}/{y}.png")` (R)
+and pass the result to `add_basemap` / `geom_basemap` without any other style argument.
+Map renders with a single helper call and zero MapLibre GL JSON written by the user.
+
+### Python Implementation (US4)
+
+- [ ] T038 [P] [US4] Create py-basemapper/src/basemapper/providers.py: implement `RasterProvider(url_template, tile_size=256)` with `__str__`/`to_style_json()` returning MapLibre GL JSON (version 8, raster source, raster layer); implement `EsriRasterProvider(url_template, tile_size=256)` identically but with ESRI tileSize=256 convention; implement `VectorProvider(url_template, paint=None)` splitting paint keys into fill-family (`fill-color`, `fill-opacity`, `fill-outline-color`) and line-family (`line-color`, `line-width`, `line-opacity`) layers, emitting `warnings.warn` for unrecognised keys, using default grey fill/line when paint is absent
+- [ ] T039 [US4] Update py-basemapper/src/basemapper/__init__.py: export `RasterProvider`, `VectorProvider`, `EsriRasterProvider`; add them to `__all__`
+- [ ] T040 [P] [US4] Create py-basemapper/tests/test_providers.py: unit tests covering (a) `RasterProvider` returns valid JSON with correct source URL, (b) `EsriRasterProvider` returns valid JSON with `tileSize: 256`, (c) `VectorProvider` with paint dict produces fill + line layers with correct paint values, (d) `VectorProvider` with no paint uses default grey values, (e) unrecognised paint key emits `UserWarning` and is absent from output JSON, (f) provider output passable to `render_basemap_raw` without raising (mock HTTP)
+
+### R Implementation (US4)
+
+- [ ] T041 [P] [US4] Create r-basemapper/R/providers.R: implement `raster_provider(url_template, tile_size = 256L)` returning a JSON character string; implement `esri_raster_provider(url_template, tile_size = 256L)` identically; implement `vector_provider(url_template, paint = list())` splitting paint list entries into fill-layer and line-layer properties, calling `warning()` for unrecognised keys, applying default grey palette when paint is empty; all three functions serialise using `jsonlite::toJSON(auto_unbox = TRUE)`
+- [ ] T042 [P] [US4] Create r-basemapper/tests/testthat/test-providers.R: unit tests covering (a) `raster_provider` returns parseable JSON with correct tile URL, (b) `esri_raster_provider` includes `tileSize: 256`, (c) `vector_provider` with named paint list produces correct layer paint entries, (d) unrecognised paint key triggers a `warning()`, (e) `vector_provider()` with empty list uses default grey values
+
+**Checkpoint**: `RasterProvider("...")` (Python) and `raster_provider("...")` (R) each
+return a JSON string passable directly to `render_basemap_raw`; `VectorProvider` with
+a paint dict produces visibly styled layers; all unit tests pass.
+
+---
+
+## Phase 7: Polish & Cross-Cutting Concerns
 
 **Purpose**: CLI example, test suites, linting, full quickstart validation
 
@@ -156,13 +185,15 @@ three tile source variants must render a recognizable city-scale basemap.
 - **User Story 1 (Phase 3)**: Depends on T011 — Python T012, T013, T017, T018 can run in parallel
 - **User Story 2 (Phase 4)**: Depends on Phase 3 completion (updates existing files)
 - **User Story 3 (Phase 5)**: Depends on Phase 3 completion — T025, T026 can run in parallel
-- **Polish (Phase 6)**: Depends on all user story phases; T031–T035 can run in parallel
+- **User Story 4 (Phase 6)**: Depends on Phase 1 (package structure); T038, T040, T041 can run in parallel after T016 (Python __init__ exported); T039, T042 can run in parallel with T038
+- **Polish (Phase 7)**: Depends on all user story phases; T031–T035 can run in parallel
 
 ### User Story Dependencies
 
 - **US1 (P1)**: Can start immediately after Foundational — no inter-story dependencies
 - **US2 (P2)**: Depends on US1 (updates the same add_basemap/draw_panel functions)
 - **US3 (P3)**: Depends on US1 (adds tile_source param to same functions); T025–T026 (Rust core) can run in parallel with Phase 3
+- **US4 (P4)**: Pure host-language code — no Rust changes. Depends on Python `__init__.py` (T016) and R package structure (T004). Can run in parallel with Phase 4–5 after Phase 3 completes.
 
 ### Within Each User Story
 
@@ -188,7 +219,10 @@ T017, T018 run in parallel
 # T019 depends on T018; T020 depends on T017+T019
 
 # Phase 5 — T025, T026, T027 can start in parallel after Phase 3 checkpoint
-# Phase 6 — T031, T032, T033, T034, T035 all run in parallel after Phase 5
+# Phase 6 (US4) — after T016 completes (Python) and T004 (R package structure):
+T038, T040 run in parallel (Python providers + tests)
+T041, T042 run in parallel (R providers + tests)
+# Phase 7 — T031, T032, T033, T034, T035 all run in parallel after Phases 5+6
 ```
 
 ---
@@ -209,14 +243,15 @@ T017, T018 run in parallel
 2. Phase 3 → `add_basemap(ax)` and `geom_basemap()` work (MVP!)
 3. Phase 4 → pixel-perfect DPI matching → demo at any resolution
 4. Phase 5 → Mapbox/ESRI tile support + custom styles → full feature set
-5. Phase 6 → Polish + test coverage → release-ready
+5. Phase 6 → Provider helpers → basemapper works from bare tile URLs
+6. Phase 7 → Polish + test coverage → release-ready
 
 ### Parallel Team Strategy
 
 With two developers after Phase 2 completes:
 
-- **Developer A** (Python): T012–T016 (US1 Python), T021–T022 (US2 Python), T027–T028 (US3 Python)
-- **Developer B** (R): T017–T020 (US1 R), T023–T024 (US2 R), T029 (US3 R)
+- **Developer A** (Python): T012–T016 (US1 Python), T021–T022 (US2 Python), T027–T028 (US3 Python), T038–T040 (US4 Python)
+- **Developer B** (R): T017–T020 (US1 R), T023–T024 (US2 R), T029 (US3 R), T041–T042 (US4 R)
 - **Either**: T025–T026 (Rust core tile format completions, no language preference)
 
 ---
