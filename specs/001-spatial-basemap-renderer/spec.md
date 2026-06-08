@@ -160,6 +160,13 @@ zero MapLibre GL JSON knowledge.
    key is silently dropped, a user-visible warning is emitted naming the dropped key,
    and the returned JSON is still valid and renderable.
 
+6. **Given** a bare ESRI raster tile URL template (e.g., an ArcGIS MapServer tile
+   endpoint of the form `https://.../MapServer/tile/{z}/{y}/{x}`), **When**
+   `EsriRasterProvider(url)` (Python) or `esri_raster_provider(url)` (R) is called,
+   **Then** the returned string is a valid inline MapLibre GL Style JSON with a raster
+   source containing the provided URL and `tileSize: 256`, renderable immediately
+   without any further configuration.
+
 ---
 
 ### Edge Cases
@@ -230,11 +237,16 @@ zero MapLibre GL JSON knowledge.
   (`<base_url>/resources/styles/root.json`). Any trailing slash in the input MUST be
   stripped before constructing the endpoint URL. The Rust core fetches this URL to
   obtain the full, ESRI-published MapLibre GL Style JSON.
-- **FR-017**: The output of all three providers MUST be accepted without error by
+- **FR-017**: The output of all four providers MUST be accepted without error by
   `render_basemap_raw()` and `add_basemap()` / `geom_basemap()` when passed directly as
-  the `style_input` / `style_url` argument. (`RasterProvider` and `VectorProvider`
-  return inline JSON strings; `EsriVectorProvider` returns a URL string — both forms
-  are valid inputs to the core rendering pipeline.)
+  the `style_input` / `style_url` argument. (`RasterProvider`, `VectorProvider`, and
+  `EsriRasterProvider` return inline JSON strings; `EsriVectorProvider` returns a URL
+  string — both forms are valid inputs to the core rendering pipeline.)
+- **FR-018**: The library MUST provide an `EsriRasterProvider` class (Python) and
+  `esri_raster_provider()` function (R) that each accept a bare ESRI raster tile URL
+  template (e.g., an ArcGIS MapServer tile endpoint of the form
+  `https://.../MapServer/tile/{z}/{y}/{x}`) and return a fully compliant MapLibre GL
+  Style JSON string with a raster source configured with `tileSize: 256`.
 
 ### Key Entities
 
@@ -252,11 +264,12 @@ zero MapLibre GL JSON knowledge.
 - **StyleProvider**: A pure host-language helper (no Rust involvement) that accepts a
   tile URL template and optional styling parameters and serialises a valid MapLibre GL
   Style JSON string. The three concrete providers — `RasterProvider`,
-  `VectorProvider`, and `EsriVectorProvider` (Python) / `raster_provider()`,
-  `vector_provider()`, `esri_vector_provider()` (R) — are the public entry points.
-  `RasterProvider` and `VectorProvider` return inline MapLibre GL JSON strings;
+  `VectorProvider`, `EsriVectorProvider`, and `EsriRasterProvider` (Python) /
+  `raster_provider()`, `vector_provider()`, `esri_vector_provider()`, and
+  `esri_raster_provider()` (R) — are the public entry points. `RasterProvider`,
+  `VectorProvider`, and `EsriRasterProvider` return inline MapLibre GL JSON strings;
   `EsriVectorProvider` returns a URL string (the constructed `root.json` endpoint).
-  All three outputs are accepted directly by `render_basemap_raw()` as `style_input`.
+  All four outputs are accepted directly by `render_basemap_raw()` as `style_input`.
 
 ## Success Criteria *(mandatory)*
 
