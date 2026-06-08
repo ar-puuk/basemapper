@@ -28,8 +28,8 @@ the Foundational phase (Phase 2) is complete.
 
 - [ ] T001 Create workspace Cargo.toml at repo root declaring members = ["core", "py-basemapper", "r-basemapper"] and shared dependency version overrides
 - [ ] T002 [P] Create core/Cargo.toml with package metadata and dependencies: maplibre-rs, wgpu (all backends), tokio (full), reqwest (rustls-tls), prost, image, thiserror, serde, serde_json
-- [ ] T003 [P] Create py-basemapper/Cargo.toml (pyo3 + path dep on core) and py-basemapper/pyproject.toml (maturin build backend, numpy/pyproj/matplotlib dev dependencies)
-- [ ] T004 [P] Create r-basemapper/Cargo.toml (extendr-api + path dep on core) and r-basemapper/DESCRIPTION (Package: basemapper, R ≥ 4.1, Imports: ggplot2, grid, sf)
+- [ ] T003 [P] Create py-basemapper/Cargo.toml (pyo3 + path dep on core) and py-basemapper/pyproject.toml (maturin build backend; runtime deps: numpy, pyproj, matplotlib; dev deps: great-docs, pytest, responses)
+- [ ] T004 [P] Create r-basemapper/Cargo.toml (extendr-api + path dep on core) and r-basemapper/DESCRIPTION (Package: basemapper, R ≥ 4.1, Imports: ggplot2, grid, sf, jsonlite; Suggests: roxygen2, testthat, rextendr)
 - [ ] T005 Scaffold all empty source stubs so `cargo check --workspace` compiles: core/src/lib.rs, py-basemapper/src/lib.rs, r-basemapper/src/rust/src/lib.rs, py-basemapper/src/basemapper/__init__.py, r-basemapper/R/geom_basemap.R, r-basemapper/R/render_basemap_raw.R, r-basemapper/R/bbox_utils.R, r-basemapper/NAMESPACE
 
 ---
@@ -166,8 +166,9 @@ a paint dict produces visibly styled layers; all unit tests pass.
 - [ ] T032 [P] Create core/tests/bbox_unit.rs: unit tests covering (a) valid RenderRequest builds successfully, (b) xmin≥xmax returns InvalidBbox, (c) width=0 returns InvalidDimensions, (d) zoom=23 returns InvalidBbox, (e) zoom auto-formula produces expected value for a known bbox+dims, (f) max_tiles guard reduces zoom correctly
 - [ ] T033 [P] Create py-basemapper/tests/test_render.py: pytest tests for Scenarios 2, 4, 7, 8 from quickstart.md; use responses library or unittest.mock to mock HTTP tile endpoints for Scenarios 2 and 4; Scenario 7 passes inline JSON with version=7; Scenario 8 uses a deliberately unreachable URL with tile_timeout_ms=1000
 - [ ] T034 [P] Create r-basemapper/tests/testthat/test-render.R: testthat tests for Scenarios 5–6 from quickstart.md; Scenario 5 verifies length(raw) == 400*300*4; Scenario 6 saves to a temp file and verifies file.info()$size > 50000
-- [ ] T035 [P] Run rextendr::document() to regenerate r-basemapper/NAMESPACE and r-basemapper/man/*.Rd files; verify `R CMD check r-basemapper` exits with 0 errors and 0 warnings
+- [ ] T035 [P] Ensure every exported R function (geom_basemap, render_basemap_raw, raster_provider, vector_provider, esri_vector_provider, esri_raster_provider) has complete roxygen2 tags (@title, @param, @return, @examples, @export) in its .R source file; run rextendr::document() to regenerate r-basemapper/NAMESPACE and r-basemapper/man/*.Rd files; verify `R CMD check r-basemapper` exits with 0 errors and 0 warnings
 - [ ] T036 Run `cargo clippy --workspace -- -D warnings` and resolve all lint violations; run `cargo fmt --all` for consistent formatting across all Rust source files
+- [ ] T043 [P] Configure and generate Python API reference documentation with great-docs: add great-docs configuration to py-basemapper/pyproject.toml; ensure all public Python functions (add_basemap, render_basemap_raw, RasterProvider, VectorProvider, EsriVectorProvider, EsriRasterProvider) have complete Google-style docstrings (Args, Returns, Raises sections); run great-docs to verify docs build without errors
 - [ ] T037 Execute all 8 quickstart.md validation scenarios end-to-end on a clean checkout (no pre-built binaries); document any environment-specific setup steps discovered (e.g., Mesa install on headless Linux) in r-basemapper/README.md and py-basemapper/README.md
 
 ---

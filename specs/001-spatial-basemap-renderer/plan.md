@@ -39,10 +39,14 @@ and CRS reprojection to EPSG:3857 are performed by host-language code (`sf` in R
 | `extendr` | R FFI layer |
 | `pyproj` (Python) | CRS reprojection to EPSG:3857 |
 | `sf` (R) | CRS reprojection to EPSG:3857 |
+| `great-docs` (Python, dev) | Python API documentation generation (Posit) |
+| `roxygen2` (R, dev) | R documentation generation — Rd files and NAMESPACE |
 
 **Storage**: In-memory tile cache only (no on-disk persistence in this version)
 
 **Testing**: `cargo test` (Rust unit + integration), `pytest` (Python), `testthat` (R)
+
+**Documentation**: `great-docs` (Python API reference), `roxygen2` (R Rd files + NAMESPACE)
 
 **Target Platform**: Cross-platform library — macOS arm64/x86_64, Windows x86_64,
 Linux x86_64 (with GPU) and Linux headless (with `WGPU_BACKEND=gl` + virtual fb)
