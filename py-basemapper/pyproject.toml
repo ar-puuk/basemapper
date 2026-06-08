@@ -27,6 +27,7 @@ dev      = [
 [tool.maturin]
 module-name     = "basemapper._basemapper"
 python-packages = ["basemapper"]
+python-source   = "src"
 features        = ["pyo3/extension-module"]
 
 [tool.great-docs]
