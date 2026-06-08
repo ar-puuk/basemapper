@@ -185,6 +185,48 @@ alongside each binding crate.
 
 ---
 
+## Implementation Hazards
+
+Known technical pitfalls for `/speckit-implement`. Each maps to a specific task.
+
+### H1 — tmap v4 RGBA Rendering (T053 / FR-027)
+
+`tmap::tm_rgb()` is the correct call for multi-band RGBA `stars` objects in tmap v4,
+but depending on how the pixel array is shaped and how `stars` exposes the bands, tmap
+may apply an unwanted colour palette or treat the array as a single-band raster. **If
+the basemap renders with wrong colours or as a heatmap, switch from `tm_rgb()` to
+`tm_raster()` with explicit band selection.** Try `tm_rgb()` first; only fall back to
+`tm_raster()` if colours are wrong.
+
+### H2 — wgpu Asynchronous GPU Readback (T010)
+
+`wgpu::Buffer::slice(..).map_async()` is asynchronous. To read pixels back from the GPU
+buffer synchronously (required by the R/Python FFI boundary), the implementation MUST
+call `device.poll(wgpu::Maintain::Wait)` immediately after `map_async()` to block until
+the mapping completes. **Do NOT `await` this call or spawn it on the tokio runtime.**
+Spawning a new async task here will deadlock against the thread-local runtime used by
+the binding crates (T011). Polling inside the existing synchronous call stack is the
+correct pattern.
+
+### H3 — Layer Filter Scope (T045)
+
+`filter_style_layers()` MUST modify **only** the top-level `"layers"` array. **Do not
+remove entries from `"sources"`, `"sprite"`, or `"glyphs"`**, even when they appear
+unreferenced after filtering. maplibre-rs pre-validates the entire style object and will
+crash at parse time if any referenced source, sprite URL, or glyph URL is absent —
+regardless of whether remaining layers actually use it.
+
+### H4 — Matplotlib Z-Ordering (T022 / T056)
+
+`zorder=0` is specified for `ax.imshow()` basemap injection. The matplotlib axes
+background patch (`ax.patch`) also defaults to `zorder=0` and can hide the basemap
+behind a white rectangle. **If the basemap does not appear, set `zorder=0.5` and call
+`ax.patch.set_visible(False)` (or `ax.set_facecolor('none')`) to make the axes
+background transparent.** This applies equally to the plotnine `geom_basemap` (T056),
+which accesses the same underlying matplotlib axes.
+
+---
+
 ## Complexity Tracking
 
 > No constitution violations require justification. Table left empty.
