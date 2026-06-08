@@ -8,7 +8,7 @@ pub enum StyleInput {
 }
 
 impl StyleInput {
-    pub fn from_str(s: &str) -> Self {
+    pub fn detect(s: &str) -> Self {
         if s.trim_start().starts_with('{') {
             StyleInput::InlineJson(s.to_owned())
         } else {
@@ -21,18 +21,24 @@ impl StyleInput {
         match self {
             StyleInput::InlineJson(json) => Ok(json.clone()),
             StyleInput::Url(url) => {
-                let resp = client.get(url).send().await.map_err(|_e| {
-                    BasemapError::StyleFetchFailed { url: url.clone(), status: 0 }
-                })?;
+                let resp =
+                    client
+                        .get(url)
+                        .send()
+                        .await
+                        .map_err(|_e| BasemapError::StyleFetchFailed {
+                            url: url.clone(),
+                            status: 0,
+                        })?;
                 if !resp.status().is_success() {
                     return Err(BasemapError::StyleFetchFailed {
                         url: url.clone(),
                         status: resp.status().as_u16(),
                     });
                 }
-                resp.text().await.map_err(|_| BasemapError::StyleParseError(
-                    "could not read style response body".into(),
-                ))
+                resp.text().await.map_err(|_| {
+                    BasemapError::StyleParseError("could not read style response body".into())
+                })
             }
         }
     }
@@ -40,8 +46,8 @@ impl StyleInput {
 
 /// Validate a resolved MapLibre GL style JSON string.
 pub fn validate_maplibre_style(json: &str) -> Result<(), BasemapError> {
-    let v: Value = serde_json::from_str(json)
-        .map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
+    let v: Value =
+        serde_json::from_str(json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
     let version = v.get("version").and_then(Value::as_u64);
     if version != Some(8) {
         return Err(BasemapError::StyleParseError(
@@ -85,7 +91,7 @@ pub fn filter_style_layers(style_json: &str, layers: &[String]) -> Result<String
     let all_negative = layers.iter().all(|l| l.starts_with('-'));
     let filter_ids: Vec<&str> = layers
         .iter()
-        .map(|l| if l.starts_with('-') { &l[1..] } else { l.as_str() })
+        .map(|l| l.strip_prefix('-').unwrap_or(l.as_str()))
         .collect();
 
     if let Some(arr) = style.get_mut("layers").and_then(Value::as_array_mut) {

@@ -43,7 +43,11 @@ pub fn build_tile_coords(bbox: [f64; 4], zoom: u8) -> Vec<TileCoord> {
     let mut coords = Vec::new();
     for tx in x0..=x1 {
         for ty in y0..=y1 {
-            coords.push(TileCoord { z: zoom, x: tx, y: ty });
+            coords.push(TileCoord {
+                z: zoom,
+                x: tx,
+                y: ty,
+            });
         }
     }
     coords
@@ -56,7 +60,10 @@ pub fn build_tile_urls(source: &TileSource, coords: &[TileCoord]) -> Vec<(TileCo
         .map(|&coord| {
             let url = match source {
                 TileSource::XyzRaster { url_template, .. } => expand_url(url_template, coord),
-                TileSource::MapboxVectorTile { url_template, api_key } => {
+                TileSource::MapboxVectorTile {
+                    url_template,
+                    api_key,
+                } => {
                     let base = expand_url(url_template, coord);
                     if let Some(key) = api_key {
                         format!("{base}?access_token={key}")
@@ -99,20 +106,26 @@ pub async fn fetch_all_tiles(
             if let Some(header) = auth {
                 req = req.header("Authorization", header);
             }
-            let resp = req.send().await.map_err(|_| BasemapError::TileFetchFailed {
-                url: url.clone(),
-                status: 0,
-            })?;
+            let resp = req
+                .send()
+                .await
+                .map_err(|_| BasemapError::TileFetchFailed {
+                    url: url.clone(),
+                    status: 0,
+                })?;
             if !resp.status().is_success() {
                 return Err(BasemapError::TileFetchFailed {
                     url: url.clone(),
                     status: resp.status().as_u16(),
                 });
             }
-            let bytes = resp.bytes().await.map_err(|_| BasemapError::TileFetchFailed {
-                url: url.clone(),
-                status: 0,
-            })?;
+            let bytes = resp
+                .bytes()
+                .await
+                .map_err(|_| BasemapError::TileFetchFailed {
+                    url: url.clone(),
+                    status: 0,
+                })?;
             Ok((coord, bytes.to_vec()))
         });
     }

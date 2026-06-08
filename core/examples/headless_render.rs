@@ -40,7 +40,7 @@ fn main() {
         bbox: [parts[0], parts[1], parts[2], parts[3]],
         width: args.width,
         height: args.height,
-        style_input: StyleInput::from_str(&args.style),
+        style_input: StyleInput::detect(&args.style),
         zoom: None,
         tile_timeout_ms: 10_000,
         max_tiles: 256,

@@ -1,6 +1,6 @@
 use crate::error::BasemapError;
 use crate::tile_fetcher::{TileCoord, TileData};
-use image::{RgbaImage};
+use image::RgbaImage;
 use std::collections::HashMap;
 
 pub struct WgpuContext {
@@ -39,7 +39,11 @@ pub async fn initialize_wgpu_headless() -> Result<WgpuContext, BasemapError> {
 pub fn create_render_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
     device.create_texture(&wgpu::TextureDescriptor {
         label: Some("basemapper_output"),
-        size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
@@ -85,7 +89,11 @@ pub fn read_texture_to_vec(
                 rows_per_image: Some(height),
             },
         },
-        wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
     );
     queue.submit([encoder.finish()]);
 

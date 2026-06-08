@@ -32,14 +32,18 @@ impl RenderRequest {
             )));
         }
         if !xmin.is_finite() || !ymin.is_finite() || !xmax.is_finite() || !ymax.is_finite() {
-            return Err(BasemapError::InvalidBbox("bbox contains non-finite values".into()));
+            return Err(BasemapError::InvalidBbox(
+                "bbox contains non-finite values".into(),
+            ));
         }
         if self.width == 0 || self.height == 0 || self.width > 16_384 || self.height > 16_384 {
             return Err(BasemapError::InvalidDimensions(self.width, self.height));
         }
         if let Some(z) = self.zoom {
             if z > 22 {
-                return Err(BasemapError::InvalidBbox(format!("zoom {z} out of range 0–22")));
+                return Err(BasemapError::InvalidBbox(format!(
+                    "zoom {z} out of range 0–22"
+                )));
             }
         }
         if let Some(ref layers) = self.layers {
@@ -78,7 +82,7 @@ pub fn compute_zoom(bbox: [f64; 4], width_px: u32) -> u8 {
 pub fn tile_count(bbox: [f64; 4], zoom: u8) -> u32 {
     let (x0, y0) = mercator_to_tile(bbox[0], bbox[3], zoom);
     let (x1, y1) = mercator_to_tile(bbox[2], bbox[1], zoom);
-    ((x1 - x0 + 1) * (y1 - y0 + 1)) as u32
+    (x1 - x0 + 1) * (y1 - y0 + 1)
 }
 
 /// Convert Web Mercator metres to slippy-map tile coordinates.

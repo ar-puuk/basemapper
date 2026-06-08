@@ -1,3 +1,5 @@
+// PyO3's #[pyfunction] macro generates From<PyErr>→PyErr conversions internally.
+#![allow(clippy::useless_conversion)]
 use basemapper_core::{render, BasemapError, RenderRequest, StyleInput};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
@@ -27,6 +29,7 @@ fn core_err_to_py(e: BasemapError) -> PyErr {
 ///     BasemapError: On any rendering or network failure.
 #[pyfunction]
 #[pyo3(signature = (bbox_3857, width, height, style_input, zoom=None, tile_timeout_ms=10_000, max_tiles=256, layers=None))]
+#[allow(clippy::too_many_arguments, clippy::useless_conversion)]
 fn render_basemap_raw(
     py: Python<'_>,
     bbox_3857: Vec<f64>,
@@ -39,13 +42,15 @@ fn render_basemap_raw(
     layers: Option<Vec<String>>,
 ) -> PyResult<Py<PyBytes>> {
     if bbox_3857.len() != 4 {
-        return Err(PyRuntimeError::new_err("bbox_3857 must have exactly 4 elements"));
+        return Err(PyRuntimeError::new_err(
+            "bbox_3857 must have exactly 4 elements",
+        ));
     }
     let request = RenderRequest {
         bbox: [bbox_3857[0], bbox_3857[1], bbox_3857[2], bbox_3857[3]],
         width,
         height,
-        style_input: StyleInput::from_str(style_input),
+        style_input: StyleInput::detect(style_input),
         zoom,
         tile_timeout_ms,
         max_tiles,
@@ -53,8 +58,10 @@ fn render_basemap_raw(
         layers,
     };
 
-    let result = py.allow_threads(|| render(request)).map_err(core_err_to_py)?;
-    Ok(PyBytes::new_bound(py, &result.pixels).into())
+    // map_err then map avoids a ?-desugared From<PyErr>→PyErr that clippy flags.
+    py.allow_threads(|| render(request))
+        .map_err(core_err_to_py)
+        .map(|result| PyBytes::new_bound(py, &result.pixels).unbind())
 }
 
 #[pymodule]
