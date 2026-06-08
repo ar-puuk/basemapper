@@ -169,7 +169,7 @@ a paint dict produces visibly styled layers; all unit tests pass.
 - [X] T035 [P] Ensure every exported R function (geom_basemap, render_basemap_raw, tm_basemap, raster_provider, vector_provider, esri_vector_provider, esri_raster_provider, list_layers) has complete roxygen2 tags (@title, @param, @return, @examples, @export) in its .R source file; run rextendr::document() to regenerate r-basemapper/NAMESPACE and r-basemapper/man/*.Rd files; verify `R CMD check r-basemapper` exits with 0 errors and 0 warnings
 - [X] T036 Run `cargo clippy --workspace -- -D warnings` and resolve all lint violations; run `cargo fmt --all` for consistent formatting across all Rust source files
 - [X] T043 [P] Configure and generate Python API reference documentation with great-docs: add great-docs configuration to py-basemapper/pyproject.toml; ensure all public Python symbols (add_basemap, render_basemap_raw, list_layers, geom_basemap [plotnine], RasterProvider, VectorProvider, EsriVectorProvider, EsriRasterProvider) have complete Google-style docstrings (Args, Returns, Raises sections); run great-docs to verify docs build without errors
-- [ ] T037 Execute all 8 quickstart.md validation scenarios end-to-end on a clean checkout (no pre-built binaries); document any environment-specific setup steps discovered (e.g., Mesa install on headless Linux) in r-basemapper/README.md and py-basemapper/README.md
+- [X] T037 Execute all 8 quickstart.md validation scenarios end-to-end on a clean checkout (no pre-built binaries); document any environment-specific setup steps discovered (e.g., Mesa install on headless Linux) in r-basemapper/README.md and py-basemapper/README.md
 
 ---
 
