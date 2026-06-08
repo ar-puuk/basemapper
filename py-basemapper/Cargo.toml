@@ -9,9 +9,5 @@ crate-type = ["cdylib"]
 
 [dependencies]
 basemapper-core = { path = "../core" }
-pyo3            = { version = "0.22", features = ["extension-module"] }
+pyo3            = { version = "0.22", features = ["extension-module", "abi3-py39"] }
 tokio           = { workspace = true }
-
-[dependencies.pyo3]
-version  = "0.22"
-features = ["extension-module", "abi3-py39"]

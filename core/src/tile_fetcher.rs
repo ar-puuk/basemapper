@@ -1,4 +1,4 @@
-use crate::bbox::{mercator_to_tile, SpatialBounds};
+use crate::bbox::mercator_to_tile;
 use crate::error::BasemapError;
 use std::time::Duration;
 use tokio::task::JoinSet;

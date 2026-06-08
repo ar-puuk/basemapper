@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-maplibre    = { version = "0.3", features = [] }
 wgpu        = { version = "0.20", features = ["wgsl"] }
 tokio       = { workspace = true }
 reqwest     = { workspace = true }

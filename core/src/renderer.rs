@@ -1,7 +1,6 @@
-use crate::bbox::{RenderResult, SpatialBounds, TileCoord};
 use crate::error::BasemapError;
-use crate::tile_fetcher::TileData;
-use image::{DynamicImage, GenericImage, GenericImageView, RgbaImage};
+use crate::tile_fetcher::{TileCoord, TileData};
+use image::{RgbaImage};
 use std::collections::HashMap;
 
 pub struct WgpuContext {
@@ -136,8 +135,8 @@ pub fn composite_raster_tiles(
     let (tx0, ty0) = mercator_to_tile(bbox[0], bbox[3], zoom);
     let half_circ = 20_037_508.342789244_f64;
     let tile_size_m = (2.0 * half_circ) / 2u64.pow(zoom as u32) as f64;
-    let canvas_xmin = tx0 as f64 * tile_size_m - half_circ;
-    let canvas_ymax = half_circ - ty0 as f64 * tile_size_m;
+    let _canvas_xmin = tx0 as f64 * tile_size_m - half_circ;
+    let _canvas_ymax = half_circ - ty0 as f64 * tile_size_m;
     let scale_x = width as f64 / (bbox[2] - bbox[0]);
     let scale_y = height as f64 / (bbox[3] - bbox[1]);
     let tile_px_w = (tile_size_m * scale_x).round() as u32;
@@ -152,8 +151,8 @@ pub fn composite_raster_tiles(
         let img = image::load_from_memory(data)
             .map_err(|e| BasemapError::TileDecodeError(e.to_string()))?
             .to_rgba8();
-        let tile_orig_w = img.width();
-        let tile_orig_h = img.height();
+        let _tile_orig_w = img.width();
+        let _tile_orig_h = img.height();
         let resized = image::imageops::resize(
             &img,
             tile_px_w,

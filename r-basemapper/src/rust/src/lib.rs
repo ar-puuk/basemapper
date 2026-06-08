@@ -1,4 +1,4 @@
-use basemapper_core::{render, BasemapError, RenderRequest, StyleInput};
+use basemapper_core::{render, RenderRequest, StyleInput};
 use extendr_api::prelude::*;
 use once_cell::sync::Lazy;
 use tokio::runtime::Runtime;

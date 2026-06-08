@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
+name       = "r_basemapper"
 crate-type = ["cdylib"]
+path       = "src/rust/src/lib.rs"
 
 [dependencies]
 basemapper-core = { path = "../core" }

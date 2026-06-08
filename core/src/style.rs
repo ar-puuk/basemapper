@@ -21,7 +21,7 @@ impl StyleInput {
         match self {
             StyleInput::InlineJson(json) => Ok(json.clone()),
             StyleInput::Url(url) => {
-                let resp = client.get(url).send().await.map_err(|e| {
+                let resp = client.get(url).send().await.map_err(|_e| {
                     BasemapError::StyleFetchFailed { url: url.clone(), status: 0 }
                 })?;
                 if !resp.status().is_success() {
