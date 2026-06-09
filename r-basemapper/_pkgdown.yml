@@ -16,7 +16,7 @@ template:
       google: "JetBrains Mono"
 
 home:
-  title: basemapper (R)
+  title: R
   description: >
     Headless spatial basemap renderer for R.
     Fetches and composites styled map tiles into RGBA arrays,

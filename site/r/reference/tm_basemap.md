@@ -61,12 +61,9 @@ A composable tmap element: `tmap::tm_shape(stars_obj) + tmap::tm_rgb()`.
 
 ## tmap v4 note
 
-H1: If [`tm_rgb()`](https://r-tmap.github.io/tmap/reference/tm_rgb.html)
-applies an unwanted colour palette (rare with RGBA stars objects), fall
-back to
-[`tm_raster()`](https://r-tmap.github.io/tmap/reference/tm_raster.html)
-with explicit band selection. Prefer
-[`tm_rgb()`](https://r-tmap.github.io/tmap/reference/tm_rgb.html) first.
+H1: If `tm_rgb()` applies an unwanted colour palette (rare with RGBA
+stars objects), fall back to `tm_raster()` with explicit band selection.
+Prefer `tm_rgb()` first.
 
 ## Examples
 

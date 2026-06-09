@@ -95,9 +95,7 @@ tm_shape(nc) +
   tm_sf(fill = NA, col = "steelblue")
 ```
 
-Supply an explicit bbox when rendering outside a
-[`tm_shape()`](https://r-tmap.github.io/tmap/reference/tm_shape.html)
-pipeline:
+Supply an explicit bbox when rendering outside a `tm_shape()` pipeline:
 
 ``` r
 
