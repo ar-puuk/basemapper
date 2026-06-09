@@ -24,7 +24,6 @@ great-docs/
 .Ruserdata
 *.Rproj
 r-basemapper/src/rust/target/
-r-basemapper/target/
 r-basemapper/src/*.dll
 r-basemapper/src/*.so
 

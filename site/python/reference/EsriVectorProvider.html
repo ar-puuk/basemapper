@@ -291,7 +291,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul class="collapse">
   <li><a href="#parameters" id="toc-parameters" class="nav-link active" data-scroll-target="#parameters">Parameters</a></li>
-  <li><a href="#returns" id="toc-returns" class="nav-link" data-scroll-target="#returns">Returns</a></li>
   </ul>
 </nav>
     </div>
@@ -327,7 +326,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="sig-name">EsriVectorProvider</span>()</span></code></pre></div>
 </div>
 <div class="doc-text">
-<p>The Rust core fetches this URL to obtain the full, ESRI-published MapLibre GL style JSON.</p>
+<p>The Rust core fetches this URL to obtain the full, ESRI-published MapLibre GL style JSON. Cast to <code>str</code> to get the URL string (not inline JSON).</p>
 </div>
 <section id="parameters" class="level2 doc-parameters">
 <h2 class="doc-parameters">Parameters</h2>
@@ -336,17 +335,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dt><code><span class="doc-parameter-name">base_url</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">str</span></code></dt>
 <dd>
 Base ArcGIS VectorTileServer URL (trailing slashes stripped).
-</dd>
-</dl>
-</div>
-</section>
-<section id="returns" class="level2 doc-returns">
-<h2 class="doc-returns">Returns</h2>
-<div class="doc-definition-items">
-<dl>
-<dt><code></code></dt>
-<dd>
-A URL string (not inline JSON) when cast to <code>str</code>.
 </dd>
 </dl>
 </div>

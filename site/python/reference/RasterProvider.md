@@ -12,6 +12,9 @@ RasterProvider()
 ```
 
 
+Cast to `str` to obtain the inline MapLibre GL Style JSON.
+
+
 ## Parameters
 
 
@@ -20,12 +23,6 @@ Slippy-map tile URL with `{z}`, `{x}`, `{y}` placeholders.
 
 `tile_size: int = ``256`  
 Tile size in pixels (default 256).
-
-
-## Returns
-
-
-Inline MapLibre GL Style JSON when cast to `str`.
 
 
 ## Methods

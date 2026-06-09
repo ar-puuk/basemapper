@@ -51,7 +51,7 @@
     "href": "reference/EsriVectorProvider.html",
     "title": "EsriVectorProvider",
     "section": "",
-    "text": "Return the root.json style endpoint URL for an ArcGIS VectorTileServer.\n\n\nUsage\n\n\nEsriVectorProvider()\n\n\nThe Rust core fetches this URL to obtain the full, ESRI-published MapLibre GL style JSON.\n\n\nParameters\n\n\nbase_url: str\n\nBase ArcGIS VectorTileServer URL (trailing slashes stripped).\n\n\n\n\n\nReturns\n\n\n\n\nA URL string (not inline JSON) when cast to str.",
+    "text": "Return the root.json style endpoint URL for an ArcGIS VectorTileServer.\n\n\nUsage\n\n\nEsriVectorProvider()\n\n\nThe Rust core fetches this URL to obtain the full, ESRI-published MapLibre GL style JSON. Cast to str to get the URL string (not inline JSON).\n\n\nParameters\n\n\nbase_url: str\n\nBase ArcGIS VectorTileServer URL (trailing slashes stripped).",
     "crumbs": [
       "Reference",
       "Tile style helpers",

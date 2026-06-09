@@ -12,7 +12,7 @@ EsriVectorProvider()
 ```
 
 
-The Rust core fetches this URL to obtain the full, ESRI-published MapLibre GL style JSON.
+The Rust core fetches this URL to obtain the full, ESRI-published MapLibre GL style JSON. Cast to `str` to get the URL string (not inline JSON).
 
 
 ## Parameters
@@ -20,9 +20,3 @@ The Rust core fetches this URL to obtain the full, ESRI-published MapLibre GL st
 
 `base_url: str`  
 Base ArcGIS VectorTileServer URL (trailing slashes stripped).
-
-
-## Returns
-
-
-A URL string (not inline JSON) when cast to `str`.

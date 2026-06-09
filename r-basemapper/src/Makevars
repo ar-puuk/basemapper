@@ -8,9 +8,10 @@
 TARGET_ARCH = $(shell rustc -vV 2>/dev/null | grep '^host:' | sed 's/host: //')
 
 CARGO_MANIFEST = $(CURDIR)/../Cargo.toml
-CARGO_TARGET   = $(CURDIR)/../target
 
-LIBDIR  = $(CARGO_TARGET)/$(TARGET_ARCH)/release
+# Use the workspace target dir so build-script binaries land in the same
+# trusted location used by direct `cargo build` invocations.
+LIBDIR  = $(CURDIR)/../../target/$(TARGET_ARCH)/release
 STATLIB = $(LIBDIR)/libr_basemapper.a
 
 PKG_LIBS = -L$(LIBDIR) -lr_basemapper
@@ -24,8 +25,7 @@ $(SHLIB): $(STATLIB)
 $(STATLIB):
 	cargo build --release \
 	  --target=$(TARGET_ARCH) \
-	  --manifest-path="$(CARGO_MANIFEST)" \
-	  --target-dir="$(CARGO_TARGET)"
+	  --manifest-path="$(CARGO_MANIFEST)"
 
 clean:
-	rm -Rf $(CARGO_TARGET)
+	rm -Rf $(STATLIB)
