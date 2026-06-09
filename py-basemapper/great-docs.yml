@@ -61,7 +61,7 @@ include_in_header:
           if(!tools||document.getElementById('r-docs-nav-link'))return;
           var a=document.createElement('a');
           a.id='r-docs-nav-link';
-          a.href='https://ar-puuk.github.io/basemapper/r/';
+          a.href='../r/';
           a.textContent='R docs';
           tools.parentNode.appendChild(a);
         }

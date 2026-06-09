@@ -1,39 +1,29 @@
 {
-  "build_time": "2026-06-09T20:17:48Z",
-  "total_seconds": 8.813,
+  "build_time": "2026-06-09T20:20:35Z",
+  "total_seconds": 7.859,
   "pages": [
     {
       "page": "reference\\VectorProvider.qmd",
-      "seconds": 3.016,
+      "seconds": 2.969,
       "frozen": false
     },
     {
       "page": "index.qmd",
-      "seconds": 2.438,
-      "frozen": false
-    },
-    {
-      "page": "reference\\list_layers.qmd",
-      "seconds": 0.406,
+      "seconds": 1.562,
       "frozen": false
     },
     {
       "page": "reference\\add_basemap.qmd",
-      "seconds": 0.375,
+      "seconds": 0.391,
       "frozen": false
     },
     {
-      "page": "reference\\EsriRasterProvider.qmd",
-      "seconds": 0.375,
+      "page": "reference\\geom_basemap.qmd",
+      "seconds": 0.391,
       "frozen": false
     },
     {
       "page": "reference\\EsriVectorProvider.qmd",
-      "seconds": 0.375,
-      "frozen": false
-    },
-    {
-      "page": "reference\\index.qmd",
       "seconds": 0.375,
       "frozen": false
     },
@@ -43,8 +33,8 @@
       "frozen": false
     },
     {
-      "page": "reference\\geom_basemap.qmd",
-      "seconds": 0.36,
+      "page": "reference\\render_basemap_raw.qmd",
+      "seconds": 0.375,
       "frozen": false
     },
     {
@@ -53,8 +43,18 @@
       "frozen": false
     },
     {
-      "page": "reference\\render_basemap_raw.qmd",
+      "page": "reference\\index.qmd",
       "seconds": 0.359,
+      "frozen": false
+    },
+    {
+      "page": "reference\\list_layers.qmd",
+      "seconds": 0.359,
+      "frozen": false
+    },
+    {
+      "page": "reference\\EsriRasterProvider.qmd",
+      "seconds": 0.344,
       "frozen": false
     }
   ]
