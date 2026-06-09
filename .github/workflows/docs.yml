@@ -10,7 +10,6 @@ permissions:
   pages: write
   id-token: write
 
-# Only one deployment at a time; cancel in-flight runs on new pushes.
 concurrency:
   group: pages
   cancel-in-progress: true
@@ -19,6 +18,10 @@ jobs:
   # ── R docs via pkgdown ──────────────────────────────────────────────────────
   build-r-docs:
     runs-on: ubuntu-latest
+    # Prevent renv from auto-activating and hijacking the library path,
+    # which causes pak to lose itself in its own subprocess.
+    env:
+      RENV_CONFIG_AUTOLOAD_ENABLED: "FALSE"
     steps:
       - uses: actions/checkout@v4
 
@@ -27,26 +30,25 @@ jobs:
           r-version: "release"
           use-public-rspm: true
 
-      - uses: r-lib/actions/setup-r-dependencies@v2
-        with:
-          extra-packages: |
-            any::roxygen2
-            any::pkgdown
-            any::ggplot2
-            any::sf
-            any::jsonlite
-            any::tmap
-            any::stars
-          working-directory: r-basemapper
+      - name: Install R dependencies
+        shell: Rscript {0}
+        run: |
+          options(repos = c(CRAN = "https://packagemanager.posit.co/cran/__linux__/jammy/latest"))
+          install.packages(c(
+            "roxygen2", "pkgdown",
+            "ggplot2", "sf", "jsonlite",
+            "tmap", "stars",
+            "knitr", "rmarkdown"
+          ))
 
       - name: Build pkgdown site
         run: |
           Rscript -e "roxygen2::roxygenize('r-basemapper')"
           Rscript -e "
             pkgdown::build_site(
-              pkg      = 'r-basemapper',
-              dest_dir = '../site/r',
-              preview  = FALSE,
+              pkg         = 'r-basemapper',
+              dest_dir    = '../site/r',
+              preview     = FALSE,
               new_process = FALSE
             )
           "
@@ -75,12 +77,14 @@ jobs:
       - name: Build great-docs site
         working-directory: py-basemapper
         run: great-docs build
-        # Output goes to py-basemapper/_site/ per [tool.great-docs] output = "_site"
+        # great-docs outputs to py-basemapper/great-docs/ by default.
+        # The output directory is configured via great-docs.yml (site_url)
+        # and is intentionally excluded from git via .gitignore.
 
       - uses: actions/upload-artifact@v4
         with:
           name: python-docs
-          path: py-basemapper/_site/
+          path: py-basemapper/great-docs/
 
   # ── Assemble, inject banners, deploy ───────────────────────────────────────
   deploy:
@@ -113,7 +117,8 @@ jobs:
       - name: Inject language banners
         run: python scripts/inject-lang-banner.py site/
 
-      # Optional: uncomment and set CUSTOM_DOMAIN secret to enable a custom domain.
+      # To enable a custom domain: add a repository variable named CUSTOM_DOMAIN
+      # (Settings → Secrets and variables → Variables) and uncomment below.
       # - name: Write CNAME
       #   if: ${{ vars.CUSTOM_DOMAIN != '' }}
       #   run: echo "${{ vars.CUSTOM_DOMAIN }}" > site/CNAME

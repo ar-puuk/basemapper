@@ -30,14 +30,9 @@ python-packages = ["basemapper"]
 python-source   = "src"
 features        = ["pyo3/extension-module"]
 
+# great-docs is configured via py-basemapper/great-docs.yml (CLI config file).
+# The [tool.great-docs] section is retained only as a reference; the CLI
+# reads great-docs.yml and ignores this table.
 [tool.great-docs]
 source  = "src/basemapper"
-output  = "_site"
 style   = "google"
-modules = [
-    "basemapper.matplotlib_integration",
-    "basemapper.plotnine_integration",
-    "basemapper.layer_utils",
-    "basemapper.providers",
-    "basemapper.exceptions",
-]
