@@ -9,10 +9,11 @@
   --bs-navbar-toggler-border-color: rgba(255, 251, 242, 0.2);
 }
 
-/* Python docs full-height block in the navbar */
+/* Python docs rounded-rect block in the navbar */
 .navbar .nav-item:has(a[href="../python/"]) {
   display: flex;
   align-items: stretch;
+  margin-left: 14px;
 }
 .navbar a[href="../python/"] {
   background-color: #007EA7;
@@ -21,8 +22,8 @@
   align-items: center;
   padding: 0 16px !important;
   font-weight: 600;
-  font-size: 0.875rem;
-  border-radius: 0;
+  font-size: 0.95rem;
+  border-radius: 6px;
   margin: 0;
   transition: background-color 0.15s ease;
 }
