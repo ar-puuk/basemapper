@@ -145,6 +145,33 @@ render_basemap_raw(..., layers=["-poi"])
 
 ---
 
+## Updating the documentation
+
+The documentation site is pre-built locally and committed to `site/`.
+CI deploys whatever is in that directory on every push to `main` that touches `site/**`.
+
+**Prerequisites** (one-time):
+- R 4.x with packages: `roxygen2`, `pkgdown`, `ggplot2`, `sf`, `jsonlite`, `tmap`, `stars`, `knitr`, `rmarkdown` — the build script installs any that are missing automatically
+- Rust toolchain + RTools45 (required by `roxygen2::roxygenize()` to compile the R package)
+- Python with `basemapper[dev]` installed (`pip install -e ".[dev]"` from `py-basemapper/`)
+- `great-docs` CLI on PATH (installed by the above pip command)
+
+```powershell
+# Add R and great-docs to PATH if not already present
+$env:PATH = "C:\Program Files\R\R-4.6.0\bin;$env:PATH"
+# (great-docs is typically at %APPDATA%\Python\PythonXXX\Scripts\)
+
+# Build and assemble site/
+.\scripts\build-docs.ps1
+
+# Commit and push to trigger deployment
+git add site/
+git commit -m "docs: rebuild site"
+git push
+```
+
+---
+
 ## Developer setup (Windows — R package only)
 
 The R package ships a pre-compiled `basemapper.dll`, so end users need only
