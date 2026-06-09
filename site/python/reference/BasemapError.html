@@ -106,20 +106,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     "search-label": "Search"
   }
 }</script>
-<style>
-.bm-banner{text-align:center;padding:9px 20px;font-size:.95rem;border-bottom:2px solid rgba(0,0,0,.10);line-height:1.9;font-weight:500;letter-spacing:.01em;}
-.bm-banner-py{background:#FFF3E8;color:#2D1A00;}
-.bm-banner-py a{font-weight:700;text-decoration:underline;color:#D96E34;}
-</style>
 <script>
-document.addEventListener('DOMContentLoaded',function(){
-  var b=document.createElement('div');
-  b.className='bm-banner bm-banner-py';
-  b.innerHTML='Python documentation — <a href="https://ar-puuk.github.io/basemapper/r/">Switch to R docs<\/a>';
-  var nav=document.querySelector('nav.navbar');
-  if(nav&&nav.parentNode){nav.parentNode.insertBefore(b,nav.nextSibling);}
-  else{document.body.insertBefore(b,document.body.firstChild);}
-});
+(function(){
+  function addLink(){
+    var tools=document.querySelector('.quarto-navbar-tools');
+    if(!tools||document.getElementById('r-docs-nav-link'))return;
+    var a=document.createElement('a');
+    a.id='r-docs-nav-link';
+    a.href='https://ar-puuk.github.io/basemapper/r/';
+    a.className='nav-link';
+    a.textContent='R docs';
+    tools.appendChild(a);
+  }
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',addLink);}
+  else{addLink();}
+})();
 </script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script>document.head.appendChild(Object.assign(document.createElement('link'),{rel:'stylesheet',href:(document.querySelector('meta[name="quarto:offset"]')||{content:''}).content+'termshow.css'}));</script>
