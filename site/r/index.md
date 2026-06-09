@@ -7,17 +7,45 @@ through native integrations with ggplot2, tmap v4, and sf.
 
 ## Installation
 
-Install from GitHub with:
+### Prerequisites
+
+The package compiles a Rust extension during installation. Install the
+dependencies for your platform before proceeding.
+
+#### Windows
+
+``` powershell
+# 1. RTools45 (compiler toolchain required by R on Windows)
+winget install RProject.Rtools
+
+# 2. Rust toolchain manager
+winget install Rustlang.Rustup
+```
+
+After installation, **open a new terminal** so both tools are on your
+`PATH`, then add the Windows GNU target that RTools45 uses:
+
+``` powershell
+rustup target add x86_64-pc-windows-gnu
+```
+
+#### macOS / Linux
+
+``` bash
+# Rust toolchain manager (installs rustc and cargo)
+curl https://sh.rustup.rs -sSf | sh
+```
+
+macOS users also need the Xcode Command Line Tools
+(`xcode-select --install`) if not already present.
+
+### Install the package
 
 ``` r
 
 # install.packages("remotes")
 remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
 ```
-
-> **Requirements:** [Rust](https://rustup.rs) and
-> [RTools45](https://cran.r-project.org/bin/windows/Rtools/) (Windows
-> only) must be installed before running `install_github()`.
 
 ## Get started
 
