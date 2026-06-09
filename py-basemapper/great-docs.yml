@@ -17,22 +17,22 @@ navbar_color: "#0E171E"
 skill:
   enabled: false
 
-mcp:
-  enabled: false
-
 include_in_header:
   - text: |
       <script>
       (function(){
         function addLink(){
-          var tools=document.querySelector('.quarto-navbar-tools');
-          if(!tools||document.getElementById('r-docs-nav-link'))return;
+          var nav=document.querySelector('.navbar-nav');
+          if(!nav||document.getElementById('r-docs-nav-link'))return;
+          var li=document.createElement('li');
+          li.className='nav-item';
           var a=document.createElement('a');
           a.id='r-docs-nav-link';
           a.href='https://ar-puuk.github.io/basemapper/r/';
           a.className='nav-link';
           a.textContent='R docs';
-          tools.appendChild(a);
+          li.appendChild(a);
+          nav.appendChild(li);
         }
         if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',addLink);}
         else{addLink();}

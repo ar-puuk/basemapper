@@ -24,7 +24,7 @@ home:
 navbar:
   structure:
     left:  [intro, reference, articles]
-    right: [python_docs, github]
+    right: [python_docs, search, lightswitch, github]
   components:
     intro:
       text: Get started

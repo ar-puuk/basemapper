@@ -1,5 +1,6 @@
-/* Ensure legible text on the dark (#0E171E) navbar */
+/* Dark navbar: override pkgdown's hardcoded bg-light class */
 .navbar {
+  background-color: #0E171E !important;
   --bs-navbar-color: rgba(255, 251, 242, 0.85);
   --bs-navbar-hover-color: #007EA7;
   --bs-navbar-active-color: #D96E34;
