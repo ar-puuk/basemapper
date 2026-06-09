@@ -48,13 +48,13 @@ to inspect a style before rendering:
 list_layers(osm_style)
 ```
 
-## Step 2 — Render with ggplot2
+## Step 2 — Render with [ggplot2](https://ggplot2.tidyverse.org/)
 
 [`geom_basemap()`](https://ar-puuk.github.io/basemapper/r/reference/geom_basemap.md)
 is a lazy ggproto layer: it defers tile fetching until
-[`coord_sf()`](https://ggplot2.tidyverse.org/reference/ggsf.html) has
-established the panel’s geographic extent, so you never have to compute
-a bounding box manually.
+[`coord_sf()`](https://ggplot2.tidyverse.org/reference/coord_sf.html)
+has established the panel’s geographic extent, so you never have to
+compute a bounding box manually.
 
 ``` r
 
@@ -80,11 +80,12 @@ Key parameters shared across all high-level functions:
 | `tile_timeout_ms` | `10000`       | Per-tile HTTP timeout           |
 | `max_tiles`       | `256`         | Cap on tiles fetched per render |
 
-## Step 3 — Render with tmap
+## Step 3 — Render with [tmap](https://r-tmap.github.io/tmap/)
 
 [`tm_basemap()`](https://ar-puuk.github.io/basemapper/r/reference/tm_basemap.md)
-returns a composable tmap v4 element. It derives the map extent from the
-pipeline’s primary shape when `bbox = NULL`:
+returns a composable [tmap](https://r-tmap.github.io/tmap/) v4 element.
+It derives the map extent from the pipeline’s primary shape when
+`bbox = NULL`:
 
 ``` r
 

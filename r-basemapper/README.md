@@ -9,7 +9,7 @@
 **basemapper** is a headless spatial basemap renderer for R. It fetches and
 composites styled map tiles (raster or MapLibre GL vector styles) into
 georeferenced RGBA arrays using a Rust core, and exposes the result through
-native integrations with ggplot2, tmap v4, and sf.
+native integrations with [ggplot2](https://ggplot2.tidyverse.org/), [tmap](https://r-tmap.github.io/tmap/) v4, and [sf](https://r-spatial.github.io/sf/).
 
 ## Installation
 
@@ -55,7 +55,7 @@ remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
 ## Get started
 
 See the [Getting Started vignette](articles/getting-started.html) for a
-walkthrough of rendering basemaps with ggplot2, tmap, and raw RGBA output.
+walkthrough of rendering basemaps with [ggplot2](https://ggplot2.tidyverse.org/), [tmap](https://r-tmap.github.io/tmap/), and raw RGBA output.
 
 ## Related
 
