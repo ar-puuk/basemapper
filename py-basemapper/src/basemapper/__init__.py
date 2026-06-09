@@ -5,8 +5,8 @@ from .matplotlib_integration import add_basemap
 from .layer_utils import list_layers
 from .providers import EsriRasterProvider, EsriVectorProvider, RasterProvider, VectorProvider
 
-# Core Rust FFI binding (compiled by maturin).
-from ._basemapper import render_basemap_raw  # noqa: E402  (compiled extension)
+# Core Rust FFI binding — thin Python wrapper so doc tools can do static analysis.
+from ._render import render_basemap_raw
 
 # plotnine integration is optional — base package usable without plotnine installed.
 try:

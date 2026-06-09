@@ -43,7 +43,6 @@ jobs:
 
       - name: Build pkgdown site
         run: |
-          Rscript -e "roxygen2::roxygenize('r-basemapper')"
           Rscript -e "
             pkgdown::build_site(
               pkg         = 'r-basemapper',
@@ -52,6 +51,9 @@ jobs:
               new_process = FALSE
             )
           "
+        # roxygen2::roxygenize() is intentionally omitted: it tries to compile
+        # the Rust extension (R CMD INSTALL), which fails without a Rust toolchain.
+        # Man pages are pre-generated and committed; pkgdown reads them directly.
 
       - uses: actions/upload-artifact@v4
         with:
