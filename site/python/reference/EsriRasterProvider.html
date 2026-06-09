@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>EsriRasterProvider – basemapper (python) | basemapper (python)</title>
+<title>EsriRasterProvider – python | python</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -116,21 +116,35 @@ code, pre, tt, kbd { font-family: 'JetBrains Mono', monospace !important; }
 pre, :not(pre) > code { background-color: #E8F4F8 !important; }
 a:not(.navbar-brand):not(.nav-link):not(.btn) { color: #007EA7; }
 a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
+#r-docs-nav-link {
+  align-self: stretch;
+  display: flex !important;
+  align-items: center;
+  padding: 0 16px !important;
+  margin-right: 8px;
+  background-color: #007EA7;
+  color: #fff !important;
+  text-decoration: none !important;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+}
+#r-docs-nav-link:hover {
+  background-color: #D96E34 !important;
+  color: #fff !important;
+}
 </style>
 <script>
 (function(){
   function addLink(){
-    var nav=document.querySelector('.navbar-nav');
-    if(!nav||document.getElementById('r-docs-nav-link'))return;
-    var li=document.createElement('li');
-    li.className='nav-item';
+    var tools=document.querySelector('.quarto-navbar-tools');
+    if(!tools||document.getElementById('r-docs-nav-link'))return;
     var a=document.createElement('a');
     a.id='r-docs-nav-link';
     a.href='https://ar-puuk.github.io/basemapper/r/';
-    a.className='nav-link';
     a.textContent='R docs';
-    li.appendChild(a);
-    nav.appendChild(li);
+    tools.parentNode.insertBefore(a,tools);
   }
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',addLink);}
   else{addLink();}
@@ -145,11 +159,11 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
 
   <meta name="description" content="Generate a MapLibre GL Style JSON string for an ArcGIS MapServer raster source.">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="EsriRasterProvider – basemapper (python) | basemapper (python)">
+  <meta property="og:title" content="EsriRasterProvider – python | python">
   <meta property="og:description" content="Generate a MapLibre GL Style JSON string for an ArcGIS MapServer raster source.">
-  <meta property="og:site_name" content="basemapper (python)">
+  <meta property="og:site_name" content="python">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="EsriRasterProvider – basemapper (python) | basemapper (python)">
+  <meta name="twitter:title" content="EsriRasterProvider – python | python">
   <meta name="twitter:description" content="Generate a MapLibre GL Style JSON string for an ArcGIS MapServer raster source.">
 </head>
 
@@ -161,8 +175,8 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="../index.html" class="navbar-brand navbar-brand-logo">
-    <img src="../logo.svg" alt="basemapper (python)" class="navbar-logo light-content">
-    <img src="../logo.svg" alt="basemapper (python)" class="navbar-logo dark-content">
+    <img src="../logo.svg" alt="python" class="navbar-logo light-content">
+    <img src="../logo.svg" alt="python" class="navbar-logo dark-content">
     </a>
   </div>
             <div id="quarto-search" class=""></div>

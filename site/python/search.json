@@ -75,14 +75,14 @@
     "href": "index.html",
     "title": "basemapper ",
     "section": "",
-    "text": "basemapper (python)\nHeadless spatial basemap renderer for Python"
+    "text": "python\nHeadless spatial basemap renderer for Python"
   },
   {
     "objectID": "index.html#installation",
     "href": "index.html#installation",
     "title": "basemapper ",
     "section": "Installation",
-    "text": "Installation\nInstall from PyPI with:\npip install basemapper\nOr install the development version directly from GitHub:\npip install \"git+https://github.com/ar-puuk/basemapper.git#subdirectory=py-basemapper\"\n\nRequirements: Rust must be installed to build from source. The PyPI wheel ships a pre-compiled extension."
+    "text": "Installation\n\nPrerequisites\nThe package compiles a Rust extension during installation. Install Rust for your platform before proceeding.\n\nWindows\nwinget install Rustlang.Rustup\nAfter installation, open a new terminal so rustup and cargo are on your PATH.\n\n\nmacOS\nbrew install rustup\nrustup-init\nOr without Homebrew:\ncurl https://sh.rustup.rs -sSf | sh\n\n\nLinux\ncurl https://sh.rustup.rs -sSf | sh\n\n\n\nInstall the package\nInstall the development version from GitHub:\npip install \"git+https://github.com/ar-puuk/basemapper.git#subdirectory=py-basemapper\"\n\nA PyPI release is planned once the package stabilises."
   },
   {
     "objectID": "index.html#get-started",

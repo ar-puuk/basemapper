@@ -5,22 +5,53 @@ composites styled map tiles (raster or MapLibre GL vector styles) into
 georeferenced RGBA arrays using a Rust core, and exposes the result through
 native integrations with matplotlib, plotnine, and NumPy.
 
+> **Also available for R** — same Rust core, extendr bindings.
+> [R documentation →](https://ar-puuk.github.io/basemapper/r/)
+
 ## Installation
 
-Install from PyPI with:
+### Prerequisites
 
-```bash
-pip install basemapper
+The package compiles a Rust extension during installation. Install Rust for
+your platform before proceeding.
+
+#### Windows
+
+```powershell
+winget install Rustlang.Rustup
 ```
 
-Or install the development version directly from GitHub:
+After installation, **open a new terminal** so `rustup` and `cargo` are on
+your `PATH`.
+
+#### macOS
+
+```bash
+brew install rustup
+rustup-init
+```
+
+Or without Homebrew:
+
+```bash
+curl https://sh.rustup.rs -sSf | sh
+```
+
+#### Linux
+
+```bash
+curl https://sh.rustup.rs -sSf | sh
+```
+
+### Install the package
+
+Install the development version from GitHub:
 
 ```bash
 pip install "git+https://github.com/ar-puuk/basemapper.git#subdirectory=py-basemapper"
 ```
 
-> **Requirements:** [Rust](https://rustup.rs) must be installed to build from
-> source. The PyPI wheel ships a pre-compiled extension.
+> A PyPI release is planned once the package stabilises.
 
 ## Get started
 

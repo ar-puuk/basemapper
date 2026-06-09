@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>basemapper (python) | basemapper (python)</title>
+<title>python | python</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -116,21 +116,35 @@ code, pre, tt, kbd { font-family: 'JetBrains Mono', monospace !important; }
 pre, :not(pre) > code { background-color: #E8F4F8 !important; }
 a:not(.navbar-brand):not(.nav-link):not(.btn) { color: #007EA7; }
 a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
+#r-docs-nav-link {
+  align-self: stretch;
+  display: flex !important;
+  align-items: center;
+  padding: 0 16px !important;
+  margin-right: 8px;
+  background-color: #007EA7;
+  color: #fff !important;
+  text-decoration: none !important;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+}
+#r-docs-nav-link:hover {
+  background-color: #D96E34 !important;
+  color: #fff !important;
+}
 </style>
 <script>
 (function(){
   function addLink(){
-    var nav=document.querySelector('.navbar-nav');
-    if(!nav||document.getElementById('r-docs-nav-link'))return;
-    var li=document.createElement('li');
-    li.className='nav-item';
+    var tools=document.querySelector('.quarto-navbar-tools');
+    if(!tools||document.getElementById('r-docs-nav-link'))return;
     var a=document.createElement('a');
     a.id='r-docs-nav-link';
     a.href='https://ar-puuk.github.io/basemapper/r/';
-    a.className='nav-link';
     a.textContent='R docs';
-    li.appendChild(a);
-    nav.appendChild(li);
+    tools.parentNode.insertBefore(a,tools);
   }
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',addLink);}
   else{addLink();}
@@ -148,7 +162,7 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
 {
   "@context": "https://schema.org",
   "@type": "SoftwareSourceCode",
-  "name": "basemapper (python)",
+  "name": "python",
   "description": "Headless spatial basemap renderer for Python",
   "license": "https://opensource.org/licenses/MIT",
   "programmingLanguage": {
@@ -158,11 +172,11 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
 }
 </script>
   <meta property="og:type" content="website">
-  <meta property="og:title" content="basemapper (python) | basemapper (python)">
+  <meta property="og:title" content="python | python">
   <meta property="og:description" content="Headless spatial basemap renderer for Python">
-  <meta property="og:site_name" content="basemapper (python)">
+  <meta property="og:site_name" content="python">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="basemapper (python) | basemapper (python)">
+  <meta name="twitter:title" content="python | python">
   <meta name="twitter:description" content="Headless spatial basemap renderer for Python">
 </head>
 
@@ -174,8 +188,8 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="./index.html" class="navbar-brand navbar-brand-logo">
-    <img src="./logo.svg" alt="basemapper (python)" class="navbar-logo light-content">
-    <img src="./logo.svg" alt="basemapper (python)" class="navbar-logo dark-content">
+    <img src="./logo.svg" alt="python" class="navbar-logo light-content">
+    <img src="./logo.svg" alt="python" class="navbar-logo dark-content">
     </a>
   </div>
             <div id="quarto-search" class=""></div>
@@ -217,7 +231,7 @@ section.level2:first-of-type > h2:first-child,
 </style>
 <div class="gd-hero">
 <img src="logo.svg" alt="Logo" class="gd-hero-logo" style="max-height:200px">
-<p class="gd-hero-name">basemapper (python)</p>
+<p class="gd-hero-name">python</p>
 <p class="gd-hero-tagline">Headless spatial basemap renderer for Python</p>
 </div>
 
@@ -238,15 +252,39 @@ section.level2:first-of-type > h2:first-child,
 </div></div><section id="basemapper" class="level1">
 <h1>basemapper <img src="logo.svg" align="right" height="139" alt=""></h1>
 <p><strong>basemapper</strong> is a headless spatial basemap renderer for Python. It fetches and composites styled map tiles (raster or MapLibre GL vector styles) into georeferenced RGBA arrays using a Rust core, and exposes the result through native integrations with matplotlib, plotnine, and NumPy.</p>
+<blockquote class="blockquote">
+<p><strong>Also available for R</strong> — same Rust core, extendr bindings. <a href="https://ar-puuk.github.io/basemapper/r/">R documentation →</a></p>
+</blockquote>
 <section id="installation" class="level2">
 <h2 class="anchored" data-anchor-id="installation">Installation</h2>
-<p>Install from PyPI with:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install basemapper</span></code></pre></div>
-<p>Or install the development version directly from GitHub:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">"git+https://github.com/ar-puuk/basemapper.git#subdirectory=py-basemapper"</span></span></code></pre></div>
+<section id="prerequisites" class="level3">
+<h3 class="anchored" data-anchor-id="prerequisites">Prerequisites</h3>
+<p>The package compiles a Rust extension during installation. Install Rust for your platform before proceeding.</p>
+<section id="windows" class="level4">
+<h4 class="anchored" data-anchor-id="windows">Windows</h4>
+<div class="sourceCode" id="cb1"><pre class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>winget install Rustlang<span class="op">.</span><span class="fu">Rustup</span></span></code></pre></div>
+<p>After installation, <strong>open a new terminal</strong> so <code>rustup</code> and <code>cargo</code> are on your <code>PATH</code>.</p>
+</section>
+<section id="macos" class="level4">
+<h4 class="anchored" data-anchor-id="macos">macOS</h4>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">brew</span> install rustup</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">rustup-init</span></span></code></pre></div>
+<p>Or without Homebrew:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> https://sh.rustup.rs <span class="at">-sSf</span> <span class="kw">|</span> <span class="fu">sh</span></span></code></pre></div>
+</section>
+<section id="linux" class="level4">
+<h4 class="anchored" data-anchor-id="linux">Linux</h4>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> https://sh.rustup.rs <span class="at">-sSf</span> <span class="kw">|</span> <span class="fu">sh</span></span></code></pre></div>
+</section>
+</section>
+<section id="install-the-package" class="level3">
+<h3 class="anchored" data-anchor-id="install-the-package">Install the package</h3>
+<p>Install the development version from GitHub:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">"git+https://github.com/ar-puuk/basemapper.git#subdirectory=py-basemapper"</span></span></code></pre></div>
 <blockquote class="blockquote">
-<p><strong>Requirements:</strong> <a href="https://rustup.rs">Rust</a> must be installed to build from source. The PyPI wheel ships a pre-compiled extension.</p>
+<p>A PyPI release is planned once the package stabilises.</p>
 </blockquote>
+</section>
 </section>
 <section id="get-started" class="level2">
 <h2 class="anchored" data-anchor-id="get-started">Get started</h2>
