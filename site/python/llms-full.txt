@@ -1,0 +1,164 @@
+----------------------------------------------------------------------
+This is the API documentation for the basemapper library.
+----------------------------------------------------------------------
+
+
+## Core rendering
+
+Low-level tile fetch and composite.
+
+
+render_basemap_raw(bbox_3857: List[float], width: int, height: int, style_input: str, zoom: Optional[int] = None, tile_timeout_ms: int = 10000, max_tiles: int = 256, layers: Optional[List[str]] = None) -> bytes
+
+Fetch and composite map tiles into a raw RGBA pixel buffer.
+
+Args:
+    bbox_3857: Bounding box as ``[xmin, ymin, xmax, ymax]`` in EPSG:3857 metres.
+    width: Output width in pixels.
+    height: Output height in pixels.
+    style_input: Tile style — a URL to a MapLibre GL Style JSON file, an
+        inline JSON string, or a :class:`RasterProvider` / :class:`VectorProvider`
+        / :class:`EsriVectorProvider` / :class:`EsriRasterProvider` object.
+    zoom: Tile zoom level (0–22). Auto-computed from *bbox_3857* and *width*
+        when ``None``.
+    tile_timeout_ms: Per-tile HTTP timeout in milliseconds (default 10 000).
+    max_tiles: Maximum number of tiles fetched per render call (default 256).
+    layers: Optional layer filter. Plain layer IDs → keep only those layers;
+        minus-prefixed IDs (e.g. ``["-labels"]``) → exclude those layers.
+        Mixing inclusion and exclusion in one list raises :class:`BasemapError`.
+
+Returns:
+    bytes: RGBA pixel data of length ``width * height * 4``.
+
+Raises:
+    BasemapError: On any rendering or network failure.
+
+
+## Plot integrations
+
+Drop a basemap layer into an existing spatial plot. `geom_basemap` works in both ggplot2 (R) and plotnine (Python).
+
+
+
+add_basemap(ax: "'matplotlib.axes.Axes'", style_url: 'str', zoom: 'Optional[int]' = None, tile_timeout_ms: 'int' = 10000, max_tiles: 'int' = 256, alpha: 'float' = 1.0, layers: 'Optional[List[str]]' = None) -> 'np.ndarray'
+
+Render a basemap and composite it beneath existing axes content.
+
+Extracts the geographic bounding box and CRS directly from *ax*, reprojects
+to EPSG:3857, calls the Rust core, and injects the result via imshow.
+
+Args:
+    ax: An existing matplotlib Axes with a recognized geographic projection.
+    style_url: MapLibre GL style URL or inline JSON string.
+    zoom: Tile zoom level override (0–22). Auto-computed when None.
+    tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
+    max_tiles: Maximum tile downloads per render.
+    alpha: Opacity of the basemap layer (0.0–1.0).
+    layers: Optional layer filter. Plain IDs keep only those layers;
+            minus-prefixed IDs exclude those layers.
+
+Returns:
+    numpy.ndarray of shape (height, width, 4) with spatial bounds in .attrs.
+
+Raises:
+    BasemapError: If CRS detection fails, the render fails, or the network
+        is unreachable.
+
+geom_basemap(style_url: 'str', zoom: 'Optional[int]' = None, alpha: 'float' = 1.0, layers: 'Optional[List[str]]' = None, **kwargs: 'object') -> 'None'
+
+Render a styled basemap beneath plotnine spatial layers.
+
+Defers all tile fetching to draw time so that the plot's coordinate system
+has been established. Uses the same injection logic as :func:`add_basemap`.
+
+Args:
+    style_url: MapLibre GL style URL or inline JSON string.
+    zoom: Tile zoom level override (0–22). Auto-computed when None.
+    alpha: Opacity of the basemap layer (0.0–1.0).
+    layers: Optional layer filter list — plain IDs keep only those layers;
+            minus-prefixed IDs exclude those layers.
+
+Example:
+    >>> from plotnine import ggplot, geom_sf
+    >>> from basemapper import geom_basemap
+    >>> (ggplot(gdf) + geom_basemap(style_url="https://...") + geom_sf())
+
+
+## Layer utilities
+
+Inspect and filter layers inside a MapLibre GL style.
+
+
+list_layers(style_input: 'str') -> 'List[str]'
+
+Return all layer IDs from a MapLibre GL style.
+
+Also prints a two-column table of ``id`` and ``type`` to stdout for
+interactive exploration.
+
+Args:
+    style_input: A MapLibre GL style URL or inline JSON string.
+
+Returns:
+    Sorted list of layer ``id`` values.
+
+Raises:
+    BasemapError: If the style cannot be fetched or parsed.
+
+
+## Tile style helpers
+
+Convert bare tile URLs to MapLibre GL Style JSON.
+
+
+RasterProvider(url_template: 'str', tile_size: 'int' = 256) -> 'None'
+
+Generate a MapLibre GL Style JSON string for an XYZ raster tile source.
+
+Args:
+    url_template: Slippy-map tile URL with ``{z}``, ``{x}``, ``{y}`` placeholders.
+    tile_size: Tile size in pixels (default 256).
+
+Returns:
+    Inline MapLibre GL Style JSON when cast to ``str``.
+
+VectorProvider(url_template: 'str', paint: 'Optional[Dict[str, object]]' = None) -> 'None'
+
+Generate a MapLibre GL Style JSON string for an MVT vector tile source.
+
+Accepted paint keys: ``fill-color``, ``fill-opacity``, ``fill-outline-color``,
+``line-color``, ``line-width``, ``line-opacity``. Unrecognised keys are dropped
+with a warning. Omitting ``paint`` applies a light-grey default style.
+
+Args:
+    url_template: MVT tile URL with ``{z}``, ``{x}``, ``{y}`` placeholders.
+    paint: Optional dict of MapLibre GL paint properties.
+
+EsriVectorProvider(base_url: 'str') -> 'None'
+
+Return the root.json style endpoint URL for an ArcGIS VectorTileServer.
+
+The Rust core fetches this URL to obtain the full, ESRI-published MapLibre
+GL style JSON.
+
+Args:
+    base_url: Base ArcGIS VectorTileServer URL (trailing slashes stripped).
+
+Returns:
+    A URL string (not inline JSON) when cast to ``str``.
+
+EsriRasterProvider(url_template: 'str', tile_size: 'int' = 256) -> 'None'
+
+Generate a MapLibre GL Style JSON string for an ArcGIS MapServer raster source.
+
+Args:
+    url_template: ArcGIS MapServer tile URL (e.g., ``.../MapServer/tile/{z}/{y}/{x}``).
+    tile_size: Tile size in pixels (default 256).
+
+
+## Exceptions
+
+
+BasemapError(message: str) -> None
+
+Raised when the Rust basemapper core returns an error.

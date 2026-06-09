@@ -12,9 +12,8 @@
     - R with packages: roxygen2, pkgdown, ggplot2, sf, jsonlite, tmap, stars,
       knitr, rmarkdown  (install once with: install.packages(c(...)))
     - Rust toolchain + RTools45 (required by roxygenize to compile the R package)
-    - Python environment with basemapper[dev] and great-docs installed:
-          pip install ".[dev]"   (run from py-basemapper/)
-    - great-docs CLI on PATH (installed as part of [dev] extras above)
+    - Python environment with great-docs CLI on PATH
+      (great-docs is installed automatically from basemapper[dev] below)
 
     After running, commit the updated site/ tree and push to trigger deployment:
         git add site/
@@ -40,20 +39,36 @@ foreach ($cmd in @('Rscript', 'python', 'great-docs')) {
 }
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-$siteDir  = Join-Path $repoRoot 'site'
-$siteR    = Join-Path $siteDir  'r'
-$sitePy   = Join-Path $siteDir  'python'
-$gdocOut  = Join-Path $repoRoot 'py-basemapper' 'great-docs'
+$siteDir    = Join-Path $repoRoot 'site'
+$siteR      = Join-Path $siteDir  'r'
+$sitePy     = Join-Path $siteDir  'python'
+$pyPkg      = Join-Path $repoRoot 'py-basemapper'
+# great-docs writes Quarto source to great-docs/ then renders HTML into great-docs/_site/
+$gdocWork   = Join-Path $pyPkg    'great-docs'
+$gdocOut    = Join-Path $gdocWork '_site'
+$docsIndex  = Join-Path (Join-Path $repoRoot 'docs') 'index.html'
+$siteIndex  = Join-Path $siteDir  'index.html'
+$bannerScript = Join-Path (Join-Path $repoRoot 'scripts') 'inject-lang-banner.py'
 
-# pkgdown dest_dir is relative to the package directory (r-basemapper/),
-# so '../site/r' resolves to <repo-root>/site/r.  Pass an absolute path
-# using forward slashes so the R string literal is unambiguous on Windows.
-$siteRFwd = $siteR.Replace('\', '/')
 
 # ── Clean previous build output ───────────────────────────────────────────────
 Write-Host '==> Cleaning old build output ...' -ForegroundColor Cyan
-foreach ($dir in @($siteR, $sitePy, $gdocOut)) {
+foreach ($dir in @($siteR, $sitePy, $gdocWork)) {
     if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
+}
+
+# ── R: ensure required packages are installed ────────────────────────────────
+Write-Host '==> Checking R packages ...' -ForegroundColor Cyan
+Rscript -e "pkgs <- c('roxygen2','pkgdown','ggplot2','sf','jsonlite','tmap','stars','knitr','rmarkdown'); missing <- pkgs[!sapply(pkgs, requireNamespace, quietly=TRUE)]; if (length(missing)) { message('Installing: ', paste(missing, collapse=', ')); install.packages(missing, repos='https://cran.r-project.org') }"
+
+# ── Python: install package (compiles Rust extension via maturin) ─────────────
+# Required so great-docs can do dynamic introspection of the compiled extension.
+Write-Host '==> pip install -e .[dev] (compiling Rust extension) ...' -ForegroundColor Cyan
+Push-Location $pyPkg
+try {
+    python -m pip install -e ".[dev]"
+} finally {
+    Pop-Location
 }
 
 # ── R: regenerate man pages ───────────────────────────────────────────────────
@@ -61,22 +76,20 @@ Write-Host '==> roxygen2::roxygenize (regenerating man pages) ...' -ForegroundCo
 Rscript -e "roxygen2::roxygenize('r-basemapper')"
 
 # ── R: pkgdown ────────────────────────────────────────────────────────────────
-Write-Host "==> pkgdown::build_site -> site/r/ ..." -ForegroundColor Cyan
-Rscript -e @"
-pkgdown::build_site(
-  pkg         = 'r-basemapper',
-  dest_dir    = '$siteRFwd',
-  preview     = FALSE,
-  new_process = FALSE
-)
-"@
+Write-Host '==> pkgdown::build_site -> site/r/ ...' -ForegroundColor Cyan
+# Destination is configured via r-basemapper/_pkgdown.yml (destination: ../site/r).
+Rscript -e "pkgdown::build_site(pkg='r-basemapper', preview=FALSE, new_process=FALSE)"
 
 # ── Python: great-docs ────────────────────────────────────────────────────────
 Write-Host '==> great-docs build -> py-basemapper/great-docs/ ...' -ForegroundColor Cyan
-Push-Location (Join-Path $repoRoot 'py-basemapper')
+# PYTHONUTF8 forces UTF-8 file I/O on Windows (avoids charmap codec errors from
+# Unicode characters in generated Quarto/Markdown files).
+Push-Location $pyPkg
 try {
+    $env:PYTHONUTF8 = '1'
     & great-docs build
 } finally {
+    $env:PYTHONUTF8 = ''
     Pop-Location
 }
 
@@ -89,11 +102,11 @@ Write-Host '==> Copying Python docs -> site/python/ ...' -ForegroundColor Cyan
 Copy-Item -Recurse $gdocOut $sitePy
 
 Write-Host '==> Copying landing page -> site/index.html ...' -ForegroundColor Cyan
-Copy-Item (Join-Path $repoRoot 'docs' 'index.html') (Join-Path $siteDir 'index.html') -Force
+Copy-Item $docsIndex $siteIndex -Force
 
 # ── Banner injection ──────────────────────────────────────────────────────────
 Write-Host '==> Injecting language-switch banners ...' -ForegroundColor Cyan
-python (Join-Path $repoRoot 'scripts' 'inject-lang-banner.py') $siteDir
+python $bannerScript $siteDir
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 Write-Host ''

@@ -1,4 +1,5 @@
 url: https://ar-puuk.github.io/basemapper/r/
+destination: ../site/r
 
 home:
   title: basemapper (R)
