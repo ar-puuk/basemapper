@@ -57,12 +57,11 @@ Use `list_layers()` to inspect a style before rendering:
 list_layers(osm_style)
 ```
 
-## Step 2 — Render with [ggplot2](https://ggplot2.tidyverse.org/)
+## Step 2 — Render with {ggplot2}
 
 `geom_basemap()` is a lazy ggproto layer: it defers tile fetching until
-[`coord_sf()`](https://ggplot2.tidyverse.org/reference/coord_sf.html) has
-established the panel's geographic extent, so you never have to compute a
-bounding box manually.
+`coord_sf()` has established the panel's geographic extent, so you never have
+to compute a bounding box manually.
 
 ```r
 library(ggplot2)
@@ -87,11 +86,10 @@ Key parameters shared across all high-level functions:
 | `tile_timeout_ms` | `10000` | Per-tile HTTP timeout |
 | `max_tiles` | `256` | Cap on tiles fetched per render |
 
-## Step 3 — Render with [tmap](https://r-tmap.github.io/tmap/)
+## Step 3 — Render with {tmap}
 
-`tm_basemap()` returns a composable [tmap](https://r-tmap.github.io/tmap/) v4
-element. It derives the map extent from the pipeline's primary shape when
-`bbox = NULL`:
+`tm_basemap()` returns a composable {tmap} v4 element. It derives the map
+extent from the pipeline's primary shape when `bbox = NULL`:
 
 ```r
 library(tmap)
