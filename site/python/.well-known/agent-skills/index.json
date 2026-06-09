@@ -1,0 +1,11 @@
+{
+  "skills": [
+    {
+      "name": "basemapper",
+      "description": "Headless spatial basemap renderer for Python. Use when writing Python code that uses the basemapper package.",
+      "files": [
+        "SKILL.md"
+      ]
+    }
+  ]
+}

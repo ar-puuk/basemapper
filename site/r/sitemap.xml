@@ -1,0 +1,20 @@
+<urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
+<url><loc>https://ar-puuk.github.io/basemapper/r/404.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/articles/getting-started.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/articles/index.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/authors.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/index.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/reference/detect_crs_from_coord.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/reference/esri_raster_provider.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/reference/esri_vector_provider.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/reference/GeomBasemap.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/reference/geom_basemap.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/reference/index.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/reference/list_layers.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/reference/raster_provider.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/reference/render_basemap_raw.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/reference/reproject_bbox_to_3857.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/reference/tm_basemap.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/reference/vector_provider.html</loc></url>
+</urlset>
+

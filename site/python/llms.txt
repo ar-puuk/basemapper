@@ -1,0 +1,36 @@
+# basemapper
+
+> Headless spatial basemap renderer for Python
+
+## Docs
+
+### API Reference
+
+#### Core rendering
+> Low-level tile fetch and composite.
+
+- [render_basemap_raw](https://ar-puuk.github.io/basemapper/python/reference/render_basemap_raw.html): Fetch and composite map tiles into a raw RGBA pixel buffer
+
+#### Plot integrations
+> Drop a basemap layer into an existing spatial plot. `geom_basemap` works in both ggplot2 (R) and plotnine (Python).
+
+
+- [add_basemap](https://ar-puuk.github.io/basemapper/python/reference/add_basemap.html): Render a basemap and composite it beneath existing axes content
+- [geom_basemap](https://ar-puuk.github.io/basemapper/python/reference/geom_basemap.html): Render a styled basemap beneath plotnine spatial layers
+
+#### Layer utilities
+> Inspect and filter layers inside a MapLibre GL style.
+
+- [list_layers](https://ar-puuk.github.io/basemapper/python/reference/list_layers.html): Return all layer IDs from a MapLibre GL style
+
+#### Tile style helpers
+> Convert bare tile URLs to MapLibre GL Style JSON.
+
+- [RasterProvider](https://ar-puuk.github.io/basemapper/python/reference/RasterProvider.html): Generate a MapLibre GL Style JSON string for an XYZ raster tile source
+- [VectorProvider](https://ar-puuk.github.io/basemapper/python/reference/VectorProvider.html): Generate a MapLibre GL Style JSON string for an MVT vector tile source
+- [EsriVectorProvider](https://ar-puuk.github.io/basemapper/python/reference/EsriVectorProvider.html): Return the root.json style endpoint URL for an ArcGIS VectorTileServer
+- [EsriRasterProvider](https://ar-puuk.github.io/basemapper/python/reference/EsriRasterProvider.html): Generate a MapLibre GL Style JSON string for an ArcGIS MapServer raster source
+
+#### Exceptions
+
+- [BasemapError](https://ar-puuk.github.io/basemapper/python/reference/BasemapError.html): Raised when the Rust basemapper core returns an error
