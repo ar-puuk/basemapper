@@ -20,11 +20,15 @@ template:
       .bm-banner-r{background:#E8F4F8;color:#0E171E;}
       .bm-banner-r a{font-weight:700;text-decoration:underline;color:#007EA7;}
       </style>
-    before_body: |
-      <div class="bm-banner bm-banner-r">
-        R documentation &mdash;
-        <a href="https://ar-puuk.github.io/basemapper/python/">Switch to Python docs</a>
-      </div>
+      <script>
+      document.addEventListener('DOMContentLoaded',function(){
+        var b=document.createElement('div');
+        b.className='bm-banner bm-banner-r';
+        b.innerHTML='R documentation — <a href="https://ar-puuk.github.io/basemapper/python/">Switch to Python docs<\/a>';
+        var nav=document.querySelector('nav.navbar');
+        if(nav&&nav.parentNode){nav.parentNode.insertBefore(b,nav.nextSibling);}
+      });
+      </script>
 
 home:
   title: basemapper (R)

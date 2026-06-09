@@ -81,7 +81,9 @@ document.addEventListener('DOMContentLoaded',function(){
   var b=document.createElement('div');
   b.className='bm-banner bm-banner-py';
   b.innerHTML='Python documentation — <a href="https://ar-puuk.github.io/basemapper/r/">Switch to R docs<\/a>';
-  document.body.insertBefore(b,document.body.firstChild);
+  var nav=document.querySelector('nav.navbar');
+  if(nav&&nav.parentNode){nav.parentNode.insertBefore(b,nav.nextSibling);}
+  else{document.body.insertBefore(b,document.body.firstChild);}
 });
 </script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
