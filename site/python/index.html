@@ -225,16 +225,26 @@ section.level2:first-of-type > h2:first-child,
 <p><strong>Requires:</strong> Python <code>&gt;=3.9</code><br> <strong>Provides-Extra:</strong> <code>plotnine</code>, <code>dev</code></p>
 </section>
 </div></div><section id="basemapper" class="level1">
-<h1>basemapper</h1>
-<p>Headless spatial basemap renderer for Python</p>
+<h1>basemapper <img src="logo.svg" align="right" height="139" alt=""></h1>
+<p><strong>basemapper</strong> is a headless spatial basemap renderer for Python. It fetches and composites styled map tiles (raster or MapLibre GL vector styles) into georeferenced RGBA arrays using a Rust core, and exposes the result through native integrations with matplotlib, plotnine, and NumPy.</p>
 <section id="installation" class="level2">
 <h2 class="anchored" data-anchor-id="installation">Installation</h2>
+<p>Install from PyPI with:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install basemapper</span></code></pre></div>
+<p>Or install the development version directly from GitHub:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">"git+https://github.com/ar-puuk/basemapper.git#subdirectory=py-basemapper"</span></span></code></pre></div>
+<blockquote class="blockquote">
+<p><strong>Requirements:</strong> <a href="https://rustup.rs">Rust</a> must be installed to build from source. The PyPI wheel ships a pre-compiled extension.</p>
+</blockquote>
 </section>
 <section id="get-started" class="level2">
-<h2 class="anchored" data-anchor-id="get-started">Get Started</h2>
+<h2 class="anchored" data-anchor-id="get-started">Get started</h2>
+<p>See the <a href="https://ar-puuk.github.io/basemapper/python/">documentation</a> for a walkthrough of rendering basemaps with matplotlib, plotnine, and raw RGBA output.</p>
+</section>
+<section id="related" class="level2">
+<h2 class="anchored" data-anchor-id="related">Related</h2>
 <ul>
-<li><a href="./reference/index.html">API Reference</a> — Full API documentation</li>
+<li><a href="https://ar-puuk.github.io/basemapper/r/">R docs</a> — the R package exposes the same Rust core via extendr.</li>
 </ul>
 
 

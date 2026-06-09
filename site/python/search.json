@@ -73,23 +73,30 @@
   {
     "objectID": "index.html",
     "href": "index.html",
-    "title": "basemapper",
+    "title": "basemapper ",
     "section": "",
     "text": "basemapper\nHeadless spatial basemap renderer for Python"
   },
   {
     "objectID": "index.html#installation",
     "href": "index.html#installation",
-    "title": "basemapper",
+    "title": "basemapper ",
     "section": "Installation",
-    "text": "Installation\npip install basemapper"
+    "text": "Installation\nInstall from PyPI with:\npip install basemapper\nOr install the development version directly from GitHub:\npip install \"git+https://github.com/ar-puuk/basemapper.git#subdirectory=py-basemapper\"\n\nRequirements: Rust must be installed to build from source. The PyPI wheel ships a pre-compiled extension."
   },
   {
     "objectID": "index.html#get-started",
     "href": "index.html#get-started",
-    "title": "basemapper",
-    "section": "Get Started",
-    "text": "Get Started\n\nAPI Reference — Full API documentation"
+    "title": "basemapper ",
+    "section": "Get started",
+    "text": "Get started\nSee the documentation for a walkthrough of rendering basemaps with matplotlib, plotnine, and raw RGBA output."
+  },
+  {
+    "objectID": "index.html#related",
+    "href": "index.html#related",
+    "title": "basemapper ",
+    "section": "Related",
+    "text": "Related\n\nR docs — the R package exposes the same Rust core via extendr."
   },
   {
     "objectID": "reference/add_basemap.html",
