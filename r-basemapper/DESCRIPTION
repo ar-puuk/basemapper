@@ -1,0 +1,27 @@
+Package: basemapper
+Title: Headless Spatial Basemap Renderer
+Version: 0.1.0
+Authors@R: person("Pukar", "Bhandari", email = "arpuuuk@gmail.com",
+  role = c("aut", "cre"))
+Description: Renders styled spatial basemaps headlessly using a Rust core
+    (maplibre-rs + wgpu) and exposes the result as raw RGBA pixel arrays to
+    R. Integrates with ggplot2 via a lazy GeomBasemap ggproto layer and with
+    tmap v4 via tm_basemap().
+License: MIT
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+SystemRequirements: Cargo (Rust package manager)
+Imports:
+    ggplot2 (>= 3.4),
+    grid,
+    sf (>= 1.0),
+    jsonlite (>= 1.8)
+Suggests:
+    roxygen2 (>= 7.3),
+    testthat (>= 3.0),
+    rextendr (>= 0.3),
+    tmap (>= 4.0),
+    stars (>= 0.6),
+    httr2 (>= 1.0)
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.0.0

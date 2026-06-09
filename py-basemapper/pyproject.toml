@@ -1,0 +1,43 @@
+[build-system]
+requires      = ["maturin>=1.4,<2"]
+build-backend = "maturin"
+
+[project]
+name        = "basemapper"
+version     = "0.1.0"
+description = "Headless spatial basemap renderer for Python"
+requires-python = ">=3.9"
+license     = { text = "MIT" }
+dependencies = [
+    "numpy>=1.21",
+    "pyproj>=3.3",
+    "matplotlib>=3.5",
+    "requests>=2.28",
+]
+
+[project.optional-dependencies]
+plotnine = ["plotnine>=0.12"]
+dev      = [
+    "great-docs",
+    "pytest>=7",
+    "responses>=0.23",
+    "plotnine>=0.12",
+]
+
+[tool.maturin]
+module-name     = "basemapper._basemapper"
+python-packages = ["basemapper"]
+python-source   = "src"
+features        = ["pyo3/extension-module"]
+
+[tool.great-docs]
+source  = "src/basemapper"
+output  = "_site"
+style   = "google"
+modules = [
+    "basemapper.matplotlib_integration",
+    "basemapper.plotnine_integration",
+    "basemapper.layer_utils",
+    "basemapper.providers",
+    "basemapper.exceptions",
+]

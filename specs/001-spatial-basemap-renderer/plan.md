@@ -1,0 +1,236 @@
+# Implementation Plan: Spatial Basemap Renderer
+
+**Branch**: `001-spatial-basemap-renderer` | **Date**: 2026-06-08 | **Spec**: [spec.md](spec.md)
+
+**Input**: Feature specification from `specs/001-spatial-basemap-renderer/spec.md`
+
+---
+
+## Summary
+
+Build `basemapper`: a cross-platform Rust library that renders styled spatial basemaps
+headlessly and exposes the result as raw RGBA pixel arrays to R and Python. The Rust
+`core` crate uses `maplibre-rs` + `wgpu` for rendering and `tokio` + `reqwest` for
+concurrent tile fetching. An `extendr`-based R crate integrates with ggplot2 via a
+lazy `GeomBasemap` ggproto layer. A `PyO3`/Maturin Python crate integrates with
+matplotlib via `add_basemap(ax, ...)`. Bounding-box inference from live plot objects
+and CRS reprojection to EPSG:3857 are performed by host-language code (`sf` in R,
+`pyproj` in Python); the Rust core only processes pre-projected coordinates.
+
+---
+
+## Technical Context
+
+**Language/Version**: Rust stable 1.78+, Python ≥ 3.9, R ≥ 4.1
+
+**Primary Dependencies**:
+
+| Crate / Package | Purpose |
+|-----------------|---------|
+| `maplibre-rs` | MapLibre GL style parser + vector/raster tile renderer |
+| `wgpu` | GPU abstraction (Vulkan/Metal/DX12); offscreen texture rendering |
+| `tokio` | Async runtime for concurrent tile fetching |
+| `reqwest` (rustls-tls) | Async HTTP tile & style downloads; no OpenSSL dependency |
+| `prost` | Protobuf decoder for MVT tiles |
+| `image` | PNG/JPEG decode for XYZ raster tiles |
+| `thiserror` | Ergonomic error type derivation |
+| `pyo3` | Python FFI layer |
+| `maturin` | Build tool for Python wheels |
+| `extendr` | R FFI layer |
+| `pyproj` (Python) | CRS reprojection to EPSG:3857 |
+| `sf` (R) | CRS reprojection to EPSG:3857 |
+| `great-docs` (Python, dev) | Python API documentation generation (Posit) |
+| `roxygen2` (R, dev) | R documentation generation — Rd files and NAMESPACE |
+
+**Storage**: In-memory tile cache only (no on-disk persistence in this version)
+
+**Testing**: `cargo test` (Rust unit + integration), `pytest` (Python), `testthat` (R)
+
+**Documentation**: `great-docs` (Python API reference), `roxygen2` (R Rd files + NAMESPACE)
+
+**Target Platform**: Cross-platform library — macOS arm64/x86_64, Windows x86_64,
+Linux x86_64 (with GPU) and Linux headless (with `WGPU_BACKEND=gl` + virtual fb)
+
+**Project Type**: Multi-language library (Cargo workspace + Python wheel + R package)
+
+**Performance Goals**: Render a city-scale bbox (~20–50 tiles at zoom 13–15) in < 3 s
+on a modern laptop; pixel-accurate output at any caller-specified DPI
+
+**Constraints**: No system GIS library installation required; no browser dependency;
+all TLS via `rustls` (no OpenSSL); max 256 tiles per render by default
+
+**Scale/Scope**: Single-user interactive sessions (Jupyter, RStudio, VS Code) and
+batch pipelines; no server multi-tenancy in v1
+
+---
+
+## Constitution Check
+
+*GATE: Must pass before Phase 0 research. Re-checked after Phase 1 design.*
+
+### I. Cargo Workspace Monorepo ✅ PASS
+
+- Workspace root `Cargo.toml` with three members: `core`, `py-basemapper`,
+  `r-basemapper`.
+- Each crate is independently buildable. No binding crate depends on another
+  binding crate.
+- All dependency versions pinned in the committed `Cargo.lock`.
+
+### II. Language Boundaries ✅ PASS
+
+- `core/` is 100% pure Rust with no C/C++ FFI, no GDAL/GEOS/PROJ.
+- `wgpu` uses OS-level GPU APIs (Metal/DX12/Vulkan) that ship with the OS; no
+  `apt-get install` required by the end-user. Not a `-sys` crate in the GDAL sense.
+- Python bindings use PyO3 + Maturin exclusively.
+- R bindings use extendr exclusively.
+- No `-sys` crates with a `links` field in the dependency tree except those implicit
+  in `wgpu` backends (OS GPU drivers) — pre-approved as OS-level facility.
+
+### III. Memory Safety & Concurrency ✅ PASS
+
+- `tokio` runtime owned by each binding crate, initialized at library load time.
+- Python binding calls `py.allow_threads(|| ...)` around the render call to release
+  the GIL during tile fetching and rendering.
+- R binding dispatches async work onto the tokio runtime via `tokio::Runtime::block_on`,
+  which returns synchronously to R without blocking R's event loop at the OS level.
+- All `unsafe` blocks in binding crates carry `// SAFETY:` comments.
+
+### IV. Headless Output Standard ✅ PASS
+
+- `core::render()` returns `RenderResult { pixels: Vec<u8>, bounds: SpatialBounds, ... }`.
+- No UI component, browser object, or file-system side effect.
+- Python surfaces as `numpy.ndarray` with spatial bounds as `attrs`.
+- R surfaces as `matrix` with spatial bounds as R `attr()`s; `geom_basemap()` wraps
+  this in `grid::rasterGrob` internally for the ggplot2 protocol.
+- Width, height, DPI are always caller-supplied; never inferred from a display.
+
+---
+
+## Project Structure
+
+### Documentation (this feature)
+
+```text
+specs/001-spatial-basemap-renderer/
+├── plan.md           ← this file
+├── spec.md
+├── research.md
+├── data-model.md
+├── quickstart.md
+├── contracts/
+│   ├── rust-core-api.md
+│   ├── python-api.md
+│   └── r-api.md
+├── checklists/
+│   └── requirements.md
+└── tasks.md          ← generated by /speckit-tasks (not yet created)
+```
+
+### Source Code (repository root)
+
+```text
+basemapper/                             ← repo root
+├── Cargo.toml                          ← workspace manifest
+├── Cargo.lock                          ← committed lock file
+│
+├── core/
+│   ├── Cargo.toml
+│   └── src/
+│       ├── lib.rs                      ← pub fn render(request) -> Result<...>
+│       ├── renderer.rs                 ← wgpu pipeline, maplibre-rs integration
+│       ├── tile_fetcher.rs             ← tokio + reqwest concurrent tile download
+│       ├── style.rs                    ← StyleInput resolution + MapLibre GL validation
+│       ├── bbox.rs                     ← SpatialBounds, zoom computation
+│       └── error.rs                    ← BasemapError enum
+│   ├── examples/
+│   │   └── headless_render.rs          ← CLI example (validates Scenario 1)
+│   └── tests/
+│       ├── render_integration.rs
+│       └── bbox_unit.rs
+│
+├── py-basemapper/
+│   ├── Cargo.toml
+│   ├── pyproject.toml
+│   └── src/
+│       ├── lib.rs                      ← #[pymodule] render_basemap_raw()
+│       └── basemapper/
+│           ├── __init__.py
+│           ├── matplotlib_integration.py   ← add_basemap(ax, style_url, ...)
+│           ├── bbox_utils.py               ← CRS detection + pyproj reprojection
+│           └── exceptions.py               ← BasemapError Python class
+│   └── tests/
+│       └── test_render.py
+│
+└── r-basemapper/
+    ├── Cargo.toml
+    ├── DESCRIPTION
+    ├── NAMESPACE
+    ├── R/
+    │   ├── geom_basemap.R              ← ggproto GeomBasemap + geom_basemap()
+    │   ├── render_basemap_raw.R        ← thin R wrapper + matrix reshape
+    │   └── bbox_utils.R                ← CRS detection + sf reprojection
+    └── src/
+        └── rust/
+            └── src/
+                └── lib.rs             ← #[extendr] render_basemap_raw()
+    └── tests/
+        └── testthat/
+            └── test-render.R
+```
+
+**Structure Decision**: Cargo Workspace (Option 1 extended to multi-crate). Three
+sibling crates at the workspace root. No shared source directories between binding
+crates. Language-specific build tooling (`pyproject.toml`, `DESCRIPTION`) lives
+alongside each binding crate.
+
+---
+
+## Implementation Hazards
+
+Known technical pitfalls for `/speckit-implement`. Each maps to a specific task.
+
+### H1 — tmap v4 RGBA Rendering (T053 / FR-027)
+
+`tmap::tm_rgb()` is the correct call for multi-band RGBA `stars` objects in tmap v4,
+but depending on how the pixel array is shaped and how `stars` exposes the bands, tmap
+may apply an unwanted colour palette or treat the array as a single-band raster. **If
+the basemap renders with wrong colours or as a heatmap, switch from `tm_rgb()` to
+`tm_raster()` with explicit band selection.** Try `tm_rgb()` first; only fall back to
+`tm_raster()` if colours are wrong.
+
+### H2 — wgpu Asynchronous GPU Readback (T010)
+
+`wgpu::Buffer::slice(..).map_async()` is asynchronous. To read pixels back from the GPU
+buffer synchronously (required by the R/Python FFI boundary), the implementation MUST
+call `device.poll(wgpu::Maintain::Wait)` immediately after `map_async()` to block until
+the mapping completes. **Do NOT `await` this call or spawn it on the tokio runtime.**
+Spawning a new async task here will deadlock against the thread-local runtime used by
+the binding crates (T011). Polling inside the existing synchronous call stack is the
+correct pattern.
+
+### H3 — Layer Filter Scope (T045)
+
+`filter_style_layers()` MUST modify **only** the top-level `"layers"` array. **Do not
+remove entries from `"sources"`, `"sprite"`, or `"glyphs"`**, even when they appear
+unreferenced after filtering. maplibre-rs pre-validates the entire style object and will
+crash at parse time if any referenced source, sprite URL, or glyph URL is absent —
+regardless of whether remaining layers actually use it.
+
+### H4 — Matplotlib Z-Ordering (T022 / T056)
+
+`zorder=0` is specified for `ax.imshow()` basemap injection. The matplotlib axes
+background patch (`ax.patch`) also defaults to `zorder=0` and can hide the basemap
+behind a white rectangle. **If the basemap does not appear, set `zorder=0.5` and call
+`ax.patch.set_visible(False)` (or `ax.set_facecolor('none')`) to make the axes
+background transparent.** This applies equally to the plotnine `geom_basemap` (T056),
+which accesses the same underlying matplotlib axes.
+
+---
+
+## Complexity Tracking
+
+> No constitution violations require justification. Table left empty.
+
+| Violation | Why Needed | Simpler Alternative Rejected Because |
+|-----------|------------|--------------------------------------|
+| — | — | — |

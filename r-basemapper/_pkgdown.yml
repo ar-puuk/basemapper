@@ -1,0 +1,70 @@
+url: https://ar-puuk.github.io/basemapper/r/
+
+home:
+  title: basemapper (R)
+  description: >
+    Headless spatial basemap renderer for R.
+    Fetches and composites styled map tiles into RGBA arrays,
+    with ggplot2, tmap, and sf integration.
+
+navbar:
+  structure:
+    left:  [intro, reference, articles]
+    right: [python_docs, github]
+  components:
+    intro:
+      text: Get started
+      href: articles/getting-started.html
+    python_docs:
+      text: "Python docs"
+      href: ../python/
+    github:
+      icon: fab fa-github fa-lg
+      href: https://github.com/ar-puuk/basemapper
+      aria-label: GitHub
+
+reference:
+  - title: Core rendering
+    desc: Low-level tile fetch and composite — returns a georeferenced RGBA array.
+    contents:
+      - render_basemap_raw
+
+  - title: ggplot2 integration
+    desc: >
+      Lazy ggproto layer that defers tile fetching until `coord_sf()` has
+      established the panel's geographic extent.
+    contents:
+      - geom_basemap
+      - GeomBasemap
+
+  - title: tmap integration
+    desc: Composable tmap v4 element wrapping a georeferenced `stars` raster.
+    contents:
+      - tm_basemap
+
+  - title: Tile style helpers
+    desc: >
+      Convert bare tile URLs to MapLibre GL Style JSON strings accepted by
+      all rendering functions.
+    contents:
+      - raster_provider
+      - vector_provider
+      - esri_vector_provider
+      - esri_raster_provider
+
+  - title: Layer utilities
+    desc: Inspect and filter layers inside a MapLibre GL style.
+    contents:
+      - list_layers
+
+  - title: Coordinate utilities
+    desc: Internal helpers exposed for advanced use.
+    contents:
+      - reproject_bbox_to_3857
+      - detect_crs_from_coord
+
+articles:
+  - title: ~
+    navbar: ~
+    contents:
+      - getting-started
