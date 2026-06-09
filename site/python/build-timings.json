@@ -1,60 +1,60 @@
 {
-  "build_time": "2026-06-09T15:46:20Z",
-  "total_seconds": 8.266,
+  "build_time": "2026-06-09T16:10:56Z",
+  "total_seconds": 18.781,
   "pages": [
     {
       "page": "reference\\VectorProvider.qmd",
-      "seconds": 3.219,
+      "seconds": 10.078,
       "frozen": false
     },
     {
       "page": "index.qmd",
-      "seconds": 1.594,
-      "frozen": false
-    },
-    {
-      "page": "reference\\geom_basemap.qmd",
-      "seconds": 0.406,
-      "frozen": false
-    },
-    {
-      "page": "reference\\list_layers.qmd",
-      "seconds": 0.406,
-      "frozen": false
-    },
-    {
-      "page": "reference\\RasterProvider.qmd",
-      "seconds": 0.406,
-      "frozen": false
-    },
-    {
-      "page": "reference\\index.qmd",
-      "seconds": 0.391,
-      "frozen": false
-    },
-    {
-      "page": "reference\\render_basemap_raw.qmd",
-      "seconds": 0.391,
+      "seconds": 4.265,
       "frozen": false
     },
     {
       "page": "reference\\add_basemap.qmd",
-      "seconds": 0.39,
+      "seconds": 0.641,
       "frozen": false
     },
     {
-      "page": "reference\\EsriVectorProvider.qmd",
-      "seconds": 0.36,
+      "page": "reference\\index.qmd",
+      "seconds": 0.485,
+      "frozen": false
+    },
+    {
+      "page": "reference\\render_basemap_raw.qmd",
+      "seconds": 0.485,
       "frozen": false
     },
     {
       "page": "reference\\EsriRasterProvider.qmd",
-      "seconds": 0.359,
+      "seconds": 0.484,
+      "frozen": false
+    },
+    {
+      "page": "reference\\geom_basemap.qmd",
+      "seconds": 0.484,
       "frozen": false
     },
     {
       "page": "reference\\BasemapError.qmd",
-      "seconds": 0.344,
+      "seconds": 0.469,
+      "frozen": false
+    },
+    {
+      "page": "reference\\EsriVectorProvider.qmd",
+      "seconds": 0.469,
+      "frozen": false
+    },
+    {
+      "page": "reference\\RasterProvider.qmd",
+      "seconds": 0.468,
+      "frozen": false
+    },
+    {
+      "page": "reference\\list_layers.qmd",
+      "seconds": 0.453,
       "frozen": false
     }
   ]
