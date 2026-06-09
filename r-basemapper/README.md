@@ -3,6 +3,9 @@
 <!-- badges: start -->
 <!-- badges: end -->
 
+> **Also available for Python** — same Rust core, PyO3 bindings.
+> [Python documentation →](https://ar-puuk.github.io/basemapper/python/)
+
 **basemapper** is a headless spatial basemap renderer for R. It fetches and
 composites styled map tiles (raster or MapLibre GL vector styles) into
 georeferenced RGBA arrays using a Rust core, and exposes the result through
