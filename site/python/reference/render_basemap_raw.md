@@ -46,7 +46,7 @@ Per-tile HTTP timeout in milliseconds (default 10 000).
 Maximum number of tiles fetched per render call (default 256).
 
 `layers: Optional[List[str]] = None`  
-Optional layer filter. Plain layer IDs → keep only those layers; minus-prefixed IDs (e.g. `["-labels"]`) → exclude those layers. Mixing inclusion and exclusion in one list raises [BasemapError](BasemapError.md#basemapper.BasemapError).
+Optional layer filter. Plain layer IDs -\> keep only those layers; minus-prefixed IDs (e.g. `["-labels"]`) -\> exclude those layers. Mixing inclusion and exclusion in one list raises [BasemapError](BasemapError.md#basemapper.BasemapError).
 
 
 ## Returns

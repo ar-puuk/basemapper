@@ -6,7 +6,7 @@ georeferenced RGBA arrays using a Rust core, and exposes the result through
 native integrations with matplotlib, plotnine, and NumPy.
 
 > **Also available for R** — same Rust core, extendr bindings.
-> [R documentation →](https://ar-puuk.github.io/basemapper/r/)
+> [R documentation](https://ar-puuk.github.io/basemapper/r/)
 
 ## Installation
 

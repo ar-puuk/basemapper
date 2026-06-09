@@ -117,6 +117,7 @@ pre, :not(pre) > code { background-color: #E8F4F8 !important; }
 a:not(.navbar-brand):not(.nav-link):not(.btn) { color: #007EA7; }
 a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
 #r-docs-nav-link {
+  margin-left: auto;
   align-self: stretch;
   display: flex !important;
   align-items: center;
@@ -402,7 +403,7 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
 </dd>
 <dt><code><span class="doc-parameter-name">layers</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">Optional[List[str]]</span> <span class="doc-parameter-default-sep op">=</span> <span class="doc-parameter-default">None</span></code></dt>
 <dd>
-Optional layer filter. Plain layer IDs → keep only those layers; minus-prefixed IDs (e.g.&nbsp;<code>["-labels"]</code>) → exclude those layers. Mixing inclusion and exclusion in one list raises <a href="BasemapError.html#basemapper.BasemapError" class="gdls-link gdls-code">BasemapError</a>.
+Optional layer filter. Plain layer IDs -&gt; keep only those layers; minus-prefixed IDs (e.g.&nbsp;<code>["-labels"]</code>) -&gt; exclude those layers. Mixing inclusion and exclusion in one list raises <a href="BasemapError.html#basemapper.BasemapError" class="gdls-link gdls-code">BasemapError</a>.
 </dd>
 </dl>
 </div>
