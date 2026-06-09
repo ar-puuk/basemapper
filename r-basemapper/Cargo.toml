@@ -1,3 +1,22 @@
+# This Cargo.toml doubles as a workspace root so the vendored core/ crate
+# (synced from repo's core/ by Makevars at build time) can use { workspace = true }
+# dependencies even when built from an install_github() tarball.
+[workspace]
+members  = ["src/rust/core"]
+resolver = "2"
+
+[workspace.dependencies]
+tokio      = { version = "1",    features = ["full"] }
+reqwest    = { version = "0.12", features = ["rustls-tls", "json"], default-features = false }
+serde      = { version = "1",    features = ["derive"] }
+serde_json = "1"
+thiserror  = "2"
+prost      = "0.13"
+image      = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+once_cell  = "1"
+log        = "0.4"
+pollster   = "0.3"
+
 [package]
 name    = "r-basemapper"
 version = "0.1.0"
@@ -9,5 +28,8 @@ crate-type = ["staticlib"]
 path       = "src/rust/src/lib.rs"
 
 [dependencies]
-basemapper-core = { path = "../core" }
+# TODO: once basemapper-core stabilises, publish it to crates.io and replace
+# this path dep with a version dep (e.g. basemapper-core = "0.1.0").
+# src/rust/core/ is a vendored snapshot synced from repo root core/ by Makevars.
+basemapper-core = { path = "src/rust/core" }
 extendr-api     = { version = "0.7", features = [] }

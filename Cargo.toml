@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "py-basemapper", "r-basemapper"]
+members = ["core", "py-basemapper"]
 resolver = "2"
 
 [workspace.dependencies]

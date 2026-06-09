@@ -1,31 +1,36 @@
 # Makevars -- Unix (macOS / Linux) build instructions for R CMD INSTALL
 #
-# Cargo builds a staticlib; R's linker produces the shared library.
-#
 # Requirements:
 #   - Rust installed (https://rustup.rs)
 
-TARGET_ARCH = $(shell rustc -vV 2>/dev/null | grep '^host:' | sed 's/host: //')
-
+TARGET_ARCH    = $(shell rustc -vV 2>/dev/null | grep '^host:' | sed 's/host: //')
 CARGO_MANIFEST = $(CURDIR)/../Cargo.toml
+LIBDIR         = $(CURDIR)/../../target/$(TARGET_ARCH)/release
+STATLIB        = $(LIBDIR)/libr_basemapper.a
 
-# Use the workspace target dir so build-script binaries land in the same
-# trusted location used by direct `cargo build` invocations.
-LIBDIR  = $(CURDIR)/../../target/$(TARGET_ARCH)/release
-STATLIB = $(LIBDIR)/libr_basemapper.a
+VENDORED_CORE = $(CURDIR)/rust/core
+REPO_CORE     = $(CURDIR)/../../core
 
 PKG_LIBS = -L$(LIBDIR) -lr_basemapper
 
-.PHONY: all clean
+.PHONY: all clean sync-core
 
 all: $(SHLIB)
 
 $(SHLIB): $(STATLIB)
 
-$(STATLIB):
+sync-core:
+	if [ -d "$(REPO_CORE)/src" ]; then \
+	  mkdir -p "$(VENDORED_CORE)"; \
+	  cp -r "$(REPO_CORE)/src" "$(VENDORED_CORE)/src"; \
+	  cp "$(REPO_CORE)/Cargo.toml" "$(VENDORED_CORE)/Cargo.toml"; \
+	fi
+
+$(STATLIB): sync-core
 	cargo build --release \
 	  --target=$(TARGET_ARCH) \
-	  --manifest-path="$(CARGO_MANIFEST)"
+	  --manifest-path="$(CARGO_MANIFEST)" \
+	  --target-dir="$(CURDIR)/../../target"
 
 clean:
 	rm -Rf $(STATLIB)

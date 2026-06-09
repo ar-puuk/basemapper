@@ -11,8 +11,8 @@ site:
 
 logo: logo.svg
 
-accent_color: "#2266c4"
-navbar_color: "#1a1a2e"
+accent_color: "#007EA7"
+navbar_color: "#0E171E"
 
 skill:
   enabled: false

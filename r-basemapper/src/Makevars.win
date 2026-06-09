@@ -1,39 +1,48 @@
 # Makevars.win -- Windows build instructions for R CMD INSTALL
 #
-# Cargo.toml lives one level above src/ (at the R package root).
-# Cargo builds a staticlib; R's linker (gcc from RTools45) produces the DLL.
-#
 # Requirements:
 #   - RTools45 installed (RTOOLS45_HOME must be set, which R does automatically)
 #   - Rust with the x86_64-pc-windows-gnu target:
 #       rustup target add x86_64-pc-windows-gnu
 
-TARGET = x86_64-pc-windows-gnu
-
+TARGET         = x86_64-pc-windows-gnu
 CARGO_MANIFEST = $(CURDIR)/../Cargo.toml
 
-# Use the workspace target dir (../../target relative to src/).
-# This is the same directory used by direct `cargo build` invocations, so
-# build-script binaries compiled there are already trusted by Application
-# Control policies that approve the repo root but not sub-package dirs.
+# Workspace target dir (src/ -> r-basemapper/ -> repo root).
+# Keeping build-script executables here satisfies Application Control policies
+# that trust the repo root but not sub-package target/ directories.
 LIBDIR  = $(CURDIR)/../../target/$(TARGET)/release
 STATLIB = $(LIBDIR)/libr_basemapper.a
 
-# System libraries required by the async Rust core (networking, TLS, crypto).
+# Vendored copy of the core crate lives inside r-basemapper/ so that
+# install_github() tarball builds work without the repo's sibling core/ dir.
+VENDORED_CORE = $(CURDIR)/rust/core
+REPO_CORE     = $(CURDIR)/../../core
+
 PKG_LIBS = -L$(LIBDIR) -lr_basemapper \
   -lws2_32 -lbcrypt -lcrypt32 -lsecur32 -lntdll -ladvapi32 -luserenv
 
-.PHONY: all clean
+.PHONY: all clean sync-core
 
 all: $(SHLIB)
 
 $(SHLIB): $(STATLIB)
 
-$(STATLIB):
+# In-tree builds: sync core from the canonical workspace location.
+# Tarball builds (install_github): REPO_CORE won't exist; use committed snapshot.
+sync-core:
+	if [ -d "$(REPO_CORE)/src" ]; then \
+	  mkdir -p "$(VENDORED_CORE)"; \
+	  cp -r "$(REPO_CORE)/src" "$(VENDORED_CORE)/src"; \
+	  cp "$(REPO_CORE)/Cargo.toml" "$(VENDORED_CORE)/Cargo.toml"; \
+	fi
+
+$(STATLIB): sync-core
 	export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER="$(RTOOLS45_HOME)/x86_64-w64-mingw32.static.posix/bin/gcc.exe"; \
 	cargo build --release \
 	  --target=$(TARGET) \
-	  --manifest-path="$(CARGO_MANIFEST)"
+	  --manifest-path="$(CARGO_MANIFEST)" \
+	  --target-dir="$(CURDIR)/../../target"
 
 clean:
 	rm -Rf $(STATLIB)

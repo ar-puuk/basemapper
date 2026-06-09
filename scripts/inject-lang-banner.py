@@ -29,11 +29,11 @@ BANNER_STYLE = """\
   border-bottom:2px solid rgba(0,0,0,.10);line-height:1.9;
   font-weight:500;letter-spacing:.01em;
 }
-.bm-banner-r  {background:#dce8fd;color:#0f2a5c;}
-.bm-banner-py {background:#d8f0db;color:#0f3312;}
+.bm-banner-r  {background:#E8F4F8;color:#0E171E;}
+.bm-banner-py {background:#FFF3E8;color:#2D1A00;}
 .bm-banner a  {font-weight:700;text-decoration:underline;}
-.bm-banner-r  a{color:#0f2a5c;}
-.bm-banner-py a{color:#0f3312;}
+.bm-banner-r  a{color:#007EA7;}
+.bm-banner-py a{color:#D96E34;}
 </style>"""
 
 # ── Banner HTML templates (one placeholder: the relative href) ────────────────

@@ -4,9 +4,11 @@ destination: ../site/r
 template:
   bootstrap: 5
   bslib:
-    primary: "#2266c4"
-    link-color: "#2266c4"
-    navbar-bg: "#1a1a2e"
+    primary: "#007EA7"
+    link-color: "#D96E34"
+    link-hover-color: "#A23E02"
+    navbar-bg: "#0E171E"
+    bg: "#FFFBF2"
     base_font:
       google: "Inter"
     heading_font:
