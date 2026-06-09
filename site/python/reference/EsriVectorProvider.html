@@ -144,7 +144,7 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
     a.id='r-docs-nav-link';
     a.href='https://ar-puuk.github.io/basemapper/r/';
     a.textContent='R docs';
-    tools.parentNode.insertBefore(a,tools);
+    tools.parentNode.appendChild(a);
   }
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',addLink);}
   else{addLink();}
