@@ -1,0 +1,37 @@
+# Makevars.win -- Windows build instructions for R CMD INSTALL
+#
+# Cargo.toml lives one level above src/ (at the R package root).
+# Cargo builds a staticlib; R's linker (gcc from RTools45) produces the DLL.
+#
+# Requirements:
+#   - RTools45 installed (RTOOLS45_HOME must be set, which R does automatically)
+#   - Rust with the x86_64-pc-windows-gnu target:
+#       rustup target add x86_64-pc-windows-gnu
+
+TARGET = x86_64-pc-windows-gnu
+
+CARGO_MANIFEST = $(CURDIR)/../Cargo.toml
+CARGO_TARGET   = $(CURDIR)/../target
+
+LIBDIR  = $(CARGO_TARGET)/$(TARGET)/release
+STATLIB = $(LIBDIR)/libr_basemapper.a
+
+# System libraries required by the async Rust core (networking, TLS, crypto).
+PKG_LIBS = -L$(LIBDIR) -lr_basemapper \
+  -lws2_32 -lbcrypt -lcrypt32 -lsecur32 -lntdll -ladvapi32 -luserenv
+
+.PHONY: all clean
+
+all: $(SHLIB)
+
+$(SHLIB): $(STATLIB)
+
+$(STATLIB):
+	export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER="$(RTOOLS45_HOME)/x86_64-w64-mingw32.static.posix/bin/gcc.exe"; \
+	cargo build --release \
+	  --target=$(TARGET) \
+	  --manifest-path="$(CARGO_MANIFEST)" \
+	  --target-dir="$(CARGO_TARGET)"
+
+clean:
+	rm -Rf $(CARGO_TARGET)

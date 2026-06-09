@@ -1,11 +1,5 @@
-# MSVC target: R.lib is for non-R-extension builds only (no extendr/R_NilValue access).
-[target.x86_64-pc-windows-msvc]
-rustflags = ["-L", "D:\\GitHub\\basemapper\\.r-lib"]
-
-# GNU target: used for building r-basemapper.dll via RTools45.
-# libR.dll.a in .r-lib is generated with DATA qualifiers for R global variables
-# (R_NilValue, R_GlobalEnv, etc.) — required for correct import table setup.
-# See .r-lib/R_gnu.def and the note in r-basemapper/src/rust/src/lib.rs.
+# GNU target: used for building r-basemapper via RTools45.
+# The linker is the static-posix gcc from RTools45, which R sets RTOOLS45_HOME for.
+# Library search paths are handled by libR-sys's build script and Makevars.win.
 [target.x86_64-pc-windows-gnu]
 linker = "C:\\rtools45\\x86_64-w64-mingw32.static.posix\\bin\\gcc.exe"
-rustflags = ["-L", "D:\\GitHub\\basemapper\\.r-lib"]

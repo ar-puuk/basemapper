@@ -1,0 +1,31 @@
+# Makevars -- Unix (macOS / Linux) build instructions for R CMD INSTALL
+#
+# Cargo builds a staticlib; R's linker produces the shared library.
+#
+# Requirements:
+#   - Rust installed (https://rustup.rs)
+
+TARGET_ARCH = $(shell rustc -vV 2>/dev/null | grep '^host:' | sed 's/host: //')
+
+CARGO_MANIFEST = $(CURDIR)/../Cargo.toml
+CARGO_TARGET   = $(CURDIR)/../target
+
+LIBDIR  = $(CARGO_TARGET)/$(TARGET_ARCH)/release
+STATLIB = $(LIBDIR)/libr_basemapper.a
+
+PKG_LIBS = -L$(LIBDIR) -lr_basemapper
+
+.PHONY: all clean
+
+all: $(SHLIB)
+
+$(SHLIB): $(STATLIB)
+
+$(STATLIB):
+	cargo build --release \
+	  --target=$(TARGET_ARCH) \
+	  --manifest-path="$(CARGO_MANIFEST)" \
+	  --target-dir="$(CARGO_TARGET)"
+
+clean:
+	rm -Rf $(CARGO_TARGET)
