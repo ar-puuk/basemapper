@@ -40,7 +40,7 @@ render_basemap_raw <- function(
     layers          = NULL
 ) {
   raw <- .Call(
-    basemapper_render_basemap_raw,
+    "wrap__render_basemap_raw",
     as.numeric(bbox_3857),
     as.integer(width),
     as.integer(height),
@@ -48,7 +48,8 @@ render_basemap_raw <- function(
     if (is.null(zoom)) NULL else as.integer(zoom),
     as.integer(tile_timeout_ms),
     as.integer(max_tiles),
-    if (is.null(layers)) NULL else as.character(layers)
+    if (is.null(layers)) NULL else as.character(layers),
+    PACKAGE = "basemapper"
   )
 
   # Reshape to [height, width, channels] array.

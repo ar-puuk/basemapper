@@ -11,5 +11,4 @@ path       = "src/rust/src/lib.rs"
 [dependencies]
 basemapper-core = { path = "../core" }
 extendr-api     = { version = "0.7", features = [] }
-tokio           = { workspace = true }
-once_cell       = { workspace = true }
+libR-sys        = { version = "0.7", features = [] }
