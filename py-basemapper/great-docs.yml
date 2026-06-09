@@ -1,0 +1,40 @@
+# Great Docs Configuration
+# https://posit-dev.github.io/great-docs/user-guide/configuration.html
+
+parser: google
+dynamic: true
+
+site_url: "https://ar-puuk.github.io/basemapper/python/"
+
+reference:
+  - title: Core rendering
+    desc: Low-level tile fetch and composite.
+    contents:
+      - render_basemap_raw
+
+  - title: Plot integrations
+    desc: >
+      Drop a basemap layer into an existing spatial plot.
+      `geom_basemap` works in both ggplot2 (R) and plotnine (Python).
+    contents:
+      - add_basemap
+      - geom_basemap
+
+  - title: Layer utilities
+    desc: Inspect and filter layers inside a MapLibre GL style.
+    contents:
+      - list_layers
+
+  - title: Tile style helpers
+    desc: Convert bare tile URLs to MapLibre GL Style JSON.
+    contents:
+      - RasterProvider
+      - VectorProvider
+      - EsriVectorProvider
+      - EsriRasterProvider
+
+  - title: Exceptions
+    contents:
+      - BasemapError
+
+jupyter: python3
