@@ -1,0 +1,59 @@
+# Package index
+
+## Core rendering
+
+Low-level tile fetch and composite — returns a georeferenced RGBA array.
+
+- [`render_basemap_raw()`](https://ar-puuk.github.io/basemapper/r/reference/render_basemap_raw.md)
+  : Render a basemap and return raw RGBA bytes.
+
+## ggplot2 integration
+
+Lazy ggproto layer that defers tile fetching until `coord_sf()` has
+established the panel’s geographic extent.
+
+- [`geom_basemap()`](https://ar-puuk.github.io/basemapper/r/reference/geom_basemap.md)
+  : Add a styled basemap layer to a ggplot2 spatial plot.
+- [`GeomBasemap`](https://ar-puuk.github.io/basemapper/r/reference/GeomBasemap.md)
+  : ggproto class for basemap rendering inside a ggplot2 panel.
+
+## tmap integration
+
+Composable tmap v4 element wrapping a georeferenced `stars` raster.
+
+- [`tm_basemap()`](https://ar-puuk.github.io/basemapper/r/reference/tm_basemap.md)
+  : Add a styled basemap layer to a tmap v4 pipeline.
+
+## Tile style helpers
+
+Convert bare tile URLs to MapLibre GL Style JSON strings accepted by all
+rendering functions.
+
+- [`raster_provider()`](https://ar-puuk.github.io/basemapper/r/reference/raster_provider.md)
+  : Generate a MapLibre GL Style JSON string for an XYZ raster tile
+  source.
+- [`vector_provider()`](https://ar-puuk.github.io/basemapper/r/reference/vector_provider.md)
+  : Generate a MapLibre GL Style JSON string for an MVT vector tile
+  source.
+- [`esri_vector_provider()`](https://ar-puuk.github.io/basemapper/r/reference/esri_vector_provider.md)
+  : Return the root.json style endpoint URL for an ArcGIS
+  VectorTileServer.
+- [`esri_raster_provider()`](https://ar-puuk.github.io/basemapper/r/reference/esri_raster_provider.md)
+  : Generate a MapLibre GL Style JSON string for an ArcGIS MapServer
+  raster source.
+
+## Layer utilities
+
+Inspect and filter layers inside a MapLibre GL style.
+
+- [`list_layers()`](https://ar-puuk.github.io/basemapper/r/reference/list_layers.md)
+  : List all layer IDs from a MapLibre GL style.
+
+## Coordinate utilities
+
+Internal helpers exposed for advanced use.
+
+- [`reproject_bbox_to_3857()`](https://ar-puuk.github.io/basemapper/r/reference/reproject_bbox_to_3857.md)
+  : Reproject a bounding box to EPSG:3857 (Web Mercator).
+- [`detect_crs_from_coord()`](https://ar-puuk.github.io/basemapper/r/reference/detect_crs_from_coord.md)
+  : Detect the EPSG code from a ggplot2 coord object.

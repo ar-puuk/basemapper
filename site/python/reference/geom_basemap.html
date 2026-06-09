@@ -68,6 +68,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
+<link href="../favicon.svg" rel="icon" type="image/svg+xml">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
@@ -77,7 +78,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="../site_libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-babe4201550b20047d7cb57f58fc9743.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-54660e341cb0033737839121e0616329.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -107,8 +108,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 }</script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script>document.head.appendChild(Object.assign(document.createElement('link'),{rel:'stylesheet',href:(document.querySelector('meta[name="quarto:offset"]')||{content:''}).content+'termshow.css'}));</script>
+<link rel="icon" type="image/svg+xml" href="https://ar-puuk.github.io/basemapper/python/favicon.svg">
 <script src="../theme-init.js"></script>
-<script>document.addEventListener('DOMContentLoaded',function(){document.body.setAttribute('data-gd-ref-sections','api,mcp');});</script>
 
 
   <meta name="description" content="Render a styled basemap beneath plotnine spatial layers.">
@@ -121,14 +122,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <meta name="twitter:description" content="Render a styled basemap beneath plotnine spatial layers.">
 <style>
 .bm-banner{
-  text-align:center;padding:7px 16px;font-size:.82rem;
-  border-bottom:1px solid rgba(0,0,0,.08);line-height:1.8;
+  text-align:center;padding:9px 20px;font-size:.95rem;
+  border-bottom:2px solid rgba(0,0,0,.10);line-height:1.9;
+  font-weight:500;letter-spacing:.01em;
 }
-.bm-banner-r  {background:#e8f0fe;color:#1a3a6b;}
-.bm-banner-py {background:#e8f5e9;color:#1a3b1a;}
-.bm-banner a  {font-weight:600;text-decoration:underline;}
-.bm-banner-r  a{color:#1a3a6b;}
-.bm-banner-py a{color:#1a3b1a;}
+.bm-banner-r  {background:#dce8fd;color:#0f2a5c;}
+.bm-banner-py {background:#d8f0db;color:#0f3312;}
+.bm-banner a  {font-weight:700;text-decoration:underline;}
+.bm-banner-r  a{color:#0f2a5c;}
+.bm-banner-py a{color:#0f3312;}
 </style>
 </head>
 
@@ -140,8 +142,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
-    <a class="navbar-brand" href="../index.html">
-    <span class="navbar-title">basemapper</span>
+    <a href="../index.html" class="navbar-brand navbar-brand-logo">
+    <img src="../logo.svg" alt="basemapper" class="navbar-logo light-content">
+    <img src="../logo.svg" alt="basemapper" class="navbar-logo dark-content">
     </a>
   </div>
             <div id="quarto-search" class=""></div>
@@ -767,13 +770,186 @@ Render basemap at draw time and inject via imshow.
 <script src="../copy-code.js"></script>
 <script src="../details.js"></script>
 <script src="../mermaid-renderer.js"></script>
-<script src="../reference-switcher.js"></script>
 <script src="../tooltips.js"></script>
 <script>(function(){var s=document.createElement('script');s.src=(document.querySelector('link[rel="canonical"]')||{href:location.href}).href.replace(/\/[^\/]*$/,'').replace(/\/[^\/]*$/,'')+'/color-swatch.js';var h=document.currentScript;h.parentNode.insertBefore(s,h.nextSibling);})()</script>
 <script src="../responsive-tables.js"></script>
 <script src="video-embed.js"></script>
 <script>(function(){var s=document.createElement('script');var m=document.querySelector('meta[name="quarto:offset"]');s.src=(m?m.content:'')+'termshow.js';document.body.appendChild(s);})();</script>
 <script src="../navbar-widgets.js"></script>
+<style>
+/* Great Docs: accent_color overrides */
+:root, html.quarto-light, :root[data-bs-theme='light'] {
+    --gd-accent: #2266c4;
+}
+html.quarto-dark, :root[data-bs-theme='dark'] {
+    --gd-accent: #2266c4;
+}
+</style>
+<style>
+/* Great Docs: navbar_color overrides */
+html.quarto-light, :root[data-bs-theme='light'] {
+    --gd-navbar-bg: #1a1a2e;
+    --gd-navbar-text: #FFFFFF;
+}
+html.quarto-light, :root[data-bs-theme='light'] .navbar {
+    background: #1a1a2e !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+html.quarto-light, :root[data-bs-theme='light'] .navbar .navbar-title,
+html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-link {
+    color: #FFFFFF !important;
+}
+html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    color: #FFFFFF !important;
+}
+html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-item:has(#github-widget) .nav-link:hover {
+    background-color: transparent !important;
+}
+html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-link.active {
+    text-decoration-color: rgba(255, 255, 255, 0.75) !important;
+}
+html.quarto-light, :root[data-bs-theme='light'] .navbar .dark-mode-toggle,
+html.quarto-light, :root[data-bs-theme='light'] #quarto-search .aa-DetachedSearchButton {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: #FFFFFF;
+}
+html.quarto-light, :root[data-bs-theme='light'] .navbar .dark-mode-toggle:hover,
+html.quarto-light, :root[data-bs-theme='light'] #quarto-search .aa-DetachedSearchButton:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+html.quarto-light, :root[data-bs-theme='light'] .navbar .gh-widget-trigger {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: #FFFFFF;
+}
+html.quarto-light, :root[data-bs-theme='light'] .navbar .gh-widget-trigger:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+html.quarto-light, :root[data-bs-theme='light'] .navbar .quarto-navbar-tools button,
+html.quarto-light, :root[data-bs-theme='light'] .navbar .quarto-navbar-tools .quarto-navigation-tool {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: #FFFFFF;
+}
+html.quarto-light, :root[data-bs-theme='light'] .navbar .quarto-navbar-tools button:hover,
+html.quarto-light, :root[data-bs-theme='light'] .navbar .quarto-navbar-tools .quarto-navigation-tool:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-item.compact .nav-link,
+html.quarto-light, :root[data-bs-theme='light'] .navbar .gd-navbar-icon {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    color: #FFFFFF;
+}
+html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-item.compact .nav-link:hover,
+html.quarto-light, :root[data-bs-theme='light'] .navbar .gd-navbar-icon:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+html.quarto-light, :root[data-bs-theme='light'] .navbar .navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%23e0e0e0' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+}
+html.quarto-light, :root[data-bs-theme='light'] .navbar .bi,
+html.quarto-light, :root[data-bs-theme='light'] .navbar .aa-SubmitIcon,
+html.quarto-light, :root[data-bs-theme='light'] .navbar .aa-SearchIcon,
+html.quarto-light, :root[data-bs-theme='light'] .navbar .aa-DetachedSearchButtonIcon,
+html.quarto-light, :root[data-bs-theme='light'] .navbar .aa-DetachedSearchButtonIcon svg {
+    color: #FFFFFF !important;
+    fill: #FFFFFF !important;
+}
+html.quarto-light, :root[data-bs-theme='light'] .navbar .version-badge {
+    color: #FFFFFF;
+    opacity: 0.75;
+    background-color: rgba(255, 255, 255, 0.08);
+}
+html.quarto-dark, :root[data-bs-theme='dark'] {
+    --gd-navbar-bg: #1a1a2e;
+    --gd-navbar-text: #FFFFFF;
+}
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar {
+    background: #1a1a2e !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .navbar-title,
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-link {
+    color: #FFFFFF !important;
+}
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    color: #FFFFFF !important;
+}
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-item:has(#github-widget) .nav-link:hover {
+    background-color: transparent !important;
+}
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-link.active {
+    text-decoration-color: rgba(255, 255, 255, 0.75) !important;
+}
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .dark-mode-toggle,
+html.quarto-dark, :root[data-bs-theme='dark'] #quarto-search .aa-DetachedSearchButton {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: #FFFFFF;
+}
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .dark-mode-toggle:hover,
+html.quarto-dark, :root[data-bs-theme='dark'] #quarto-search .aa-DetachedSearchButton:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .gh-widget-trigger {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: #FFFFFF;
+}
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .gh-widget-trigger:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .quarto-navbar-tools button,
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .quarto-navbar-tools .quarto-navigation-tool {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: #FFFFFF;
+}
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .quarto-navbar-tools button:hover,
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .quarto-navbar-tools .quarto-navigation-tool:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-item.compact .nav-link,
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .gd-navbar-icon {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    color: #FFFFFF;
+}
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-item.compact .nav-link:hover,
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .gd-navbar-icon:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%23e0e0e0' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+}
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .bi,
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .aa-SubmitIcon,
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .aa-SearchIcon,
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .aa-DetachedSearchButtonIcon,
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .aa-DetachedSearchButtonIcon svg {
+    color: #FFFFFF !important;
+    fill: #FFFFFF !important;
+}
+html.quarto-dark, :root[data-bs-theme='dark'] .navbar .version-badge {
+    color: #FFFFFF;
+    opacity: 0.75;
+    background-color: rgba(255, 255, 255, 0.08);
+}
+</style>
 
 
 

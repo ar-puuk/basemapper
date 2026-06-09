@@ -1,70 +1,60 @@
 {
-  "build_time": "2026-06-09T06:07:42Z",
-  "total_seconds": 8.432,
+  "build_time": "2026-06-09T06:34:01Z",
+  "total_seconds": 7.924,
   "pages": [
     {
-      "page": "skills.qmd",
-      "seconds": 3.01,
+      "page": "reference\\VectorProvider.qmd",
+      "seconds": 3.016,
       "frozen": false
     },
     {
       "page": "index.qmd",
-      "seconds": 1.564,
+      "seconds": 1.606,
       "frozen": false
     },
     {
       "page": "reference\\add_basemap.qmd",
-      "seconds": 0.373,
+      "seconds": 0.388,
       "frozen": false
     },
     {
       "page": "reference\\render_basemap_raw.qmd",
-      "seconds": 0.365,
+      "seconds": 0.381,
       "frozen": false
     },
     {
       "page": "reference\\geom_basemap.qmd",
-      "seconds": 0.355,
-      "frozen": false
-    },
-    {
-      "page": "reference\\VectorProvider.qmd",
-      "seconds": 0.353,
-      "frozen": false
-    },
-    {
-      "page": "reference\\list_layers.qmd",
-      "seconds": 0.352,
+      "seconds": 0.371,
       "frozen": false
     },
     {
       "page": "reference\\RasterProvider.qmd",
-      "seconds": 0.35,
+      "seconds": 0.367,
       "frozen": false
     },
     {
       "page": "reference\\index.qmd",
-      "seconds": 0.348,
+      "seconds": 0.366,
       "frozen": false
     },
     {
-      "page": "reference\\BasemapError.qmd",
-      "seconds": 0.347,
-      "frozen": false
-    },
-    {
-      "page": "reference\\EsriVectorProvider.qmd",
-      "seconds": 0.345,
+      "page": "reference\\list_layers.qmd",
+      "seconds": 0.366,
       "frozen": false
     },
     {
       "page": "reference\\EsriRasterProvider.qmd",
-      "seconds": 0.338,
+      "seconds": 0.361,
       "frozen": false
     },
     {
-      "page": "skill.md",
-      "seconds": 0.332,
+      "page": "reference\\EsriVectorProvider.qmd",
+      "seconds": 0.353,
+      "frozen": false
+    },
+    {
+      "page": "reference\\BasemapError.qmd",
+      "seconds": 0.349,
       "frozen": false
     }
   ]

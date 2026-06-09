@@ -25,14 +25,15 @@ from pathlib import Path
 BANNER_STYLE = """\
 <style>
 .bm-banner{
-  text-align:center;padding:7px 16px;font-size:.82rem;
-  border-bottom:1px solid rgba(0,0,0,.08);line-height:1.8;
+  text-align:center;padding:9px 20px;font-size:.95rem;
+  border-bottom:2px solid rgba(0,0,0,.10);line-height:1.9;
+  font-weight:500;letter-spacing:.01em;
 }
-.bm-banner-r  {background:#e8f0fe;color:#1a3a6b;}
-.bm-banner-py {background:#e8f5e9;color:#1a3b1a;}
-.bm-banner a  {font-weight:600;text-decoration:underline;}
-.bm-banner-r  a{color:#1a3a6b;}
-.bm-banner-py a{color:#1a3b1a;}
+.bm-banner-r  {background:#dce8fd;color:#0f2a5c;}
+.bm-banner-py {background:#d8f0db;color:#0f3312;}
+.bm-banner a  {font-weight:700;text-decoration:underline;}
+.bm-banner-r  a{color:#0f2a5c;}
+.bm-banner-py a{color:#0f3312;}
 </style>"""
 
 # ── Banner HTML templates (one placeholder: the relative href) ────────────────

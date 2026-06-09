@@ -1,55 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://ar-puuk.github.io/basemapper/python/skills.html</loc>
-    <lastmod>2026-06-09T06:07:33.131Z</lastmod>
-  </url>
-  <url>
     <loc>https://ar-puuk.github.io/basemapper/python/reference/VectorProvider.html</loc>
-    <lastmod>2026-06-09T06:07:33.414Z</lastmod>
+    <lastmod>2026-06-09T06:33:52.729Z</lastmod>
   </url>
   <url>
     <loc>https://ar-puuk.github.io/basemapper/python/reference/RasterProvider.html</loc>
-    <lastmod>2026-06-09T06:07:33.414Z</lastmod>
+    <lastmod>2026-06-09T06:33:52.728Z</lastmod>
   </url>
   <url>
     <loc>https://ar-puuk.github.io/basemapper/python/reference/index.html</loc>
-    <lastmod>2026-06-09T06:07:33.408Z</lastmod>
+    <lastmod>2026-06-09T06:33:52.724Z</lastmod>
   </url>
   <url>
     <loc>https://ar-puuk.github.io/basemapper/python/reference/EsriVectorProvider.html</loc>
-    <lastmod>2026-06-09T06:07:33.414Z</lastmod>
+    <lastmod>2026-06-09T06:33:52.729Z</lastmod>
   </url>
   <url>
     <loc>https://ar-puuk.github.io/basemapper/python/reference/BasemapError.html</loc>
-    <lastmod>2026-06-09T06:07:33.414Z</lastmod>
+    <lastmod>2026-06-09T06:33:52.730Z</lastmod>
   </url>
   <url>
     <loc>https://ar-puuk.github.io/basemapper/python/index.html</loc>
-    <lastmod>2026-06-09T06:07:32.353Z</lastmod>
+    <lastmod>2026-06-09T06:33:50.971Z</lastmod>
   </url>
   <url>
     <loc>https://ar-puuk.github.io/basemapper/python/reference/add_basemap.html</loc>
-    <lastmod>2026-06-09T06:07:33.281Z</lastmod>
+    <lastmod>2026-06-09T06:33:52.585Z</lastmod>
   </url>
   <url>
     <loc>https://ar-puuk.github.io/basemapper/python/reference/EsriRasterProvider.html</loc>
-    <lastmod>2026-06-09T06:07:33.414Z</lastmod>
+    <lastmod>2026-06-09T06:33:52.730Z</lastmod>
   </url>
   <url>
     <loc>https://ar-puuk.github.io/basemapper/python/reference/geom_basemap.html</loc>
-    <lastmod>2026-06-09T06:07:33.408Z</lastmod>
+    <lastmod>2026-06-09T06:33:52.727Z</lastmod>
   </url>
   <url>
     <loc>https://ar-puuk.github.io/basemapper/python/reference/list_layers.html</loc>
-    <lastmod>2026-06-09T06:07:33.413Z</lastmod>
+    <lastmod>2026-06-09T06:33:52.727Z</lastmod>
   </url>
   <url>
     <loc>https://ar-puuk.github.io/basemapper/python/reference/render_basemap_raw.html</loc>
-    <lastmod>2026-06-09T06:07:33.280Z</lastmod>
-  </url>
-  <url>
-    <loc>https://ar-puuk.github.io/basemapper/python/skill.html</loc>
-    <lastmod>2026-06-09T06:07:33.131Z</lastmod>
+    <lastmod>2026-06-09T06:33:52.585Z</lastmod>
   </url>
 </urlset>

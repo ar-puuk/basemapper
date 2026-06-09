@@ -1,6 +1,19 @@
 url: https://ar-puuk.github.io/basemapper/r/
 destination: ../site/r
 
+template:
+  bootstrap: 5
+  bslib:
+    primary: "#2266c4"
+    link-color: "#2266c4"
+    navbar-bg: "#1a1a2e"
+    base_font:
+      google: "Inter"
+    heading_font:
+      google: "Inter"
+    code_font:
+      google: "JetBrains Mono"
+
 home:
   title: basemapper (R)
   description: >

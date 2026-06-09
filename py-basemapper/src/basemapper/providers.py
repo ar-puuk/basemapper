@@ -14,12 +14,11 @@ _KNOWN_KEYS = _FILL_KEYS | _LINE_KEYS
 class RasterProvider:
     """Generate a MapLibre GL Style JSON string for an XYZ raster tile source.
 
+    Cast to ``str`` to obtain the inline MapLibre GL Style JSON.
+
     Args:
         url_template: Slippy-map tile URL with ``{z}``, ``{x}``, ``{y}`` placeholders.
         tile_size: Tile size in pixels (default 256).
-
-    Returns:
-        Inline MapLibre GL Style JSON when cast to ``str``.
     """
 
     def __init__(self, url_template: str, tile_size: int = 256) -> None:
@@ -126,13 +125,10 @@ class EsriVectorProvider:
     """Return the root.json style endpoint URL for an ArcGIS VectorTileServer.
 
     The Rust core fetches this URL to obtain the full, ESRI-published MapLibre
-    GL style JSON.
+    GL style JSON. Cast to ``str`` to get the URL string (not inline JSON).
 
     Args:
         base_url: Base ArcGIS VectorTileServer URL (trailing slashes stripped).
-
-    Returns:
-        A URL string (not inline JSON) when cast to ``str``.
     """
 
     def __init__(self, base_url: str) -> None:

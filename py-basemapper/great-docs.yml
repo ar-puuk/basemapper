@@ -6,6 +6,20 @@ dynamic: true
 
 site_url: "https://ar-puuk.github.io/basemapper/python/"
 
+site:
+  theme: cosmo
+
+logo: logo.svg
+
+accent_color: "#2266c4"
+navbar_color: "#1a1a2e"
+
+skill:
+  enabled: false
+
+mcp:
+  enabled: false
+
 reference:
   - title: Core rendering
     desc: Low-level tile fetch and composite.
