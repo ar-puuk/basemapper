@@ -9,6 +9,22 @@
   --bs-navbar-toggler-border-color: rgba(255, 251, 242, 0.2);
 }
 
+/* Python docs pill button in the navbar */
+.navbar a[href="../python/"] {
+  background-color: #007EA7;
+  color: #fff !important;
+  border-radius: 20px;
+  padding: 2px 12px !important;
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: background-color 0.15s ease;
+  margin-left: 4px;
+}
+.navbar a[href="../python/"]:hover {
+  background-color: #D96E34 !important;
+  color: #fff !important;
+}
+
 /* Code blocks: teal-tinted background */
 pre, code {
   background-color: #E8F4F8;
