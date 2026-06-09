@@ -5,7 +5,7 @@
 .DESCRIPTION
     Runs roxygen2::roxygenize (R man pages), pkgdown (R HTML site), and
     great-docs (Python HTML site), then assembles everything into site/ and
-    injects the language-switch banners.
+    assembles everything into site/.
 
     Prerequisites
     -------------
@@ -45,7 +45,6 @@ $gdocWork     = Join-Path $pyPkg    'great-docs'
 $gdocOut      = Join-Path $gdocWork '_site'
 $docsIndex    = Join-Path (Join-Path $repoRoot 'docs') 'index.html'
 $siteIndex    = Join-Path $siteDir  'index.html'
-$bannerScript = Join-Path (Join-Path $repoRoot 'scripts') 'inject-lang-banner.py'
 $logoSrc      = Join-Path (Join-Path $rPkg 'man') (Join-Path 'figures' 'logo.svg')
 $logoDest     = Join-Path $pyPkg 'logo.svg'
 
@@ -122,10 +121,6 @@ Copy-Item -Recurse $gdocOut $sitePy
 
 Write-Host '==> Copying landing page -> site/index.html ...' -ForegroundColor Cyan
 Copy-Item $docsIndex $siteIndex -Force
-
-# -- Banner injection ---------------------------------------------------------
-Write-Host '==> Injecting language-switch banners ...' -ForegroundColor Cyan
-python $bannerScript $siteDir
 
 # -- Done ---------------------------------------------------------------------
 Write-Host ''
