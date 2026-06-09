@@ -33,11 +33,10 @@ $(SHLIB): $(STATLIB)
 sync-core:
 	if [ -d "$(REPO_CORE)/src" ]; then \
 	  mkdir -p "$(VENDORED_CORE)"; \
-	  cp -r "$(REPO_CORE)/src" "$(VENDORED_CORE)/src"; \
+	  rm -rf "$(VENDORED_CORE)/src" && cp -r "$(REPO_CORE)/src" "$(VENDORED_CORE)/src"; \
 	  cp "$(REPO_CORE)/Cargo.toml" "$(VENDORED_CORE)/Cargo.toml"; \
 	  if [ -d "$(REPO_CORE)/examples" ]; then \
-	    rm -rf "$(VENDORED_CORE)/examples" && \
-	    cp -r "$(REPO_CORE)/examples" "$(VENDORED_CORE)/examples"; \
+	    rm -rf "$(VENDORED_CORE)/examples" && cp -r "$(REPO_CORE)/examples" "$(VENDORED_CORE)/examples"; \
 	  fi; \
 	fi
 
