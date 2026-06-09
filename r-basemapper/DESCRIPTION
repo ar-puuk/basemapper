@@ -10,7 +10,6 @@ Description: Renders styled spatial basemaps headlessly using a Rust core
 License: MIT
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.1
 SystemRequirements: Cargo (Rust package manager)
 Imports:
     ggplot2 (>= 3.4),
@@ -25,3 +24,4 @@ Suggests:
     stars (>= 0.6),
     httr2 (>= 1.0)
 Config/testthat/edition: 3
+Config/roxygen2/version: 8.0.0

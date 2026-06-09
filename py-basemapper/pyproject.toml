@@ -32,13 +32,12 @@ features        = ["pyo3/extension-module"]
 
 [tool.great-docs]
 source  = "src/basemapper"
-output  = "docs/reference"
+output  = "_site"
 style   = "google"
 modules = [
     "basemapper.matplotlib_integration",
+    "basemapper.plotnine_integration",
     "basemapper.layer_utils",
     "basemapper.providers",
-    "basemapper.plotnine_integration",
-    "basemapper.bbox_utils",
     "basemapper.exceptions",
 ]

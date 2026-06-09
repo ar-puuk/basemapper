@@ -1,0 +1,128 @@
+name: Build and deploy documentation
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deployment at a time; cancel in-flight runs on new pushes.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  # ── R docs via pkgdown ──────────────────────────────────────────────────────
+  build-r-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "release"
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: |
+            any::roxygen2
+            any::pkgdown
+            any::ggplot2
+            any::sf
+            any::jsonlite
+            any::tmap
+            any::stars
+          working-directory: r-basemapper
+
+      - name: Build pkgdown site
+        run: |
+          Rscript -e "roxygen2::roxygenize('r-basemapper')"
+          Rscript -e "
+            pkgdown::build_site(
+              pkg      = 'r-basemapper',
+              dest_dir = '../site/r',
+              preview  = FALSE,
+              new_process = FALSE
+            )
+          "
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r-docs
+          path: site/r/
+
+  # ── Python docs via great-docs ─────────────────────────────────────────────
+  build-python-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: quarto-dev/quarto-actions/setup@v2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package and great-docs
+        working-directory: py-basemapper
+        run: pip install ".[dev]"
+
+      - name: Build great-docs site
+        working-directory: py-basemapper
+        run: great-docs build
+        # Output goes to py-basemapper/_site/ per [tool.great-docs] output = "_site"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-docs
+          path: py-basemapper/_site/
+
+  # ── Assemble, inject banners, deploy ───────────────────────────────────────
+  deploy:
+    needs: [build-r-docs, build-python-docs]
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: r-docs
+          path: site/r/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-docs
+          path: site/python/
+
+      - name: Copy landing page
+        run: cp docs/index.html site/index.html
+
+      - name: Inject language banners
+        run: python scripts/inject-lang-banner.py site/
+
+      # Optional: uncomment and set CUSTOM_DOMAIN secret to enable a custom domain.
+      # - name: Write CNAME
+      #   if: ${{ vars.CUSTOM_DOMAIN != '' }}
+      #   run: echo "${{ vars.CUSTOM_DOMAIN }}" > site/CNAME
+
+      - uses: actions/configure-pages@v4
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

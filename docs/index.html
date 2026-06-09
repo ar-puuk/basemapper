@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>basemapper — Headless Spatial Basemap Renderer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Helvetica Neue", Arial, sans-serif;
+      background: #fafafa;
+      color: #1a1a2e;
+      line-height: 1.6;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+      color: #fff;
+      padding: 64px 24px 56px;
+      text-align: center;
+    }
+    .hero h1 { font-size: 2.8rem; font-weight: 700; letter-spacing: -.5px; }
+    .hero .tagline {
+      margin-top: 14px;
+      font-size: 1.15rem;
+      opacity: .85;
+      max-width: 560px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .hero .badges { margin-top: 20px; font-size: .85rem; opacity: .6; }
+    .hero .badges a { color: #a8d8ff; text-decoration: none; }
+    .hero .badges a:hover { text-decoration: underline; }
+
+    /* ── Doc cards ── */
+    .cards {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      flex-wrap: wrap;
+      padding: 48px 24px 32px;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08);
+      padding: 32px 28px 28px;
+      flex: 1 1 320px;
+      max-width: 380px;
+      border-top: 4px solid #ccc;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+      transition: box-shadow .2s, transform .2s;
+    }
+    .card:hover { box-shadow: 0 6px 24px rgba(0,0,0,.14); transform: translateY(-2px); }
+    .card.r   { border-top-color: #2266c4; }
+    .card.py  { border-top-color: #2e7d32; }
+    .card .lang-label {
+      font-size: .75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 8px;
+    }
+    .card.r  .lang-label { color: #2266c4; }
+    .card.py .lang-label { color: #2e7d32; }
+    .card h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 10px; }
+    .card p  { font-size: .92rem; color: #444; margin-bottom: 18px; }
+    .card .go {
+      display: inline-block;
+      font-size: .88rem;
+      font-weight: 600;
+      padding: 7px 16px;
+      border-radius: 6px;
+      text-decoration: none;
+    }
+    .card.r  .go { background: #e8f0fe; color: #2266c4; }
+    .card.py .go { background: #e8f5e9; color: #2e7d32; }
+
+    /* ── Install ── */
+    .install {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 8px 24px 48px;
+    }
+    .install h2 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin: 32px 0 14px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    pre {
+      background: #1e1e2e;
+      color: #cdd6f4;
+      border-radius: 8px;
+      padding: 16px 20px;
+      font-size: .87rem;
+      overflow-x: auto;
+      line-height: 1.5;
+    }
+    .note {
+      margin-top: 8px;
+      font-size: .82rem;
+      color: #777;
+    }
+
+    /* ── API table ── */
+    .api-section {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+    }
+    .api-section h2 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-bottom: 14px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+    }
+    th {
+      text-align: left;
+      padding: 8px 12px;
+      background: #f0f4ff;
+      color: #333;
+      font-weight: 600;
+    }
+    td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+    td code, th code {
+      background: #f0f0f0;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: .85em;
+    }
+    tr:last-child td { border-bottom: none; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 24px;
+      font-size: .82rem;
+      color: #888;
+      border-top: 1px solid #e8e8e8;
+    }
+    footer a { color: #2266c4; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>basemapper</h1>
+  <p class="tagline">
+    A headless spatial basemap renderer for R and Python.<br>
+    Fetch and composite styled map tiles into RGBA arrays — no browser,
+    no display server, no GDAL.
+  </p>
+  <p class="badges">
+    <a href="https://github.com/ar-puuk/basemapper">GitHub</a> &nbsp;·&nbsp;
+    MIT License &nbsp;·&nbsp; v0.1.0
+  </p>
+</div>
+
+<div class="cards">
+  <a class="card r" href="r/">
+    <div class="lang-label">R</div>
+    <h2>R documentation</h2>
+    <p>
+      ggplot2, tmap, and sf integration. Installs with one
+      <code>remotes::install_github()</code> call.
+    </p>
+    <span class="go">Open R docs →</span>
+  </a>
+
+  <a class="card py" href="python/">
+    <div class="lang-label">Python</div>
+    <h2>Python documentation</h2>
+    <p>
+      matplotlib and plotnine integration. Installs via
+      <code>pip install</code> from GitHub.
+    </p>
+    <span class="go">Open Python docs →</span>
+  </a>
+</div>
+
+<div class="install">
+  <h2>Install</h2>
+
+  <p style="margin-bottom:10px"><strong>R</strong></p>
+  <pre>remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")</pre>
+  <p class="note">
+    Requires ggplot2 ≥ 3.4, sf ≥ 1.0, jsonlite ≥ 1.8.
+    Optional: tmap ≥ 4.0, stars ≥ 0.6 for <code>tm_basemap()</code>.
+    CRAN and R-Universe packages planned after extended testing.
+  </p>
+
+  <h2 style="margin-top:28px"> </h2>
+  <p style="margin-bottom:10px"><strong>Python</strong></p>
+  <pre>pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</pre>
+  <p class="note">
+    Requires numpy, pyproj, matplotlib, requests.
+    Optional: plotnine ≥ 0.12 for <code>geom_basemap()</code>.
+    PyPI and conda packages planned after extended testing.
+  </p>
+</div>
+
+<div class="api-section">
+  <h2>Key functions</h2>
+  <table>
+    <thead>
+      <tr><th>What you want</th><th>R</th><th>Python</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Raw RGBA render</td>
+          <td><code>render_basemap_raw()</code></td>
+          <td><code>render_basemap_raw()</code></td></tr>
+      <tr><td>ggplot2 / plotnine layer</td>
+          <td><code>geom_basemap()</code></td>
+          <td><code>geom_basemap()</code></td></tr>
+      <tr><td>matplotlib inject</td>
+          <td>—</td>
+          <td><code>add_basemap()</code></td></tr>
+      <tr><td>tmap layer</td>
+          <td><code>tm_basemap()</code></td>
+          <td>—</td></tr>
+      <tr><td>OSM / raster style</td>
+          <td><code>raster_provider()</code></td>
+          <td><code>RasterProvider</code></td></tr>
+      <tr><td>MVT vector style</td>
+          <td><code>vector_provider()</code></td>
+          <td><code>VectorProvider</code></td></tr>
+      <tr><td>ESRI vector style</td>
+          <td><code>esri_vector_provider()</code></td>
+          <td><code>EsriVectorProvider</code></td></tr>
+      <tr><td>ESRI raster style</td>
+          <td><code>esri_raster_provider()</code></td>
+          <td><code>EsriRasterProvider</code></td></tr>
+      <tr><td>Inspect style layers</td>
+          <td><code>list_layers()</code></td>
+          <td><code>list_layers()</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>
+  <p>
+    basemapper &nbsp;·&nbsp; MIT License &nbsp;·&nbsp;
+    <a href="https://github.com/ar-puuk/basemapper">GitHub</a> &nbsp;·&nbsp;
+    Built with <a href="https://pkgdown.r-lib.org">pkgdown</a> (R) and
+    <a href="https://github.com/posit-dev/great-docs">great-docs</a> (Python)
+  </p>
+</footer>
+
+</body>
+</html>
