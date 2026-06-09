@@ -1,0 +1,14 @@
+/* Ensure legible text on the dark (#0E171E) navbar */
+.navbar {
+  --bs-navbar-color: rgba(255, 251, 242, 0.85);
+  --bs-navbar-hover-color: #007EA7;
+  --bs-navbar-active-color: #D96E34;
+  --bs-navbar-brand-color: #FFFBF2;
+  --bs-navbar-brand-hover-color: #007EA7;
+  --bs-navbar-toggler-border-color: rgba(255, 251, 242, 0.2);
+}
+
+/* Code blocks: teal-tinted background */
+pre, code {
+  background-color: #E8F4F8;
+}
