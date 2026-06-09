@@ -6,9 +6,7 @@ template:
   bslib:
     primary: "#007EA7"
     link-color: "#D96E34"
-    link-hover-color: "#A23E02"
     navbar-bg: "#0E171E"
-    bg: "#FFFBF2"
     base_font:
       google: "Inter"
     heading_font:
