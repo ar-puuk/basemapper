@@ -2,6 +2,7 @@ url: https://ar-puuk.github.io/basemapper/r/
 destination: ../site/r
 
 template:
+  light-switch: true
   bootstrap: 5
   bslib:
     primary: "#007EA7"
@@ -23,8 +24,8 @@ home:
 
 navbar:
   structure:
-    left:  [intro, reference, articles]
-    right: [python_docs, search, lightswitch, github]
+    left: [intro, reference, articles]
+    right: [lightswitch, github, search, python_docs]
   components:
     intro:
       text: Get started

@@ -1,6 +1,8 @@
 # Great Docs Configuration
 # https://posit-dev.github.io/great-docs/user-guide/configuration.html
 
+display_name: basemapper (python)
+
 parser: google
 dynamic: true
 
@@ -14,10 +16,25 @@ logo: logo.svg
 accent_color: "#007EA7"
 navbar_color: "#0E171E"
 
+repo: https://ar-puuk.github.io/basemapper
+github_style: icon
+
 skill:
   enabled: false
 
 include_in_header:
+  - text: |
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+      <style>
+      body, p, li, td, th, .navbar, .sidebar { font-family: 'Inter', sans-serif !important; }
+      h1, h2, h3, h4, h5, h6 { font-family: 'Inter', sans-serif !important; }
+      code, pre, tt, kbd { font-family: 'JetBrains Mono', monospace !important; }
+      pre, :not(pre) > code { background-color: #E8F4F8 !important; }
+      a:not(.navbar-brand):not(.nav-link):not(.btn) { color: #007EA7; }
+      a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
+      </style>
   - text: |
       <script>
       (function(){
