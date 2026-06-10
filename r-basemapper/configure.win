@@ -1,0 +1,74 @@
+#!/bin/sh
+# configure.win -- runs before make during R CMD INSTALL on Windows.
+#
+# Generates src/libR.dll.a with DATA-qualified exports so that extendr's
+# LibExtern globals (R_NilValue, R_GlobalEnv, etc.) are accessed as
+# data symbols rather than function pointers.  Without this, loading
+# basemapper.dll causes an immediate access violation.
+#
+# Tools used (all ship with RTools45):
+#   objdump  -- extract R.dll export table
+#   dlltool  -- build GNU import library from .def file
+
+set -e
+
+# Ensure RTools45 utilities are on PATH
+export PATH="${RTOOLS45_HOME}/usr/bin:${PATH}"
+
+TOOLCHAIN="${RTOOLS45_HOME}/x86_64-w64-mingw32.static.posix/bin"
+R_DLL="${R_HOME}/bin/x64/R.dll"
+OBJDUMP="${TOOLCHAIN}/objdump.exe"
+DLLTOOL="${TOOLCHAIN}/dlltool.exe"
+
+if [ ! -f "${R_DLL}" ]; then
+  echo "configure.win: R.dll not found at ${R_DLL}" >&2
+  exit 1
+fi
+
+if [ ! -f "${DLLTOOL}" ]; then
+  echo "configure.win: dlltool not found at ${DLLTOOL}" >&2
+  exit 1
+fi
+
+# ── Extract named exports from R.dll ─────────────────────────────────────────
+# objdump -p lists named exports as:  [N] +base[N]  OFFSET SYMBOLNAME
+# Ordinal-only exports show "Export RVA" instead of a name -- skip those.
+echo "configure.win: extracting R.dll exports..."
+"${OBJDUMP}" -p "${R_DLL}" \
+  | grep -E '^\s+\[.*\]\s+\+base\[' \
+  | grep -v 'Export RVA' \
+  | awk '{print $NF}' \
+  > /tmp/r_exports.txt
+
+EXPORT_COUNT=$(wc -l < /tmp/r_exports.txt)
+echo "configure.win: found ${EXPORT_COUNT} named exports"
+
+# ── Build DATA-qualified .def ─────────────────────────────────────────────────
+# Symbols that extendr accesses as LibExtern (global variables in R.dll).
+DATA_SYMS="R_NilValue R_GlobalEnv R_EmptyEnv R_BaseEnv \
+  R_BaseNamespace R_NamespaceRegistry \
+  R_TrueValue R_FalseValue R_LogicalNAValue \
+  R_MissingArg R_UnboundValue R_NaString R_BlankString \
+  R_NaN R_PosInf R_NegInf R_NaReal R_NaInt \
+  R_GlobalContext R_interrupts_suspended R_interrupts_pending"
+
+echo "LIBRARY R.dll"  > /tmp/R_gnu.def
+echo "EXPORTS"       >> /tmp/R_gnu.def
+
+while IFS= read -r sym; do
+  is_data=0
+  for dsym in $DATA_SYMS; do
+    if [ "$sym" = "$dsym" ]; then is_data=1; break; fi
+  done
+  if [ "$is_data" -eq 1 ]; then
+    echo "    $sym DATA" >> /tmp/R_gnu.def
+  else
+    echo "    $sym"      >> /tmp/R_gnu.def
+  fi
+done < /tmp/r_exports.txt
+
+# ── Generate libR.dll.a into src/ so Makevars.win can find it via $(CURDIR) ──
+echo "configure.win: building src/libR.dll.a..."
+"${DLLTOOL}" --def /tmp/R_gnu.def --dllname R.dll --output-lib src/libR.dll.a
+
+echo "configure.win: done ($(wc -c < src/libR.dll.a) bytes)"

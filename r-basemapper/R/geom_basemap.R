@@ -1,7 +1,9 @@
 #' ggproto class for basemap rendering inside a ggplot2 panel.
 #'
-#' Tile fetching is deferred to draw time so that `coord_sf()` has already
-#' established the panel's spatial extent.
+#' Tile fetching is deferred to actual draw time via a custom grob so that
+#' the viewport pixel dimensions are available when `render_basemap_raw` is
+#' called.  This also means `coord_sf()` has already established the panel's
+#' spatial extent before any fetching begins.
 #'
 #' @keywords internal
 GeomBasemap <- ggplot2::ggproto(
@@ -20,38 +22,63 @@ GeomBasemap <- ggplot2::ggproto(
       x_range[1], y_range[1], x_range[2], y_range[2], from_epsg
     )
 
-    # Read panel pixel dimensions from the current viewport.
-    width_px  <- max(1L, as.integer(grid::convertWidth(
-      grid::unit(1, "npc"), "px", valueOnly = TRUE
-    )))
-    height_px <- max(1L, as.integer(grid::convertHeight(
-      grid::unit(1, "npc"), "px", valueOnly = TRUE
-    )))
-
-    m <- render_basemap_raw(
-      bbox_3857       = bbox_3857,
-      width           = width_px,
-      height          = height_px,
-      style_input     = style_url,
-      zoom            = zoom,
-      tile_timeout_ms = tile_timeout,
-      max_tiles       = max_tiles,
-      layers          = layers
-    )
-
-    # H4: gpar(alpha=alpha) controls opacity; zorder handled by ggplot2 layer order.
-    grid::rasterGrob(
-      m,
-      x             = 0.5,
-      y             = 0.5,
-      width         = grid::unit(1, "npc"),
-      height        = grid::unit(1, "npc"),
-      default.units = "npc",
-      interpolate   = FALSE,
-      gp            = grid::gpar(alpha = alpha)
+    # Return a lazy gTree.  makeContent.BasemapGrob is called at actual draw
+    # time (inside an active viewport), where npc→px conversion is valid.
+    grid::gTree(
+      bbox_3857    = bbox_3857,
+      style_url    = style_url,
+      zoom         = zoom,
+      tile_timeout = tile_timeout,
+      max_tiles    = max_tiles,
+      alpha        = alpha,
+      layers       = layers,
+      cl           = "BasemapGrob"
     )
   }
 )
+
+#' makeContent method for BasemapGrob.
+#'
+#' Called by grid at draw time (inside an active viewport).  Converts npc
+#' to pixel dimensions, fetches tiles, and returns a rasterGrob child.
+#'
+#' @keywords internal
+makeContent.BasemapGrob <- function(x) {
+  dpi <- tryCatch(
+    round(grDevices::dev.size("px")[1] / grDevices::dev.size("in")[1]),
+    error = function(e) 96L
+  )
+  width_px  <- max(1L, round(
+    grid::convertWidth(grid::unit(1, "npc"), "in", valueOnly = TRUE) * dpi
+  ))
+  height_px <- max(1L, round(
+    grid::convertHeight(grid::unit(1, "npc"), "in", valueOnly = TRUE) * dpi
+  ))
+
+  m <- render_basemap_raw(
+    bbox_3857       = x$bbox_3857,
+    width           = width_px,
+    height          = height_px,
+    style_input     = x$style_url,
+    zoom            = x$zoom,
+    tile_timeout_ms = x$tile_timeout,
+    max_tiles       = x$max_tiles,
+    layers          = x$layers
+  )
+
+  img <- grid::rasterGrob(
+    as.raster(m / 255),
+    x             = 0.5,
+    y             = 0.5,
+    width         = grid::unit(1, "npc"),
+    height        = grid::unit(1, "npc"),
+    default.units = "npc",
+    interpolate   = FALSE,
+    gp            = grid::gpar(alpha = x$alpha)
+  )
+
+  grid::setChildren(x, grid::gList(img))
+}
 
 #' Add a styled basemap layer to a ggplot2 spatial plot.
 #'

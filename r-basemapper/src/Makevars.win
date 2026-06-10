@@ -26,7 +26,8 @@ STATLIB = $(LIBDIR)/libr_basemapper.a
 VENDORED_CORE = $(CURDIR)/rust/core
 REPO_CORE     = $(CURDIR)/../../core
 
-PKG_LIBS = -L$(LIBDIR) -lr_basemapper \
+# $(CURDIR) is src/ at make time; configure.win writes libR.dll.a there.
+PKG_LIBS = -L$(CURDIR) -L$(LIBDIR) -lr_basemapper -lR.dll \
   -lws2_32 -lbcrypt -lcrypt32 -lsecur32 -lntdll -ladvapi32 -luserenv \
   -lole32 -ld3dcompiler_47 -lopengl32 -lgdi32
 

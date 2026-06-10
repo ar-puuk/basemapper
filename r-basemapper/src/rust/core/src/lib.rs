@@ -68,8 +68,8 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
         let style_val: serde_json::Value = serde_json::from_str(&style_json)
             .map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
 
-        // Extract TileSource from the first source in the style.
-        let tile_source = extract_tile_source_from_style(&style_val)?;
+        // Extract TileSource from the first raster/vector source in the style.
+        let tile_source = extract_tile_source_from_style(&style_val, &client).await?;
         let coords = tile_fetcher::build_tile_coords(request.bbox, zoom);
         let urls = tile_fetcher::build_tile_urls(&tile_source, &coords);
 
@@ -111,30 +111,74 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
     })
 }
 
-/// Extract a `TileSource` from the first entry in a style's "sources" object.
-fn extract_tile_source_from_style(style: &serde_json::Value) -> Result<TileSource, BasemapError> {
+/// Extract a `TileSource` from the first raster or vector source in the style.
+///
+/// Skips non-tile source types (geojson, image, video).  If the source has a
+/// "url" field (TileJSON reference) instead of an inline "tiles" array, the
+/// TileJSON endpoint is fetched to obtain the tile URL template.
+async fn extract_tile_source_from_style(
+    style: &serde_json::Value,
+    client: &reqwest::Client,
+) -> Result<TileSource, BasemapError> {
     let sources = style
         .get("sources")
         .and_then(|s| s.as_object())
         .ok_or_else(|| BasemapError::StyleParseError("missing \"sources\" object".into()))?;
 
-    let source = sources
+    let (src_type, source) = sources
         .values()
-        .next()
-        .ok_or_else(|| BasemapError::StyleParseError("\"sources\" object is empty".into()))?;
+        .find_map(|s| {
+            let t = s.get("type").and_then(|t| t.as_str()).unwrap_or("raster");
+            if matches!(t, "geojson" | "image" | "video") {
+                None
+            } else {
+                Some((t, s))
+            }
+        })
+        .ok_or_else(|| {
+            BasemapError::StyleParseError("no raster or vector tile source found".into())
+        })?;
 
-    let src_type = source
-        .get("type")
-        .and_then(|t| t.as_str())
-        .unwrap_or("raster");
-
-    let tiles = source
+    // Prefer inline "tiles" array; fall back to resolving a "url" TileJSON endpoint.
+    let tiles = if let Some(t) = source
         .get("tiles")
         .and_then(|t| t.as_array())
         .and_then(|a| a.first())
         .and_then(|u| u.as_str())
-        .unwrap_or("")
-        .to_owned();
+    {
+        t.to_owned()
+    } else if let Some(tilejson_url) = source.get("url").and_then(|u| u.as_str()) {
+        let resp = client
+            .get(tilejson_url)
+            .send()
+            .await
+            .map_err(|_| BasemapError::StyleFetchFailed {
+                url: tilejson_url.to_owned(),
+                status: 0,
+            })?;
+        if !resp.status().is_success() {
+            return Err(BasemapError::StyleFetchFailed {
+                url: tilejson_url.to_owned(),
+                status: resp.status().as_u16(),
+            });
+        }
+        let tilejson: serde_json::Value = resp.json().await.map_err(|_| {
+            BasemapError::StyleParseError("could not parse TileJSON response".into())
+        })?;
+        tilejson
+            .get("tiles")
+            .and_then(|t| t.as_array())
+            .and_then(|a| a.first())
+            .and_then(|u| u.as_str())
+            .ok_or_else(|| {
+                BasemapError::StyleParseError("TileJSON missing \"tiles\" array".into())
+            })?
+            .to_owned()
+    } else {
+        return Err(BasemapError::StyleParseError(
+            "source has neither \"tiles\" array nor \"url\" TileJSON reference".into(),
+        ));
+    };
 
     match src_type {
         "vector" => Ok(TileSource::MapboxVectorTile {

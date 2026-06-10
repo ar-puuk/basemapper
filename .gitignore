@@ -23,6 +23,8 @@ great-docs/
 *.Rproj
 r-basemapper/src/*.dll
 r-basemapper/src/*.so
+r-basemapper/src/*.o
+r-basemapper/src/libR.dll.a
 
 # Environment / editor
 .env
