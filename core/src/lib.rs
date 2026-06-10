@@ -30,6 +30,7 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
                 request.tile_timeout_ms as u64,
             ))
             .use_rustls_tls()
+            .user_agent(concat!("basemapper/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|e| BasemapError::RenderError(e.to_string()))?;
 
