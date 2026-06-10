@@ -88,21 +88,16 @@ Key parameters shared across all high-level functions:
 
 ## Step 3 — Render with {tmap}
 
-`tm_basemap()` returns a composable {tmap} v4 element. It derives the map
-extent from the pipeline's primary shape when `bbox = NULL`:
+`tm_basemap()` returns a composable {tmap} v4 element that defers tile
+fetching to draw time, deriving the map extent from the active `tm_shape()`
+— no explicit bounding box is needed:
 
 ```r
 library(tmap)
 
-tm_shape(nc) +
-  tm_basemap(osm_style) +
+basemapper::tm_basemap(osm_style) +
+  tm_shape(nc) +
   tm_sf(fill = NA, col = "steelblue")
-```
-
-Supply an explicit bbox when rendering outside a `tm_shape()` pipeline:
-
-```r
-tm_basemap(osm_style, bbox = st_bbox(nc))
 ```
 
 ## Step 4 — Filter layers

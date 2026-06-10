@@ -53,8 +53,8 @@ class geom_basemap(geom):
     def draw_panel(self, data, panel_params, coord, ax, **kwargs):  # type: ignore[override]
         """Render basemap at draw time and inject via imshow.
 
-        H4: zorder=0 may hide behind ax.patch (zorder=0). If basemap is
-        invisible, set ax.set_facecolor('none') and increase zorder to 0.5.
+        The panel background is made transparent automatically so the basemap
+        shows through. Axis limits are restored after imshow.
         """
         import pyproj
 
