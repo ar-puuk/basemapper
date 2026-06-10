@@ -4,12 +4,13 @@
 \alias{reproject_bbox_to_3857}
 \title{Reproject a bounding box to EPSG:3857 (Web Mercator).}
 \usage{
-reproject_bbox_to_3857(xmin, ymin, xmax, ymax, from_epsg)
+reproject_bbox_to_3857(xmin, ymin, xmax, ymax, from_crs)
 }
 \arguments{
-\item{xmin, ymin, xmax, ymax}{Bounding-box corners in \code{from_epsg} units.}
+\item{xmin, ymin, xmax, ymax}{Bounding-box corners in \code{from_crs} units.}
 
-\item{from_epsg}{Source EPSG code (integer).}
+\item{from_crs}{Source CRS — anything accepted by \code{sf::st_crs()},
+including integer EPSG codes, WKT strings, and \code{crs} objects.}
 }
 \value{
 Named numeric vector c(xmin, ymin, xmax, ymax) in EPSG:3857.
