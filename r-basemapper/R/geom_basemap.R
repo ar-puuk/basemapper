@@ -17,7 +17,7 @@ GeomBasemap <- ggplot2::ggproto(
     # Extract panel extent and reproject to EPSG:3857.
     x_range <- panel_params$x.range %||% panel_params$x_range
     y_range <- panel_params$y.range %||% panel_params$y_range
-    from_epsg <- detect_crs_from_coord(coord)
+    from_epsg <- detect_crs_from_coord(coord, panel_params)
     bbox_3857 <- reproject_bbox_to_3857(
       x_range[1], y_range[1], x_range[2], y_range[2], from_epsg
     )

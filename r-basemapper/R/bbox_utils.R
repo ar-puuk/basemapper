@@ -1,11 +1,15 @@
-#' Detect the EPSG code from a ggplot2 coord object.
+#' Detect the EPSG code from a ggplot2 coord/panel_params object.
 #'
 #' @param coord A ggplot2 coord object (typically from coord_sf()).
+#' @param panel_params Panel parameters from draw_panel (may contain resolved CRS).
 #' @return Integer EPSG code, or 4326L with a message if not detectable.
-detect_crs_from_coord <- function(coord) {
+detect_crs_from_coord <- function(coord, panel_params = NULL) {
   crs <- tryCatch(
     {
-      crs_obj <- coord$crs
+      # panel_params$crs is set by CoordSf$setup_panel_params to the
+      # CRS resolved from the sf layer data.  coord$crs is only non-NULL
+      # when the user passes crs= explicitly to coord_sf().
+      crs_obj <- (panel_params$crs %||% coord$crs)
       if (is.null(crs_obj)) stop("null crs")
       sf::st_crs(crs_obj)$epsg
     },
