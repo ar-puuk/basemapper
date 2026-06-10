@@ -8,6 +8,13 @@
 TARGET         = x86_64-pc-windows-gnu
 CARGO_MANIFEST = $(CURDIR)/../Cargo.toml
 
+# RTools45 ships GCC 14 which dropped libgcc_eh.a, but Rust's windows-gnu
+# target still links -lgcc_eh.  Create an empty stub so the linker is satisfied.
+RTOOLS_STATIC_LIB = $(RTOOLS45_HOME)/x86_64-w64-mingw32.static.posix/lib
+$(shell test -f "$(RTOOLS_STATIC_LIB)/libgcc_eh.a" || \
+  "$(RTOOLS45_HOME)/x86_64-w64-mingw32.static.posix/bin/ar.exe" crs \
+  "$(RTOOLS_STATIC_LIB)/libgcc_eh.a")
+
 # Workspace target dir (src/ -> r-basemapper/ -> repo root).
 # Keeping build-script executables here satisfies Application Control policies
 # that trust the repo root but not sub-package target/ directories.
