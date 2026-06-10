@@ -2,16 +2,18 @@
 % Please edit documentation in R/bbox_utils.R
 \name{detect_crs_from_coord}
 \alias{detect_crs_from_coord}
-\title{Detect the EPSG code from a ggplot2 coord object.}
+\title{Detect the EPSG code from a ggplot2 coord/panel_params object.}
 \usage{
-detect_crs_from_coord(coord)
+detect_crs_from_coord(coord, panel_params = NULL)
 }
 \arguments{
 \item{coord}{A ggplot2 coord object (typically from coord_sf()).}
+
+\item{panel_params}{Panel parameters from draw_panel (may contain resolved CRS).}
 }
 \value{
 Integer EPSG code, or 4326L with a message if not detectable.
 }
 \description{
-Detect the EPSG code from a ggplot2 coord object.
+Detect the EPSG code from a ggplot2 coord/panel_params object.
 }

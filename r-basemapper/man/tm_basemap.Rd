@@ -6,7 +6,6 @@
 \usage{
 tm_basemap(
   style_input,
-  bbox = NULL,
   zoom = NULL,
   alpha = 1,
   layers = NULL,
@@ -18,45 +17,34 @@ tm_basemap(
 \arguments{
 \item{style_input}{Character: a MapLibre GL style URL or inline JSON string.}
 
-\item{bbox}{An explicit bounding box (sf bbox, numeric vector
-\code{c(xmin, ymin, xmax, ymax)} in any CRS, or an sf/stars/sfc object).
-When \code{NULL}, derived from \code{tmap::bb()} of the current pipeline's primary
-shape.}
-
 \item{zoom}{Integer zoom level (0–22), or \code{NULL} for automatic.}
 
 \item{alpha}{Numeric opacity (0–1).}
 
 \item{layers}{Character vector of layer IDs to filter. See \code{render_basemap_raw()}.}
 
-\item{width_px, height_px}{Output dimensions in pixels. When \code{NULL}, 800×600
-is used as a sensible default for static maps.}
+\item{width_px, height_px}{Output dimensions in pixels. Defaults to 800×600
+when \code{NULL}.}
 
-\item{...}{Additional arguments (reserved for future use).}
+\item{...}{Reserved for future use.}
 }
 \value{
-A composable tmap element: \code{tmap::tm_shape(stars_obj) + tmap::tm_rgb()}.
+A composable tmap element (class \code{"tmap"}). Put it before \code{tm_shape()}
+so it renders behind subsequent layers.
 }
 \description{
-Derives the map extent from the tmap pipeline's active primary shape via
-\code{tmap::bb()}, renders the basemap via the Rust core, wraps the pixel array
-as a georeferenced \code{stars} object, and returns a composable tmap element
-(\code{tmap::tm_shape() + tmap::tm_rgb()}).
+Returns a deferred tmap element that renders tiles at draw time using the
+bounding box resolved from the active \code{tm_shape()} — no explicit \code{bbox}
+argument is needed. This mirrors how tmap's own \code{tm_basemap()} works.
 }
-\section{tmap v4 note}{
-
-H1: If \code{tm_rgb()} applies an unwanted colour palette (rare with RGBA stars
-objects), fall back to \code{tm_raster()} with explicit band selection. Prefer
-\code{tm_rgb()} first.
-}
-
 \examples{
 \dontrun{
 library(tmap)
 library(sf)
 nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-tm_shape(nc) +
-  tm_basemap("https://demotiles.maplibre.org/style.json") +
-  tm_sf()
+style <- basemapper::raster_provider("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+basemapper::tm_basemap(style) +
+  tm_shape(nc) +
+  tm_sf(fill = NA, col = "steelblue")
 }
 }

@@ -7,7 +7,9 @@
 GeomBasemap
 }
 \description{
-Tile fetching is deferred to draw time so that \code{coord_sf()} has already
-established the panel's spatial extent.
+Tile fetching is deferred to actual draw time via a custom grob so that
+the viewport pixel dimensions are available when \code{render_basemap_raw} is
+called.  This also means \code{coord_sf()} has already established the panel's
+spatial extent before any fetching begins.
 }
 \keyword{internal}

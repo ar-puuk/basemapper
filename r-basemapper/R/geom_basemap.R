@@ -42,7 +42,7 @@ GeomBasemap <- ggplot2::ggproto(
 #' Called by grid at draw time (inside an active viewport).  Converts npc
 #' to pixel dimensions, fetches tiles, and returns a rasterGrob child.
 #'
-#' @keywords internal
+#' @exportS3Method grid::makeContent
 makeContent.BasemapGrob <- function(x) {
   dpi <- tryCatch(
     round(grDevices::dev.size("px")[1] / grDevices::dev.size("in")[1]),
