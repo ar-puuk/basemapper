@@ -5,7 +5,8 @@ test_that("render_basemap_raw signature is callable", {
   # Verify the function exists and accepts the expected parameters.
   expect_true(is.function(render_basemap_raw))
   formals_names <- names(formals(render_basemap_raw))
-  expect_true("bbox_3857"   %in% formals_names)
+  expect_true("bbox"        %in% formals_names)
+  expect_true("crs"         %in% formals_names)
   expect_true("style_input" %in% formals_names)
   expect_true("layers"      %in% formals_names)
 })

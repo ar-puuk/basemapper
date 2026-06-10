@@ -34,7 +34,8 @@ def test_malformed_style_raises(monkeypatch):
     import basemapper
     with pytest.raises(Exception, match="style|version"):
         basemapper.render_basemap_raw(
-            bbox_3857=BBOX,
+            bbox=BBOX,
+            crs=3857,
             width=64,
             height=64,
             style_input='{"version": 7, "sources": {}, "layers": []}',

@@ -79,8 +79,9 @@ tmapGridAuxPrepare.tm_basemap_rust <- function(a, bs, id, o) {
 
     m <- tryCatch(
       render_basemap_raw(
-        bbox_3857   = c(b_3857["xmin"], b_3857["ymin"],
+        bbox        = c(b_3857["xmin"], b_3857["ymin"],
                         b_3857["xmax"], b_3857["ymax"]),
+        crs         = 3857L,
         width       = w,
         height      = h,
         style_input = a$style_input,

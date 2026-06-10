@@ -58,7 +58,7 @@ class geom_basemap(geom):
         """
         import pyproj
 
-        from .bbox_utils import detect_crs_from_axes, get_axes_pixel_dims, reproject_bbox_to_3857
+        from .bbox_utils import detect_crs_from_axes, get_axes_pixel_dims
         from . import render_basemap_raw
 
         # Extract coordinate bounds from panel_params (plotnine mirrors ggplot2).
@@ -77,16 +77,11 @@ class geom_basemap(geom):
         else:
             crs = detect_crs_from_axes(ax)
 
-        bbox_3857 = reproject_bbox_to_3857(
-            (x_range[0], x_range[1]),
-            (y_range[0], y_range[1]),
-            crs,
-        )
-
         width_px, height_px = get_axes_pixel_dims(ax)
 
         raw = render_basemap_raw(
-            bbox_3857=list(bbox_3857),
+            bbox=[x_range[0], y_range[0], x_range[1], y_range[1]],
+            crs=crs,
             width=width_px,
             height=height_px,
             style_input=self.style_url,

@@ -56,7 +56,8 @@ makeContent.BasemapGrob <- function(x) {
   ))
 
   m <- render_basemap_raw(
-    bbox_3857       = x$bbox_3857,
+    bbox            = x$bbox_3857,
+    crs             = 3857L,
     width           = width_px,
     height          = height_px,
     style_input     = x$style_url,

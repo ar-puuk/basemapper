@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 import numpy as np
 
-from .bbox_utils import detect_crs_from_axes, get_axes_pixel_dims, reproject_bbox_to_3857
+from .bbox_utils import detect_crs_from_axes, get_axes_pixel_dims
 from .exceptions import BasemapError
 
 if TYPE_CHECKING:
@@ -24,8 +24,9 @@ def add_basemap(
 ) -> np.ndarray:
     """Render a basemap and composite it beneath existing axes content.
 
-    Extracts the geographic bounding box and CRS directly from *ax*, reprojects
-    to EPSG:3857, calls the Rust core, and injects the result via imshow.
+    Extracts the geographic bounding box and CRS directly from *ax*, delegates
+    reprojection to :func:`render_basemap_raw`, and injects the result via
+    imshow.
 
     Args:
         ax: An existing matplotlib Axes with a recognized geographic projection.
@@ -49,11 +50,11 @@ def add_basemap(
     crs = detect_crs_from_axes(ax)
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
-    bbox_3857 = reproject_bbox_to_3857(xlim, ylim, crs)
     width_px, height_px = get_axes_pixel_dims(ax)
 
     raw = render_basemap_raw(
-        bbox_3857=list(bbox_3857),
+        bbox=[xlim[0], ylim[0], xlim[1], ylim[1]],
+        crs=crs,
         width=width_px,
         height=height_px,
         style_input=style_url,
@@ -86,13 +87,14 @@ def add_basemap(
     ax.set_ylim(ylim)
 
     # Attach spatial metadata as attrs for downstream use.
+    crs_epsg = crs.to_epsg()
     result = arr.copy()
     result.attrs = {  # type: ignore[attr-defined]
-        "xmin": bbox_3857[0],
-        "ymin": bbox_3857[1],
-        "xmax": bbox_3857[2],
-        "ymax": bbox_3857[3],
-        "crs_epsg": 3857,
+        "xmin": xlim[0],
+        "ymin": ylim[0],
+        "xmax": xlim[1],
+        "ymax": ylim[1],
+        "crs_epsg": crs_epsg,
         "zoom": zoom,
         "width": width_px,
         "height": height_px,
