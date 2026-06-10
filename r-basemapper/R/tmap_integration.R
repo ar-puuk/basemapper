@@ -11,10 +11,10 @@
 #' `tm_rgb()` first.
 #'
 #' @param style_input Character: a MapLibre GL style URL or inline JSON string.
-#' @param bbox An explicit bounding box (sf bbox, numeric vector
-#'   `c(xmin, ymin, xmax, ymax)` in any CRS, or an sf/stars/sfc object).
-#'   When `NULL`, derived from `tmap::bb()` of the current pipeline's primary
-#'   shape.
+#' @param bbox Required map extent: an sf/sfc/stars object, an `sf::st_bbox()`
+#'   result, or a numeric `c(xmin, ymin, xmax, ymax)` in WGS-84. Pass the same
+#'   object you gave to `tm_shape()`. Cannot be inferred automatically because
+#'   tmap evaluates each element before the `+` pipeline is assembled.
 #' @param zoom Integer zoom level (0–22), or `NULL` for automatic.
 #' @param alpha Numeric opacity (0–1).
 #' @param layers Character vector of layer IDs to filter. See `render_basemap_raw()`.
@@ -29,9 +29,13 @@
 #' library(tmap)
 #' library(sf)
 #' nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-#' tm_shape(nc) +
-#'   tm_basemap("https://demotiles.maplibre.org/style.json") +
-#'   tm_sf()
+#' style <- basemapper::raster_provider("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+#' # In tmap v4 each tm_shape() call sets the active shape for subsequent layer
+#' # functions. Put tm_basemap() FIRST so it renders as background, then
+#' # tm_shape(nc) re-establishes nc as the active shape for tm_sf().
+#' basemapper::tm_basemap(style, bbox = nc) +
+#'   tm_shape(nc) +
+#'   tm_sf(fill = NA, col = "steelblue")
 #' }
 tm_basemap <- function(
     style_input,
@@ -44,33 +48,29 @@ tm_basemap <- function(
     ...
 ) {
   if (!requireNamespace("tmap",  quietly = TRUE)) stop("Package 'tmap' is required.")
-  if (!requireNamespace("stars", quietly = TRUE)) stop("Package 'stars' is required.")
+  if (!requireNamespace("terra", quietly = TRUE)) stop("Package 'terra' is required.")
 
-  # Resolve bounding box.
+  # Resolve bounding box and capture the input CRS for final warp.
+  # NOTE: unlike ggplot2, tmap evaluates each element independently before
+  # combining them with +.  tm_basemap() is therefore called before it can
+  # see the tm_shape() shape, so the bbox must be supplied explicitly.
   if (is.null(bbox)) {
-    bbox_obj <- tryCatch(tmap::bb(), error = function(e) NULL)
-    if (is.null(bbox_obj)) {
-      stop(paste0(
-        "tm_basemap: no bounding box could be inferred. ",
-        "Supply an explicit `bbox` argument or call tm_shape() first."
-      ))
-    }
-    # tmap::bb() returns a named vector c(xmin, ymin, xmax, ymax) in the
-    # primary shape's CRS; reproject to EPSG:3857.
-    bbox_wgs <- sf::st_bbox(bbox_obj, crs = sf::st_crs(bbox_obj))
-    bbox_3857_vec <- reproject_bbox_to_3857(
-      bbox_wgs["xmin"], bbox_wgs["ymin"],
-      bbox_wgs["xmax"], bbox_wgs["ymax"],
-      sf::st_crs(bbox_obj)$epsg %||% 4326L
+    stop(
+      "tm_basemap() requires an explicit `bbox` argument when used inside a ",
+      "tmap pipeline.\n",
+      "Pass the same sf object you gave to tm_shape(), e.g.:\n",
+      "  basemapper::tm_basemap(style, bbox = nc) + tm_shape(nc) + tm_sf()"
     )
   } else if (inherits(bbox, c("sf", "sfc", "stars", "bbox"))) {
-    bb <- sf::st_bbox(bbox)
+    bb         <- sf::st_bbox(bbox)
+    input_crs  <- sf::st_crs(bbox)
     bbox_3857_vec <- reproject_bbox_to_3857(
       bb["xmin"], bb["ymin"], bb["xmax"], bb["ymax"],
-      sf::st_crs(bbox)$epsg %||% 4326L
+      input_crs$epsg %||% 4326L
     )
   } else {
     # Assume c(xmin, ymin, xmax, ymax) in WGS-84.
+    input_crs     <- sf::st_crs(4326L)
     bbox_3857_vec <- reproject_bbox_to_3857(
       bbox[1], bbox[2], bbox[3], bbox[4], 4326L
     )
@@ -88,21 +88,30 @@ tm_basemap <- function(
     layers          = layers
   )
 
-  # Wrap the RGBA array as a georeferenced stars object.
-  # stars expects dimensions: [band, x, y] or [x, y, band].
-  rgba <- aperm(m, c(3L, 2L, 1L))  # [channels, width, height]
+  # Wrap pixel array as a terra SpatRaster.
+  # terra is used instead of stars because tmap v4 reprojects SpatRaster
+  # objects via GDAL natively, avoiding the curvilinear-output / mixed-
+  # dimension failure that stars::st_transform causes for in-memory rasters.
+  # terra values are row-major (top-to-bottom); m is [height, width, channels]
+  # so t(m[,,band]) yields the correct row-major order.
+  xmin_v <- unname(bbox_3857_vec["xmin"])
+  xmax_v <- unname(bbox_3857_vec["xmax"])
+  ymin_v <- unname(bbox_3857_vec["ymin"])
+  ymax_v <- unname(bbox_3857_vec["ymax"])
 
-  bbox_sf <- sf::st_bbox(
-    c(xmin = bbox_3857_vec["xmin"], ymin = bbox_3857_vec["ymin"],
-      xmax = bbox_3857_vec["xmax"], ymax = bbox_3857_vec["ymax"]),
-    crs = sf::st_crs(3857)
+  r <- terra::rast(
+    nrows = h, ncols = w,
+    xmin  = xmin_v, xmax = xmax_v,
+    ymin  = ymin_v, ymax = ymax_v,
+    nlyr  = 3L, crs = "EPSG:3857"
   )
+  terra::values(r) <- cbind(
+    as.vector(t(m[, , 1L])),
+    as.vector(t(m[, , 2L])),
+    as.vector(t(m[, , 3L]))
+  )
+  names(r) <- c("R", "G", "B")
+  terra::RGB(r) <- c(1L, 2L, 3L)
 
-  stars_obj <- stars::st_as_stars(rgba)
-  stars_obj <- sf::st_set_crs(stars_obj, 3857)
-  attr(stars_obj, "bbox") <- bbox_sf
-
-  # H1: use tm_rgb() for multi-band RGBA data; fall back to tm_raster() if
-  # colours render incorrectly (see plan.md Implementation Hazards).
-  tmap::tm_shape(stars_obj) + tmap::tm_rgb(alpha = alpha)
+  tmap::tm_shape(r) + tmap::tm_rgb(col_alpha = alpha)
 }

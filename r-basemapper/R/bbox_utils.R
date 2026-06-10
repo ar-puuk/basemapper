@@ -34,6 +34,8 @@ reproject_bbox_to_3857 <- function(xmin, ymin, xmax, ymax, from_epsg) {
   )
   pts_3857 <- sf::st_transform(pts, 3857)
   coords <- sf::st_coordinates(pts_3857)
-  c(xmin = coords[1, 1], ymin = coords[1, 2],
-    xmax = coords[2, 1], ymax = coords[2, 2])
+  # as.numeric() strips the inner matrix-column names ("X"/"Y") that R appends
+  # when subsetting a named matrix, so downstream named access works correctly.
+  c(xmin = as.numeric(coords[1, "X"]), ymin = as.numeric(coords[1, "Y"]),
+    xmax = as.numeric(coords[2, "X"]), ymax = as.numeric(coords[2, "Y"]))
 }
