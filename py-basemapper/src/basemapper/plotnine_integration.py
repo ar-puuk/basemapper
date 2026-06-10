@@ -56,6 +56,8 @@ class geom_basemap(geom):
         H4: zorder=0 may hide behind ax.patch (zorder=0). If basemap is
         invisible, set ax.set_facecolor('none') and increase zorder to 0.5.
         """
+        import pyproj
+
         from .bbox_utils import detect_crs_from_axes, get_axes_pixel_dims, reproject_bbox_to_3857
         from . import render_basemap_raw
 
@@ -63,7 +65,18 @@ class geom_basemap(geom):
         x_range = panel_params.get("x_range", panel_params.get("x.range", [0.0, 1.0]))
         y_range = panel_params.get("y_range", panel_params.get("y.range", [0.0, 1.0]))
 
-        crs = detect_crs_from_axes(ax)
+        # CRS resolution: coord_sf stores the resolved CRS in panel_params['crs']
+        # (same as R's panel_params$crs set by CoordSf$setup_panel_params).
+        # Fall back to axes-level detection for non-sf coordinates.
+        crs_raw = panel_params.get("crs")
+        if crs_raw is not None:
+            try:
+                crs = pyproj.CRS.from_user_input(crs_raw)
+            except Exception:
+                crs = detect_crs_from_axes(ax)
+        else:
+            crs = detect_crs_from_axes(ax)
+
         bbox_3857 = reproject_bbox_to_3857(
             (x_range[0], x_range[1]),
             (y_range[0], y_range[1]),
@@ -83,7 +96,10 @@ class geom_basemap(geom):
 
         arr = np.frombuffer(raw, dtype=np.uint8).reshape(height_px, width_px, 4)
 
-        # H4: same zorder consideration as matplotlib_integration.py (T022).
+        # Make the panel background transparent so the basemap shows through
+        # (ax.patch at zorder=1 would otherwise cover basemap at zorder=0).
+        ax.set_facecolor("none")
+
         ax.imshow(
             arr,
             extent=[x_range[0], x_range[1], y_range[0], y_range[1]],
@@ -93,3 +109,7 @@ class geom_basemap(geom):
             aspect="auto",
             alpha=self.alpha,
         )
+
+        # Restore panel limits after imshow (which can reset them).
+        ax.set_xlim(x_range[0], x_range[1])
+        ax.set_ylim(y_range[0], y_range[1])

@@ -65,9 +65,11 @@ def add_basemap(
 
     arr = np.frombuffer(raw, dtype=np.uint8).reshape(height_px, width_px, 4)
 
-    # H4: imshow with zorder=0.5 avoids hiding behind the axes background patch
-    # (ax.patch defaults to zorder=0). If basemap is invisible, caller should
-    # also set ax.set_facecolor('none').
+    # Make the axes panel background transparent so the basemap shows through.
+    # ax.patch (the white background rectangle) sits at zorder=1; imshow at
+    # zorder=0 would be invisible behind it without this.
+    ax.set_facecolor("none")
+
     ax.imshow(
         arr,
         extent=[xlim[0], xlim[1], ylim[0], ylim[1]],
@@ -77,6 +79,11 @@ def add_basemap(
         aspect="auto",
         alpha=alpha,
     )
+
+    # Restore axis limits: imshow resets them to the image extent in some
+    # matplotlib versions.
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
 
     # Attach spatial metadata as attrs for downstream use.
     result = arr.copy()
