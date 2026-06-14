@@ -69,15 +69,20 @@ esri_raster_provider <- function(url_template, tile_size = 256L) {
 #' with a `warning()`. An empty paint list applies a light-grey default style.
 #'
 #' @param url_template Character: MVT tile URL with `{z}`, `{x}`, `{y}` placeholders.
+#' @param source_layer Character: the name of the layer within each MVT tile to
+#'   render. This is tile-server specific (e.g. `"water"`, `"roads"`); it maps
+#'   to the MapLibre GL `"source-layer"` property and is required for vector
+#'   sources.
 #' @param paint Named list of MapLibre GL paint properties.
 #' @return A JSON character string ready to pass to `render_basemap_raw()`.
 #' @export
 #' @examples
 #' style <- vector_provider(
 #'   "https://example.com/tiles/{z}/{x}/{y}.mvt",
+#'   source_layer = "land",
 #'   paint = list("fill-color" = "#e8e0d8", "line-color" = "#aaa")
 #' )
-vector_provider <- function(url_template, paint = list()) {
+vector_provider <- function(url_template, source_layer, paint = list()) {
   fill_keys <- c("fill-color", "fill-opacity", "fill-outline-color")
   line_keys <- c("line-color", "line-width", "line-opacity")
   known_keys <- c(fill_keys, line_keys)
@@ -107,9 +112,11 @@ vector_provider <- function(url_template, paint = list()) {
     ),
     layers = list(
       list(id = "vector-fill", type = "fill",
-           source = "vector-source", paint = fill_paint),
+           source = "vector-source", `source-layer` = source_layer,
+           paint = fill_paint),
       list(id = "vector-line", type = "line",
-           source = "vector-source", paint = line_paint)
+           source = "vector-source", `source-layer` = source_layer,
+           paint = line_paint)
     )
   )
   jsonlite::toJSON(style, auto_unbox = TRUE)

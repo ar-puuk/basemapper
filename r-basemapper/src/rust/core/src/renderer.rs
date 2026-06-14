@@ -128,8 +128,6 @@ pub fn composite_raster_tiles(
     height: u32,
     transparent_background: bool,
 ) -> Result<RgbaImage, BasemapError> {
-    use crate::bbox::mercator_to_tile;
-
     let mut canvas = if transparent_background {
         RgbaImage::new(width, height)
     } else {
@@ -140,11 +138,8 @@ pub fn composite_raster_tiles(
         img
     };
 
-    let (tx0, ty0) = mercator_to_tile(bbox[0], bbox[3], zoom);
     let half_circ = 20_037_508.342789244_f64;
     let tile_size_m = (2.0 * half_circ) / 2u64.pow(zoom as u32) as f64;
-    let _canvas_xmin = tx0 as f64 * tile_size_m - half_circ;
-    let _canvas_ymax = half_circ - ty0 as f64 * tile_size_m;
     let scale_x = width as f64 / (bbox[2] - bbox[0]);
     let scale_y = height as f64 / (bbox[3] - bbox[1]);
     let tile_px_w = (tile_size_m * scale_x).round() as u32;
@@ -159,8 +154,6 @@ pub fn composite_raster_tiles(
         let img = image::load_from_memory(data)
             .map_err(|e| BasemapError::TileDecodeError(e.to_string()))?
             .to_rgba8();
-        let _tile_orig_w = img.width();
-        let _tile_orig_h = img.height();
         let resized = image::imageops::resize(
             &img,
             tile_px_w,
@@ -175,6 +168,27 @@ pub fn composite_raster_tiles(
     }
 
     Ok(canvas)
+}
+
+/// Stub for vector tile rendering via maplibre-rs (Track B Part 2).
+///
+/// Returns `VectorRenderNotImplemented` until the maplibre-rs GPU pipeline is
+/// wired up. Exists so `lib.rs` can route vector sources here instead of
+/// letting `composite_raster_tiles` crash on PBF bytes.
+pub async fn render_vector_tiles(
+    _style_json: &str,
+    _bbox: [f64; 4],
+    _zoom: u8,
+    _width: u32,
+    _height: u32,
+) -> Result<Vec<u8>, BasemapError> {
+    // TODO (Track B Part 2): call maplibre-rs renderer here.
+    // Steps:
+    //   1. initialize_wgpu_headless() → WgpuContext
+    //   2. create_render_texture(&ctx.device, _width, _height) → texture
+    //   3. maplibre_rs::render(style_json, bbox, zoom, &ctx, &texture)
+    //   4. read_texture_to_vec(&ctx.device, &ctx.queue, &texture, _width, _height)
+    Err(BasemapError::VectorRenderNotImplemented)
 }
 
 /// wgpu requires buffer rows to be aligned to 256 bytes.

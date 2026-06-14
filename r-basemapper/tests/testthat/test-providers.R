@@ -22,7 +22,7 @@ test_that("esri_vector_provider strips trailing slash without double-slash", {
 
 test_that("vector_provider with paint produces correct layer entries", {
   style <- jsonlite::fromJSON(
-    vector_provider("https://x.com/{z}/{x}/{y}.mvt",
+    vector_provider("https://x.com/{z}/{x}/{y}.mvt", "land",
                     paint = list("fill-color" = "#e8e0d8", "line-color" = "#aaa")),
     simplifyVector = FALSE
   )
@@ -30,11 +30,13 @@ test_that("vector_provider with paint produces correct layer entries", {
   line_layer <- Filter(function(l) l$type == "line", style$layers)[[1]]
   expect_equal(fill_layer$paint[["fill-color"]], "#e8e0d8")
   expect_equal(line_layer$paint[["line-color"]], "#aaa")
+  expect_equal(fill_layer[["source-layer"]], "land")
+  expect_equal(line_layer[["source-layer"]], "land")
 })
 
 test_that("vector_provider unknown paint key triggers warning", {
   expect_warning(
-    vector_provider("https://x.com/{z}/{x}/{y}.mvt", paint = list("circle-radius" = 5)),
+    vector_provider("https://x.com/{z}/{x}/{y}.mvt", "land", paint = list("circle-radius" = 5)),
     "circle-radius"
   )
 })

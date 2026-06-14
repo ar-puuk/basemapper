@@ -59,11 +59,16 @@ class VectorProvider:
 
     Args:
         url_template: MVT tile URL with ``{z}``, ``{x}``, ``{y}`` placeholders.
+        source_layer: The name of the layer within each MVT tile to render.
+            This is tile-server specific (e.g. ``"water"``, ``"roads"``); it
+            maps to the MapLibre GL ``"source-layer"`` property and is required
+            for vector sources.
         paint: Optional dict of MapLibre GL paint properties.
     """
 
-    def __init__(self, url_template: str, paint: Optional[Dict[str, object]] = None) -> None:
+    def __init__(self, url_template: str, source_layer: str, paint: Optional[Dict[str, object]] = None) -> None:
         self.url_template = url_template
+        self.source_layer = source_layer
         self.paint = paint or {}
 
     def to_style_json(self) -> str:
@@ -105,12 +110,14 @@ class VectorProvider:
                     "id": "vector-fill",
                     "type": "fill",
                     "source": "vector-source",
+                    "source-layer": self.source_layer,
                     "paint": fill_paint,
                 },
                 {
                     "id": "vector-line",
                     "type": "line",
                     "source": "vector-source",
+                    "source-layer": self.source_layer,
                     "paint": line_paint,
                 },
             ],

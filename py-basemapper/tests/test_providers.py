@@ -35,15 +35,17 @@ def test_esri_vector_provider_strips_trailing_slash():
 
 def test_vector_provider_with_paint():
     paint = {"fill-color": "#e8e0d8", "line-color": "#aaa", "line-width": 1}
-    style = json.loads(str(VectorProvider("https://example.com/{z}/{x}/{y}.mvt", paint=paint)))
+    style = json.loads(str(VectorProvider("https://example.com/{z}/{x}/{y}.mvt", "land", paint=paint)))
     fill_layer = next(l for l in style["layers"] if l["type"] == "fill")
     line_layer = next(l for l in style["layers"] if l["type"] == "line")
     assert fill_layer["paint"]["fill-color"] == "#e8e0d8"
     assert line_layer["paint"]["line-color"] == "#aaa"
+    assert fill_layer["source-layer"] == "land"
+    assert line_layer["source-layer"] == "land"
 
 
 def test_vector_provider_default_grey():
-    style = json.loads(str(VectorProvider("https://example.com/{z}/{x}/{y}.mvt")))
+    style = json.loads(str(VectorProvider("https://example.com/{z}/{x}/{y}.mvt", "land")))
     fill_layer = next(l for l in style["layers"] if l["type"] == "fill")
     assert "fill-color" in fill_layer["paint"]
 
@@ -51,7 +53,7 @@ def test_vector_provider_default_grey():
 def test_vector_provider_unknown_key_warns():
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        style_str = str(VectorProvider("https://x.com/{z}/{x}/{y}.mvt", paint={"circle-radius": 5}))
+        style_str = str(VectorProvider("https://x.com/{z}/{x}/{y}.mvt", "land", paint={"circle-radius": 5}))
         assert any("circle-radius" in str(warning.message) for warning in w)
     style = json.loads(style_str)
     for layer in style["layers"]:

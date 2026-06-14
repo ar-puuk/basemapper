@@ -73,6 +73,29 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
         let tile_source = extract_tile_source_from_style(
             &style_val, &client, request.auth_token.as_deref(),
         ).await?;
+
+        // Vector tile rasterization requires the maplibre-rs integration (Track B
+        // Part 2). Until then, return a clear error instead of crashing inside
+        // composite_raster_tiles when it tries to decode PBF bytes as PNG/JPEG.
+        if matches!(
+            tile_source,
+            TileSource::MapboxVectorTile { .. } | TileSource::EsriVectorTile { .. }
+        ) {
+            return renderer::render_vector_tiles(
+                &style_json, request.bbox, zoom, request.width, request.height,
+            ).await.map(|pixels| RenderResult {
+                bounds: SpatialBounds {
+                    xmin: request.bbox[0], ymin: request.bbox[1],
+                    xmax: request.bbox[2], ymax: request.bbox[3],
+                    crs_epsg: 3857,
+                },
+                zoom_used: zoom,
+                width: request.width,
+                height: request.height,
+                pixels,
+            });
+        }
+
         let coords = tile_fetcher::build_tile_coords(request.bbox, zoom);
         let urls = tile_fetcher::build_tile_urls(&tile_source, &coords);
 

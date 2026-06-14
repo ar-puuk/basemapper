@@ -20,4 +20,10 @@ pub enum BasemapError {
     MaxTilesExceeded { requested: u32, limit: u32 },
     #[error("invalid layer filter: {0}")]
     InvalidLayerFilter(String),
+    #[error(
+        "vector tile rendering is not yet implemented; \
+         use a raster source (RasterProvider / EsriRasterProvider) for now. \
+         maplibre-rs integration is planned for Track B Part 2."
+    )]
+    VectorRenderNotImplemented,
 }
