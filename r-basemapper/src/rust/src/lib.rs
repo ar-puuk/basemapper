@@ -12,6 +12,12 @@ use extendr_api::prelude::*;
 /// @param max_tiles Integer maximum tiles per render.
 /// @param layers Character vector of layer IDs to include (plain) or exclude
 ///        (minus-prefixed), or NULL for all layers.
+/// @param auth_token Character authentication token, or NULL. Sent as
+///        `Authorization: Bearer <token>` for raster sources; appended as
+///        `?access_token=<token>` for Mapbox vector sources.
+/// @param fail_on_tile_error Logical. When FALSE, individual tile failures are
+///        skipped rather than aborting the render.
+/// @param tile_concurrency Integer maximum parallel tile downloads.
 /// @return Raw vector of length width * height * 4 (RGBA bytes).
 #[extendr]
 #[allow(clippy::too_many_arguments)]
@@ -24,6 +30,9 @@ fn render_basemap_raw(
     tile_timeout_ms: i32,
     max_tiles: i32,
     layers: Nullable<Vec<String>>,
+    auth_token: Nullable<String>,
+    fail_on_tile_error: bool,
+    tile_concurrency: i32,
 ) -> Result<Raw> {
     if bbox_3857.len() != 4 {
         return Err(extendr_api::Error::Other(
@@ -41,6 +50,11 @@ fn render_basemap_raw(
         Nullable::Null => None,
     };
 
+    let auth_token_val: Option<String> = match auth_token {
+        Nullable::NotNull(s) => Some(s),
+        Nullable::Null => None,
+    };
+
     let request = RenderRequest {
         bbox: [bbox_3857[0], bbox_3857[1], bbox_3857[2], bbox_3857[3]],
         width: width as u32,
@@ -49,8 +63,10 @@ fn render_basemap_raw(
         zoom: zoom_val,
         tile_timeout_ms: tile_timeout_ms as u32,
         max_tiles: max_tiles as u32,
-        tile_concurrency: 16,
+        tile_concurrency: tile_concurrency.max(1) as u32,
         layers: layers_val,
+        auth_token: auth_token_val,
+        fail_on_tile_error,
     };
 
     // render() drives async work on its own internal tokio Runtime; it is

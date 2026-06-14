@@ -136,6 +136,3 @@ geom_basemap <- function(
     )
   )
 }
-
-# Null-coalescing helper used inside draw_panel.
-`%||%` <- function(x, y) if (!is.null(x)) x else y

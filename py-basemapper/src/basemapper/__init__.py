@@ -1,6 +1,6 @@
 """basemapper — headless spatial basemap renderer."""
 
-from .exceptions import BasemapError
+from .exceptions import BasemapError, NetworkError, StyleError, ValidationError
 from .matplotlib_integration import add_basemap
 from .layer_utils import list_layers
 from .providers import EsriRasterProvider, EsriVectorProvider, RasterProvider, VectorProvider
@@ -17,6 +17,9 @@ except ImportError:
 
 __all__ = [
     "BasemapError",
+    "ValidationError",
+    "StyleError",
+    "NetworkError",
     "add_basemap",
     "render_basemap_raw",
     "list_layers",

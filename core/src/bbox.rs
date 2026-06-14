@@ -21,6 +21,13 @@ pub struct RenderRequest {
     pub max_tiles: u32,
     pub tile_concurrency: u32,
     pub layers: Option<Vec<String>>,
+    /// Optional authentication token. Sent as `Authorization: Bearer <token>`
+    /// for raster sources; appended as `?access_token=<token>` for Mapbox
+    /// vector sources.
+    pub auth_token: Option<String>,
+    /// When `false`, individual tile fetch failures are logged and skipped
+    /// rather than aborting the entire render.
+    pub fail_on_tile_error: bool,
 }
 
 impl RenderRequest {

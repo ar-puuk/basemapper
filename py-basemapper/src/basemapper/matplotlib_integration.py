@@ -11,6 +11,7 @@ from .exceptions import BasemapError
 
 if TYPE_CHECKING:
     import matplotlib.axes
+    import xarray as xr
 
 
 def add_basemap(
@@ -21,7 +22,7 @@ def add_basemap(
     max_tiles: int = 256,
     alpha: float = 1.0,
     layers: Optional[List[str]] = None,
-) -> np.ndarray:
+) -> "xr.DataArray":
     """Render a basemap and composite it beneath existing axes content.
 
     Extracts the geographic bounding box and CRS directly from *ax*, delegates
@@ -39,12 +40,15 @@ def add_basemap(
                 minus-prefixed IDs exclude those layers.
 
     Returns:
-        numpy.ndarray of shape (height, width, 4) with spatial bounds in .attrs.
+        xarray.DataArray of shape (height, width, 4) with spatial bounds and
+        CRS stored in ``.attrs``.
 
     Raises:
         BasemapError: If CRS detection fails, the render fails, or the network
             is unreachable.
     """
+    import xarray as xr
+
     from . import render_basemap_raw  # imported here to avoid circular import
 
     crs = detect_crs_from_axes(ax)
@@ -86,17 +90,17 @@ def add_basemap(
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
 
-    # Attach spatial metadata as attrs for downstream use.
-    crs_epsg = crs.to_epsg()
-    result = arr.copy()
-    result.attrs = {  # type: ignore[attr-defined]
-        "xmin": xlim[0],
-        "ymin": ylim[0],
-        "xmax": xlim[1],
-        "ymax": ylim[1],
-        "crs_epsg": crs_epsg,
-        "zoom": zoom,
-        "width": width_px,
-        "height": height_px,
-    }
-    return result
+    return xr.DataArray(
+        arr.copy(),
+        dims=["y", "x", "band"],
+        attrs={
+            "xmin": xlim[0],
+            "ymin": ylim[0],
+            "xmax": xlim[1],
+            "ymax": ylim[1],
+            "crs_epsg": crs.to_epsg(),
+            "zoom": zoom,
+            "width": width_px,
+            "height": height_px,
+        },
+    )

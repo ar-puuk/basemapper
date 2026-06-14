@@ -79,12 +79,16 @@ pub fn build_tile_urls(source: &TileSource, coords: &[TileCoord]) -> Vec<(TileCo
 }
 
 /// Fetch all tiles concurrently, respecting timeout and concurrency limits.
+///
+/// When `fail_on_tile_error` is `false`, individual tile failures are logged
+/// and skipped; the render continues with whatever tiles succeeded.
 pub async fn fetch_all_tiles(
     client: &reqwest::Client,
     urls: Vec<(TileCoord, String)>,
     source: &TileSource,
     timeout_ms: u32,
     concurrency: u32,
+    fail_on_tile_error: bool,
 ) -> Result<Vec<(TileCoord, TileData)>, BasemapError> {
     let timeout = Duration::from_millis(timeout_ms as u64);
     let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency as usize));
@@ -132,7 +136,16 @@ pub async fn fetch_all_tiles(
 
     let mut results = Vec::new();
     while let Some(res) = set.join_next().await {
-        results.push(res.map_err(|e| BasemapError::RenderError(e.to_string()))??);
+        let tile_result = res.map_err(|e| BasemapError::RenderError(e.to_string()))?;
+        match tile_result {
+            Ok(tile) => results.push(tile),
+            Err(e) => {
+                if fail_on_tile_error {
+                    return Err(e);
+                }
+                log::warn!("tile fetch failed (skipped): {e}");
+            }
+        }
     }
     Ok(results)
 }

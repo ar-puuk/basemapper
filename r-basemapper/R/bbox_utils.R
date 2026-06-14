@@ -1,3 +1,6 @@
+# Null-coalescing operator used across the package.
+`%||%` <- function(x, y) if (!is.null(x)) x else y
+
 #' Detect the EPSG code from a ggplot2 coord/panel_params object.
 #'
 #' @param coord A ggplot2 coord object (typically from coord_sf()).
@@ -75,25 +78,44 @@ normalize_bbox <- function(bbox, crs = NULL) {
     }
     vals <- c(xmin = bbox[1L], ymin = bbox[2L], xmax = bbox[3L], ymax = bbox[4L])
   }
+
+  if (any(!is.finite(vals))) {
+    stop("bbox contains non-finite values: ", paste(vals, collapse = ", "))
+  }
+  if (vals[["xmin"]] >= vals[["xmax"]]) {
+    stop(
+      "bbox xmin (", vals[["xmin"]], ") must be less than xmax (", vals[["xmax"]], ")."
+    )
+  }
+  if (vals[["ymin"]] >= vals[["ymax"]]) {
+    stop(
+      "bbox ymin (", vals[["ymin"]], ") must be less than ymax (", vals[["ymax"]], ")."
+    )
+  }
+
   list(vals = vals, crs_obj = crs_obj)
 }
 
 #' Reproject a bounding box to EPSG:3857 (Web Mercator).
+#'
+#' Projects all four sides of the bbox (not just two corners) by converting to
+#' a polygon first, ensuring the reprojected envelope is correct even at high
+#' latitudes or for large geographic extents.
 #'
 #' @param xmin,ymin,xmax,ymax Bounding-box corners in \code{from_crs} units.
 #' @param from_crs Source CRS — anything accepted by \code{sf::st_crs()},
 #'   including integer EPSG codes, WKT strings, and \code{crs} objects.
 #' @return Named numeric vector c(xmin, ymin, xmax, ymax) in EPSG:3857.
 reproject_bbox_to_3857 <- function(xmin, ymin, xmax, ymax, from_crs) {
-  pts <- sf::st_sfc(
-    sf::st_point(c(xmin, ymin)),
-    sf::st_point(c(xmax, ymax)),
-    crs = from_crs
+  bbox_poly <- sf::st_as_sfc(
+    sf::st_bbox(
+      c(xmin = xmin, ymin = ymin, xmax = xmax, ymax = ymax),
+      crs = from_crs
+    )
   )
-  pts_3857 <- sf::st_transform(pts, 3857)
-  coords <- sf::st_coordinates(pts_3857)
-  # as.numeric() strips the inner matrix-column names ("X"/"Y") that R appends
-  # when subsetting a named matrix, so downstream named access works correctly.
-  c(xmin = as.numeric(coords[1, "X"]), ymin = as.numeric(coords[1, "Y"]),
-    xmax = as.numeric(coords[2, "X"]), ymax = as.numeric(coords[2, "Y"]))
+  b <- sf::st_bbox(sf::st_transform(bbox_poly, 3857L))
+  c(
+    xmin = unname(b["xmin"]), ymin = unname(b["ymin"]),
+    xmax = unname(b["xmax"]), ymax = unname(b["ymax"])
+  )
 }

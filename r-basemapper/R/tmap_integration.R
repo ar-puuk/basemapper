@@ -64,8 +64,7 @@ tm_basemap <- function(
 
 #' @exportS3Method tmap::tmapGridAuxPrepare
 tmapGridAuxPrepare.tm_basemap_rust <- function(a, bs, id, o) {
-  if (!requireNamespace("terra",      quietly = TRUE)) stop("Package 'terra' is required.")
-  if (!requireNamespace("data.table", quietly = TRUE)) stop("Package 'data.table' is required.")
+  if (!requireNamespace("terra", quietly = TRUE)) stop("Package 'terra' is required.")
 
   crs         <- sf::st_crs(bs[[1]])
   isproj      <- !sf::st_is_longlat(crs)
@@ -155,10 +154,10 @@ tmapGridAuxPrepare.tm_basemap_rust <- function(a, bs, id, o) {
       sortRev    = NA,
       bypass_ord = TRUE
     ))
-    data.table::set(d, j = "col",       value = rgb_vals[[1]])
-    data.table::set(d, j = "legnr",     value = rgb_vals[[2]])
-    data.table::set(d, j = "crtnr",     value = rgb_vals[[3]])
-    data.table::set(d, j = "col_alpha", value = a$alpha)
+    d[["col"]]       <- rgb_vals[[1]]
+    d[["legnr"]]     <- rgb_vals[[2]]
+    d[["crtnr"]]     <- rgb_vals[[3]]
+    d[["col_alpha"]] <- a$alpha
     d
   })
 

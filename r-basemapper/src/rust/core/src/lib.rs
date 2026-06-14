@@ -70,7 +70,9 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
             .map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
 
         // Extract TileSource from the first raster/vector source in the style.
-        let tile_source = extract_tile_source_from_style(&style_val, &client).await?;
+        let tile_source = extract_tile_source_from_style(
+            &style_val, &client, request.auth_token.as_deref(),
+        ).await?;
         let coords = tile_fetcher::build_tile_coords(request.bbox, zoom);
         let urls = tile_fetcher::build_tile_urls(&tile_source, &coords);
 
@@ -80,6 +82,7 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
             &tile_source,
             request.tile_timeout_ms,
             request.tile_concurrency,
+            request.fail_on_tile_error,
         )
         .await?;
 
@@ -120,6 +123,7 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
 async fn extract_tile_source_from_style(
     style: &serde_json::Value,
     client: &reqwest::Client,
+    auth_token: Option<&str>,
 ) -> Result<TileSource, BasemapError> {
     let sources = style
         .get("sources")
@@ -184,11 +188,11 @@ async fn extract_tile_source_from_style(
     match src_type {
         "vector" => Ok(TileSource::MapboxVectorTile {
             url_template: tiles,
-            api_key: None,
+            api_key: auth_token.map(str::to_owned),
         }),
         _ => Ok(TileSource::XyzRaster {
             url_template: tiles,
-            auth_header: None,
+            auth_header: auth_token.map(|t| format!("Bearer {t}")),
         }),
     }
 }

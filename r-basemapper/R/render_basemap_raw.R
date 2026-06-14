@@ -27,6 +27,14 @@
 #'   those layers; minus-prefixed IDs (e.g. \code{"-roads"}) exclude those
 #'   layers.  Mixed positive/negative lists raise an error.  \code{NULL}
 #'   renders all layers.
+#' @param auth_token Character authentication token, or \code{NULL}. Sent as
+#'   \code{Authorization: Bearer <token>} for raster sources; appended as
+#'   \code{?access_token=<token>} for Mapbox vector sources.
+#' @param fail_on_tile_error Logical. When \code{FALSE}, individual tile fetch
+#'   failures are skipped (with a warning) rather than aborting the render.
+#'   Defaults to \code{TRUE}.
+#' @param tile_concurrency Integer maximum number of tiles fetched in parallel.
+#'   Defaults to \code{16L}.
 #'
 #' @return A 3-D integer array \code{[height, width, 4]} (RGBA, row-major) with
 #'   spatial-extent attributes \code{xmin}, \code{ymin}, \code{xmax},
@@ -62,17 +70,29 @@
 #'   height      = 300L,
 #'   style_input = "https://demotiles.maplibre.org/style.json"
 #' )
+#'
+#' # Authenticated tile source
+#' m <- render_basemap_raw(
+#'   bbox        = c(-122.5, 37.7, -122.4, 37.8),
+#'   width       = 400L,
+#'   height      = 300L,
+#'   style_input = "https://api.mapbox.com/styles/v1/mapbox/streets-v12",
+#'   auth_token  = Sys.getenv("MAPBOX_TOKEN")
+#' )
 #' }
 render_basemap_raw <- function(
     bbox,
     width,
     height,
     style_input,
-    crs             = NULL,
-    zoom            = NULL,
-    tile_timeout_ms = 10000L,
-    max_tiles       = 256L,
-    layers          = NULL
+    crs               = NULL,
+    zoom              = NULL,
+    tile_timeout_ms   = 10000L,
+    max_tiles         = 256L,
+    layers            = NULL,
+    auth_token        = NULL,
+    fail_on_tile_error = TRUE,
+    tile_concurrency  = 16L
 ) {
   norm       <- normalize_bbox(bbox, crs)
   input_vals <- norm$vals
@@ -94,10 +114,13 @@ render_basemap_raw <- function(
     as.integer(width),
     as.integer(height),
     as.character(style_input),
-    if (is.null(zoom)) NULL else as.integer(zoom),
+    if (is.null(zoom))       NULL else as.integer(zoom),
     as.integer(tile_timeout_ms),
     as.integer(max_tiles),
-    if (is.null(layers)) NULL else as.character(layers),
+    if (is.null(layers))     NULL else as.character(layers),
+    if (is.null(auth_token)) NULL else as.character(auth_token),
+    isTRUE(fail_on_tile_error),
+    as.integer(tile_concurrency),
     PACKAGE = "basemapper"
   )
 

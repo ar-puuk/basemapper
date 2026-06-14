@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import warnings
 from typing import TYPE_CHECKING, Any, Optional, Tuple
 
@@ -43,15 +44,23 @@ def detect_crs_from_axes(ax: "matplotlib.axes.Axes") -> "pyproj.CRS":
 
 
 def reproject_bbox_to_3857(
-    xlim: Tuple[float, float],
-    ylim: Tuple[float, float],
+    xmin: float,
+    ymin: float,
+    xmax: float,
+    ymax: float,
     crs: "pyproj.CRS",
 ) -> Tuple[float, float, float, float]:
-    """Reproject axis limits to Web Mercator (EPSG:3857).
+    """Reproject a bounding box to Web Mercator (EPSG:3857).
+
+    Uses ``Transformer.transform_bounds`` which samples along all four edges,
+    giving the correct reprojected envelope even at high latitudes or for
+    large geographic extents (unlike transforming only the two corner points).
 
     Args:
-        xlim: (xmin, xmax) in the source CRS units.
-        ylim: (ymin, ymax) in the source CRS units.
+        xmin: Left bound in the source CRS.
+        ymin: Bottom bound in the source CRS.
+        xmax: Right bound in the source CRS.
+        ymax: Top bound in the source CRS.
         crs: Source coordinate reference system.
 
     Returns:
@@ -60,9 +69,7 @@ def reproject_bbox_to_3857(
     import pyproj
 
     transformer = pyproj.Transformer.from_crs(crs, pyproj.CRS.from_epsg(3857), always_xy=True)
-    xmin_3857, ymin_3857 = transformer.transform(xlim[0], ylim[0])
-    xmax_3857, ymax_3857 = transformer.transform(xlim[1], ylim[1])
-    return xmin_3857, ymin_3857, xmax_3857, ymax_3857
+    return transformer.transform_bounds(xmin, ymin, xmax, ymax)
 
 
 def _maybe_warn_projected(xmin: float, ymin: float, xmax: float, ymax: float) -> None:
@@ -101,7 +108,8 @@ def normalize_bbox(
         ``(xmin, ymin, xmax, ymax, source_crs)`` in the input CRS.
 
     Raises:
-        ValueError: If the bbox cannot be parsed or has no discernible CRS.
+        ValueError: If the bbox cannot be parsed, has no discernible CRS,
+            or has invalid ordering / non-finite values.
         TypeError: If *bbox* is not a recognised type.
     """
     import pyproj
@@ -116,11 +124,12 @@ def normalize_bbox(
                 raise ValueError(
                     "GeoDataFrame/GeoSeries has no CRS; pass crs= explicitly."
                 )
-            return (
+            xmin, ymin, xmax, ymax = (
                 float(bounds[0]), float(bounds[1]),
                 float(bounds[2]), float(bounds[3]),
-                source_crs,
             )
+            _validate_bbox_values(xmin, ymin, xmax, ymax)
+            return xmin, ymin, xmax, ymax, source_crs
     except ImportError:
         pass
 
@@ -140,6 +149,7 @@ def normalize_bbox(
         else:
             source_crs = pyproj.CRS.from_epsg(4326)
             _maybe_warn_projected(xmin, ymin, xmax, ymax)
+        _validate_bbox_values(xmin, ymin, xmax, ymax)
         return xmin, ymin, xmax, ymax, source_crs
 
     # Plain sequence
@@ -160,7 +170,20 @@ def normalize_bbox(
     else:
         source_crs = pyproj.CRS.from_epsg(4326)
         _maybe_warn_projected(xmin, ymin, xmax, ymax)
+    _validate_bbox_values(xmin, ymin, xmax, ymax)
     return xmin, ymin, xmax, ymax, source_crs
+
+
+def _validate_bbox_values(xmin: float, ymin: float, xmax: float, ymax: float) -> None:
+    """Raise ValueError for non-finite or misordered bbox coordinates."""
+    if any(not math.isfinite(v) for v in (xmin, ymin, xmax, ymax)):
+        raise ValueError(
+            f"bbox contains non-finite values: {xmin}, {ymin}, {xmax}, {ymax}"
+        )
+    if xmin >= xmax:
+        raise ValueError(f"bbox xmin ({xmin}) must be less than xmax ({xmax}).")
+    if ymin >= ymax:
+        raise ValueError(f"bbox ymin ({ymin}) must be less than ymax ({ymax}).")
 
 
 def get_axes_pixel_dims(ax: "matplotlib.axes.Axes") -> Tuple[int, int]:

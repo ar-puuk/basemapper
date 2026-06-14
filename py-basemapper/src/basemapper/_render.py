@@ -15,6 +15,9 @@ def render_basemap_raw(
     tile_timeout_ms: int = 10_000,
     max_tiles: int = 256,
     layers: Optional[List[str]] = None,
+    auth_token: Optional[str] = None,
+    fail_on_tile_error: bool = True,
+    tile_concurrency: int = 16,
 ) -> bytes:
     """Fetch and composite map tiles into a raw RGBA pixel buffer.
 
@@ -45,6 +48,14 @@ def render_basemap_raw(
         layers: Optional layer filter. Plain layer IDs -> keep only those
             layers; minus-prefixed IDs (e.g. ``["-labels"]``) -> exclude those
             layers.  Mixing inclusion and exclusion raises :class:`BasemapError`.
+        auth_token: Optional authentication token. Sent as
+            ``Authorization: Bearer <token>`` for raster sources; appended as
+            ``?access_token=<token>`` for Mapbox vector sources.
+        fail_on_tile_error: When ``False``, individual tile fetch failures are
+            skipped (with a warning) rather than aborting the render.
+            Default ``True``.
+        tile_concurrency: Maximum number of tiles fetched in parallel.
+            Default 16.
 
     Returns:
         bytes: RGBA pixel data of length ``width * height * 4``.
@@ -63,6 +74,10 @@ def render_basemap_raw(
     if source_crs == crs_3857:
         bbox_3857 = [xmin, ymin, xmax, ymax]
     else:
-        bbox_3857 = list(reproject_bbox_to_3857((xmin, xmax), (ymin, ymax), source_crs))
+        bbox_3857 = list(reproject_bbox_to_3857(xmin, ymin, xmax, ymax, source_crs))
 
-    return _impl(bbox_3857, width, height, style_input, zoom, tile_timeout_ms, max_tiles, layers)
+    return _impl(
+        bbox_3857, width, height, style_input,
+        zoom, tile_timeout_ms, max_tiles, layers,
+        auth_token, fail_on_tile_error, tile_concurrency,
+    )

@@ -21,6 +21,12 @@ fn core_err_to_py(e: BasemapError) -> PyErr {
 ///     max_tiles: Maximum tiles fetched per render call.
 ///     layers: Optional layer filter list. Plain IDs → keep only those;
 ///             minus-prefixed IDs → exclude those. Mixed lists raise BasemapError.
+///     auth_token: Optional authentication token. Sent as
+///                 `Authorization: Bearer <token>` for raster sources;
+///                 appended as `?access_token=<token>` for Mapbox vector sources.
+///     fail_on_tile_error: When False, individual tile failures are skipped
+///                         rather than aborting the render. Default True.
+///     tile_concurrency: Maximum parallel tile downloads. Default 16.
 ///
 /// Returns:
 ///     bytes: RGBA pixel data of length width * height * 4.
@@ -28,7 +34,11 @@ fn core_err_to_py(e: BasemapError) -> PyErr {
 /// Raises:
 ///     BasemapError: On any rendering or network failure.
 #[pyfunction]
-#[pyo3(signature = (bbox_3857, width, height, style_input, zoom=None, tile_timeout_ms=10_000, max_tiles=256, layers=None))]
+#[pyo3(signature = (
+    bbox_3857, width, height, style_input,
+    zoom=None, tile_timeout_ms=10_000, max_tiles=256, layers=None,
+    auth_token=None, fail_on_tile_error=true, tile_concurrency=16
+))]
 #[allow(clippy::too_many_arguments, clippy::useless_conversion)]
 fn render_basemap_raw(
     py: Python<'_>,
@@ -40,6 +50,9 @@ fn render_basemap_raw(
     tile_timeout_ms: u32,
     max_tiles: u32,
     layers: Option<Vec<String>>,
+    auth_token: Option<String>,
+    fail_on_tile_error: bool,
+    tile_concurrency: u32,
 ) -> PyResult<Py<PyBytes>> {
     if bbox_3857.len() != 4 {
         return Err(PyRuntimeError::new_err(
@@ -54,8 +67,10 @@ fn render_basemap_raw(
         zoom,
         tile_timeout_ms,
         max_tiles,
-        tile_concurrency: 16,
+        tile_concurrency: tile_concurrency.max(1),
         layers,
+        auth_token,
+        fail_on_tile_error,
     };
 
     // map_err then map avoids a ?-desugared From<PyErr>→PyErr that clippy flags.
