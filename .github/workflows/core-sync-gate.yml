@@ -1,0 +1,33 @@
+name: Vendored core drift gate
+
+# Fails if core/src/ and r-basemapper/src/rust/core/src/ diverge.
+# This enforces the Option-A vendoring contract: the committed snapshot in
+# r-basemapper must always be byte-identical to core/src/.
+
+on:
+  pull_request:
+    paths:
+      - 'core/src/**'
+      - 'r-basemapper/src/rust/core/src/**'
+  push:
+    branches: [main]
+    paths:
+      - 'core/src/**'
+      - 'r-basemapper/src/rust/core/src/**'
+  workflow_dispatch:
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check core/src == r-basemapper/src/rust/core/src
+        run: |
+          if ! diff -r core/src r-basemapper/src/rust/core/src; then
+            echo ""
+            echo "ERROR: core/src and r-basemapper/src/rust/core/src have diverged."
+            echo "Run 'cp -r core/src/* r-basemapper/src/rust/core/src/' and commit the result."
+            exit 1
+          fi
+          echo "OK: vendored core is in sync."

@@ -68,10 +68,11 @@ batch pipelines; no server multi-tenancy in v1
 
 *GATE: Must pass before Phase 0 research. Re-checked after Phase 1 design.*
 
-### I. Cargo Workspace Monorepo ✅ PASS
+### I. Cargo Workspace Monorepo ⚠️ DEVIATION (documented)
 
-- Workspace root `Cargo.toml` with three members: `core`, `py-basemapper`,
-  `r-basemapper`.
+- Workspace root `Cargo.toml` has **two** members: `core` and `py-basemapper`.
+  `r-basemapper` is a **separate workspace** (`r-basemapper/Cargo.toml`), not a
+  root member. See Complexity Tracking row below.
 - Each crate is independently buildable. No binding crate depends on another
   binding crate.
 - All dependency versions pinned in the committed `Cargo.lock`.
@@ -95,11 +96,14 @@ batch pipelines; no server multi-tenancy in v1
   which returns synchronously to R without blocking R's event loop at the OS level.
 - All `unsafe` blocks in binding crates carry `// SAFETY:` comments.
 
-### IV. Headless Output Standard ✅ PASS
+### IV. Headless Output Standard ⚠️ DEVIATION (documented)
 
 - `core::render()` returns `RenderResult { pixels: Vec<u8>, bounds: SpatialBounds, ... }`.
 - No UI component, browser object, or file-system side effect.
-- Python surfaces as `numpy.ndarray` with spatial bounds as `attrs`.
+- Python surfaces as **`xarray.DataArray`** (not bare `numpy.ndarray`) with spatial
+  bounds in `.attrs`. Constitution IV says "NumPy ndarray"; the deviation is
+  intentional — see Complexity Tracking row below. Callers needing a bare ndarray
+  can use `.values` on the returned `DataArray`.
 - R surfaces as `matrix` with spatial bounds as R `attr()`s; `geom_basemap()` wraps
   this in `grid::rasterGrob` internally for the ggplot2 protocol.
 - Width, height, DPI are always caller-supplied; never inferred from a display.
@@ -229,8 +233,7 @@ which accesses the same underlying matplotlib axes.
 
 ## Complexity Tracking
 
-> No constitution violations require justification. Table left empty.
-
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|--------------------------------------|
-| — | — | — |
+| **Constitution IV**: Python `add_basemap()` returns `xarray.DataArray`, not bare `ndarray` | `numpy.ndarray` cannot carry named spatial metadata (xmin/ymin/xmax/ymax/crs_epsg/zoom) without subclassing; `xarray.DataArray` gives `.attrs` + labeled dims with no custom array type | `ndarray` subclass — fragile across numpy versions and surprising to users; plain dict return — loses the familiar array interface entirely |
+| **Constitution I**: `r-basemapper` is a separate Cargo workspace (`r-basemapper/Cargo.toml`), not a root `members` entry | Option-A vendoring lets the R package build from an `install_github()` tarball with no access to the repo-root workspace; the vendored `r-basemapper/src/rust/core/` snapshot is what gets compiled during `R CMD install` | Single root workspace including `r-basemapper/` — breaks standalone/CRAN tarball builds because consumers don't have the repo root; git submodules — add checkout complexity for R users |

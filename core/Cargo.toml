@@ -5,6 +5,16 @@ edition = "2021"
 
 [dependencies]
 wgpu        = { version = "22.1", features = ["wgsl"] }
+# NOTE: The rev below is the canonical pin for cargo-publish / CI that cannot
+# use the root [patch] override.  During local development the root Cargo.toml's
+# [patch."https://github.com/ar-puuk/maplibre-rs"] section redirects maplibre to
+# a local ../maplibre-rs checkout — see README.md for setup instructions.
+#
+# KNOWN ISSUE (#1): This rev is currently 39 hex chars (truncated — should be 40).
+# The intended rev is 1a930af on ar-puuk/maplibre-rs (colour/fill expression fix).
+# A clean clone without the local [patch] checkout will fail to build until this
+# is replaced with a correct full 40-char SHA or a crates.io release.
+# TODO: Replace with a crates.io release once maplibre-rs stabilises.
 maplibre    = { git = "https://github.com/ar-puuk/maplibre-rs", rev = "3bb172337ad36cc39e87c1b90a42e5fcbd8dc87", features = ["headless"] }
 cgmath      = "0.18.0"
 tokio       = { workspace = true }

@@ -80,3 +80,34 @@ fn mixed_layer_filter_returns_error() {
         Err(BasemapError::InvalidLayerFilter(_))
     ));
 }
+
+// ──────────────────────────── Anti-meridian tests ────────────────────────────
+
+#[test]
+fn anti_meridian_bbox_xmin_gt_xmax_returns_invalid_bbox() {
+    // Simulate a bbox that wraps the anti-meridian in Web Mercator:
+    // e.g. from 170°E → 190°E (= -170°W) would give xmin > xmax in metres.
+    let mut req = base_request();
+    req.bbox = [15_000_000.0, 4_500_000.0, -15_000_000.0, 4_600_000.0]; // xmin > xmax
+    let err = req.validate().unwrap_err();
+    assert!(
+        matches!(err, BasemapError::InvalidBbox(_)),
+        "expected InvalidBbox for anti-meridian bbox, got {err:?}"
+    );
+    // Error message must mention anti-meridian so the user knows what to do.
+    assert!(
+        err.to_string().to_lowercase().contains("anti-meridian")
+            || err.to_string().to_lowercase().contains("anti"),
+        "error message should mention anti-meridian: {err}"
+    );
+}
+
+#[test]
+fn tile_count_does_not_overflow_when_x0_gt_x1() {
+    // Even if validate() is bypassed, tile_count must not panic in release or
+    // wrap to a huge value in debug builds.
+    let bbox = [15_000_000.0_f64, -5_000_000.0, -15_000_000.0, 5_000_000.0];
+    let count = tile_count(bbox, 10);
+    // Correct behaviour: returns 0 rather than panicking or overflowing.
+    assert_eq!(count, 0, "tile_count should return 0 for anti-meridian bbox");
+}

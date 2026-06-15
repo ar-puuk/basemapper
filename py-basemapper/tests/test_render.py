@@ -3,9 +3,8 @@
 import json
 
 import pytest
-import responses as resp_lib
 
-from basemapper.exceptions import BasemapError
+from basemapper.exceptions import BasemapError, StyleError, ValidationError
 
 
 BBOX = [-13_700_000.0, 4_500_000.0, -13_600_000.0, 4_600_000.0]
@@ -29,10 +28,17 @@ def test_basemap_error_is_runtime_error():
     assert "boom" in str(err)
 
 
-def test_malformed_style_raises(monkeypatch):
-    """Scenario 7: version != 8 should raise before tile fetching."""
+def test_validation_error_is_value_error():
+    """ValidationError must subclass both BasemapError and ValueError."""
+    err = ValidationError("bad bbox")
+    assert isinstance(err, BasemapError)
+    assert isinstance(err, ValueError)
+
+
+def test_malformed_style_raises_style_error():
+    """Scenario 7: version != 8 must raise StyleError (not a generic Exception)."""
     import basemapper
-    with pytest.raises(Exception, match="style|version"):
+    with pytest.raises(StyleError, match="version"):
         basemapper.render_basemap_raw(
             bbox=BBOX,
             crs=3857,
@@ -42,10 +48,36 @@ def test_malformed_style_raises(monkeypatch):
         )
 
 
+def test_invalid_bbox_raises_validation_error():
+    """xmin >= xmax must raise ValidationError before any network I/O."""
+    import basemapper
+    bad_bbox = [100.0, 4_500_000.0, -100.0, 4_600_000.0]  # xmin > xmax
+    with pytest.raises(ValidationError):
+        basemapper.render_basemap_raw(
+            bbox=bad_bbox,
+            crs=3857,
+            width=64,
+            height=64,
+            style_input=GREYSCALE_STYLE,
+        )
+
+
+def test_detect_crs_raises_validation_error_on_bare_axes():
+    """A plain matplotlib Axes with no geographic CRS must raise ValidationError."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from basemapper.bbox_utils import detect_crs_from_axes
+
+    fig, ax = plt.subplots()
+    with pytest.raises(ValidationError, match="CRS"):
+        detect_crs_from_axes(ax)
+    plt.close(fig)
+
+
 def test_import_without_plotnine(monkeypatch):
     """base import must not fail when plotnine is absent."""
     import sys
-    import types
 
     # Temporarily hide plotnine.
     real_plotnine = sys.modules.pop("plotnine", None)

@@ -40,8 +40,10 @@ fn render_basemap_raw(
         ));
     }
 
+    // Do not clamp zoom here — let core validate() reject out-of-range values
+    // with a clear InvalidBbox error rather than silently accepting bad input.
     let zoom_val: Option<u8> = match zoom {
-        Nullable::NotNull(z) => Some(z.clamp(0, 22) as u8),
+        Nullable::NotNull(z) => Some(z as u8),
         Nullable::Null => None,
     };
 
