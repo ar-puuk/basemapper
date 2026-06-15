@@ -15,6 +15,8 @@ fn base_request() -> RenderRequest {
         max_tiles: 256,
         tile_concurrency: 4,
         layers: None,
+        auth_token: None,
+        fail_on_tile_error: false,
     }
 }
 
