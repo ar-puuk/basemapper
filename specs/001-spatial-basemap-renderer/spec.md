@@ -139,10 +139,11 @@ zero MapLibre GL JSON knowledge.
    `add_basemap()` or `render_basemap_raw()` without further modification.
 
 2. **Given** a bare MVT tile URL and a paint dictionary `{"fill-color": "#e8e0d8",
-   "line-color": "#aaa", "line-width": 1}`, **When** `VectorProvider(url, paint=paint)`
-   (Python) or `vector_provider(url, paint=list(...))` (R) is called, **Then** the
-   returned JSON contains a vector source and at least one fill layer using `fill-color`
-   and one line layer using `line-color` and `line-width`.
+   "line-color": "#aaa", "line-width": 1}`, **When**
+   `VectorProvider(url, source_layer="land", paint=paint)` (Python) or
+   `vector_provider(url, source_layer = "land", paint=list(...))` (R) is called,
+   **Then** the returned JSON contains a vector source and at least one fill layer using
+   `fill-color` and one line layer using `line-color` and `line-width`.
 
 3. **Given** a `VectorProvider` is called with no `paint` argument, **When** the result
    is passed to `render_basemap_raw`, **Then** the map renders with sensible default
@@ -342,10 +343,13 @@ with no explicit bbox argument and no manual `ax` interaction.
   return a fully compliant MapLibre GL Style JSON string containing a raster source and
   a raster layer definition.
 - **FR-015**: The library MUST provide a `VectorProvider` class (Python) and
-  `vector_provider()` function (R) that each accept a bare MVT tile URL template, an
-  optional paint parameter (Python `dict`, R named `list`), and return a fully compliant
-  MapLibre GL Style JSON string. Recognised paint keys are the fill family
-  (`fill-color`, `fill-opacity`, `fill-outline-color`) and the line family
+  `vector_provider()` function (R) that each accept a bare MVT tile URL template, a
+  **required** `source_layer` string identifying the layer within each MVT tile to render
+  (maps to the MapLibre GL `"source-layer"` property), and an optional paint parameter
+  (Python `dict`, R named `list`). Both bindings have the same signature:
+  `VectorProvider(url, source_layer, paint=...)` (Python) /
+  `vector_provider(url, source_layer, paint=...)` (R). Recognised paint keys are the fill
+  family (`fill-color`, `fill-opacity`, `fill-outline-color`) and the line family
   (`line-color`, `line-width`, `line-opacity`). Unrecognised keys MUST be dropped
   silently with a user-visible warning naming each dropped key. An absent or empty
   paint parameter MUST produce a sensible default style (light grey fill, medium grey
@@ -394,13 +398,17 @@ with no explicit bbox argument and no manual `ax` interaction.
   the opacity of the composited basemap. In Python the value is passed to `ax.imshow(...,
   alpha=alpha)`; in R it is passed to `grid::rasterGrob(..., gp=grid::gpar(alpha=alpha))`.
   No Rust changes are required — this is a host-language compositing concern only.
-- **FR-027**: The library MUST provide a `tm_basemap(style_input, bbox=NULL, zoom=NULL,
-  alpha=1, layers=NULL, ...)` R function compatible with tmap v4. When `bbox` is NULL,
-  the function MUST derive the map extent from the tmap pipeline's primary shape via
-  `tmap::bb()`. It MUST reproject to EPSG:3857, call `render_basemap_raw()`, wrap the
-  pixel array as a georeferenced `stars` object, and return a composable tmap element
-  (`tmap::tm_shape(stars_obj) + tmap::tm_rgb(alpha=alpha)`) that renders beneath
-  subsequent tmap layers.
+- **FR-027**: The library MUST provide a `tm_basemap(style_input, zoom=NULL, alpha=1,
+  layers=NULL, ...)` R function compatible with tmap v4 (>= 4.0, < 5). The function
+  is implemented using a deferred auxiliary-layer approach (`tmapGridAuxPrepare` /
+  `tmapGridAuxPlot`) with `terra::rast()` for RGBA raster wrapping, rather than
+  `stars` + `tm_rgb()`. When added to a tmap pipeline, the bounding box is derived
+  at render time from the active shape context via tmap internals; the function calls
+  `render_basemap_raw()`, wraps the pixel array as a `terra` RGBA raster, and injects
+  it as the bottommost tmap auxiliary element. `terra` (>= 1.7) is a required import
+  (not a Suggest) because `tm_basemap()` hard-requires it. Note: this implementation
+  couples to tmap private generics (`tmapGridAuxPrepare`, `tmapGridAuxPlot`) — tmap
+  upgrades above v4 may require updates to this coupling point.
 - **FR-028**: When `tm_basemap()` is called with no shape context and `bbox=NULL`, the
   function MUST raise an informative error via `stop()` before any style fetching or
   tile downloading.

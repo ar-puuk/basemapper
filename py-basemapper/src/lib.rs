@@ -5,8 +5,39 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-fn core_err_to_py(e: BasemapError) -> PyErr {
-    PyRuntimeError::new_err(e.to_string())
+/// Map a `BasemapError` to the appropriate typed Python exception from
+/// `basemapper.exceptions`, using the stable `kind()` discriminant.
+///
+/// Hierarchy (all subclass `RuntimeError` via `BasemapError`):
+///   "validation" → ValidationError
+///   "style"      → StyleError
+///   "network"    → NetworkError
+///   _            → BasemapError
+fn core_err_to_py(py: Python<'_>, e: BasemapError) -> PyErr {
+    let msg = e.to_string();
+    let kind = e.kind();
+
+    // Import the exceptions module from the installed Python package.
+    // If the import fails for any reason, fall back to PyRuntimeError.
+    let exc_mod = match py.import_bound("basemapper.exceptions") {
+        Ok(m) => m,
+        Err(_) => return PyRuntimeError::new_err(msg),
+    };
+
+    let cls_name = match kind {
+        "validation" => "ValidationError",
+        "style" => "StyleError",
+        "network" => "NetworkError",
+        _ => "BasemapError",
+    };
+
+    match exc_mod.getattr(cls_name) {
+        Ok(cls) => match cls.call1((msg.clone(),)) {
+            Ok(exc) => PyErr::from_value_bound(exc.into()),
+            Err(_) => PyRuntimeError::new_err(msg),
+        },
+        Err(_) => PyRuntimeError::new_err(msg),
+    }
 }
 
 /// Render a basemap and return raw RGBA bytes.
@@ -55,9 +86,15 @@ fn render_basemap_raw(
     tile_concurrency: u32,
 ) -> PyResult<Py<PyBytes>> {
     if bbox_3857.len() != 4 {
-        return Err(PyRuntimeError::new_err(
-            "bbox_3857 must have exactly 4 elements",
-        ));
+        // Raise ValidationError for this input error too.
+        let exc_msg = "bbox_3857 must have exactly 4 elements";
+        let exc = py
+            .import_bound("basemapper.exceptions")
+            .and_then(|m| m.getattr("ValidationError"))
+            .and_then(|cls| cls.call1((exc_msg,)))
+            .map(|exc| PyErr::from_value_bound(exc.into()))
+            .unwrap_or_else(|_| PyRuntimeError::new_err(exc_msg));
+        return Err(exc);
     }
     let request = RenderRequest {
         bbox: [bbox_3857[0], bbox_3857[1], bbox_3857[2], bbox_3857[3]],
@@ -74,9 +111,11 @@ fn render_basemap_raw(
     };
 
     // map_err then map avoids a ?-desugared From<PyErr>→PyErr that clippy flags.
-    py.allow_threads(|| render(request))
-        .map_err(core_err_to_py)
-        .map(|result| PyBytes::new_bound(py, &result.pixels).unbind())
+    let result = py.allow_threads(|| render(request));
+    match result {
+        Ok(r) => Ok(PyBytes::new_bound(py, &r.pixels).unbind()),
+        Err(e) => Err(core_err_to_py(py, e)),
+    }
 }
 
 #[pymodule]

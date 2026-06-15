@@ -13,10 +13,6 @@ pub enum TileSource {
         url_template: String,
         api_key: Option<String>,
     },
-    EsriVectorTile {
-        url_template: String,
-        auth_header: Option<String>,
-    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -71,7 +67,6 @@ pub fn build_tile_urls(source: &TileSource, coords: &[TileCoord]) -> Vec<(TileCo
                         base
                     }
                 }
-                TileSource::EsriVectorTile { url_template, .. } => expand_url(url_template, coord),
             };
             (coord, url)
         })
@@ -100,7 +95,6 @@ pub async fn fetch_all_tiles(
         let url = url.clone();
         let auth = match source {
             TileSource::XyzRaster { auth_header, .. } => auth_header.clone(),
-            TileSource::EsriVectorTile { auth_header, .. } => auth_header.clone(),
             TileSource::MapboxVectorTile { .. } => None,
         };
 

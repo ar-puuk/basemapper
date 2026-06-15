@@ -10,15 +10,25 @@ if TYPE_CHECKING:
     import matplotlib.axes
     import pyproj
 
+from .exceptions import ValidationError
+
 
 def detect_crs_from_axes(ax: "matplotlib.axes.Axes") -> "pyproj.CRS":
-    """Return the CRS attached to *ax*, or WGS-84 as a fallback.
+    """Return the CRS attached to *ax*.
+
+    Tries cartopy ``ax.projection`` and GeoDataFrame ``ax._gdf_crs`` in order.
+    Raises ``ValidationError`` when no geographic CRS is detectable, as required
+    by spec US1 Acceptance Scenario 3 — a silent EPSG:4326 fallback would mask
+    the common mistake of passing a plain (non-geographic) axes.
 
     Args:
         ax: A matplotlib Axes object, optionally with a geographic projection.
 
     Returns:
         A pyproj.CRS instance.
+
+    Raises:
+        ValidationError: When no geographic CRS can be detected from the axes.
     """
     import pyproj
 
@@ -36,11 +46,12 @@ def detect_crs_from_axes(ax: "matplotlib.axes.Axes") -> "pyproj.CRS":
         except Exception:
             pass
 
-    warnings.warn(
-        "Could not detect a geographic CRS from the axes; assuming EPSG:4326 (WGS-84).",
-        stacklevel=3,
+    raise ValidationError(
+        "Could not detect a geographic CRS from the axes. "
+        "Use a cartopy-projected axes (e.g. via GeoAxes) or a GeoDataFrame plot "
+        "so that the axes carries projection metadata. "
+        "Alternatively, pass bbox= and crs= explicitly to avoid CRS auto-detection."
     )
-    return pyproj.CRS.from_epsg(4326)
 
 
 def reproject_bbox_to_3857(
@@ -156,12 +167,12 @@ def normalize_bbox(
     try:
         vals = [float(v) for v in bbox]
     except (TypeError, ValueError) as exc:
-        raise TypeError(
+        raise ValidationError(
             f"bbox must be a sequence of 4 floats, a dict, or a GeoDataFrame; "
             f"got {type(bbox).__name__}."
         ) from exc
     if len(vals) != 4:
-        raise ValueError(
+        raise ValidationError(
             f"bbox must have exactly 4 elements (xmin, ymin, xmax, ymax), got {len(vals)}."
         )
     xmin, ymin, xmax, ymax = vals
@@ -175,15 +186,19 @@ def normalize_bbox(
 
 
 def _validate_bbox_values(xmin: float, ymin: float, xmax: float, ymax: float) -> None:
-    """Raise ValueError for non-finite or misordered bbox coordinates."""
+    """Raise ValidationError for non-finite or misordered bbox coordinates.
+
+    ValidationError is a subclass of both BasemapError and ValueError so
+    existing callers catching ValueError continue to work.
+    """
     if any(not math.isfinite(v) for v in (xmin, ymin, xmax, ymax)):
-        raise ValueError(
+        raise ValidationError(
             f"bbox contains non-finite values: {xmin}, {ymin}, {xmax}, {ymax}"
         )
     if xmin >= xmax:
-        raise ValueError(f"bbox xmin ({xmin}) must be less than xmax ({xmax}).")
+        raise ValidationError(f"bbox xmin ({xmin}) must be less than xmax ({xmax}).")
     if ymin >= ymax:
-        raise ValueError(f"bbox ymin ({ymin}) must be less than ymax ({ymax}).")
+        raise ValidationError(f"bbox ymin ({ymin}) must be less than ymax ({ymax}).")
 
 
 def get_axes_pixel_dims(ax: "matplotlib.axes.Axes") -> Tuple[int, int]:

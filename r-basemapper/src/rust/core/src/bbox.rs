@@ -33,15 +33,25 @@ pub struct RenderRequest {
 impl RenderRequest {
     pub fn validate(&self) -> Result<(), BasemapError> {
         let [xmin, ymin, xmax, ymax] = self.bbox;
-        if xmin >= xmax || ymin >= ymax {
-            return Err(BasemapError::InvalidBbox(format!(
-                "[{xmin}, {ymin}, {xmax}, {ymax}]: xmin must be < xmax and ymin must be < ymax"
-            )));
-        }
         if !xmin.is_finite() || !ymin.is_finite() || !xmax.is_finite() || !ymax.is_finite() {
             return Err(BasemapError::InvalidBbox(
                 "bbox contains non-finite values".into(),
             ));
+        }
+        // Anti-meridian check: Web Mercator X wraps at ±20_037_508 m.
+        // A bbox where xmin > 0 and xmax < 0 (or xmin >= xmax in degrees)
+        // indicates a crossing that we do not support — reject it clearly.
+        if xmin >= xmax {
+            return Err(BasemapError::InvalidBbox(format!(
+                "[{xmin}, {ymin}, {xmax}, {ymax}]: xmin ({xmin}) must be < xmax ({xmax}). \
+                 Anti-meridian crossing (180°) is not supported; split the bbox into two \
+                 non-crossing regions."
+            )));
+        }
+        if ymin >= ymax {
+            return Err(BasemapError::InvalidBbox(format!(
+                "[{xmin}, {ymin}, {xmax}, {ymax}]: ymin ({ymin}) must be < ymax ({ymax})"
+            )));
         }
         if self.width == 0 || self.height == 0 || self.width > 16_384 || self.height > 16_384 {
             return Err(BasemapError::InvalidDimensions(self.width, self.height));
@@ -86,9 +96,17 @@ pub fn compute_zoom(bbox: [f64; 4], width_px: u32) -> u8 {
 }
 
 /// Count how many tiles cover a bbox at a given zoom level.
+///
+/// Returns 0 for bboxes that cross the anti-meridian (x0 > x1 in tile space)
+/// rather than panicking on integer underflow.
 pub fn tile_count(bbox: [f64; 4], zoom: u8) -> u32 {
     let (x0, y0) = mercator_to_tile(bbox[0], bbox[3], zoom);
     let (x1, y1) = mercator_to_tile(bbox[2], bbox[1], zoom);
+    if x1 < x0 || y1 < y0 {
+        // Anti-meridian crossing or degenerate bbox — caller should have
+        // been rejected by validate() with InvalidBbox before reaching here.
+        return 0;
+    }
     (x1 - x0 + 1) * (y1 - y0 + 1)
 }
 

@@ -41,7 +41,10 @@ def add_basemap(
 
     Returns:
         xarray.DataArray of shape (height, width, 4) with spatial bounds and
-        CRS stored in ``.attrs``.
+        CRS stored in ``.attrs``. Note: this returns ``xarray.DataArray`` rather
+        than a bare ``numpy.ndarray`` because ndarray cannot carry named spatial
+        metadata without subclassing. Callers who need the underlying array can
+        access it via ``.values`` on the returned DataArray.
 
     Raises:
         BasemapError: If CRS detection fails, the render fails, or the network

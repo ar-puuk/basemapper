@@ -172,6 +172,36 @@ git push
 
 ---
 
+## Rust developer build prerequisites
+
+**Important:** `cargo build --workspace` requires a local checkout of the
+[ar-puuk/maplibre-rs](https://github.com/ar-puuk/maplibre-rs) fork at
+`../maplibre-rs` relative to this repository root. The root `Cargo.toml`
+patches the `maplibre` crate to that path:
+
+```toml
+[patch."https://github.com/ar-puuk/maplibre-rs"]
+maplibre = { path = "../maplibre-rs/maplibre" }
+```
+
+Clone the fork **before** attempting `cargo build`:
+
+```sh
+# From the parent directory of this repo:
+git clone https://github.com/ar-puuk/maplibre-rs
+```
+
+The `core/Cargo.toml` also pins a specific git `rev` as the canonical source
+of truth. The active rev is `1a930af` (see `core/Cargo.toml`). The local
+`[patch]` overrides this rev during development; make sure your local clone
+is checked out to the matching commit.
+
+> **Tracking issue:** Migrating to a crates.io-published version of maplibre-rs
+> (or vendoring it as a git submodule) would eliminate this out-of-tree
+> prerequisite. See `specs/001-spatial-basemap-renderer/plan.md` item #1.
+
+---
+
 ## Developer setup (Windows — R package only)
 
 The R package ships a pre-compiled `basemapper.dll`, so end users need only

@@ -20,10 +20,25 @@ pub enum BasemapError {
     MaxTilesExceeded { requested: u32, limit: u32 },
     #[error("invalid layer filter: {0}")]
     InvalidLayerFilter(String),
-    #[error(
-        "vector tile rendering is not yet implemented; \
-         use a raster source (RasterProvider / EsriRasterProvider) for now. \
-         maplibre-rs integration is planned for Track B Part 2."
-    )]
-    VectorRenderNotImplemented,
+}
+
+impl BasemapError {
+    /// Return a stable, coarse category string for mapping to typed Python exceptions.
+    ///
+    /// Variants:
+    /// - `"validation"` → `ValidationError` (invalid input before any I/O)
+    /// - `"style"`      → `StyleError` (style fetch or parse failure)
+    /// - `"network"`    → `NetworkError` (tile fetch failure)
+    /// - `"render"`     → `BasemapError` (everything else — GPU / decode)
+    pub fn kind(&self) -> &'static str {
+        match self {
+            BasemapError::InvalidBbox(_)
+            | BasemapError::InvalidDimensions(_, _)
+            | BasemapError::InvalidLayerFilter(_)
+            | BasemapError::MaxTilesExceeded { .. } => "validation",
+            BasemapError::StyleFetchFailed { .. } | BasemapError::StyleParseError(_) => "style",
+            BasemapError::TileFetchFailed { .. } => "network",
+            BasemapError::RenderError(_) | BasemapError::TileDecodeError(_) => "render",
+        }
+    }
 }

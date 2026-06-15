@@ -3,119 +3,6 @@ use crate::tile_fetcher::{TileCoord, TileData};
 use image::RgbaImage;
 use std::collections::HashMap;
 
-pub struct WgpuContext {
-    pub device: wgpu::Device,
-    pub queue: wgpu::Queue,
-}
-
-/// Initialize a headless wgpu device (no surface required).
-pub async fn initialize_wgpu_headless() -> Result<WgpuContext, BasemapError> {
-    let instance = wgpu::Instance::default();
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: None,
-            force_fallback_adapter: false,
-        })
-        .await
-        .ok_or_else(|| BasemapError::RenderError("no suitable GPU adapter found".into()))?;
-
-    let (device, queue) = adapter
-        .request_device(
-            &wgpu::DeviceDescriptor {
-                label: Some("basemapper"),
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
-                memory_hints: wgpu::MemoryHints::default(),
-            },
-            None,
-        )
-        .await
-        .map_err(|e| BasemapError::RenderError(e.to_string()))?;
-
-    Ok(WgpuContext { device, queue })
-}
-
-/// Create an off-screen render texture of the requested dimensions.
-pub fn create_render_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
-    device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("basemapper_output"),
-        size: wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-        view_formats: &[],
-    })
-}
-
-/// Read the pixels from a wgpu texture back to CPU memory.
-///
-/// H2: map_async is asynchronous. We use device.poll(Maintain::Wait) to block
-/// synchronously without spawning a new tokio task, avoiding deadlock.
-pub fn read_texture_to_vec(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    texture: &wgpu::Texture,
-    width: u32,
-    height: u32,
-) -> Result<Vec<u8>, BasemapError> {
-    let bytes_per_row = align_to_256(width * 4);
-    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("readback"),
-        size: (bytes_per_row * height) as u64,
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-        mapped_at_creation: false,
-    });
-
-    let mut encoder =
-        device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-    encoder.copy_texture_to_buffer(
-        wgpu::ImageCopyTexture {
-            texture,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
-        },
-        wgpu::ImageCopyBuffer {
-            buffer: &buffer,
-            layout: wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: Some(bytes_per_row),
-                rows_per_image: Some(height),
-            },
-        },
-        wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-    );
-    queue.submit([encoder.finish()]);
-
-    // H2: poll synchronously — do NOT await or spawn a tokio task here.
-    let slice = buffer.slice(..);
-    slice.map_async(wgpu::MapMode::Read, |_| {});
-    device.poll(wgpu::Maintain::Wait);
-
-    let data = slice.get_mapped_range();
-    // Strip padding bytes added by wgpu's 256-byte row alignment requirement.
-    let mut pixels = Vec::with_capacity((width * height * 4) as usize);
-    for row in 0..height {
-        let start = (row * bytes_per_row) as usize;
-        let end = start + (width * 4) as usize;
-        pixels.extend_from_slice(&data[start..end]);
-    }
-    drop(data);
-    buffer.unmap();
-    Ok(pixels)
-}
-
 /// Composite raster tiles onto a single RGBA canvas.
 ///
 /// Each tile occupies an exact (tile_px × tile_px) region on the canvas.
@@ -337,13 +224,23 @@ impl Plugin<HeadlessEnvironment> for CapturePlugin {
 /// renders all tiles in a single pass (no per-tile compositing), then crops and
 /// resizes the captured output to `width × height`.  Single-pass rendering means
 /// tile-boundary geometry bleeds across tile edges — no seams.
+///
+/// Parameters mirror `RenderRequest` so the same timeout, concurrency, auth, and
+/// fail-soft semantics apply to both the raster and vector paths (SC-006 / #2).
+#[allow(clippy::too_many_arguments)]
 pub async fn render_vector_tiles(
+    client: &reqwest::Client,
     style_json: &str,
     tile_url_template: &str,
+    auth_token: Option<&str>,
     bbox: [f64; 4],
     zoom: u8,
     width: u32,
     height: u32,
+    tile_timeout_ms: u32,
+    tile_concurrency: u32,
+    fail_on_tile_error: bool,
+    transparent: bool,
 ) -> Result<Vec<u8>, BasemapError> {
     const TILE_PX: u32 = 512;
 
@@ -352,7 +249,16 @@ pub async fn render_vector_tiles(
 
     let tile_coords = crate::tile_fetcher::build_tile_coords(bbox, zoom);
     if tile_coords.is_empty() {
-        return Ok(vec![0u8; (width * height * 4) as usize]);
+        // Transparent or white blank canvas depending on the layers flag.
+        let fill = if transparent { 0u8 } else { 255u8 };
+        let mut buf = vec![fill; (width * height * 4) as usize];
+        if !transparent {
+            // Set alpha channel to 255 for opaque white.
+            for chunk in buf.chunks_exact_mut(4) {
+                chunk[3] = 255;
+            }
+        }
+        return Ok(buf);
     }
 
     // Tile grid bounds.
@@ -407,33 +313,67 @@ pub async fn render_vector_tiles(
         .filter(|l| l.source_layer.is_some())
         .collect();
 
-    let client = reqwest::Client::builder()
-        .user_agent(concat!("basemapper/", env!("CARGO_PKG_VERSION")))
-        .use_rustls_tls()
-        .build()
-        .map_err(|e| BasemapError::RenderError(e.to_string()))?;
+    // Use the shared client (already configured with a global timeout) and
+    // honour per-tile timeout, concurrency, auth_token, and fail_on_tile_error
+    // so the vector path has the same contract as the raster path (SC-006 / #2).
+    let timeout = std::time::Duration::from_millis(tile_timeout_ms as u64);
+    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(tile_concurrency.max(1) as usize));
 
-    // Fetch, tessellate, and register every tile.
-    for coord in &tile_coords {
-        let url = crate::tile_fetcher::expand_url(tile_url_template, *coord);
-        let resp = client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| BasemapError::RenderError(format!("tile fetch {url}: {e}")))?;
+    // Fetch all tiles concurrently (mirrors fetch_all_tiles in tile_fetcher.rs).
+    type TileFetchResult = Result<(crate::tile_fetcher::TileCoord, Box<[u8]>), BasemapError>;
+    let mut join_set: tokio::task::JoinSet<TileFetchResult> = tokio::task::JoinSet::new();
 
-        if !resp.status().is_success() {
-            log::warn!("tile fetch HTTP {}: {url}", resp.status());
-            continue;
+    for &coord in &tile_coords {
+        let client = client.clone();
+        let sem = semaphore.clone();
+        // Append Mapbox access token to the URL when an auth_token is provided.
+        let url = {
+            let base = crate::tile_fetcher::expand_url(tile_url_template, coord);
+            if let Some(token) = auth_token {
+                format!("{base}?access_token={token}")
+            } else {
+                base
+            }
+        };
+
+        join_set.spawn(async move {
+            let _permit = sem.acquire().await.unwrap();
+            let resp = client
+                .get(&url)
+                .timeout(timeout)
+                .send()
+                .await
+                .map_err(|_| BasemapError::TileFetchFailed { url: url.clone(), status: 0 })?;
+            if !resp.status().is_success() {
+                return Err(BasemapError::TileFetchFailed {
+                    url: url.clone(),
+                    status: resp.status().as_u16(),
+                });
+            }
+            let bytes = resp
+                .bytes()
+                .await
+                .map_err(|_| BasemapError::TileFetchFailed { url: url.clone(), status: 0 })?;
+            Ok((coord, bytes.to_vec().into_boxed_slice()))
+        });
+    }
+
+    let mut fetched: Vec<(crate::tile_fetcher::TileCoord, Box<[u8]>)> = Vec::new();
+    while let Some(res) = join_set.join_next().await {
+        let tile_result = res.map_err(|e| BasemapError::RenderError(e.to_string()))?;
+        match tile_result {
+            Ok(tile) => fetched.push(tile),
+            Err(e) => {
+                if fail_on_tile_error {
+                    return Err(e);
+                }
+                log::warn!("vector tile fetch failed (skipped): {e}");
+            }
         }
+    }
 
-        let tile_bytes: Box<[u8]> = resp
-            .bytes()
-            .await
-            .map_err(|e| BasemapError::RenderError(format!("tile read {url}: {e}")))?
-            .to_vec()
-            .into_boxed_slice();
-
+    // Tessellate and register every successfully fetched tile.
+    for (coord, tile_bytes) in fetched {
         let world_coord = WorldTileCoords {
             x: coord.x as i32,
             y: coord.y as i32,
@@ -493,7 +433,3 @@ pub async fn render_vector_tiles(
     Ok(output.into_raw())
 }
 
-/// wgpu requires buffer rows to be aligned to 256 bytes.
-fn align_to_256(n: u32) -> u32 {
-    (n + 255) & !255
-}

@@ -32,8 +32,10 @@ list_layers <- function(style_input) {
   ids   <- vapply(layers, function(l) l[["id"]]   %||% "", character(1))
   types <- vapply(layers, function(l) l[["type"]] %||% "", character(1))
 
+  # Print in style-definition order (not sorted) for readability.
+  # Return value is also in style-definition order so callers see consistent ordering.
   df <- data.frame(id = ids, type = types, stringsAsFactors = FALSE)
   print(df)
 
-  invisible(sort(ids))
+  invisible(ids)
 }

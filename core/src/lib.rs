@@ -78,17 +78,21 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
             &style_val, &client, request.auth_token.as_deref(), style_base_url,
         ).await?;
 
-        // Vector tiles: render via maplibre-rs (Track B Part 2).
-        if let TileSource::MapboxVectorTile { ref url_template, .. }
-        | TileSource::EsriVectorTile { ref url_template, .. } = tile_source
-        {
+        // Vector tiles: render via maplibre-rs.
+        if let TileSource::MapboxVectorTile { ref url_template, .. } = tile_source {
             return renderer::render_vector_tiles(
+                &client,
                 &style_json,
                 url_template,
+                request.auth_token.as_deref(),
                 request.bbox,
                 zoom,
                 request.width,
                 request.height,
+                request.tile_timeout_ms,
+                request.tile_concurrency,
+                request.fail_on_tile_error,
+                transparent,
             )
             .await
             .map(|pixels| RenderResult {
