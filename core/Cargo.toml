@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 wgpu        = { version = "22.1", features = ["wgsl"] }
-maplibre    = { git = "https://github.com/ar-puuk/maplibre-rs", rev = "336958cc19da19f105be4348132169cbbb0dbc9c", features = ["headless"] }
+maplibre    = { git = "https://github.com/ar-puuk/maplibre-rs", rev = "19f249494de7a0d94789ad5bbccd75b65948231e", features = ["headless"] }
 cgmath      = "0.18.0"
 tokio       = { workspace = true }
 reqwest     = { workspace = true }
