@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-wgpu        = { version = "0.20", features = ["wgsl"] }
+wgpu        = { version = "22.1", features = ["wgsl"] }
+maplibre    = { git = "https://github.com/ar-puuk/maplibre-rs", rev = "e2c1c4da8af171f098a9b91213e25fccd00cda17", features = ["headless"] }
 tokio       = { workspace = true }
 reqwest     = { workspace = true }
 serde       = { workspace = true }

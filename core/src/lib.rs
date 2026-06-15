@@ -74,19 +74,25 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
             &style_val, &client, request.auth_token.as_deref(),
         ).await?;
 
-        // Vector tile rasterization requires the maplibre-rs integration (Track B
-        // Part 2). Until then, return a clear error instead of crashing inside
-        // composite_raster_tiles when it tries to decode PBF bytes as PNG/JPEG.
-        if matches!(
-            tile_source,
-            TileSource::MapboxVectorTile { .. } | TileSource::EsriVectorTile { .. }
-        ) {
+        // Vector tiles: render via maplibre-rs (Track B Part 2).
+        if let TileSource::MapboxVectorTile { ref url_template, .. }
+        | TileSource::EsriVectorTile { ref url_template, .. } = tile_source
+        {
             return renderer::render_vector_tiles(
-                &style_json, request.bbox, zoom, request.width, request.height,
-            ).await.map(|pixels| RenderResult {
+                &style_json,
+                url_template,
+                request.bbox,
+                zoom,
+                request.width,
+                request.height,
+            )
+            .await
+            .map(|pixels| RenderResult {
                 bounds: SpatialBounds {
-                    xmin: request.bbox[0], ymin: request.bbox[1],
-                    xmax: request.bbox[2], ymax: request.bbox[3],
+                    xmin: request.bbox[0],
+                    ymin: request.bbox[1],
+                    xmax: request.bbox[2],
+                    ymax: request.bbox[3],
                     crs_epsg: 3857,
                 },
                 zoom_used: zoom,

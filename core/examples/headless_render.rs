@@ -46,6 +46,8 @@ fn main() {
         max_tiles: 256,
         tile_concurrency: 16,
         layers: None,
+        auth_token: None,
+        fail_on_tile_error: false,
     };
 
     let result = render(request).expect("render failed");

@@ -13,3 +13,9 @@ image        = { version = "0.25", default-features = false, features = ["png", 
 once_cell    = "1"
 log          = "0.4"
 pollster     = "0.3"
+
+# Pin ar-puuk's fork at the verified commit. No source changes were needed —
+# all required APIs (copy_texture, map_async, buffer, bytes_per_row, unmap)
+# are already pub in this revision.
+[patch."https://github.com/ar-puuk/maplibre-rs"]
+maplibre = { path = "../maplibre-rs/maplibre" }

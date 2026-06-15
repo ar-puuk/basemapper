@@ -26,6 +26,7 @@ pub async fn initialize_wgpu_headless() -> Result<WgpuContext, BasemapError> {
                 label: Some("basemapper"),
                 required_features: wgpu::Features::empty(),
                 required_limits: wgpu::Limits::default(),
+                memory_hints: wgpu::MemoryHints::default(),
             },
             None,
         )
@@ -170,25 +171,287 @@ pub fn composite_raster_tiles(
     Ok(canvas)
 }
 
-/// Stub for vector tile rendering via maplibre-rs (Track B Part 2).
+// ─────────────────────────── Vector tile rendering ───────────────────────────
+
+use std::{borrow::Cow, cell::RefCell, rc::Rc, sync::Arc};
+use maplibre::{
+    background::BackgroundPlugin,
+    context::MapContext,
+    headless::{
+        create_headless_renderer, environment::HeadlessEnvironment, map::HeadlessMap,
+    },
+    kernel::Kernel,
+    plugin::Plugin,
+    raster::{DefaultRasterTransferables, RasterPlugin},
+    render::{
+        graph::{Node, NodeRunError, RenderContext, RenderGraphContext, SlotInfo},
+        resource::{BufferedTextureHead, Head},
+        tile_view_pattern::ViewTileSources,
+        RenderPlugin, RenderResources, RenderStageLabel,
+    },
+    schedule::Schedule,
+    style::{layer::StyleLayer, Style as MaplibreStyle},
+    tcs::{
+        system::{System, SystemContainer, SystemError},
+        world::World,
+    },
+    vector::{DefaultVectorTransferables, VectorPlugin},
+};
+
+/// Copies the headless surface texture to the readback buffer after the main render pass.
+/// Mirrors `CopySurfaceBufferNode` from `maplibre::headless::graph_node` (private module).
+struct CopySurfaceNode;
+
+impl Node for CopySurfaceNode {
+    fn input(&self) -> Vec<SlotInfo> {
+        vec![]
+    }
+
+    fn update(&mut self, _state: &mut RenderResources) {}
+
+    fn run(
+        &self,
+        _graph: &mut RenderGraphContext,
+        render_ctx: &mut RenderContext,
+        state: &RenderResources,
+        _world: &World,
+    ) -> Result<(), NodeRunError> {
+        if let Head::Headless(bt) = state.surface().head() {
+            let size = state.surface().size();
+            render_ctx.command_encoder.copy_texture_to_buffer(
+                bt.copy_texture(),
+                wgpu::ImageCopyBuffer {
+                    buffer: bt.buffer(),
+                    layout: wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: Some(bt.bytes_per_row()),
+                        rows_per_image: None,
+                    },
+                },
+                wgpu::Extent3d {
+                    width: size.width(),
+                    height: size.height(),
+                    depth_or_array_layers: 1,
+                },
+            );
+        }
+        Ok(())
+    }
+}
+
+/// Reads the readback buffer into an in-memory `Vec<u8>` during the Cleanup stage.
+/// Mirrors `WriteSurfaceBufferSystem` but stores pixels in memory instead of to disk.
+struct InMemoryCaptureSystem {
+    pixels: Rc<RefCell<Option<Vec<u8>>>>,
+}
+
+impl System for InMemoryCaptureSystem {
+    fn name(&self) -> Cow<'static, str> {
+        "basemapper_capture".into()
+    }
+
+    fn run(&mut self, context: &mut MapContext) -> Result<(), SystemError> {
+        // Capture surface dimensions and the buffer Arc before entering the match.
+        // Using a scope so the `surface` borrow is released before we access `device`.
+        let bt: Arc<BufferedTextureHead>;
+        let width: u32;
+        let height: u32;
+        {
+            let surface = context.renderer.resources.surface();
+            let size = surface.size();
+            width = size.width();
+            height = size.height();
+            match surface.head() {
+                Head::Headed(_) => return Err(SystemError::Setup),
+                Head::Headless(b) => {
+                    bt = b.clone();
+                }
+            }
+        } // surface borrow dropped here
+
+        let padded_bpr = bt.bytes_per_row() as usize;
+        let unpadded_bpr = (width * 4) as usize;
+
+        let buffer_slice = bt.map_async(&context.renderer.device);
+        let padded_buf = buffer_slice.get_mapped_range();
+
+        let mut pix = Vec::with_capacity((width * height * 4) as usize);
+        for row in 0..height as usize {
+            let s = row * padded_bpr;
+            pix.extend_from_slice(&padded_buf[s..s + unpadded_bpr]);
+        }
+        drop(padded_buf);
+        bt.unmap();
+
+        *self.pixels.borrow_mut() = Some(pix);
+        Ok(())
+    }
+}
+
+/// Plugin that wires `CopySurfaceNode` + `InMemoryCaptureSystem` into the render pipeline.
+struct CapturePlugin {
+    pixels: Rc<RefCell<Option<Vec<u8>>>>,
+}
+
+impl Plugin<HeadlessEnvironment> for CapturePlugin {
+    fn build(
+        &self,
+        schedule: &mut Schedule,
+        _kernel: Rc<Kernel<HeadlessEnvironment>>,
+        world: &mut World,
+        graph: &mut maplibre::render::graph::RenderGraph,
+    ) {
+        let draw_graph = graph
+            .get_sub_graph_mut("draw")
+            .expect("RenderPlugin must run before CapturePlugin");
+        draw_graph.add_node("copy_pass", CopySurfaceNode);
+        draw_graph
+            .add_node_edge("main_pass", "copy_pass")
+            .expect("main_pass node must exist");
+
+        schedule.add_system_to_stage(
+            RenderStageLabel::Cleanup,
+            SystemContainer::new(InMemoryCaptureSystem {
+                pixels: self.pixels.clone(),
+            }),
+        );
+
+        // Remove the Extract stage — in headless mode we push tile data directly
+        // rather than letting the scheduler pull it from a live source.
+        schedule.remove_stage(RenderStageLabel::Extract);
+
+        world
+            .resources
+            .get_mut::<ViewTileSources>()
+            .expect("ViewTileSources must exist")
+            .clear();
+    }
+}
+
+/// Render vector tiles for the given bbox using maplibre-rs.
 ///
-/// Returns `VectorRenderNotImplemented` until the maplibre-rs GPU pipeline is
-/// wired up. Exists so `lib.rs` can route vector sources here instead of
-/// letting `composite_raster_tiles` crash on PBF bytes.
+/// `tile_url_template` is the already-resolved `{z}/{x}/{y}` URL template (already
+/// extracted from the style JSON by the caller).  The function creates a headless
+/// 512 × 512 GPU surface, tessellates each tile, renders it, captures the pixels,
+/// then composites all tiles onto the final `width × height` canvas.
 pub async fn render_vector_tiles(
-    _style_json: &str,
-    _bbox: [f64; 4],
-    _zoom: u8,
-    _width: u32,
-    _height: u32,
+    style_json: &str,
+    tile_url_template: &str,
+    bbox: [f64; 4],
+    zoom: u8,
+    width: u32,
+    height: u32,
 ) -> Result<Vec<u8>, BasemapError> {
-    // TODO (Track B Part 2): call maplibre-rs renderer here.
-    // Steps:
-    //   1. initialize_wgpu_headless() → WgpuContext
-    //   2. create_render_texture(&ctx.device, _width, _height) → texture
-    //   3. maplibre_rs::render(style_json, bbox, zoom, &ctx, &texture)
-    //   4. read_texture_to_vec(&ctx.device, &ctx.queue, &texture, _width, _height)
-    Err(BasemapError::VectorRenderNotImplemented)
+    const TILE_SIZE: u32 = 512;
+
+    // Parse the MapLibre GL style into maplibre-rs's native type.
+    // Unknown fields (expressions, filters, etc.) are silently ignored by the
+    // per-layer deserializer, so real-world provider styles parse without error.
+    let ml_style: MaplibreStyle = serde_json::from_str(style_json)
+        .map_err(|e| BasemapError::StyleParseError(format!("vector style parse: {e}")))?;
+
+    // Create a tile-sized headless GPU surface + kernel.
+    let (kernel, renderer) = create_headless_renderer(TILE_SIZE, TILE_SIZE, None).await;
+
+    // Shared channel between CapturePlugin and this function.
+    let pixels_cell: Rc<RefCell<Option<Vec<u8>>>> = Rc::new(RefCell::new(None));
+    let capture = CapturePlugin {
+        pixels: pixels_cell.clone(),
+    };
+
+    let plugins: Vec<Box<dyn Plugin<HeadlessEnvironment>>> = vec![
+        Box::new(RenderPlugin::default()),
+        Box::new(BackgroundPlugin::default()),
+        Box::new(VectorPlugin::<DefaultVectorTransferables>::default()),
+        Box::new(RasterPlugin::<DefaultRasterTransferables>::default()),
+        Box::new(capture),
+    ];
+
+    let mut map = HeadlessMap::new(ml_style.clone(), renderer, kernel, plugins)
+        .map_err(|e| BasemapError::RenderError(format!("HeadlessMap init: {e:?}")))?;
+
+    // Collect style layers that reference a vector source layer.
+    let vector_layers: Vec<StyleLayer> = ml_style
+        .layers
+        .into_iter()
+        .filter(|l| l.source_layer.is_some())
+        .collect();
+
+    // Build the composite output canvas (transparent background; each tile overlays onto it).
+    let mut canvas = RgbaImage::new(width, height);
+
+    // Mercator constants for compositing.
+    let half_circ = 20_037_508.342789244_f64;
+    let tile_size_m = (2.0 * half_circ) / 2u64.pow(zoom as u32) as f64;
+    let scale_x = width as f64 / (bbox[2] - bbox[0]);
+    let scale_y = height as f64 / (bbox[3] - bbox[1]);
+
+    // HTTP client for fetching MVT bytes.
+    let client = reqwest::Client::builder()
+        .user_agent(concat!("basemapper/", env!("CARGO_PKG_VERSION")))
+        .use_rustls_tls()
+        .build()
+        .map_err(|e| BasemapError::RenderError(e.to_string()))?;
+
+    let tile_coords = crate::tile_fetcher::build_tile_coords(bbox, zoom);
+
+    for coord in tile_coords {
+        let url = crate::tile_fetcher::expand_url(tile_url_template, coord);
+        let resp = client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| BasemapError::RenderError(format!("tile fetch {url}: {e}")))?;
+
+        if !resp.status().is_success() {
+            // Missing tiles (e.g. ocean tiles past max zoom) are skipped silently.
+            continue;
+        }
+
+        let tile_bytes: Box<[u8]> = resp
+            .bytes()
+            .await
+            .map_err(|e| BasemapError::RenderError(format!("tile read {url}: {e}")))?
+            .to_vec()
+            .into_boxed_slice();
+
+        // Tessellate all vector style layers for this tile (one call per layer).
+        let mut all_layers = Vec::new();
+        for layer in &vector_layers {
+            let tessellated = map.process_tile(tile_bytes.clone(), layer).await;
+            all_layers.extend(tessellated);
+        }
+
+        // Render tessellated geometry to the GPU surface; CapturePlugin collects pixels.
+        map.render_tile(all_layers);
+
+        // Retrieve the captured 512×512 RGBA pixels.
+        let tile_pixels = pixels_cell
+            .borrow_mut()
+            .take()
+            .ok_or_else(|| BasemapError::RenderError("no pixels captured from render_tile".into()))?;
+
+        // Place the tile pixels at the correct canvas position.
+        let tile_xmin = coord.x as f64 * tile_size_m - half_circ;
+        let tile_ymax = half_circ - coord.y as f64 * tile_size_m;
+        let px_x = ((tile_xmin - bbox[0]) * scale_x).round() as i64;
+        let px_y = ((bbox[3] - tile_ymax) * scale_y).round() as i64;
+        let tile_px_w = (tile_size_m * scale_x).round().max(1.0) as u32;
+        let tile_px_h = (tile_size_m * scale_y).round().max(1.0) as u32;
+
+        let tile_img = RgbaImage::from_raw(TILE_SIZE, TILE_SIZE, tile_pixels).ok_or_else(|| {
+            BasemapError::RenderError("tile pixel buffer size mismatch".into())
+        })?;
+        let resized = image::imageops::resize(
+            &tile_img,
+            tile_px_w,
+            tile_px_h,
+            image::imageops::FilterType::Triangle,
+        );
+        image::imageops::overlay(&mut canvas, &resized, px_x, px_y);
+    }
+
+    Ok(canvas.into_raw())
 }
 
 /// wgpu requires buffer rows to be aligned to 256 bytes.

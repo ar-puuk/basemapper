@@ -3,3 +3,8 @@
 # Library search paths are handled by libR-sys's build script and Makevars.win.
 [target.x86_64-pc-windows-gnu]
 linker = "C:\\rtools45\\x86_64-w64-mingw32.static.posix\\bin\\gcc.exe"
+
+# maplibre-rs build.rs compiles glyphs.proto and needs the protoc binary.
+# Installed via: winget install -e --id Google.Protobuf
+[env]
+PROTOC = "C:\\Users\\Pukar.Bhandari\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Google.Protobuf_Microsoft.Winget.Source_8wekyb3d8bbwe\\bin\\protoc.exe"
