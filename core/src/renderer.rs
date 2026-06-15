@@ -423,6 +423,7 @@ pub async fn render_vector_tiles(
             .map_err(|e| BasemapError::RenderError(format!("tile fetch {url}: {e}")))?;
 
         if !resp.status().is_success() {
+            log::warn!("tile fetch HTTP {}: {url}", resp.status());
             continue;
         }
 
