@@ -177,6 +177,7 @@ use std::{borrow::Cow, cell::RefCell, rc::Rc, sync::Arc};
 use maplibre::{
     background::BackgroundPlugin,
     context::MapContext,
+    coords::{WorldCoords, WorldTileCoords, Zoom, ZoomLevel},
     headless::{
         create_headless_renderer, environment::HeadlessEnvironment, map::HeadlessMap,
     },
@@ -187,6 +188,7 @@ use maplibre::{
         graph::{Node, NodeRunError, RenderContext, RenderGraphContext, SlotInfo},
         resource::{BufferedTextureHead, Head},
         tile_view_pattern::ViewTileSources,
+        view_state::ViewState,
         RenderPlugin, RenderResources, RenderStageLabel,
     },
     schedule::Schedule,
@@ -196,6 +198,7 @@ use maplibre::{
         world::World,
     },
     vector::{DefaultVectorTransferables, VectorPlugin},
+    window::PhysicalSize,
 };
 
 /// Copies the headless surface texture to the readback buffer after the main render pass.
@@ -330,10 +333,10 @@ impl Plugin<HeadlessEnvironment> for CapturePlugin {
 
 /// Render vector tiles for the given bbox using maplibre-rs.
 ///
-/// `tile_url_template` is the already-resolved `{z}/{x}/{y}` URL template (already
-/// extracted from the style JSON by the caller).  The function creates a headless
-/// 512 × 512 GPU surface, tessellates each tile, renders it, captures the pixels,
-/// then composites all tiles onto the final `width × height` canvas.
+/// Creates a headless GPU canvas sized to fit the entire tile grid at 512 px/tile,
+/// renders all tiles in a single pass (no per-tile compositing), then crops and
+/// resizes the captured output to `width × height`.  Single-pass rendering means
+/// tile-boundary geometry bleeds across tile edges — no seams.
 pub async fn render_vector_tiles(
     style_json: &str,
     tile_url_template: &str,
@@ -342,18 +345,30 @@ pub async fn render_vector_tiles(
     width: u32,
     height: u32,
 ) -> Result<Vec<u8>, BasemapError> {
-    const TILE_SIZE: u32 = 512;
+    const TILE_PX: u32 = 512;
 
-    // Parse the MapLibre GL style into maplibre-rs's native type.
-    // Unknown fields (expressions, filters, etc.) are silently ignored by the
-    // per-layer deserializer, so real-world provider styles parse without error.
     let ml_style: MaplibreStyle = serde_json::from_str(style_json)
         .map_err(|e| BasemapError::StyleParseError(format!("vector style parse: {e}")))?;
 
-    // Create a tile-sized headless GPU surface + kernel.
-    let (kernel, renderer) = create_headless_renderer(TILE_SIZE, TILE_SIZE, None).await;
+    let tile_coords = crate::tile_fetcher::build_tile_coords(bbox, zoom);
+    if tile_coords.is_empty() {
+        return Ok(vec![0u8; (width * height * 4) as usize]);
+    }
 
-    // Shared channel between CapturePlugin and this function.
+    // Tile grid bounds.
+    let min_tx = tile_coords.iter().map(|c| c.x as i32).min().unwrap();
+    let max_tx = tile_coords.iter().map(|c| c.x as i32).max().unwrap();
+    let min_ty = tile_coords.iter().map(|c| c.y as i32).min().unwrap();
+    let max_ty = tile_coords.iter().map(|c| c.y as i32).max().unwrap();
+    let n_tiles_x = (max_tx - min_tx + 1) as u32;
+    let n_tiles_y = (max_ty - min_ty + 1) as u32;
+
+    // Canvas = entire tile grid at native 512 px/tile resolution.
+    let canvas_w = n_tiles_x * TILE_PX;
+    let canvas_h = n_tiles_y * TILE_PX;
+
+    let (kernel, renderer) = create_headless_renderer(canvas_w, canvas_h, None).await;
+
     let pixels_cell: Rc<RefCell<Option<Vec<u8>>>> = Rc::new(RefCell::new(None));
     let capture = CapturePlugin {
         pixels: pixels_cell.clone(),
@@ -370,33 +385,37 @@ pub async fn render_vector_tiles(
     let mut map = HeadlessMap::new(ml_style.clone(), renderer, kernel, plugins)
         .map_err(|e| BasemapError::RenderError(format!("HeadlessMap init: {e:?}")))?;
 
-    // Collect style layers that reference a vector source layer.
+    // Override the default ViewState so the camera looks at our tile grid.
+    // At Zoom(z), one tile = TILE_PX world pixels → 1 world pixel = 1 canvas pixel.
+    // Center = centre of the tile grid in world-pixel coords.
+    let center_world_x = (min_tx as f64 + n_tiles_x as f64 / 2.0) * TILE_PX as f64;
+    let center_world_y = (min_ty as f64 + n_tiles_y as f64 / 2.0) * TILE_PX as f64;
+    {
+        let ctx = map.map_context_mut();
+        ctx.view_state = ViewState::new(
+            PhysicalSize::new(canvas_w, canvas_h).expect("canvas size must be non-zero"),
+            WorldCoords { x: center_world_x, y: center_world_y },
+            Zoom::new(zoom as f64),
+            cgmath::Deg(0.0_f64),
+            cgmath::Rad(std::f64::consts::PI / 4.0_f64),
+        );
+    }
+
     let vector_layers: Vec<StyleLayer> = ml_style
         .layers
         .into_iter()
         .filter(|l| l.source_layer.is_some())
         .collect();
 
-    // Build the composite output canvas (transparent background; each tile overlays onto it).
-    let mut canvas = RgbaImage::new(width, height);
-
-    // Mercator constants for compositing.
-    let half_circ = 20_037_508.342789244_f64;
-    let tile_size_m = (2.0 * half_circ) / 2u64.pow(zoom as u32) as f64;
-    let scale_x = width as f64 / (bbox[2] - bbox[0]);
-    let scale_y = height as f64 / (bbox[3] - bbox[1]);
-
-    // HTTP client for fetching MVT bytes.
     let client = reqwest::Client::builder()
         .user_agent(concat!("basemapper/", env!("CARGO_PKG_VERSION")))
         .use_rustls_tls()
         .build()
         .map_err(|e| BasemapError::RenderError(e.to_string()))?;
 
-    let tile_coords = crate::tile_fetcher::build_tile_coords(bbox, zoom);
-
-    for coord in tile_coords {
-        let url = crate::tile_fetcher::expand_url(tile_url_template, coord);
+    // Fetch, tessellate, and register every tile.
+    for coord in &tile_coords {
+        let url = crate::tile_fetcher::expand_url(tile_url_template, *coord);
         let resp = client
             .get(&url)
             .send()
@@ -404,7 +423,6 @@ pub async fn render_vector_tiles(
             .map_err(|e| BasemapError::RenderError(format!("tile fetch {url}: {e}")))?;
 
         if !resp.status().is_success() {
-            // Missing tiles (e.g. ocean tiles past max zoom) are skipped silently.
             continue;
         }
 
@@ -415,43 +433,63 @@ pub async fn render_vector_tiles(
             .to_vec()
             .into_boxed_slice();
 
-        // Tessellate all vector style layers for this tile (one call per layer).
+        let world_coord = WorldTileCoords {
+            x: coord.x as i32,
+            y: coord.y as i32,
+            z: ZoomLevel::new(zoom),
+        };
+
         let mut all_layers = Vec::new();
         for layer in &vector_layers {
-            let tessellated = map.process_tile(tile_bytes.clone(), layer).await;
+            let tessellated = map
+                .process_tile_at(tile_bytes.clone(), layer, world_coord)
+                .await;
             all_layers.extend(tessellated);
         }
 
-        // Render tessellated geometry to the GPU surface; CapturePlugin collects pixels.
-        map.render_tile(all_layers);
-
-        // Retrieve the captured 512×512 RGBA pixels.
-        let tile_pixels = pixels_cell
-            .borrow_mut()
-            .take()
-            .ok_or_else(|| BasemapError::RenderError("no pixels captured from render_tile".into()))?;
-
-        // Place the tile pixels at the correct canvas position.
-        let tile_xmin = coord.x as f64 * tile_size_m - half_circ;
-        let tile_ymax = half_circ - coord.y as f64 * tile_size_m;
-        let px_x = ((tile_xmin - bbox[0]) * scale_x).round() as i64;
-        let px_y = ((bbox[3] - tile_ymax) * scale_y).round() as i64;
-        let tile_px_w = (tile_size_m * scale_x).round().max(1.0) as u32;
-        let tile_px_h = (tile_size_m * scale_y).round().max(1.0) as u32;
-
-        let tile_img = RgbaImage::from_raw(TILE_SIZE, TILE_SIZE, tile_pixels).ok_or_else(|| {
-            BasemapError::RenderError("tile pixel buffer size mismatch".into())
-        })?;
-        let resized = image::imageops::resize(
-            &tile_img,
-            tile_px_w,
-            tile_px_h,
-            image::imageops::FilterType::Triangle,
-        );
-        image::imageops::overlay(&mut canvas, &resized, px_x, px_y);
+        map.spawn_tile_at(world_coord, all_layers);
     }
 
-    Ok(canvas.into_raw())
+    // Single full-scene render — all tiles drawn in one GPU pass.
+    map.run_once();
+
+    let canvas_pixels = pixels_cell
+        .borrow_mut()
+        .take()
+        .ok_or_else(|| BasemapError::RenderError("no pixels captured from full-scene render".into()))?;
+
+    // Crop canvas to the bbox sub-region, then resize to the requested output.
+    let half_circ = 20_037_508.342789244_f64;
+    let world_size = TILE_PX as f64 * 2_f64.powi(zoom as i32);
+
+    let bbox_wx0 = (bbox[0] + half_circ) / (2.0 * half_circ) * world_size;
+    let bbox_wy0 = (half_circ - bbox[3]) / (2.0 * half_circ) * world_size;
+    let bbox_wx1 = (bbox[2] + half_circ) / (2.0 * half_circ) * world_size;
+    let bbox_wy1 = (half_circ - bbox[1]) / (2.0 * half_circ) * world_size;
+
+    let canvas_ox = min_tx as f64 * TILE_PX as f64;
+    let canvas_oy = min_ty as f64 * TILE_PX as f64;
+
+    let crop_left = ((bbox_wx0 - canvas_ox).floor() as i64).clamp(0, canvas_w as i64) as u32;
+    let crop_top = ((bbox_wy0 - canvas_oy).floor() as i64).clamp(0, canvas_h as i64) as u32;
+    let crop_right = ((bbox_wx1 - canvas_ox).ceil() as i64).clamp(0, canvas_w as i64) as u32;
+    let crop_bot = ((bbox_wy1 - canvas_oy).ceil() as i64).clamp(0, canvas_h as i64) as u32;
+    let crop_w = crop_right.saturating_sub(crop_left).max(1);
+    let crop_h = crop_bot.saturating_sub(crop_top).max(1);
+
+    let full_canvas = RgbaImage::from_raw(canvas_w, canvas_h, canvas_pixels)
+        .ok_or_else(|| BasemapError::RenderError("canvas size mismatch".into()))?;
+
+    let cropped = image::imageops::crop_imm(&full_canvas, crop_left, crop_top, crop_w, crop_h)
+        .to_image();
+
+    let output = if cropped.width() == width && cropped.height() == height {
+        cropped
+    } else {
+        image::imageops::resize(&cropped, width, height, image::imageops::FilterType::Triangle)
+    };
+
+    Ok(output.into_raw())
 }
 
 /// wgpu requires buffer rows to be aligned to 256 bytes.
