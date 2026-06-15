@@ -14,7 +14,7 @@ use std::path::PathBuf;
 #[derive(Parser)]
 #[command(about = "Render a headless basemap tile mosaic to a PNG file")]
 struct Args {
-    #[arg(long, help = "xmin,ymin,xmax,ymax in EPSG:3857")]
+    #[arg(long, help = "xmin,ymin,xmax,ymax in EPSG:3857", allow_hyphen_values = true)]
     bbox: String,
     #[arg(long, default_value = "800")]
     width: u32,
@@ -22,7 +22,9 @@ struct Args {
     height: u32,
     #[arg(long, help = "Style URL or inline JSON")]
     style: String,
-    #[arg(long, default_value = "/tmp/basemap.png")]
+    #[arg(long, help = "Override zoom level (auto-computed if omitted)")]
+    zoom: Option<u8>,
+    #[arg(long, default_value = "basemap.png")]
     output: PathBuf,
 }
 
@@ -41,7 +43,7 @@ fn main() {
         width: args.width,
         height: args.height,
         style_input: StyleInput::detect(&args.style),
-        zoom: None,
+        zoom: args.zoom,
         tile_timeout_ms: 10_000,
         max_tiles: 256,
         tile_concurrency: 16,
