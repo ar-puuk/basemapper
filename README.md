@@ -116,11 +116,43 @@ style = str(RasterProvider("https://tile.openstreetmap.org/{z}/{x}/{y}.png"))
 | ggplot2 / plotnine layer | `geom_basemap()` | `geom_basemap()` |
 | matplotlib inject | — | `add_basemap()` |
 | tmap layer | `tm_basemap()` | — |
+| Named provider (25 sources) | `basemap_provider()` | `basemap_provider()` |
 | OSM / raster style | `raster_provider()` | `RasterProvider` |
 | MVT vector style | `vector_provider()` | `VectorProvider` |
 | ESRI vector style | `esri_vector_provider()` | `EsriVectorProvider` |
 | ESRI raster style | `esri_raster_provider()` | `EsriRasterProvider` |
+| OGC WMS GetMap | `wms_provider()` | `wms_provider()` |
+| OGC WMTS GetTile | `wmts_provider()` | `wmts_provider()` |
+| PMTiles HTTP archive | `pmtiles_provider()` | `pmtiles_provider()` |
 | Inspect style layers | `list_layers()` | `list_layers()` |
+
+---
+
+## Anti-meridian support
+
+Bboxes where `xmin > xmax` in EPSG:3857 (Pacific-centred views, date-line
+crossings) are rendered correctly by splitting into west and east halves at
+proportional pixel widths and stitching the result horizontally.
+
+```r
+# R — Pacific-centred map crossing the date line
+render_basemap_raw(
+  bbox        = c(15000000, -5000000, -15000000, 5000000),
+  crs         = 3857L,
+  width       = 800L, height = 400L,
+  style_input = basemap_provider("OSM.Standard")
+)
+```
+
+```python
+# Python — same
+render_basemap_raw(
+    bbox=[15_000_000, -5_000_000, -15_000_000, 5_000_000],
+    width=800, height=400,
+    style_input=basemap_provider("OSM.Standard"),
+    crs=3857,
+)
+```
 
 ---
 

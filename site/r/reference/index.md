@@ -29,6 +29,9 @@ Composable tmap v4 element wrapping a georeferenced `stars` raster.
 Convert bare tile URLs to MapLibre GL Style JSON strings accepted by all
 rendering functions.
 
+- [`basemap_provider()`](https://ar-puuk.github.io/basemapper/r/reference/basemap_provider.md)
+  : Look up a named basemap provider (25 built-in sources: OpenFreeMap,
+  Carto, ESRI, OSM, MapTiler, Stadia/Stamen).
 - [`raster_provider()`](https://ar-puuk.github.io/basemapper/r/reference/raster_provider.md)
   : Generate a MapLibre GL Style JSON string for an XYZ raster tile
   source.
@@ -41,6 +44,13 @@ rendering functions.
 - [`esri_raster_provider()`](https://ar-puuk.github.io/basemapper/r/reference/esri_raster_provider.md)
   : Generate a MapLibre GL Style JSON string for an ArcGIS MapServer
   raster source.
+- [`wms_provider()`](https://ar-puuk.github.io/basemapper/r/reference/wms_provider.md)
+  : Build a MapLibre GL Style JSON string for an OGC WMS GetMap endpoint.
+- [`wmts_provider()`](https://ar-puuk.github.io/basemapper/r/reference/wmts_provider.md)
+  : Build a MapLibre GL Style JSON string for an OGC WMTS GetTile KVP
+  endpoint.
+- [`pmtiles_provider()`](https://ar-puuk.github.io/basemapper/r/reference/pmtiles_provider.md)
+  : Build a MapLibre GL Style JSON string for a PMTiles HTTP archive.
 
 ## Layer utilities
 

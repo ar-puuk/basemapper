@@ -52,6 +52,31 @@ if not already present.
 remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
 ```
 
+## Quick example
+
+```r
+library(basemapper)
+
+# 25 built-in providers — no tile URL needed
+style <- basemap_provider("OpenFreeMap.liberty")
+style <- basemap_provider("Carto.DarkMatter")
+style <- basemap_provider("OSM.Standard")
+
+# OGC WMS source
+style <- wms_provider("https://gis.example.com/wms", layers = "imagery")
+
+# PMTiles archive (HTTP range requests — no tile server required)
+style <- pmtiles_provider("https://example.com/world.pmtiles")
+
+# Render — anti-meridian bboxes (xmin > xmax) are handled automatically
+m <- render_basemap_raw(
+  bbox        = c(-122.5, 37.7, -122.4, 37.8),
+  width       = 400L,
+  height      = 300L,
+  style_input = style
+)
+```
+
 ## Get started
 
 See the [Getting Started vignette](articles/getting-started.html) for a
