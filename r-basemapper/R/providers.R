@@ -121,3 +121,128 @@ vector_provider <- function(url_template, source_layer, paint = list()) {
   )
   jsonlite::toJSON(style, auto_unbox = TRUE)
 }
+
+#' Look up a named basemap provider.
+#'
+#' Returns either a style URL string or inline MapLibre GL JSON suitable for
+#' passing directly to \code{\link{render_basemap_raw}()}.
+#'
+#' @param name Character: provider name. See *Details* for the full catalog.
+#' @param api_key Character or \code{NULL}: API key required by some providers
+#'   (e.g. MapTiler). Ignored for providers that do not use a key.  Stadia
+#'   providers work without a key at low volume; supply one to lift rate limits.
+#' @param ... Reserved for future arguments; currently unused.
+#' @return A character string — either a style URL or inline MapLibre GL JSON —
+#'   ready to pass to \code{\link{render_basemap_raw}()}.
+#' @details
+#' **Available provider names:**
+#'
+#' *Vector GL styles (no key required):*
+#' `"OpenFreeMap.liberty"`, `"OpenFreeMap.bright"`, `"OpenFreeMap.positron"`,
+#' `"Carto.Positron"`, `"Carto.DarkMatter"`, `"Carto.Voyager"`,
+#' `"ESRI.WorldBasemap"`
+#'
+#' *MapTiler GL styles (require `api_key`):*
+#' `"MapTiler.Streets"`, `"MapTiler.Satellite"`, `"MapTiler.Topo"`,
+#' `"MapTiler.Outdoor"`
+#'
+#' *ESRI raster tile services (no key required):*
+#' `"ESRI.WorldImagery"`, `"ESRI.WorldStreetMap"`, `"ESRI.WorldTopoMap"`,
+#' `"ESRI.WorldShadedRelief"`, `"ESRI.WorldGrayCanvas"`,
+#' `"ESRI.NatGeoWorldMap"`
+#'
+#' *OSM raster (no key required):*
+#' `"OSM.Standard"`, `"OSM.CyclOSM"`
+#'
+#' *Stadia/Stamen (key optional):*
+#' `"Stadia.AlidadeSmooth"`, `"Stadia.AlidadeSmoothDark"`,
+#' `"Stadia.OSMBright"`, `"Stadia.StamenToner"`, `"Stadia.StamenTerrain"`,
+#' `"Stadia.StamenWatercolor"`
+#' @export
+#' @examples
+#' style <- basemap_provider("OpenFreeMap.liberty")
+#' style <- basemap_provider("Carto.DarkMatter")
+#' style <- basemap_provider("OSM.Standard")
+#' \dontrun{
+#' style <- basemap_provider("MapTiler.Streets", api_key = "YOUR_KEY")
+#' }
+basemap_provider <- function(name, api_key = NULL, ...) {
+  switch(name,
+
+    # --- Vector GL styles (return style URL string) ---
+    "OpenFreeMap.liberty"   = "https://tiles.openfreemap.org/styles/liberty",
+    "OpenFreeMap.bright"    = "https://tiles.openfreemap.org/styles/bright",
+    "OpenFreeMap.positron"  = "https://tiles.openfreemap.org/styles/positron",
+    "Carto.Positron"        = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+    "Carto.DarkMatter"      = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+    "Carto.Voyager"         = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+
+    # --- MapTiler GL styles (require api_key; embed key in URL) ---
+    "MapTiler.Streets" = {
+      if (is.null(api_key)) stop("Provider 'MapTiler.Streets' requires an api_key argument")
+      paste0("https://api.maptiler.com/maps/streets-v2/style.json?key=", api_key)
+    },
+    "MapTiler.Satellite" = {
+      if (is.null(api_key)) stop("Provider 'MapTiler.Satellite' requires an api_key argument")
+      paste0("https://api.maptiler.com/maps/satellite/style.json?key=", api_key)
+    },
+    "MapTiler.Topo" = {
+      if (is.null(api_key)) stop("Provider 'MapTiler.Topo' requires an api_key argument")
+      paste0("https://api.maptiler.com/maps/topo-v2/style.json?key=", api_key)
+    },
+    "MapTiler.Outdoor" = {
+      if (is.null(api_key)) stop("Provider 'MapTiler.Outdoor' requires an api_key argument")
+      paste0("https://api.maptiler.com/maps/outdoor-v2/style.json?key=", api_key)
+    },
+
+    # --- ESRI raster tile services ---
+    "ESRI.WorldImagery"      = esri_raster_provider("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"),
+    "ESRI.WorldStreetMap"    = esri_raster_provider("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"),
+    "ESRI.WorldTopoMap"      = esri_raster_provider("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"),
+    "ESRI.WorldShadedRelief" = esri_raster_provider("https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}"),
+    "ESRI.WorldGrayCanvas"   = esri_raster_provider("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"),
+    "ESRI.NatGeoWorldMap"    = esri_raster_provider("https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}"),
+
+    # --- ESRI vector tile services ---
+    "ESRI.WorldBasemap" = esri_vector_provider("https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer"),
+
+    # --- OSM raster ---
+    "OSM.Standard" = raster_provider("https://tile.openstreetmap.org/{z}/{x}/{y}.png"),
+    "OSM.CyclOSM"  = raster_provider("https://tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png"),
+
+    # --- Stadia (Stamen successors; key optional for low-volume use) ---
+    "Stadia.AlidadeSmooth" = {
+      url <- "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}.png"
+      if (!is.null(api_key)) url <- paste0(url, "?api_key=", api_key)
+      raster_provider(url)
+    },
+    "Stadia.AlidadeSmoothDark" = {
+      url <- "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png"
+      if (!is.null(api_key)) url <- paste0(url, "?api_key=", api_key)
+      raster_provider(url)
+    },
+    "Stadia.OSMBright" = {
+      url <- "https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}.png"
+      if (!is.null(api_key)) url <- paste0(url, "?api_key=", api_key)
+      raster_provider(url)
+    },
+    "Stadia.StamenToner" = {
+      url <- "https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}.png"
+      if (!is.null(api_key)) url <- paste0(url, "?api_key=", api_key)
+      raster_provider(url)
+    },
+    "Stadia.StamenTerrain" = {
+      url <- "https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}.png"
+      if (!is.null(api_key)) url <- paste0(url, "?api_key=", api_key)
+      raster_provider(url)
+    },
+    "Stadia.StamenWatercolor" = {
+      url <- "https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.png"
+      if (!is.null(api_key)) url <- paste0(url, "?api_key=", api_key)
+      raster_provider(url)
+    },
+
+    # --- fallthrough: unknown name ---
+    stop(sprintf("Unknown provider: '%s'. See ?basemap_provider for available names.", name))
+  )
+}
