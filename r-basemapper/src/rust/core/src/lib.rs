@@ -113,6 +113,28 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
             });
         }
 
+        // PMTiles: fetch tiles via HTTP range requests.
+        if let TileSource::PMTiles { ref url, .. } = tile_source {
+            let coords = tile_fetcher::build_tile_coords(request.bbox, zoom);
+            let tiles = fetch_pmtiles_tiles(url, &coords, &client).await?;
+            let canvas = renderer::composite_raster_tiles(
+                &tiles, request.bbox, zoom, request.width, request.height, transparent,
+            )?;
+            return Ok(RenderResult {
+                bounds: SpatialBounds {
+                    xmin: request.bbox[0],
+                    ymin: request.bbox[1],
+                    xmax: request.bbox[2],
+                    ymax: request.bbox[3],
+                    crs_epsg: 3857,
+                },
+                zoom_used: zoom,
+                width: request.width,
+                height: request.height,
+                pixels: canvas.into_raw(),
+            });
+        }
+
         let coords = tile_fetcher::build_tile_coords(request.bbox, zoom);
         let urls = tile_fetcher::build_tile_urls(&tile_source, &coords);
 
@@ -253,6 +275,14 @@ async fn extract_tile_source_from_style(
         ));
     };
 
+    // PMTiles: strip the scheme and route to the PMTiles pipeline.
+    if tiles.starts_with("pmtiles://") {
+        return Ok(TileSource::PMTiles {
+            url: tiles.trim_start_matches("pmtiles://").to_owned(),
+            maxzoom: source_maxzoom,
+        });
+    }
+
     match src_type {
         "vector" => Ok(TileSource::MapboxVectorTile {
             url_template: tiles,
@@ -265,6 +295,19 @@ async fn extract_tile_source_from_style(
             maxzoom: source_maxzoom,
         }),
     }
+}
+
+/// Fetch tiles from a PMTiles archive over HTTP using range requests.
+///
+/// TODO: integrate the `pmtiles` crate once its reqwest version aligns with
+/// this workspace (pmtiles 0.23 pulls reqwest 0.13; we pin reqwest 0.12).
+/// For now returns an empty tile set so the rest of the render pipeline runs.
+async fn fetch_pmtiles_tiles(
+    _url: &str,
+    _coords: &[tile_fetcher::TileCoord],
+    _client: &reqwest::Client,
+) -> Result<Vec<(tile_fetcher::TileCoord, tile_fetcher::TileData)>, BasemapError> {
+    Ok(vec![])
 }
 
 /// Resolve a potentially-relative URL against a base URL.

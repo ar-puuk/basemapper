@@ -9,6 +9,7 @@ wgpu        = { version = "22.1", features = ["wgsl"] }
 # Local development redirects via [patch] in the root Cargo.toml to avoid a
 # network fetch — see README.md for setup instructions.
 # TODO: Replace with a crates.io release once maplibre-rs stabilises.
+pmtiles     = { version = "0.23.0", default-features = false, features = ["http-async"] }
 maplibre    = { git = "https://github.com/ar-puuk/maplibre-rs", rev = "3bb17231fc7895248bb3cd8a3882de472d74c12c", features = ["headless"] }
 cgmath      = "0.18.0"
 tokio       = { workspace = true }

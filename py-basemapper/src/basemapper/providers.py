@@ -284,3 +284,135 @@ def basemap_provider(name: str, api_key: str | None = None) -> str:
     raise ValueError(
         f"Unknown provider: '{name}'. See help(basemap_provider) for available names."
     )
+
+
+def wms_provider(
+    url: str,
+    layers: str,
+    styles: str = "",
+    version: str = "1.3.0",
+    format: str = "image/png",
+    transparent: bool = False,
+    extra_params: Optional[str] = None,
+) -> str:
+    """Build a MapLibre GL Style JSON string for a WMS GetMap endpoint.
+
+    The Rust tile engine substitutes ``{xmin}``, ``{ymin}``, ``{xmax}``,
+    ``{ymax}`` with EPSG:3857 coordinates for each 256×256 tile.
+
+    Args:
+        url: Base WMS URL (without query parameters).
+        layers: Value for the ``LAYERS`` parameter.
+        styles: Value for the ``STYLES`` parameter.
+        version: WMS version string.
+        format: Image MIME type.
+        transparent: Request transparent PNG tiles.
+        extra_params: Additional query parameters appended verbatim.
+
+    Returns:
+        MapLibre GL Style JSON string.
+    """
+    from urllib.parse import quote
+
+    bbox = "{xmin},{ymin},{xmax},{ymax}"
+    tile_url = (
+        f"{url}?SERVICE=WMS&VERSION={version}&REQUEST=GetMap"
+        f"&LAYERS={quote(layers, safe='')}"
+        f"&STYLES={quote(styles, safe='')}"
+        f"&CRS=EPSG:3857"
+        f"&BBOX={bbox}"
+        f"&WIDTH=256&HEIGHT=256"
+        f"&FORMAT={quote(format, safe='')}"
+        f"&TRANSPARENT={'TRUE' if transparent else 'FALSE'}"
+    )
+    if extra_params:
+        tile_url = f"{tile_url}&{extra_params}"
+
+    style: Dict = {
+        "version": 8,
+        "sources": {
+            "wms": {
+                "type": "raster",
+                "tiles": [tile_url],
+                "tileSize": 256,
+            }
+        },
+        "layers": [{"id": "wms-layer", "type": "raster", "source": "wms"}],
+    }
+    return json.dumps(style)
+
+
+def wmts_provider(
+    url: str,
+    layer: str,
+    tilematrixset: str = "GoogleMapsCompatible",
+    format: str = "image/png",
+    style: str = "default",
+    version: str = "1.0.0",
+    extra_params: Optional[str] = None,
+) -> str:
+    """Build a MapLibre GL Style JSON string for a WMTS GetTile KVP endpoint.
+
+    Args:
+        url: Base WMTS URL (without query parameters).
+        layer: Value for the ``LAYER`` parameter.
+        tilematrixset: Tile matrix set identifier.
+        format: Image MIME type.
+        style: Style identifier.
+        version: WMTS version string.
+        extra_params: Additional query parameters appended verbatim.
+
+    Returns:
+        MapLibre GL Style JSON string.
+    """
+    from urllib.parse import quote
+
+    tile_url = (
+        f"{url}?SERVICE=WMTS&REQUEST=GetTile&VERSION={version}"
+        f"&LAYER={quote(layer, safe='')}"
+        f"&STYLE={quote(style, safe='')}"
+        f"&FORMAT={quote(format, safe='')}"
+        f"&TILEMATRIXSET={quote(tilematrixset, safe='')}"
+        f"&TILEMATRIX={{z}}&TILEROW={{y}}&TILECOL={{x}}"
+    )
+    if extra_params:
+        tile_url = f"{tile_url}&{extra_params}"
+
+    style_obj: Dict = {
+        "version": 8,
+        "sources": {
+            "wmts": {
+                "type": "raster",
+                "tiles": [tile_url],
+                "tileSize": 256,
+            }
+        },
+        "layers": [{"id": "wmts-layer", "type": "raster", "source": "wmts"}],
+    }
+    return json.dumps(style_obj)
+
+
+def pmtiles_provider(url: str) -> str:
+    """Build a MapLibre GL Style JSON string for a PMTiles raster archive.
+
+    The Rust core detects the ``pmtiles://`` scheme in the ``tiles`` array
+    and routes tile fetching through the PMTiles HTTP range-request pipeline.
+
+    Args:
+        url: HTTPS URL of the ``.pmtiles`` archive file.
+
+    Returns:
+        MapLibre GL Style JSON string.
+    """
+    style: Dict = {
+        "version": 8,
+        "sources": {
+            "pmtiles": {
+                "type": "raster",
+                "tiles": [f"pmtiles://{url}"],
+                "tileSize": 256,
+            }
+        },
+        "layers": [{"id": "pmtiles-layer", "type": "raster", "source": "pmtiles"}],
+    }
+    return json.dumps(style)

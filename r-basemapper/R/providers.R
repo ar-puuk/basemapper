@@ -246,3 +246,91 @@ basemap_provider <- function(name, api_key = NULL, ...) {
     stop(sprintf("Unknown provider: '%s'. See ?basemap_provider for available names.", name))
   )
 }
+
+#' @title WMS provider style
+#'
+#' Build a MapLibre GL Style JSON string that uses a WMS GetMap endpoint as a
+#' raster tile source.  The Rust tile engine substitutes \code{\{xmin\}},
+#' \code{\{ymin\}}, \code{\{xmax\}}, \code{\{ymax\}} with EPSG:3857 coordinates
+#' for each 256×256 tile.
+#'
+#' @param url Character: base WMS URL (without query parameters).
+#' @param layers Character: value for the \code{LAYERS} parameter.
+#' @param styles Character: value for the \code{STYLES} parameter (default \code{""}).
+#' @param version Character: WMS version string (default \code{"1.3.0"}).
+#' @param format Character: image MIME type (default \code{"image/png"}).
+#' @param transparent Logical: request transparent PNG tiles (default \code{FALSE}).
+#' @param extra_params Character or \code{NULL}: additional query parameters appended verbatim.
+#' @return A JSON character string ready to pass to \code{render_basemap_raw()}.
+#' @export
+wms_provider <- function(url, layers, styles = "", version = "1.3.0",
+                         format = "image/png", transparent = FALSE,
+                         extra_params = NULL) {
+  tile_url <- paste0(
+    url, "?SERVICE=WMS&VERSION=", version, "&REQUEST=GetMap",
+    "&LAYERS=", utils::URLencode(layers, reserved = TRUE),
+    "&STYLES=", utils::URLencode(styles, reserved = TRUE),
+    "&CRS=EPSG:3857",
+    "&BBOX={xmin},{ymin},{xmax},{ymax}",
+    "&WIDTH=256&HEIGHT=256",
+    "&FORMAT=", utils::URLencode(format, reserved = TRUE),
+    "&TRANSPARENT=", if (transparent) "TRUE" else "FALSE"
+  )
+  if (!is.null(extra_params)) tile_url <- paste0(tile_url, "&", extra_params)
+  raster_provider(tile_url, tile_size = 256L)
+}
+
+#' @title WMTS provider style
+#'
+#' Build a MapLibre GL Style JSON string that uses a WMTS GetTile KVP endpoint
+#' as a raster tile source.
+#'
+#' @param url Character: base WMTS URL (without query parameters).
+#' @param layer Character: value for the \code{LAYER} parameter.
+#' @param tilematrixset Character: tile matrix set (default \code{"GoogleMapsCompatible"}).
+#' @param format Character: image MIME type (default \code{"image/png"}).
+#' @param style Character: style identifier (default \code{"default"}).
+#' @param version Character: WMTS version string (default \code{"1.0.0"}).
+#' @param extra_params Character or \code{NULL}: additional query parameters appended verbatim.
+#' @return A JSON character string ready to pass to \code{render_basemap_raw()}.
+#' @export
+wmts_provider <- function(url, layer, tilematrixset = "GoogleMapsCompatible",
+                          format = "image/png", style = "default",
+                          version = "1.0.0", extra_params = NULL) {
+  tile_url <- paste0(
+    url, "?SERVICE=WMTS&REQUEST=GetTile&VERSION=", version,
+    "&LAYER=", utils::URLencode(layer, reserved = TRUE),
+    "&STYLE=", utils::URLencode(style, reserved = TRUE),
+    "&FORMAT=", utils::URLencode(format, reserved = TRUE),
+    "&TILEMATRIXSET=", utils::URLencode(tilematrixset, reserved = TRUE),
+    "&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}"
+  )
+  if (!is.null(extra_params)) tile_url <- paste0(tile_url, "&", extra_params)
+  raster_provider(tile_url, tile_size = 256L)
+}
+
+#' @title PMTiles provider style
+#'
+#' Build a MapLibre GL Style JSON string for a PMTiles raster archive served
+#' over HTTP.  The Rust core detects the \code{pmtiles://} scheme in the
+#' \code{tiles} array and routes tile fetching through the PMTiles pipeline.
+#'
+#' @param url Character: HTTPS URL of the \code{.pmtiles} archive file.
+#' @return A JSON character string ready to pass to \code{render_basemap_raw()}.
+#' @export
+pmtiles_provider <- function(url) {
+  style <- list(
+    version = 8L,
+    sources = list(
+      pmtiles = list(
+        type     = "raster",
+        tiles    = list(paste0("pmtiles://", url)),
+        tileSize = 256L
+      )
+    ),
+    layers = list(
+      list(id = "pmtiles-layer", type = "raster", source = "pmtiles")
+    )
+  )
+  jsonlite::toJSON(style, auto_unbox = TRUE)
+}

@@ -17,6 +17,10 @@ pub enum TileSource {
         /// Server-advertised maximum zoom from the source object or TileJSON.
         maxzoom: Option<u8>,
     },
+    PMTiles {
+        url: String,
+        maxzoom: Option<u8>,
+    },
 }
 
 impl TileSource {
@@ -24,6 +28,7 @@ impl TileSource {
         match self {
             TileSource::XyzRaster { maxzoom, .. } => *maxzoom,
             TileSource::MapboxVectorTile { maxzoom, .. } => *maxzoom,
+            TileSource::PMTiles { maxzoom, .. } => *maxzoom,
         }
     }
 }
@@ -37,12 +42,31 @@ pub struct TileCoord {
 
 pub type TileData = Vec<u8>;
 
-/// Expand `{z}`, `{x}`, `{y}` placeholders in a URL template.
+/// Expand `{z}`, `{x}`, `{y}` (and optional WMS bbox) placeholders in a URL template.
 pub fn expand_url(template: &str, coord: TileCoord) -> String {
-    template
+    let s = template
         .replace("{z}", &coord.z.to_string())
         .replace("{x}", &coord.x.to_string())
-        .replace("{y}", &coord.y.to_string())
+        .replace("{y}", &coord.y.to_string());
+
+    // Bail out early when no bbox placeholders present (avoids float math on every tile).
+    if !s.contains("{xmin}") && !s.contains("{ymin}") && !s.contains("{xmax}") && !s.contains("{ymax}") {
+        return s;
+    }
+
+    // Compute EPSG:3857 bbox for this tile (tile y=0 is north).
+    const EARTH_HALF: f64 = 20_037_508.342_789_244;
+    let n = (1u64 << coord.z) as f64;
+    let tile_m = EARTH_HALF * 2.0 / n;
+    let xmin = -EARTH_HALF + coord.x as f64 * tile_m;
+    let xmax = xmin + tile_m;
+    let ymax = EARTH_HALF - coord.y as f64 * tile_m;
+    let ymin = ymax - tile_m;
+
+    s.replace("{xmin}", &format!("{xmin:.4}"))
+     .replace("{ymin}", &format!("{ymin:.4}"))
+     .replace("{xmax}", &format!("{xmax:.4}"))
+     .replace("{ymax}", &format!("{ymax:.4}"))
 }
 
 /// Compute all tile coordinates that cover a given EPSG:3857 bbox at zoom.
@@ -81,6 +105,8 @@ pub fn build_tile_urls(source: &TileSource, coords: &[TileCoord]) -> Vec<(TileCo
                         base
                     }
                 }
+                // PMTiles fetch bypasses the URL template system.
+                TileSource::PMTiles { .. } => String::new(),
             };
             (coord, url)
         })
@@ -110,6 +136,7 @@ pub async fn fetch_all_tiles(
         let auth = match source {
             TileSource::XyzRaster { auth_header, .. } => auth_header.clone(),
             TileSource::MapboxVectorTile { .. } => None,
+            TileSource::PMTiles { .. } => None,
         };
 
         set.spawn(async move {

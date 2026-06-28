@@ -9,6 +9,9 @@ from .providers import (
     RasterProvider,
     VectorProvider,
     basemap_provider,
+    pmtiles_provider,
+    wms_provider,
+    wmts_provider,
 )
 
 # Core Rust FFI binding — thin Python wrapper so doc tools can do static analysis.
@@ -34,5 +37,8 @@ __all__ = [
     "EsriVectorProvider",
     "EsriRasterProvider",
     "basemap_provider",
+    "wms_provider",
+    "wmts_provider",
+    "pmtiles_provider",
     *__all_plotnine__,
 ]
