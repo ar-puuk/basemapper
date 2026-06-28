@@ -18,164 +18,238 @@ static RUNTIME: Lazy<Runtime> =
 
 /// Render a basemap tile mosaic to a flat RGBA byte array.
 ///
-/// This is a synchronous function. It drives async work (tile fetching, style
-/// resolution) on a dedicated thread-local tokio Runtime so binding crates
-/// can call it from a blocking context.
+/// Supports anti-meridian crossing bboxes (xmin > xmax in EPSG:3857).
+/// Such bboxes are split internally into west and east halves, each rendered
+/// at proportional pixel width, then stitched horizontally.
 pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
     request.validate()?;
+    RUNTIME.block_on(render_async(request))
+}
 
-    RUNTIME.block_on(async {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_millis(
-                request.tile_timeout_ms as u64,
-            ))
-            .use_rustls_tls()
-            .user_agent(concat!("basemapper/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .map_err(|e| BasemapError::RenderError(e.to_string()))?;
+// ──────────────────────────────────────────────────────────────────────────────
+// Async rendering pipeline
+// ──────────────────────────────────────────────────────────────────────────────
 
-        // Resolve and validate the style JSON.
-        let raw_json = request.style_input.resolve(&client, request.auth_token.as_deref()).await?;
-        style::validate_maplibre_style(&raw_json)?;
+async fn render_async(request: RenderRequest) -> Result<RenderResult, BasemapError> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_millis(
+            request.tile_timeout_ms as u64,
+        ))
+        .use_rustls_tls()
+        .user_agent(concat!("basemapper/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(|e| BasemapError::RenderError(e.to_string()))?;
 
-        // Apply layer filter if requested (H3: touches only "layers" array).
-        let style_json = if let Some(ref layers) = request.layers {
-            filter_style_layers(&raw_json, layers)?
-        } else {
-            raw_json.clone()
-        };
+    // Resolve style once — shared across both halves for anti-meridian renders.
+    let raw_json = request
+        .style_input
+        .resolve(&client, request.auth_token.as_deref())
+        .await?;
+    style::validate_maplibre_style(&raw_json)?;
 
-        let transparent = request.layers.is_some();
+    let style_json = if let Some(ref layers) = request.layers {
+        filter_style_layers(&raw_json, layers)?
+    } else {
+        raw_json.clone()
+    };
+    let transparent = request.layers.is_some();
 
-        // Parse style and extract tile source first so we can clamp zoom to
-        // the source's advertised maxzoom before checking tile count limits.
-        let style_val: serde_json::Value = serde_json::from_str(&style_json)
-            .map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
+    // Extract tile source (may fetch TileJSON).
+    let style_val: serde_json::Value = serde_json::from_str(&style_json)
+        .map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
+    let style_base_url = match &request.style_input {
+        StyleInput::Url(u) => Some(u.as_str()),
+        StyleInput::InlineJson(_) => None,
+    };
+    let tile_source = extract_tile_source_from_style(
+        &style_val,
+        &client,
+        request.auth_token.as_deref(),
+        style_base_url,
+    )
+    .await?;
 
-        let style_base_url = match &request.style_input {
-            StyleInput::Url(u) => Some(u.as_str()),
-            StyleInput::InlineJson(_) => None,
-        };
-        let tile_source = extract_tile_source_from_style(
-            &style_val, &client, request.auth_token.as_deref(), style_base_url,
-        ).await?;
+    // Compute zoom for the full bbox — handles anti-meridian via compute_zoom.
+    let zoom = {
+        let raw = request.zoom.unwrap_or_else(|| {
+            let mut z = bbox::compute_zoom(request.bbox, request.width);
+            while z > 0 && bbox::tile_count(request.bbox, z) > request.max_tiles {
+                z -= 1;
+            }
+            z
+        });
+        tile_source.maxzoom().map_or(raw, |mz| raw.min(mz))
+    };
 
-        // Determine effective zoom, clamped to the source's maxzoom.
-        let zoom = {
-            let raw = request.zoom.unwrap_or_else(|| {
-                let mut z = bbox::compute_zoom(request.bbox, request.width);
-                while z > 0 && bbox::tile_count(request.bbox, z) > request.max_tiles {
-                    z -= 1;
-                }
-                z
-            });
-            // Clamp to server maxzoom to avoid requesting tiles the server can't serve.
-            tile_source.maxzoom().map_or(raw, |mz| raw.min(mz))
-        };
+    // Guard: tile_count handles anti-meridian correctly now.
+    let total_tiles = bbox::tile_count(request.bbox, zoom);
+    if total_tiles > request.max_tiles {
+        return Err(BasemapError::MaxTilesExceeded {
+            requested: total_tiles,
+            limit: request.max_tiles,
+        });
+    }
 
-        let tile_count = bbox::tile_count(request.bbox, zoom);
-        if tile_count > request.max_tiles {
-            return Err(BasemapError::MaxTilesExceeded {
-                requested: tile_count,
-                limit: request.max_tiles,
-            });
-        }
-
-        // Vector tiles: render via maplibre-rs.
-        if let TileSource::MapboxVectorTile { ref url_template, .. } = tile_source {
-            return renderer::render_vector_tiles(
-                &client,
-                &style_json,
-                url_template,
-                request.auth_token.as_deref(),
-                request.bbox,
-                zoom,
-                request.width,
-                request.height,
-                request.tile_timeout_ms,
-                request.tile_concurrency,
-                request.fail_on_tile_error,
-                transparent,
-            )
+    let [xmin, _ymin, xmax, _ymax] = request.bbox;
+    if xmin > xmax {
+        render_antimeridian_split(&request, &client, &style_json, &tile_source, transparent, zoom)
             .await
-            .map(|pixels| RenderResult {
-                bounds: SpatialBounds {
-                    xmin: request.bbox[0],
-                    ymin: request.bbox[1],
-                    xmax: request.bbox[2],
-                    ymax: request.bbox[3],
-                    crs_epsg: 3857,
-                },
-                zoom_used: zoom,
-                width: request.width,
-                height: request.height,
-                pixels,
-            });
-        }
-
-        // PMTiles: fetch tiles via HTTP range requests.
-        if let TileSource::PMTiles { ref url, .. } = tile_source {
-            let coords = tile_fetcher::build_tile_coords(request.bbox, zoom);
-            let tiles = fetch_pmtiles_tiles(url, &coords, &client).await?;
-            let canvas = renderer::composite_raster_tiles(
-                &tiles, request.bbox, zoom, request.width, request.height, transparent,
-            )?;
-            return Ok(RenderResult {
-                bounds: SpatialBounds {
-                    xmin: request.bbox[0],
-                    ymin: request.bbox[1],
-                    xmax: request.bbox[2],
-                    ymax: request.bbox[3],
-                    crs_epsg: 3857,
-                },
-                zoom_used: zoom,
-                width: request.width,
-                height: request.height,
-                pixels: canvas.into_raw(),
-            });
-        }
-
-        let coords = tile_fetcher::build_tile_coords(request.bbox, zoom);
-        let urls = tile_fetcher::build_tile_urls(&tile_source, &coords);
-
-        let tiles = tile_fetcher::fetch_all_tiles(
+    } else {
+        render_single_bbox(
+            &request,
             &client,
-            urls,
+            &style_json,
             &tile_source,
+            transparent,
+            request.bbox,
+            request.width,
+            request.height,
+            zoom,
+        )
+        .await
+    }
+}
+
+/// Render one non-crossing bbox at the given zoom level and pixel dimensions.
+///
+/// Called both for normal bboxes and for each half of an anti-meridian split.
+async fn render_single_bbox(
+    request: &RenderRequest,
+    client: &reqwest::Client,
+    style_json: &str,
+    tile_source: &TileSource,
+    transparent: bool,
+    bbox: [f64; 4],
+    width: u32,
+    height: u32,
+    zoom: u8,
+) -> Result<RenderResult, BasemapError> {
+    let bounds = SpatialBounds {
+        xmin: bbox[0],
+        ymin: bbox[1],
+        xmax: bbox[2],
+        ymax: bbox[3],
+        crs_epsg: 3857,
+    };
+
+    // Vector tiles: render via maplibre-rs.
+    if let TileSource::MapboxVectorTile { ref url_template, .. } = tile_source {
+        let pixels = renderer::render_vector_tiles(
+            client,
+            style_json,
+            url_template,
+            request.auth_token.as_deref(),
+            bbox,
+            zoom,
+            width,
+            height,
             request.tile_timeout_ms,
             request.tile_concurrency,
             request.fail_on_tile_error,
+            transparent,
         )
         .await?;
+        return Ok(RenderResult { bounds, zoom_used: zoom, width, height, pixels });
+    }
 
-        // Composite raster tiles (vector tile rendering via maplibre-rs is
-        // handled here for XyzRaster; MVT/ESRI paths require maplibre-rs).
-        let canvas = renderer::composite_raster_tiles(
-            &tiles,
-            request.bbox,
-            zoom,
-            request.width,
-            request.height,
-            transparent,
-        )?;
-
-        let pixels = canvas.into_raw();
-
-        Ok(RenderResult {
-            bounds: SpatialBounds {
-                xmin: request.bbox[0],
-                ymin: request.bbox[1],
-                xmax: request.bbox[2],
-                ymax: request.bbox[3],
-                crs_epsg: 3857,
-            },
+    // PMTiles: fetch via HTTP range requests.
+    if let TileSource::PMTiles { ref url, .. } = tile_source {
+        let coords = tile_fetcher::build_tile_coords(bbox, zoom);
+        let tiles = fetch_pmtiles_tiles(url, &coords, client).await?;
+        let canvas =
+            renderer::composite_raster_tiles(&tiles, bbox, zoom, width, height, transparent)?;
+        return Ok(RenderResult {
+            bounds,
             zoom_used: zoom,
-            width: request.width,
-            height: request.height,
-            pixels,
-        })
+            width,
+            height,
+            pixels: canvas.into_raw(),
+        });
+    }
+
+    // Raster XYZ (also handles WMS via bbox placeholder expansion).
+    let coords = tile_fetcher::build_tile_coords(bbox, zoom);
+    let urls = tile_fetcher::build_tile_urls(tile_source, &coords);
+    let tiles = tile_fetcher::fetch_all_tiles(
+        client,
+        urls,
+        tile_source,
+        request.tile_timeout_ms,
+        request.tile_concurrency,
+        request.fail_on_tile_error,
+    )
+    .await?;
+    let canvas =
+        renderer::composite_raster_tiles(&tiles, bbox, zoom, width, height, transparent)?;
+    Ok(RenderResult {
+        bounds,
+        zoom_used: zoom,
+        width,
+        height,
+        pixels: canvas.into_raw(),
     })
 }
+
+/// Split an anti-meridian bbox into west and east halves, render each, then
+/// stitch the pixel arrays horizontally (west first).
+async fn render_antimeridian_split(
+    request: &RenderRequest,
+    client: &reqwest::Client,
+    style_json: &str,
+    tile_source: &TileSource,
+    transparent: bool,
+    zoom: u8,
+) -> Result<RenderResult, BasemapError> {
+    const EARTH_HALF: f64 = 20_037_508.342_789_244;
+    let [xmin, ymin, xmax, ymax] = request.bbox;
+
+    // West half: from xmin → +EARTH_HALF (right edge of the tile grid).
+    // East half: from −EARTH_HALF (left edge) → xmax.
+    let west_bbox = [xmin, ymin, EARTH_HALF, ymax];
+    let east_bbox = [-EARTH_HALF, ymin, xmax, ymax];
+
+    let west_m = EARTH_HALF - xmin;
+    let east_m = xmax + EARTH_HALF;
+    let total_m = west_m + east_m;
+
+    // Proportional pixel widths; guarantee at least 1 px per half.
+    let west_px = ((request.width as f64 * west_m / total_m).round() as u32).max(1);
+    let east_px = request.width.saturating_sub(west_px).max(1);
+
+    let west = render_single_bbox(
+        request, client, style_json, tile_source, transparent,
+        west_bbox, west_px, request.height, zoom,
+    )
+    .await?;
+    let east = render_single_bbox(
+        request, client, style_json, tile_source, transparent,
+        east_bbox, east_px, request.height, zoom,
+    )
+    .await?;
+
+    // Stitch row by row: west pixels then east pixels per scanline.
+    let row_w = west.width as usize * 4;
+    let row_e = east.width as usize * 4;
+    let row_out = row_w + row_e;
+    let mut pixels = vec![0u8; row_out * request.height as usize];
+    for row in 0..request.height as usize {
+        let out = &mut pixels[row * row_out..][..row_out];
+        out[..row_w].copy_from_slice(&west.pixels[row * row_w..][..row_w]);
+        out[row_w..].copy_from_slice(&east.pixels[row * row_e..][..row_e]);
+    }
+
+    Ok(RenderResult {
+        bounds: SpatialBounds { xmin, ymin, xmax, ymax, crs_epsg: 3857 },
+        zoom_used: zoom,
+        width: west.width + east.width,
+        height: request.height,
+        pixels,
+    })
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Style and tile source helpers
+// ──────────────────────────────────────────────────────────────────────────────
 
 /// Extract a `TileSource` from the first raster or vector source in the style.
 ///
@@ -193,10 +267,9 @@ async fn extract_tile_source_from_style(
         .and_then(|s| s.as_object())
         .ok_or_else(|| BasemapError::StyleParseError("missing \"sources\" object".into()))?;
 
-    // Prefer vector sources over raster; raster-only styles still work as before.
-    // This prevents multi-source styles (e.g. raster hillshade + vector openmaptiles)
-    // from routing through the raster pipeline when a vector source is present.
-    let vector_entry: Option<(&str, &serde_json::Value)> = sources.values().find_map(|s| {
+    // Prefer vector sources over raster; prevents multi-source styles from
+    // routing through the raster pipeline when a vector source is present.
+    let vector_entry = sources.values().find_map(|s| {
         if s.get("type").and_then(|t| t.as_str()) == Some("vector") {
             Some(("vector", s))
         } else {
@@ -221,8 +294,7 @@ async fn extract_tile_source_from_style(
             })?
     };
 
-    // Resolve tile URL template and maxzoom.  Prefer inline "tiles" array; fall
-    // back to fetching the "url" TileJSON endpoint.
+    // Resolve tile URL template and maxzoom.
     let (tiles, source_maxzoom): (String, Option<u8>) = if let Some(t) = source
         .get("tiles")
         .and_then(|t| t.as_array())
@@ -275,7 +347,6 @@ async fn extract_tile_source_from_style(
         ));
     };
 
-    // PMTiles: strip the scheme and route to the PMTiles pipeline.
     if tiles.starts_with("pmtiles://") {
         return Ok(TileSource::PMTiles {
             url: tiles.trim_start_matches("pmtiles://").to_owned(),
@@ -325,7 +396,9 @@ async fn fetch_pmtiles_tiles(
             Err(e) => {
                 log::warn!(
                     "PMTiles tile {}/{}/{} fetch error (skipped): {e}",
-                    coord.z, coord.x, coord.y,
+                    coord.z,
+                    coord.x,
+                    coord.y,
                 );
             }
         }
@@ -334,7 +407,6 @@ async fn fetch_pmtiles_tiles(
 }
 
 /// Resolve a potentially-relative URL against a base URL.
-/// Returns the input unchanged if it is already absolute or if resolution fails.
 ///
 /// `reqwest::Url::join` percent-encodes `{` and `}` in tile template
 /// placeholders, so we decode them back after joining.

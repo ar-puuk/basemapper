@@ -1,5 +1,5 @@
 use basemapper_core::{
-    bbox::{compute_zoom, tile_count, RenderRequest},
+    bbox::{compute_zoom, mercator_to_tile, tile_count, RenderRequest},
     error::BasemapError,
     style::StyleInput,
 };
@@ -84,30 +84,69 @@ fn mixed_layer_filter_returns_error() {
 // ──────────────────────────── Anti-meridian tests ────────────────────────────
 
 #[test]
-fn anti_meridian_bbox_xmin_gt_xmax_returns_invalid_bbox() {
-    // Simulate a bbox that wraps the anti-meridian in Web Mercator:
-    // e.g. from 170°E → 190°E (= -170°W) would give xmin > xmax in metres.
+fn anti_meridian_bbox_accepted_by_validate() {
+    // xmin > xmax in EPSG:3857 → anti-meridian crossing → now supported.
     let mut req = base_request();
-    req.bbox = [15_000_000.0, 4_500_000.0, -15_000_000.0, 4_600_000.0]; // xmin > xmax
-    let err = req.validate().unwrap_err();
+    req.bbox = [15_000_000.0, 4_500_000.0, -15_000_000.0, 4_600_000.0];
     assert!(
-        matches!(err, BasemapError::InvalidBbox(_)),
-        "expected InvalidBbox for anti-meridian bbox, got {err:?}"
-    );
-    // Error message must mention anti-meridian so the user knows what to do.
-    assert!(
-        err.to_string().to_lowercase().contains("anti-meridian")
-            || err.to_string().to_lowercase().contains("anti"),
-        "error message should mention anti-meridian: {err}"
+        req.validate().is_ok(),
+        "anti-meridian bbox (xmin > xmax) must be accepted, got: {:?}",
+        req.validate()
     );
 }
 
 #[test]
-fn tile_count_does_not_overflow_when_x0_gt_x1() {
-    // Even if validate() is bypassed, tile_count must not panic in release or
-    // wrap to a huge value in debug builds.
+fn zero_width_bbox_still_rejected() {
+    let mut req = base_request();
+    req.bbox[0] = req.bbox[2]; // xmin == xmax → zero width
+    assert!(matches!(req.validate(), Err(BasemapError::InvalidBbox(_))));
+}
+
+#[test]
+fn out_of_bounds_bbox_rejected() {
+    let mut req = base_request();
+    req.bbox[2] = 21_000_000.0; // > EARTH_HALF
+    assert!(matches!(req.validate(), Err(BasemapError::InvalidBbox(_))));
+}
+
+#[test]
+fn tile_count_antimeridian_is_nonzero() {
+    // Pacific-centred bbox: tiles come from both sides of the dateline.
     let bbox = [15_000_000.0_f64, -5_000_000.0, -15_000_000.0, 5_000_000.0];
-    let count = tile_count(bbox, 10);
-    // Correct behaviour: returns 0 rather than panicking or overflowing.
-    assert_eq!(count, 0, "tile_count should return 0 for anti-meridian bbox");
+    let count = tile_count(bbox, 5);
+    assert!(count > 0, "anti-meridian tile_count must be non-zero, got {count}");
+    // At zoom 5 the tile grid is 32×32 = 1024 tiles.  The bbox spans most of
+    // the east + west halves in x, and a moderate band in y.
+    assert!(count <= 1024, "tile_count {count} suspiciously large at zoom 5");
+}
+
+#[test]
+fn tile_count_antimeridian_equals_two_halves() {
+    // tile_count(full anti-meridian bbox) == tile_count(west) + tile_count(east).
+    const EARTH_HALF: f64 = 20_037_508.342_789_244;
+    let bbox = [15_000_000.0_f64, -5_000_000.0, -15_000_000.0, 5_000_000.0];
+    let west = [15_000_000.0_f64, -5_000_000.0, EARTH_HALF, 5_000_000.0];
+    let east = [-EARTH_HALF, -5_000_000.0, -15_000_000.0, 5_000_000.0];
+    let z = 5;
+    assert_eq!(
+        tile_count(bbox, z),
+        tile_count(west, z) + tile_count(east, z),
+        "anti-meridian tile_count must equal sum of two halves"
+    );
+}
+
+#[test]
+fn compute_zoom_antimeridian_uses_wrapped_width() {
+    // A Pacific bbox (xmin > xmax) should give a zoom consistent with the
+    // wrapped geographic width, not some degenerate negative value.
+    let bbox = [15_000_000.0_f64, -5_000_000.0, -15_000_000.0, 5_000_000.0];
+    let z = compute_zoom(bbox, 800);
+    assert!(z >= 2 && z <= 10, "unexpected zoom {z} for Pacific bbox at 800 px");
+}
+
+#[test]
+fn mercator_to_tile_smoke() {
+    // Origin (0, 0) at zoom 1 should be in the centre tile (1, 1).
+    let (tx, ty) = mercator_to_tile(0.0, 0.0, 1);
+    assert_eq!((tx, ty), (1, 1));
 }

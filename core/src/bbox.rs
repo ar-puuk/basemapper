@@ -1,6 +1,9 @@
 use crate::error::BasemapError;
 use crate::style::StyleInput;
 
+const EARTH_HALF: f64 = 20_037_508.342_789_244;
+const EARTH_CIRC: f64 = EARTH_HALF * 2.0;
+
 #[derive(Debug, Clone)]
 pub struct SpatialBounds {
     pub xmin: f64,
@@ -38,14 +41,10 @@ impl RenderRequest {
                 "bbox contains non-finite values".into(),
             ));
         }
-        // Anti-meridian check: Web Mercator X wraps at ±20_037_508 m.
-        // A bbox where xmin > 0 and xmax < 0 (or xmin >= xmax in degrees)
-        // indicates a crossing that we do not support — reject it clearly.
-        if xmin >= xmax {
+        // Zero-width bbox is always invalid (normal or anti-meridian).
+        if xmin == xmax {
             return Err(BasemapError::InvalidBbox(format!(
-                "[{xmin}, {ymin}, {xmax}, {ymax}]: xmin ({xmin}) must be < xmax ({xmax}). \
-                 Anti-meridian crossing (180°) is not supported; split the bbox into two \
-                 non-crossing regions."
+                "[{xmin}, {ymin}, {xmax}, {ymax}]: bbox has zero width (xmin == xmax)"
             )));
         }
         if ymin >= ymax {
@@ -53,6 +52,14 @@ impl RenderRequest {
                 "[{xmin}, {ymin}, {xmax}, {ymax}]: ymin ({ymin}) must be < ymax ({ymax})"
             )));
         }
+        // Coordinates must be within the Web Mercator valid extent.
+        if xmin < -EARTH_HALF || xmax > EARTH_HALF || ymin < -EARTH_HALF || ymax > EARTH_HALF {
+            return Err(BasemapError::InvalidBbox(format!(
+                "[{xmin}, {ymin}, {xmax}, {ymax}]: coordinates must be within \
+                 ±{EARTH_HALF:.0} (Web Mercator bounds)"
+            )));
+        }
+        // xmin > xmax is the anti-meridian case — accepted and handled by render().
         if self.width == 0 || self.height == 0 || self.width > 16_384 || self.height > 16_384 {
             return Err(BasemapError::InvalidDimensions(self.width, self.height));
         }
@@ -86,10 +93,16 @@ fn validate_layers(layers: &[String]) -> Result<(), BasemapError> {
 }
 
 /// Compute tile zoom from bbox width and target pixel width.
-/// Formula: zoom = log2(EARTH_CIRCUMFERENCE / (256 * metres_per_pixel))
+///
+/// Handles anti-meridian bboxes (xmin > xmax) by computing the wrapped width:
+/// `(EARTH_HALF − xmin) + (xmax + EARTH_HALF)`.
 pub fn compute_zoom(bbox: [f64; 4], width_px: u32) -> u8 {
-    const EARTH_CIRC: f64 = 40_075_016.686;
-    let bbox_width_m = bbox[2] - bbox[0];
+    let bbox_width_m = if bbox[0] <= bbox[2] {
+        bbox[2] - bbox[0]
+    } else {
+        // Anti-meridian: west side + east side
+        (EARTH_HALF - bbox[0]) + (bbox[2] + EARTH_HALF)
+    };
     let mpp = bbox_width_m / width_px as f64;
     let zoom = (EARTH_CIRC / (256.0 * mpp)).log2().floor() as i32;
     zoom.clamp(0, 22) as u8
@@ -97,25 +110,30 @@ pub fn compute_zoom(bbox: [f64; 4], width_px: u32) -> u8 {
 
 /// Count how many tiles cover a bbox at a given zoom level.
 ///
-/// Returns 0 for bboxes that cross the anti-meridian (x0 > x1 in tile space)
-/// rather than panicking on integer underflow.
+/// Handles anti-meridian bboxes (xmin > xmax) correctly: tiles from
+/// `[x0..max_tile]` plus `[0..x1]` across the dateline.
 pub fn tile_count(bbox: [f64; 4], zoom: u8) -> u32 {
     let (x0, y0) = mercator_to_tile(bbox[0], bbox[3], zoom);
     let (x1, y1) = mercator_to_tile(bbox[2], bbox[1], zoom);
-    if x1 < x0 || y1 < y0 {
-        // Anti-meridian crossing or degenerate bbox — caller should have
-        // been rejected by validate() with InvalidBbox before reaching here.
+    if y1 < y0 {
         return 0;
     }
-    (x1 - x0 + 1) * (y1 - y0 + 1)
+    let y_count = y1 - y0 + 1;
+    let x_count = if x0 <= x1 {
+        x1 - x0 + 1
+    } else {
+        // Anti-meridian: [x0..max_tile] + [0..x1]
+        let max_tile = (1u32 << zoom).saturating_sub(1);
+        (max_tile - x0 + 1).saturating_add(x1 + 1)
+    };
+    x_count.saturating_mul(y_count)
 }
 
 /// Convert Web Mercator metres to slippy-map tile coordinates.
 pub fn mercator_to_tile(x: f64, y: f64, zoom: u8) -> (u32, u32) {
     let n = 2u32.pow(zoom as u32) as f64;
-    let half_circ = 20_037_508.342789244;
-    let tx = ((x + half_circ) / (2.0 * half_circ) * n).floor() as u32;
-    let ty = ((half_circ - y) / (2.0 * half_circ) * n).floor() as u32;
+    let tx = ((x + EARTH_HALF) / EARTH_CIRC * n).floor() as u32;
+    let ty = ((EARTH_HALF - y) / EARTH_CIRC * n).floor() as u32;
     (tx.min(n as u32 - 1), ty.min(n as u32 - 1))
 }
 
