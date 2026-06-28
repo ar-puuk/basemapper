@@ -299,15 +299,38 @@ async fn extract_tile_source_from_style(
 
 /// Fetch tiles from a PMTiles archive over HTTP using range requests.
 ///
-/// TODO: integrate the `pmtiles` crate once its reqwest version aligns with
-/// this workspace (pmtiles 0.23 pulls reqwest 0.13; we pin reqwest 0.12).
-/// For now returns an empty tile set so the rest of the render pipeline runs.
+/// Opens the archive (header + root directory via two range requests), then
+/// fetches each requested tile.  Tiles absent from the archive (sparse
+/// coverage) are silently skipped.
 async fn fetch_pmtiles_tiles(
-    _url: &str,
-    _coords: &[tile_fetcher::TileCoord],
-    _client: &reqwest::Client,
+    url: &str,
+    coords: &[tile_fetcher::TileCoord],
+    client: &reqwest::Client,
 ) -> Result<Vec<(tile_fetcher::TileCoord, tile_fetcher::TileData)>, BasemapError> {
-    Ok(vec![])
+    use pmtiles::AsyncPmTilesReader;
+    use tile_fetcher::ReqwestBackend;
+
+    let backend = ReqwestBackend::new(url.to_owned(), client.clone());
+    let reader = AsyncPmTilesReader::try_from_source(backend)
+        .await
+        .map_err(|e| BasemapError::RenderError(format!("PMTiles open failed: {e}")))?;
+
+    let mut results = Vec::new();
+    for &coord in coords {
+        let pm_coord = pmtiles::TileCoord::new(coord.z, coord.x, coord.y)
+            .map_err(|e| BasemapError::RenderError(format!("PMTiles coord error: {e}")))?;
+        match reader.get_tile(pm_coord).await {
+            Ok(Some(bytes)) => results.push((coord, bytes.to_vec())),
+            Ok(None) => {}
+            Err(e) => {
+                log::warn!(
+                    "PMTiles tile {}/{}/{} fetch error (skipped): {e}",
+                    coord.z, coord.x, coord.y,
+                );
+            }
+        }
+    }
+    Ok(results)
 }
 
 /// Resolve a potentially-relative URL against a base URL.

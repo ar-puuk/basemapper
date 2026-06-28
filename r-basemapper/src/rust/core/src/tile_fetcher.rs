@@ -1,7 +1,16 @@
 use crate::bbox::mercator_to_tile;
 use crate::error::BasemapError;
+use lru::LruCache;
+use once_cell::sync::Lazy;
+use std::num::NonZeroUsize;
+use std::sync::Mutex;
 use std::time::Duration;
 use tokio::task::JoinSet;
+
+// In-memory LRU cache shared across all render calls in a session.
+// Keyed by fully-expanded tile URL; stores raw response bytes.
+static TILE_CACHE: Lazy<Mutex<LruCache<String, Vec<u8>>>> =
+    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(512).unwrap())));
 
 #[derive(Debug, Clone)]
 pub enum TileSource {
@@ -41,6 +50,64 @@ pub struct TileCoord {
 }
 
 pub type TileData = Vec<u8>;
+
+/// HTTP range-request backend for `pmtiles::AsyncPmTilesReader`.
+///
+/// Implements the pmtiles `AsyncBackend` trait using our workspace reqwest 0.12
+/// client, avoiding the reqwest 0.13 transitive pull from pmtiles' `http-async`
+/// feature.
+pub struct ReqwestBackend {
+    client: reqwest::Client,
+    url: String,
+}
+
+impl ReqwestBackend {
+    pub fn new(url: String, client: reqwest::Client) -> Self {
+        Self { url, client }
+    }
+}
+
+impl pmtiles::AsyncBackend for ReqwestBackend {
+    fn read(
+        &self,
+        offset: usize,
+        length: usize,
+    ) -> impl std::future::Future<Output = pmtiles::PmtResult<pmtiles::BackendResponse>> + Send
+    {
+        let client = self.client.clone();
+        let url = self.url.clone();
+        async move {
+            let end = offset + length - 1;
+            let resp = client
+                .get(&url)
+                .header("Range", format!("bytes={offset}-{end}"))
+                .send()
+                .await
+                .map_err(|e| {
+                    pmtiles::PmtError::Reading(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        e.to_string(),
+                    ))
+                })?;
+
+            if !resp.status().is_success() {
+                return Err(pmtiles::PmtError::Reading(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("HTTP {} fetching PMTiles range from {url}", resp.status()),
+                )));
+            }
+
+            let bytes = resp.bytes().await.map_err(|e| {
+                pmtiles::PmtError::Reading(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    e.to_string(),
+                ))
+            })?;
+
+            Ok(pmtiles::BackendResponse::new(bytes))
+        }
+    }
+}
 
 /// Expand `{z}`, `{x}`, `{y}` (and optional WMS bbox) placeholders in a URL template.
 pub fn expand_url(template: &str, coord: TileCoord) -> String {
@@ -115,6 +182,9 @@ pub fn build_tile_urls(source: &TileSource, coords: &[TileCoord]) -> Vec<(TileCo
 
 /// Fetch all tiles concurrently, respecting timeout and concurrency limits.
 ///
+/// Hits the in-process LRU cache before issuing network requests. Cache misses
+/// are populated after a successful fetch so subsequent renders re-use bytes.
+///
 /// When `fail_on_tile_error` is `false`, individual tile failures are logged
 /// and skipped; the render continues with whatever tiles succeeded.
 pub async fn fetch_all_tiles(
@@ -141,6 +211,14 @@ pub async fn fetch_all_tiles(
 
         set.spawn(async move {
             let _permit = sem.acquire().await.unwrap();
+
+            // Cache hit — skip network entirely.
+            if let Ok(mut cache) = TILE_CACHE.lock() {
+                if let Some(cached) = cache.get(&url) {
+                    return Ok((coord, cached.clone()));
+                }
+            }
+
             let mut req = client.get(&url).timeout(timeout);
             if let Some(header) = auth {
                 req = req.header("Authorization", header);
@@ -165,7 +243,14 @@ pub async fn fetch_all_tiles(
                     url: url.clone(),
                     status: 0,
                 })?;
-            Ok((coord, bytes.to_vec()))
+            let data = bytes.to_vec();
+
+            // Populate cache for future renders.
+            if let Ok(mut cache) = TILE_CACHE.lock() {
+                cache.put(url, data.clone());
+            }
+
+            Ok((coord, data))
         });
     }
 
