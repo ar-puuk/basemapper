@@ -17,13 +17,19 @@ impl StyleInput {
     }
 
     /// Fetch (if URL) or parse (if inline JSON) and return the raw JSON string.
-    pub async fn resolve(&self, client: &reqwest::Client) -> Result<String, BasemapError> {
+    pub async fn resolve(
+        &self,
+        client: &reqwest::Client,
+        auth_token: Option<&str>,
+    ) -> Result<String, BasemapError> {
         match self {
             StyleInput::InlineJson(json) => Ok(json.clone()),
             StyleInput::Url(url) => {
-                let resp =
-                    client
-                        .get(url)
+                let mut req = client.get(url);
+                if let Some(token) = auth_token {
+                    req = req.header("Authorization", format!("Bearer {token}"));
+                }
+                let resp = req
                         .send()
                         .await
                         .map_err(|_e| BasemapError::StyleFetchFailed {

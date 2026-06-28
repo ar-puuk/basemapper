@@ -8,11 +8,24 @@ pub enum TileSource {
     XyzRaster {
         url_template: String,
         auth_header: Option<String>,
+        /// Server-advertised maximum zoom from the source object or TileJSON.
+        maxzoom: Option<u8>,
     },
     MapboxVectorTile {
         url_template: String,
         api_key: Option<String>,
+        /// Server-advertised maximum zoom from the source object or TileJSON.
+        maxzoom: Option<u8>,
     },
+}
+
+impl TileSource {
+    pub fn maxzoom(&self) -> Option<u8> {
+        match self {
+            TileSource::XyzRaster { maxzoom, .. } => *maxzoom,
+            TileSource::MapboxVectorTile { maxzoom, .. } => *maxzoom,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -59,6 +72,7 @@ pub fn build_tile_urls(source: &TileSource, coords: &[TileCoord]) -> Vec<(TileCo
                 TileSource::MapboxVectorTile {
                     url_template,
                     api_key,
+                    ..
                 } => {
                     let base = expand_url(url_template, coord);
                     if let Some(key) = api_key {

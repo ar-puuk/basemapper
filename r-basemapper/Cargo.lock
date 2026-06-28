@@ -1586,7 +1586,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.4",
+ "socket2 0.5.10",
  "tokio",
  "tower-service",
  "tracing",
@@ -2073,7 +2073,6 @@ dependencies = [
 [[package]]
 name = "maplibre"
 version = "0.1.0"
-source = "git+https://github.com/ar-puuk/maplibre-rs?rev=336958cc19da19f105be4348132169cbbb0dbc9c#336958cc19da19f105be4348132169cbbb0dbc9c"
 dependencies = [
  "async-trait",
  "bitflags 2.13.0",
@@ -2116,7 +2115,6 @@ dependencies = [
 [[package]]
 name = "maplibre-build-tools"
 version = "0.1.0"
-source = "git+https://github.com/ar-puuk/maplibre-rs?rev=336958cc19da19f105be4348132169cbbb0dbc9c#336958cc19da19f105be4348132169cbbb0dbc9c"
 dependencies = [
  "flate2",
  "log",
@@ -2662,7 +2660,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.2",
  "rustls",
- "socket2 0.6.4",
+ "socket2 0.5.10",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -2699,7 +2697,7 @@ dependencies = [
  "cfg_aliases 0.2.1",
  "libc",
  "once_cell",
- "socket2 0.6.4",
+ "socket2 0.5.10",
  "tracing",
  "windows-sys 0.60.2",
 ]

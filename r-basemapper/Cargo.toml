@@ -33,3 +33,9 @@ path       = "src/rust/src/lib.rs"
 # src/rust/core/ is a vendored snapshot synced from repo root core/ by Makevars.
 basemapper-core = { path = "src/rust/core" }
 extendr-api     = { version = "0.7", features = [] }
+
+# Mirror the root workspace [patch] so R CMD INSTALL from the cloned repo
+# uses the local fork instead of fetching from git.
+# ⚠ Tarball / install_github() builds need the fork cloned at ../../maplibre-rs.
+[patch."https://github.com/ar-puuk/maplibre-rs"]
+maplibre = { path = "../../maplibre-rs/maplibre" }

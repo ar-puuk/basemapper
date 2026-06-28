@@ -35,7 +35,7 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
             .map_err(|e| BasemapError::RenderError(e.to_string()))?;
 
         // Resolve and validate the style JSON.
-        let raw_json = request.style_input.resolve(&client).await?;
+        let raw_json = request.style_input.resolve(&client, request.auth_token.as_deref()).await?;
         style::validate_maplibre_style(&raw_json)?;
 
         // Apply layer filter if requested (H3: touches only "layers" array).
@@ -47,15 +47,31 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
 
         let transparent = request.layers.is_some();
 
-        // Determine effective zoom.
-        let zoom = request.zoom.unwrap_or_else(|| {
-            let mut z = bbox::compute_zoom(request.bbox, request.width);
-            // Reduce zoom until tile count fits within max_tiles.
-            while z > 0 && bbox::tile_count(request.bbox, z) > request.max_tiles {
-                z -= 1;
-            }
-            z
-        });
+        // Parse style and extract tile source first so we can clamp zoom to
+        // the source's advertised maxzoom before checking tile count limits.
+        let style_val: serde_json::Value = serde_json::from_str(&style_json)
+            .map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
+
+        let style_base_url = match &request.style_input {
+            StyleInput::Url(u) => Some(u.as_str()),
+            StyleInput::InlineJson(_) => None,
+        };
+        let tile_source = extract_tile_source_from_style(
+            &style_val, &client, request.auth_token.as_deref(), style_base_url,
+        ).await?;
+
+        // Determine effective zoom, clamped to the source's maxzoom.
+        let zoom = {
+            let raw = request.zoom.unwrap_or_else(|| {
+                let mut z = bbox::compute_zoom(request.bbox, request.width);
+                while z > 0 && bbox::tile_count(request.bbox, z) > request.max_tiles {
+                    z -= 1;
+                }
+                z
+            });
+            // Clamp to server maxzoom to avoid requesting tiles the server can't serve.
+            tile_source.maxzoom().map_or(raw, |mz| raw.min(mz))
+        };
 
         let tile_count = bbox::tile_count(request.bbox, zoom);
         if tile_count > request.max_tiles {
@@ -64,19 +80,6 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
                 limit: request.max_tiles,
             });
         }
-
-        // Fetch tiles.
-        let style_val: serde_json::Value = serde_json::from_str(&style_json)
-            .map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
-
-        // Extract TileSource from the first raster/vector source in the style.
-        let style_base_url = match &request.style_input {
-            StyleInput::Url(u) => Some(u.as_str()),
-            StyleInput::InlineJson(_) => None,
-        };
-        let tile_source = extract_tile_source_from_style(
-            &style_val, &client, request.auth_token.as_deref(), style_base_url,
-        ).await?;
 
         // Vector tiles: render via maplibre-rs.
         if let TileSource::MapboxVectorTile { ref url_template, .. } = tile_source {
@@ -168,32 +171,54 @@ async fn extract_tile_source_from_style(
         .and_then(|s| s.as_object())
         .ok_or_else(|| BasemapError::StyleParseError("missing \"sources\" object".into()))?;
 
-    let (src_type, source) = sources
-        .values()
-        .find_map(|s| {
-            let t = s.get("type").and_then(|t| t.as_str()).unwrap_or("raster");
-            if matches!(t, "geojson" | "image" | "video") {
-                None
-            } else {
-                Some((t, s))
-            }
-        })
-        .ok_or_else(|| {
-            BasemapError::StyleParseError("no raster or vector tile source found".into())
-        })?;
+    // Prefer vector sources over raster; raster-only styles still work as before.
+    // This prevents multi-source styles (e.g. raster hillshade + vector openmaptiles)
+    // from routing through the raster pipeline when a vector source is present.
+    let vector_entry: Option<(&str, &serde_json::Value)> = sources.values().find_map(|s| {
+        if s.get("type").and_then(|t| t.as_str()) == Some("vector") {
+            Some(("vector", s))
+        } else {
+            None
+        }
+    });
+    let (src_type, source) = if let Some(entry) = vector_entry {
+        entry
+    } else {
+        sources
+            .values()
+            .find_map(|s| {
+                let t = s.get("type").and_then(|t| t.as_str()).unwrap_or("raster");
+                if matches!(t, "geojson" | "image" | "video") {
+                    None
+                } else {
+                    Some((t, s))
+                }
+            })
+            .ok_or_else(|| {
+                BasemapError::StyleParseError("no raster or vector tile source found".into())
+            })?
+    };
 
-    // Prefer inline "tiles" array; fall back to resolving a "url" TileJSON endpoint.
-    let tiles = if let Some(t) = source
+    // Resolve tile URL template and maxzoom.  Prefer inline "tiles" array; fall
+    // back to fetching the "url" TileJSON endpoint.
+    let (tiles, source_maxzoom): (String, Option<u8>) = if let Some(t) = source
         .get("tiles")
         .and_then(|t| t.as_array())
         .and_then(|a| a.first())
         .and_then(|u| u.as_str())
     {
-        t.to_owned()
+        let mz = source
+            .get("maxzoom")
+            .and_then(|v| v.as_u64())
+            .map(|v| v.min(22) as u8);
+        (t.to_owned(), mz)
     } else if let Some(tilejson_url_raw) = source.get("url").and_then(|u| u.as_str()) {
         let tilejson_url = resolve_url(tilejson_url_raw, style_base_url);
-        let resp = client
-            .get(&tilejson_url)
+        let mut tilejson_req = client.get(&tilejson_url);
+        if let Some(token) = auth_token {
+            tilejson_req = tilejson_req.header("Authorization", format!("Bearer {token}"));
+        }
+        let resp = tilejson_req
             .send()
             .await
             .map_err(|_| BasemapError::StyleFetchFailed {
@@ -217,7 +242,11 @@ async fn extract_tile_source_from_style(
             .ok_or_else(|| {
                 BasemapError::StyleParseError("TileJSON missing \"tiles\" array".into())
             })?;
-        resolve_url(tile_url_raw, Some(&tilejson_url))
+        let mz = tilejson
+            .get("maxzoom")
+            .and_then(|v| v.as_u64())
+            .map(|v| v.min(22) as u8);
+        (resolve_url(tile_url_raw, Some(&tilejson_url)), mz)
     } else {
         return Err(BasemapError::StyleParseError(
             "source has neither \"tiles\" array nor \"url\" TileJSON reference".into(),
@@ -228,10 +257,12 @@ async fn extract_tile_source_from_style(
         "vector" => Ok(TileSource::MapboxVectorTile {
             url_template: tiles,
             api_key: auth_token.map(str::to_owned),
+            maxzoom: source_maxzoom,
         }),
         _ => Ok(TileSource::XyzRaster {
             url_template: tiles,
             auth_header: auth_token.map(|t| format!("Bearer {t}")),
+            maxzoom: source_maxzoom,
         }),
     }
 }
