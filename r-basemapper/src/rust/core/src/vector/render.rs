@@ -1192,6 +1192,7 @@ pub fn render_svg(
     width: u32,
     height: u32,
     id_prefix: &str,
+    fonts: Option<&super::fonts::SvgFonts>,
 ) -> Result<SvgParts, String> {
     use std::fmt::Write as _;
     let (zoom, placed) = prepare(sources, bbox, width, height, 1.0);
@@ -1260,7 +1261,7 @@ pub fn render_svg(
                     }
                 }
             }
-            "symbol" => symbol::svg_layer(&mut out, &mut defs, layer, layer_idx, &placement, assets, width as usize, height as usize, id_prefix),
+            "symbol" => symbol::svg_layer(&mut out, &mut defs, layer, layer_idx, &placement, assets, width as usize, height as usize, id_prefix, fonts),
             other => {
                 if !skipped.iter().any(|x| x == other) {
                     skipped.push(other.to_owned());

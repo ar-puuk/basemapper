@@ -180,6 +180,18 @@ print.basemapper_map <- function(x, ...) {
 #'
 #' @param m A [basemap()] object.
 #' @param file Output path, or `NULL` to return the result.
+#' @param text For `render_svg()`: `"editable"` writes labels as `<text>`
+#'   elements (editable, selectable) at MapLibre's glyph positions, halos as
+#'   strokes, with the style's fonts embedded; `"paths"` writes glyph outlines
+#'   traced from the style's glyphs (not editable, identical everywhere,
+#'   closest to MapLibre's pixels).
+#' @param embed_fonts For `render_svg()`: `"subset"` (only the glyphs used),
+#'   `"full"` (whole fonts, for retyping labels) or `"none"` (fonts by name
+#'   only). Fonts come from `font_dirs`, the `BASEMAPPER_FONT_DIRS` folders, a
+#'   local cache, then Google Fonts for open fonts; others are referenced by
+#'   name.
+#' @param font_dirs For `render_svg()`: folders of .ttf / .otf files to use
+#'   first.
 #' @return `render_png()`: the PNG as a raw vector (invisibly when written).
 #'   `render_svg()`: the SVG as a string (invisibly when written).
 #' @export
@@ -193,7 +205,10 @@ render_png <- function(m, file = NULL) {
 
 #' @rdname render_png
 #' @export
-render_svg <- function(m, file = NULL) {
+render_svg <- function(m, file = NULL, text = c("editable", "paths"),
+                       embed_fonts = c("subset", "full", "none"), font_dirs = NULL) {
+  text <- match.arg(text)
+  embed_fonts <- match.arg(embed_fonts)
   stopifnot(inherits(m, "basemapper_map"))
   o <- m$options
   svg <- .Call(
@@ -203,6 +218,8 @@ render_svg <- function(m, file = NULL) {
     if (is.null(o$layers)) NULL else as.character(o$layers),
     if (is.null(o$auth_token)) NULL else as.character(o$auth_token),
     o$fail_on_tile_error, o$tile_concurrency,
+    text, embed_fonts,
+    if (is.null(font_dirs)) NULL else normalizePath(as.character(font_dirs), mustWork = FALSE),
     PACKAGE = "basemapper"
   )
   if (is.null(file)) return(svg)

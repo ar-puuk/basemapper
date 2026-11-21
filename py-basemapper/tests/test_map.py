@@ -77,14 +77,23 @@ def test_map_render_svg_is_a_vector_document(tmp_path):
     try:
         m = Map(style, case["width"], case["height"], bounds=case["bbox"], crs=3857)
         out = tmp_path / "map.svg"
-        svg = m.render_svg(str(out))
+        # Editable text (fonts by name only: no downloads in tests).
+        svg = m.render_svg(str(out), embed_fonts="none")
+        paths = m.render_svg(text="paths")
     finally:
         server.shutdown()
     assert svg.startswith("<svg") and svg.endswith("</svg>")
     assert 'viewBox="0 0 800 600"' in svg
-    assert svg.count("<path") > 100  # geometry and glyph outlines as paths
-    assert "<text" not in svg  # labels are outlines: no fonts needed
     assert out.read_text(encoding="utf-8") == svg
+    # Labels are <text> with per-glyph positions and the style's fonts.
+    assert "<text " in svg and 'xml:space="preserve"' in svg
+    assert "font-family=\"'Montserrat'" in svg or "font-family=\"'Open Sans'" in svg
+    assert "@font-face" not in svg
+    # Traced outlines: no text elements, more paths.
+    assert "<text" not in paths
+    assert paths.count("<path") > svg.count("<path")
+    with pytest.raises(Exception):
+        m.render_svg(text="bitmap")
 
 
 def test_add_basemap_renders_natively_at_savefig_dpi():

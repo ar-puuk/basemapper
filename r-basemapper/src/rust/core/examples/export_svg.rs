@@ -9,7 +9,7 @@
 //!     --center=-111.89,40.76 --zoom 12.4 --width 800 --height 600 \
 //!     --output ugrc.svg --png ugrc.png
 
-use basemapper_core::{render, render_svg_stack, RenderRequest, StyleInput};
+use basemapper_core::{render, render_svg_stack_with, FontEmbed, RenderRequest, StyleInput, SvgOptions, SvgText};
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -30,6 +30,12 @@ struct Args {
     output: PathBuf,
     #[arg(long, help = "Also write a PNG of the same view")]
     png: Option<PathBuf>,
+    #[arg(long, default_value = "editable", help = "Label text: editable (<text> with embedded fonts) or paths (traced outlines)")]
+    text: String,
+    #[arg(long, default_value = "subset", help = "Embedded fonts: subset, full or none")]
+    embed_fonts: String,
+    #[arg(long, help = "Folder of font files to use before downloading (repeatable)")]
+    font_dir: Vec<PathBuf>,
 }
 
 const R: f64 = 6_378_137.0;
@@ -59,7 +65,15 @@ fn main() {
         pixel_ratio: 1.0,
     };
 
-    let svg = render_svg_stack(args.style.iter().map(|s| request(s)).collect()).expect("SVG render failed");
+    let mut opts = SvgOptions::default();
+    opts.text = if args.text == "paths" { SvgText::Paths } else { SvgText::Editable };
+    opts.embed_fonts = match args.embed_fonts.as_str() {
+        "full" => FontEmbed::Full,
+        "none" => FontEmbed::None,
+        _ => FontEmbed::Subset,
+    };
+    opts.font_dirs.extend(args.font_dir.iter().cloned());
+    let svg = render_svg_stack_with(args.style.iter().map(|s| request(s)).collect(), &opts).expect("SVG render failed");
     std::fs::write(&args.output, &svg).expect("failed to write SVG");
     println!("Saved {} x {} SVG ({} KB) to {}", args.width, args.height, svg.len() / 1024, args.output.display());
 

@@ -9,7 +9,13 @@
 \usage{
 render_png(m, file = NULL)
 
-render_svg(m, file = NULL)
+render_svg(
+  m,
+  file = NULL,
+  text = c("editable", "paths"),
+  embed_fonts = c("subset", "full", "none"),
+  font_dirs = NULL
+)
 
 render_array(m)
 
@@ -19,6 +25,21 @@ render_raster(m)
 \item{m}{A \code{\link[=basemap]{basemap()}} object.}
 
 \item{file}{Output path, or \code{NULL} to return the result.}
+
+\item{text}{For \code{render_svg()}: \code{"editable"} writes labels as \verb{<text>}
+elements (editable, selectable) at MapLibre's glyph positions, halos as
+strokes, with the style's fonts embedded; \code{"paths"} writes glyph outlines
+traced from the style's glyphs (not editable, identical everywhere,
+closest to MapLibre's pixels).}
+
+\item{embed_fonts}{For \code{render_svg()}: \code{"subset"} (only the glyphs used),
+\code{"full"} (whole fonts, for retyping labels) or \code{"none"} (fonts by name
+only). Fonts come from \code{font_dirs}, the \code{BASEMAPPER_FONT_DIRS} folders, a
+local cache, then Google Fonts for open fonts; others are referenced by
+name.}
+
+\item{font_dirs}{For \code{render_svg()}: folders of .ttf / .otf files to use
+first.}
 }
 \value{
 \code{render_png()}: the PNG as a raw vector (invisibly when written).

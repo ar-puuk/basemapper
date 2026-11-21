@@ -10,8 +10,9 @@ First version, not yet released.
   renderer, tested pixel by pixel against MapLibre GL JS (168 reference
   views). No GPU, browser or display is needed.
 - Any fractional zoom and pixel ratio (MapLibre's devicePixelRatio); styles
-  can be stacked bottom to top; true vector SVG output (paths and glyph
-  outlines); anti-meridian views render world copies.
+  can be stacked bottom to top; anti-meridian views render world copies.
+- True vector SVG output; labels as editable `<text>` with embedded (subset)
+  fonts by default, or traced glyph outlines (`render_svg(text="paths")`).
 
 ### API
 

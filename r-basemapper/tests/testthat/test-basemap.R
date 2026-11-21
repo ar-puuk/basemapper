@@ -55,6 +55,11 @@ test_that("render_png / render_array / render_raster / render_svg (live tiles)",
   svg <- render_svg(m)
   expect_match(svg, "^<svg")
   expect_match(svg, 'viewBox="0 0 200 150"', fixed = TRUE)
+  expect_match(svg, "<text ", fixed = TRUE)          # editable labels
+  expect_match(svg, "@font-face", fixed = TRUE)      # open fonts embedded (subset)
+  paths <- render_svg(m, text = "paths")
+  expect_false(grepl("<text", paths, fixed = TRUE))  # traced outlines
+  expect_error(render_svg(m, text = "bitmap"))
 
   # Two styles stacked: the top (opaque) one wins.
   dark <- "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"

@@ -3,6 +3,7 @@
 //! (measured by tests/golden.rs).
 
 pub mod expr;
+pub mod fonts;
 pub mod gl;
 pub mod mvt;
 pub mod render;

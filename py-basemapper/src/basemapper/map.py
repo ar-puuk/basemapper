@@ -212,13 +212,36 @@ class Map:
                 f.write(png)
         return png
 
-    def render_svg(self, path: Optional[str] = None) -> str:
+    def render_svg(
+        self,
+        path: Optional[str] = None,
+        text: str = "editable",
+        embed_fonts: str = "subset",
+        font_dirs: Optional[List[str]] = None,
+    ) -> str:
         """Render a vector SVG (``width`` x ``height`` user units; ``ratio``
         does not apply). Written to ``path`` when given. Returns the SVG text.
+
+        Args:
+            path: Output file, or None.
+            text: ``"editable"``: labels are ``<text>`` elements (editable,
+                selectable) at MapLibre's glyph positions, halos as strokes,
+                with the style's fonts embedded. ``"paths"``: glyph outlines
+                traced from the style's glyphs (not editable, identical
+                everywhere, closest to MapLibre's pixels).
+            embed_fonts: ``"subset"`` (only the glyphs used), ``"full"``
+                (whole fonts, for retyping labels) or ``"none"`` (fonts by
+                name only). Fonts come from ``font_dirs``, the
+                ``BASEMAPPER_FONT_DIRS`` folders, a local cache, then Google
+                Fonts for open fonts; others are referenced by name.
+            font_dirs: Folders of .ttf / .otf files to use first.
         """
         from ._basemapper import render_svg_raw
 
-        svg = render_svg_raw(list(self.bounds), self.width, self.height, self.styles, **self._options())
+        svg = render_svg_raw(
+            list(self.bounds), self.width, self.height, self.styles, **self._options(),
+            text=text, embed_fonts=embed_fonts, font_dirs=font_dirs,
+        )
         if path is not None:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(svg)

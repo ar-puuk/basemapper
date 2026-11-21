@@ -2297,6 +2297,7 @@ pub fn svg_layer(
     w: usize,
     h: usize,
     prefix: &str,
+    fonts: Option<&super::fonts::SvgFonts>,
 ) {
     use super::svg;
     use std::fmt::Write as _;
@@ -2394,7 +2395,86 @@ pub fn svg_layer(
         }
     }
 
-    // Text.
+    // Text as editable <text>: one element per label, each glyph at its
+    // MapLibre position (and rotation along lines), the halo as a stroke
+    // painted beneath the fill.
+    if let Some(fonts) = fonts {
+        let rb = GLYPH_PBF_BORDER + ATLAS_PADDING as f64;
+        let mut shifts: HashMap<String, f64> = HashMap::new();
+        for group in tile_groups() {
+            for l in group {
+                let Some(t) = &l.text else { continue };
+                if t.style.opacity < 0.1 {
+                    continue;
+                }
+                let Some(gmap) = assets.glyphs.stacks.get(&t.fontstack) else { continue };
+                let fs = t.size / 24.0;
+                let Some(pos) = along_positions(t.along.as_ref(), l.anchor_px, t.quads.len(), w, h) else { continue };
+                let shift = *shifts.entry(t.fontstack.clone()).or_insert_with(|| {
+                    let tops: Vec<(u32, f64)> = gmap.iter().filter(|(_, g)| g.height > 0.0).map(|(cp, g)| (*cp, g.top)).collect();
+                    fonts.baseline_shift(&t.fontstack, &tops)
+                });
+                let (mut xs, mut ys, mut rs, mut text) = (Vec::new(), Vec::new(), Vec::new(), String::new());
+                for (qi, q) in t.quads.iter().enumerate() {
+                    let (Some(g), Some(ch)) = (gmap.get(&q.codepoint), char::from_u32(q.codepoint)) else { continue };
+                    // Baseline origin of the glyph in quad space: the quad's
+                    // top-left is (left - buffer, -top - buffer) from it,
+                    // possibly rotated (text-rotate).
+                    let c = q.corners;
+                    let rot = if c[1] == c[0] { 0.0 } else { (c[1].1 - c[0].1).atan2(c[1].0 - c[0].0) };
+                    let (s0, c0) = (rot.sin(), rot.cos());
+                    let tlu = (c0 * c[0].0 + s0 * c[0].1, -s0 * c[0].0 + c0 * c[0].1);
+                    let ou = (tlu.0 - (g.left - rb), tlu.1 + g.top + rb + shift);
+                    let ol = (c0 * ou.0 - s0 * ou.1, s0 * ou.0 + c0 * ou.1);
+                    let (origin, angle) = pos[qi];
+                    let (sa, ca) = (angle.sin(), angle.cos());
+                    let (ox, oy) = (ol.0 * fs, ol.1 * fs);
+                    xs.push(svg::num(origin.0 + ca * ox - sa * oy));
+                    ys.push(svg::num(origin.1 + sa * ox + ca * oy));
+                    rs.push((rot + angle).to_degrees());
+                    text.push(ch);
+                }
+                if text.trim().is_empty() {
+                    continue;
+                }
+                fonts.note_text(&t.fontstack, &text);
+                let rotate = if rs.iter().any(|r| r.abs() > 0.01) {
+                    format!(r#" rotate="{}""#, rs.iter().map(|r| svg::num(*r)).collect::<Vec<_>>().join(" "))
+                } else {
+                    String::new()
+                };
+                let mut paint_attrs = String::new();
+                if let Some((hex, a)) = svg::paint(t.style.fill, t.style.opacity) {
+                    let _ = write!(paint_attrs, r#" fill="{hex}" fill-opacity="{}""#, svg::alpha(a));
+                } else {
+                    paint_attrs.push_str(r#" fill="none""#);
+                }
+                if t.style.halo_width > 0.0 {
+                    if let Some((hex, a)) = svg::paint(t.style.halo, t.style.opacity) {
+                        let _ = write!(
+                            paint_attrs,
+                            r#" stroke="{hex}" stroke-opacity="{}" stroke-width="{}" stroke-linejoin="round" paint-order="stroke""#,
+                            svg::alpha(a),
+                            svg::num(2.0 * t.style.halo_width)
+                        );
+                    }
+                }
+                let _ = write!(
+                    out,
+                    r#"<text xml:space="preserve" {} font-size="{}" x="{}" y="{}"{rotate}{paint_attrs}>{}</text>"#,
+                    fonts.text_attrs(&t.fontstack),
+                    svg::num(t.size),
+                    xs.join(" "),
+                    ys.join(" "),
+                    svg::xml_escape(&text)
+                );
+            }
+        }
+        out.push_str("</g>");
+        return;
+    }
+
+    // Text as traced glyph outlines.
     let text_passes = halo_passes(paint, layout, "text");
     for group in tile_groups() {
         for &(is_halo, is_plain) in text_passes {

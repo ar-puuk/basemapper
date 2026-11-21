@@ -1,4 +1,4 @@
-use basemapper_core::{render, render_stack, render_svg_stack, RenderRequest, StyleInput};
+use basemapper_core::{render, render_stack, render_svg_stack_with, FontEmbed, RenderRequest, StyleInput, SvgOptions, SvgText};
 use extendr_api::prelude::*;
 
 /// Render a basemap and return raw RGBA bytes.
@@ -191,12 +191,32 @@ fn render_svg_raw(
     auth_token: Nullable<String>,
     fail_on_tile_error: bool,
     tile_concurrency: i32,
+    text: &str,
+    embed_fonts: &str,
+    font_dirs: Nullable<Vec<String>>,
 ) -> Result<String> {
     let reqs = stack_requests(
         &bbox_3857, width, height, styles, 1.0, zoom, tile_timeout_ms, max_tiles, layers,
         auth_token, fail_on_tile_error, tile_concurrency,
     )?;
-    render_svg_stack(reqs).map_err(|e| extendr_api::Error::Other(e.to_string()))
+    let mut opts = SvgOptions::default();
+    opts.text = match text {
+        "editable" => SvgText::Editable,
+        "paths" => SvgText::Paths,
+        _ => return Err(extendr_api::Error::Other("text must be 'editable' or 'paths'".into())),
+    };
+    opts.embed_fonts = match embed_fonts {
+        "subset" => FontEmbed::Subset,
+        "full" => FontEmbed::Full,
+        "none" => FontEmbed::None,
+        _ => return Err(extendr_api::Error::Other("embed_fonts must be 'subset', 'full' or 'none'".into())),
+    };
+    if let Nullable::NotNull(dirs) = font_dirs {
+        let mut d: Vec<std::path::PathBuf> = dirs.into_iter().map(Into::into).collect();
+        d.extend(opts.font_dirs);
+        opts.font_dirs = d;
+    }
+    render_svg_stack_with(reqs, &opts).map_err(|e| extendr_api::Error::Other(e.to_string()))
 }
 
 /// EPSG:3857 bbox of a width x height CSS-pixel view at a MapLibre zoom.

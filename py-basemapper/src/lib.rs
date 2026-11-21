@@ -1,6 +1,6 @@
 // PyO3's #[pyfunction] macro generates From<PyErr>→PyErr conversions internally.
 #![allow(clippy::useless_conversion)]
-use basemapper_core::{render, render_stack, render_svg_stack, BasemapError, RenderRequest, StyleInput};
+use basemapper_core::{render, render_stack, render_svg_stack_with, BasemapError, FontEmbed, RenderRequest, StyleInput, SvgOptions, SvgText};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -228,7 +228,8 @@ fn encode_png(py: Python<'_>, pixels: &[u8], width: u32, height: u32) -> PyResul
 #[pyo3(signature = (
     bbox_3857, width, height, styles,
     zoom=None, tile_timeout_ms=10_000, max_tiles=256, layers=None,
-    auth_token=None, fail_on_tile_error=false, tile_concurrency=16
+    auth_token=None, fail_on_tile_error=false, tile_concurrency=16,
+    text="editable", embed_fonts="subset", font_dirs=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn render_svg_raw(
@@ -244,15 +245,41 @@ fn render_svg_raw(
     auth_token: Option<String>,
     fail_on_tile_error: bool,
     tile_concurrency: u32,
+    text: &str,
+    embed_fonts: &str,
+    font_dirs: Option<Vec<String>>,
 ) -> PyResult<String> {
     let reqs = stack_requests(
         py, &bbox_3857, width, height, &styles, 1.0, zoom, tile_timeout_ms, max_tiles,
         &layers, &auth_token, fail_on_tile_error, tile_concurrency,
     )?;
-    match py.allow_threads(|| render_svg_stack(reqs)) {
+    let opts = svg_options(py, text, embed_fonts, font_dirs)?;
+    match py.allow_threads(|| render_svg_stack_with(reqs, &opts)) {
         Ok(svg) => Ok(svg),
         Err(e) => Err(core_err_to_py(py, e)),
     }
+}
+
+/// SVG options from Python arguments.
+fn svg_options(py: Python<'_>, text: &str, embed_fonts: &str, font_dirs: Option<Vec<String>>) -> PyResult<SvgOptions> {
+    let mut opts = SvgOptions::default();
+    opts.text = match text {
+        "editable" => SvgText::Editable,
+        "paths" => SvgText::Paths,
+        _ => return Err(validation_error(py, "text must be 'editable' or 'paths'")),
+    };
+    opts.embed_fonts = match embed_fonts {
+        "subset" => FontEmbed::Subset,
+        "full" => FontEmbed::Full,
+        "none" => FontEmbed::None,
+        _ => return Err(validation_error(py, "embed_fonts must be 'subset', 'full' or 'none'")),
+    };
+    if let Some(dirs) = font_dirs {
+        let mut d: Vec<std::path::PathBuf> = dirs.into_iter().map(Into::into).collect();
+        d.extend(opts.font_dirs);
+        opts.font_dirs = d;
+    }
+    Ok(opts)
 }
 
 /// EPSG:3857 bbox of a width x height CSS-pixel view at MapLibre zoom.

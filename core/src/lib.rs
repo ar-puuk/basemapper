@@ -9,6 +9,7 @@ pub use bbox::{bbox_from_center, compute_zoom, fit_bounds, RenderRequest, Render
 pub use error::BasemapError;
 pub use style::{filter_style_layers, StyleInput};
 pub use tile_fetcher::TileSource;
+pub use vector::fonts::{FontEmbed, SvgOptions, SvgText};
 
 use once_cell::sync::Lazy;
 use tokio::runtime::Runtime;
@@ -768,6 +769,11 @@ pub fn render_svg(request: RenderRequest) -> Result<String, BasemapError> {
     render_svg_stack(vec![request])
 }
 
+/// [`render_svg`] with options (see [`render_svg_stack_with`]).
+pub fn render_svg_with(request: RenderRequest, options: &SvgOptions) -> Result<String, BasemapError> {
+    render_svg_stack_with(vec![request], options)
+}
+
 /// Render several styles over the same view as one SVG document, bottom to
 /// top, each style in its own group (e.g. a basemap built from separate
 /// services). Fills, lines and circles are vector paths; labels are glyph
@@ -775,26 +781,36 @@ pub fn render_svg(request: RenderRequest) -> Result<String, BasemapError> {
 /// sprite images. All requests must share bbox, width and height, and use
 /// vector tile sources.
 pub fn render_svg_stack(requests: Vec<RenderRequest>) -> Result<String, BasemapError> {
+    render_svg_stack_with(requests, &SvgOptions::default())
+}
+
+/// [`render_svg_stack`] with options: label text as editable `<text>` with
+/// embedded fonts (default) or as traced glyph outlines.
+pub fn render_svg_stack_with(requests: Vec<RenderRequest>, options: &SvgOptions) -> Result<String, BasemapError> {
     use std::fmt::Write as _;
     let first = requests.first().ok_or_else(|| BasemapError::RenderError("no styles to render".into()))?;
     let (bbox, width, height) = (first.bbox, first.width, first.height);
     if bbox[0] > bbox[2] {
         return Err(BasemapError::InvalidBbox("SVG output does not support anti-meridian (xmin > xmax) bboxes".into()));
     }
-    let mut defs = String::new();
-    let mut body = String::new();
-    for (k, request) in requests.into_iter().enumerate() {
+    for request in &requests {
         if request.bbox != bbox || request.width != width || request.height != height {
             return Err(BasemapError::RenderError("all styles in an SVG stack must share bbox and size".into()));
         }
         request.validate()?;
-        let parts = RUNTIME.block_on(async {
-            let client = reqwest::Client::builder()
-                .timeout(std::time::Duration::from_millis(request.tile_timeout_ms as u64))
-                .use_rustls_tls()
-                .user_agent(concat!("basemapper/", env!("CARGO_PKG_VERSION")))
-                .build()
-                .map_err(|e| BasemapError::RenderError(e.to_string()))?;
+    }
+    let timeout = requests.iter().map(|r| r.tile_timeout_ms).max().unwrap_or(10_000);
+    RUNTIME.block_on(async {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_millis(timeout.max(15_000) as u64))
+            .use_rustls_tls()
+            .user_agent(concat!("basemapper/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .map_err(|e| BasemapError::RenderError(e.to_string()))?;
+        // Every style's tiles and assets first, so the fonts of the whole
+        // document are resolved (and embedded) once.
+        let mut inputs = Vec::new();
+        for request in &requests {
             let raw_json = request.style_input.resolve(&client, request.auth_token.as_deref()).await?;
             style::validate_maplibre_style(&raw_json)?;
             let style_json = match &request.layers {
@@ -804,30 +820,50 @@ pub fn render_svg_stack(requests: Vec<RenderRequest>) -> Result<String, BasemapE
             let style_val: serde_json::Value =
                 serde_json::from_str(&style_json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
             let tile_source =
-                extract_tile_source_from_style(&style_val, &client, request.auth_token.as_deref(), style_base_url_of(&request)).await?;
+                extract_tile_source_from_style(&style_val, &client, request.auth_token.as_deref(), style_base_url_of(request)).await?;
             if !matches!(tile_source, TileSource::MapboxVectorTile { .. }) {
                 return Err(BasemapError::RenderError("SVG output needs a vector tile source".into()));
             }
-            let (style_val, placed, assets, _) =
-                fetch_vector_inputs(&request, &client, &style_json, &tile_source, bbox, width).await?;
-            vector::render::render_svg(&style_val, &placed, &assets, bbox, width, height, &format!("s{k}_"))
-                .map_err(BasemapError::RenderError)
-        })?;
-        if !parts.skipped_layer_types.is_empty() {
-            log::warn!("SVG output does not draw these layer types yet: {}", parts.skipped_layer_types.join(", "));
+            let (style_val, sources, assets, _) =
+                fetch_vector_inputs(request, &client, &style_json, &tile_source, bbox, width).await?;
+            inputs.push((style_val, sources, assets));
         }
-        defs.push_str(&parts.defs);
-        let _ = write!(body, r#"<g id="style{k}">{}</g>"#, parts.body);
-    }
-    Ok(format!(
-        concat!(
-            r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" "#,
-            r#"width="{w}" height="{h}" viewBox="0 0 {w} {h}">"#,
-            r#"<defs>{defs}</defs>{body}</svg>"#
-        ),
-        w = width,
-        h = height,
-        defs = defs,
-        body = body
-    ))
+        let mut fonts = if options.text == SvgText::Editable {
+            let mut stacks: Vec<String> = inputs.iter().flat_map(|i| i.2.glyphs.stacks.keys().cloned()).collect();
+            stacks.sort();
+            stacks.dedup();
+            Some(vector::fonts::resolve(&client, &stacks, options).await)
+        } else {
+            None
+        };
+        let mut defs = String::new();
+        let mut body = String::new();
+        for (k, (style_val, sources, assets)) in inputs.iter().enumerate() {
+            let parts = vector::render::render_svg(style_val, sources, assets, bbox, width, height, &format!("s{k}_"), fonts.as_ref())
+                .map_err(BasemapError::RenderError)?;
+            if !parts.skipped_layer_types.is_empty() {
+                log::warn!("SVG output does not draw these layer types yet: {}", parts.skipped_layer_types.join(", "));
+            }
+            defs.push_str(&parts.defs);
+            let _ = write!(body, r#"<g id="style{k}">{}</g>"#, parts.body);
+        }
+        if let Some(f) = fonts.as_mut() {
+            f.finish(&client, options).await;
+            let css = f.font_face_css(options.embed_fonts);
+            if !css.is_empty() {
+                defs = format!("<style>{css}</style>{defs}");
+            }
+        }
+        Ok(format!(
+            concat!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" "#,
+                r#"width="{w}" height="{h}" viewBox="0 0 {w} {h}">"#,
+                r#"<defs>{defs}</defs>{body}</svg>"#
+            ),
+            w = width,
+            h = height,
+            defs = defs,
+            body = body
+        ))
+    })
 }

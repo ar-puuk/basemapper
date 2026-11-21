@@ -186,16 +186,25 @@ placement as the PNG:
   dash arrays are rewritten as MapLibre's line atlas reads them (the last
   dash joins the first: `1 2 3` is `4 2` entered 3 units in). **Circles** are
   `<circle>`s.
-- **Labels** are glyph outlines traced (marching squares, consistently
-  wound, `nonzero` fill) from the style's SDF glyphs at the shader's
-  thresholds, one set of paths per glyph in MapLibre's draw order (per tile;
-  halo then fill per glyph, or all halos then all fills when MapLibre uses two
-  passes). The shader's soft edge (a smoothstep about 0.84 px wide; wider
-  with `text-halo-blur`) is approximated by two nested outlines per edge at
-  the smoothstep's quantiles, with opacities that stack to the full colour.
-  Halos are rings, as in the shader, so translucent text is not tinted by its
-  halo. No fonts are needed to view the file. SDF icons are traced the same
-  way; other icons are embedded sprite images.
+- **Labels** are editable `<text>` by default: one element per label with
+  every glyph at its MapLibre position (`x`/`y` lists, `rotate` along lines),
+  so layout and collisions are MapLibre's while the shapes come from the real
+  font; halos are a stroke painted beneath the fill (`paint-order`). The
+  style's fonts are embedded as `@font-face` (subset to the characters used,
+  or whole), found in user folders (`font_dirs`, `BASEMAPPER_FONT_DIRS`), a
+  local cache, or Google Fonts for open families; fallback fonts of a stack
+  are only fetched when a character needs them, and fonts that cannot be
+  found (e.g. proprietary Arial) are referenced by name. The vertical offset
+  between MapLibre's glyph metrics and the font baseline is measured per font
+  from the glyphs themselves. Browsers use the embedded fonts; most editors
+  use installed fonts of the same name, and the text stays editable. With
+  `text = "paths"`, labels are instead glyph outlines traced (marching
+  squares, consistently wound, `nonzero` fill) from the style's SDF glyphs at
+  the shader's thresholds, one set of paths per glyph in MapLibre's draw
+  order, with the soft edge approximated by two nested outlines: not
+  editable, but identical everywhere and closest to MapLibre's pixels (the
+  golden tests score this mode). SDF icons are traced the same way; other
+  icons are embedded sprite images.
 - **Opacity** is written as `fill-opacity` / `stroke-opacity` / `opacity`
   (colour alpha times the style opacity, 4 decimals).
 - **Stacks** (several styles over one view, e.g. UGRC's three services) become

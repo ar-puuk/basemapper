@@ -24,7 +24,7 @@
 //! `target/golden-output/<case>/`, and `check/manifest.js` (repo root,
 //! gitignored) is refreshed for the `check/index.html` comparison viewer.
 
-use basemapper_core::{render, render_svg, RenderRequest, StyleInput};
+use basemapper_core::{render, render_svg_with, RenderRequest, StyleInput, SvgOptions, SvgText};
 use httptest::{matchers::request::method_path, responders::status_code, Expectation, Server};
 use image::{Rgba, RgbaImage};
 use serde_json::Value;
@@ -169,7 +169,12 @@ fn render_fixture(dir: &Path, case: &Value, svg: bool) -> Result<(RgbaImage, Opt
         pixel_ratio: case["pixel_ratio"].as_f64().unwrap_or(1.0),
     };
     let svg_doc = if svg {
-        Some(render_svg(request.clone()).map_err(|e| format!("{name}: SVG render failed: {e}"))?)
+        {
+            // Traced glyph outlines: offline (no font downloads) and what the
+            // pixel comparison measures (resvg ignores @font-face).
+            let opts = SvgOptions { text: SvgText::Paths, ..SvgOptions::default() };
+            Some(render_svg_with(request.clone(), &opts).map_err(|e| format!("{name}: SVG render failed: {e}"))?)
+        }
     } else {
         None
     };

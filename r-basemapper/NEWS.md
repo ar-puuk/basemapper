@@ -14,8 +14,10 @@ First version, not yet released.
   resolution.
 * Several styles can be stacked bottom to top, e.g. a basemap published as
   separate hillshade, base and label services.
-* True vector SVG output: fills and lines as paths, labels as glyph
-  outlines (no fonts needed), icons embedded.
+* True vector SVG output: fills and lines as paths, icons embedded, labels
+  as editable `<text>` at MapLibre's glyph positions with the style's fonts
+  embedded (subset; open fonts from Google Fonts or your `font_dirs`), or as
+  traced glyph outlines with `render_svg(text = "paths")`.
 * Views crossing the anti-meridian render MapLibre's world copies.
 
 ## New functions

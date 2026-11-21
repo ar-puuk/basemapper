@@ -70,7 +70,7 @@ styles <- sprintf("%s/%s/VectorTileServer/resources/styles/root.json", ugrc,
 m <- basemap(styles, width = 800, height = 600,
              center = c(-111.8887, 40.7556), zoom = 12.4, ratio = 2)
 render_png(m, "slc.png")    # 1600 x 1200, rendered natively at zoom 12.4
-render_svg(m, "slc.svg")    # true vector: paths and glyph outlines
+render_svg(m, "slc.svg")    # true vector; labels as editable text, fonts embedded
 r <- render_raster(m)       # terra SpatRaster (EPSG:3857)
 ```
 
@@ -83,7 +83,7 @@ styles = [f"{ugrc}/{s}/VectorTileServer/resources/styles/root.json"
 m = basemapper.Map(styles, width=800, height=600, ratio=2,
                    center=(-111.8887, 40.7556), zoom=12.4)
 m.render_png("slc.png")
-m.render_svg("slc.svg")
+m.render_svg("slc.svg")      # text="paths" for traced glyph outlines
 arr = m.render_array()      # (1200, 1600, 4) uint8
 ```
 
