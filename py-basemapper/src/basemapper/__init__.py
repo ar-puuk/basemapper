@@ -3,6 +3,7 @@
 from .exceptions import BasemapError, NetworkError, StyleError, ValidationError
 from .matplotlib_integration import add_basemap
 from .layer_utils import list_layers
+from .map import Map
 from .providers import (
     EsriRasterProvider,
     EsriVectorProvider,
@@ -15,7 +16,7 @@ from .providers import (
 )
 
 # Core Rust FFI binding — thin Python wrapper so doc tools can do static analysis.
-from ._render import render_basemap_raw
+from ._render import render_basemap_raw, render_styles_raw
 
 # plotnine integration is optional — base package usable without plotnine installed.
 try:
@@ -30,7 +31,9 @@ __all__ = [
     "StyleError",
     "NetworkError",
     "add_basemap",
+    "Map",
     "render_basemap_raw",
+    "render_styles_raw",
     "list_layers",
     "RasterProvider",
     "VectorProvider",

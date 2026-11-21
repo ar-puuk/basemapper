@@ -5,7 +5,7 @@ pub mod style;
 pub mod tile_fetcher;
 pub mod vector;
 
-pub use bbox::{compute_zoom, RenderRequest, RenderResult, SpatialBounds};
+pub use bbox::{bbox_from_center, compute_zoom, fit_bounds, RenderRequest, RenderResult, SpatialBounds};
 pub use error::BasemapError;
 pub use style::{filter_style_layers, StyleInput};
 pub use tile_fetcher::TileSource;
@@ -25,6 +25,60 @@ static RUNTIME: Lazy<Runtime> =
 pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
     request.validate()?;
     RUNTIME.block_on(render_async(request))
+}
+
+/// Render several styles over the same view and composite them bottom to
+/// top (straight-alpha source-over), e.g. a basemap published as separate
+/// services. All requests must share bbox, size and pixel ratio.
+pub fn render_stack(requests: Vec<RenderRequest>) -> Result<RenderResult, BasemapError> {
+    let first = requests.first().ok_or_else(|| BasemapError::RenderError("no styles to render".into()))?;
+    let (bbox, w, h, r) = (first.bbox, first.width, first.height, first.pixel_ratio);
+    if requests.iter().any(|q| q.bbox != bbox || q.width != w || q.height != h || q.pixel_ratio != r) {
+        return Err(BasemapError::RenderError("all styles in a stack must share bbox, size and pixel ratio".into()));
+    }
+    let mut acc: Option<RenderResult> = None;
+    for q in requests {
+        let top = render(q)?;
+        acc = Some(match acc {
+            None => top,
+            Some(mut below) => {
+                if below.pixels.len() != top.pixels.len() {
+                    return Err(BasemapError::RenderError("stacked renders differ in size".into()));
+                }
+                composite_over(&mut below.pixels, &top.pixels);
+                below.zoom_used = below.zoom_used.max(top.zoom_used);
+                below
+            }
+        });
+    }
+    Ok(acc.expect("at least one request"))
+}
+
+/// `dst = src over dst`, both straight-alpha RGBA.
+fn composite_over(dst: &mut [u8], src: &[u8]) {
+    for (o, s) in dst.chunks_exact_mut(4).zip(src.chunks_exact(4)) {
+        let (sa, da) = (s[3] as f64 / 255.0, o[3] as f64 / 255.0);
+        let a = sa + da * (1.0 - sa);
+        if a <= 0.0 {
+            o.copy_from_slice(&[0, 0, 0, 0]);
+            continue;
+        }
+        for i in 0..3 {
+            let c = (s[i] as f64 / 255.0 * sa + o[i] as f64 / 255.0 * da * (1.0 - sa)) / a;
+            o[i] = (c * 255.0).round().clamp(0.0, 255.0) as u8;
+        }
+        o[3] = (a * 255.0).round() as u8;
+    }
+}
+
+/// Encode straight-alpha RGBA pixels as a PNG file.
+pub fn encode_png(pixels: &[u8], width: u32, height: u32) -> Result<Vec<u8>, BasemapError> {
+    use image::ImageEncoder;
+    let mut buf = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut buf)
+        .write_image(pixels, width, height, image::ExtendedColorType::Rgba8)
+        .map_err(|e| BasemapError::RenderError(format!("PNG encoding failed: {e}")))?;
+    Ok(buf)
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

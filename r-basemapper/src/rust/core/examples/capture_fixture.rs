@@ -254,13 +254,25 @@ fn main() {
         style["glyphs"] = json!("{{BASE}}/fonts/{fontstack}/{range}.pbf");
     }
 
-    // Sprite: the 1x sheet (reference renders run at devicePixelRatio 1).
+    // Sprite: the 1x sheet, and the @2x sheet (used at pixel ratio > 1) when
+    // the style has one.
     if let Some(sprite) = style["sprite"].as_str().map(str::to_owned) {
         let base = style_url.join(&sprite).unwrap().to_string();
         std::fs::create_dir_all(out.join("sprites")).unwrap();
         for ext in ["json", "png"] {
             let bytes = get(&client, &format!("{base}.{ext}"));
             std::fs::write(out.join("sprites").join(format!("sprite.{ext}")), bytes).unwrap();
+        }
+        let hi: Vec<Option<Vec<u8>>> = ["json", "png"]
+            .iter()
+            .map(|ext| {
+                let resp = client.get(format!("{base}@2x.{ext}")).send().ok()?;
+                resp.status().is_success().then(|| resp.bytes().ok().map(|b| b.to_vec())).flatten()
+            })
+            .collect();
+        if let [Some(j), Some(p)] = hi.as_slice() {
+            std::fs::write(out.join("sprites").join("sprite@2x.json"), j).unwrap();
+            std::fs::write(out.join("sprites").join("sprite@2x.png"), p).unwrap();
         }
         style["sprite"] = json!("{{BASE}}/sprites/sprite");
     }

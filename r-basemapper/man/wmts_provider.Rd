@@ -2,7 +2,10 @@
 % Please edit documentation in R/providers.R
 \name{wmts_provider}
 \alias{wmts_provider}
-\title{WMTS provider style}
+\title{WMTS provider style
+
+Build a MapLibre GL Style JSON string that uses a WMTS GetTile KVP endpoint
+as a raster tile source.}
 \usage{
 wmts_provider(
   url,
@@ -30,23 +33,11 @@ wmts_provider(
 \item{extra_params}{Character or \code{NULL}: additional query parameters appended verbatim.}
 }
 \value{
-A JSON character string ready to pass to \code{\link{render_basemap_raw}()}.
+A JSON character string ready to pass to \code{render_basemap_raw()}.
 }
 \description{
+WMTS provider style
+
 Build a MapLibre GL Style JSON string that uses a WMTS GetTile KVP endpoint
 as a raster tile source.
-}
-\examples{
-\dontrun{
-style <- wmts_provider(
-  url   = "https://tiles.example.com/wmts",
-  layer = "BasemapAT_grau"
-)
-m <- render_basemap_raw(
-  bbox        = c(14.0, 48.0, 17.0, 50.0),
-  width       = 400L,
-  height      = 300L,
-  style_input = style
-)
-}
 }

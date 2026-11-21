@@ -81,3 +81,46 @@ def render_basemap_raw(
         zoom, tile_timeout_ms, max_tiles, layers,
         auth_token, fail_on_tile_error, tile_concurrency,
     )
+
+
+def render_styles_raw(
+    bbox: Any,
+    width: int,
+    height: int,
+    styles: Any,
+    crs: Optional[Any] = None,
+    pixel_ratio: float = 1.0,
+    zoom: Optional[int] = None,
+    tile_timeout_ms: int = 10_000,
+    max_tiles: int = 256,
+    layers: Optional[List[str]] = None,
+    auth_token: Optional[str] = None,
+    fail_on_tile_error: bool = False,
+    tile_concurrency: int = 16,
+) -> "tuple[bytes, int, int]":
+    """Render one style or a list (stacked bottom to top) over *bbox*.
+
+    Like :func:`render_basemap_raw`, but *width* / *height* are CSS pixels and
+    the image is *pixel_ratio* times larger (MapLibre's devicePixelRatio).
+
+    Returns:
+        ``(bytes, width, height)``: straight-alpha RGBA pixels and their size
+        in device pixels.
+    """
+    import pyproj
+
+    from ._basemapper import render_raw
+    from .bbox_utils import normalize_bbox, reproject_bbox_to_3857
+    from .map import _style_strings
+
+    xmin, ymin, xmax, ymax, source_crs = normalize_bbox(bbox, crs)
+    if source_crs == pyproj.CRS.from_epsg(3857):
+        bbox_3857 = [xmin, ymin, xmax, ymax]
+    else:
+        bbox_3857 = list(reproject_bbox_to_3857(xmin, ymin, xmax, ymax, source_crs))
+    return render_raw(
+        bbox_3857, int(width), int(height), _style_strings(styles), float(pixel_ratio),
+        zoom=zoom, tile_timeout_ms=tile_timeout_ms, max_tiles=max_tiles, layers=layers,
+        auth_token=auth_token, fail_on_tile_error=fail_on_tile_error,
+        tile_concurrency=tile_concurrency,
+    )

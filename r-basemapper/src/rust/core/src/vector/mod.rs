@@ -6,5 +6,6 @@ pub mod expr;
 pub mod gl;
 pub mod mvt;
 pub mod render;
+pub mod svg;
 pub mod symbol;
 pub mod symbol_line;

@@ -11,11 +11,13 @@ tm_basemap(
   layers = NULL,
   width_px = NULL,
   height_px = NULL,
+  ratio = 1,
   ...
 )
 }
 \arguments{
-\item{style_input}{Character: a MapLibre GL style URL or inline JSON string.}
+\item{style_input}{Character: a MapLibre GL style URL or inline JSON
+string, or a vector / list of styles stacked bottom to top.}
 
 \item{zoom}{Integer zoom level (0–22), or \code{NULL} for automatic.}
 
@@ -23,8 +25,12 @@ tm_basemap(
 
 \item{layers}{Character vector of layer IDs to filter. See \code{render_basemap_raw()}.}
 
-\item{width_px, height_px}{Output dimensions in pixels. Defaults to 800×600
-when \code{NULL}.}
+\item{width_px, height_px}{View size in CSS pixels (sets the zoom).
+Defaults to 800×600 when \code{NULL}.}
+
+\item{ratio}{Device pixels per CSS pixel: the basemap raster is
+\code{width_px * ratio} by \code{height_px * ratio} pixels with the same zoom and
+label layout. Use e.g. \code{ratio = 300 / 96} for print.}
 
 \item{...}{Reserved for future use.}
 }

@@ -11,11 +11,13 @@ geom_basemap(
   max_tiles = 256L,
   alpha = 1,
   layers = NULL,
+  ratio = NULL,
   ...
 )
 }
 \arguments{
-\item{style_url}{Character: a MapLibre GL style URL or inline JSON string.}
+\item{style_url}{Character: a MapLibre GL style URL or inline JSON string,
+or a vector / list of styles stacked bottom to top.}
 
 \item{zoom}{Integer zoom level (0–22), or \code{NULL} for automatic selection.}
 
@@ -28,6 +30,10 @@ geom_basemap(
 \item{layers}{Character vector of layer IDs to filter. Plain IDs keep only
 those layers; minus-prefixed IDs exclude those layers. \code{NULL} renders all.}
 
+\item{ratio}{Device pixels per CSS pixel (MapLibre's devicePixelRatio).
+Default: device dpi / 96, so lines and labels keep their physical size at
+any resolution. Larger values draw map symbols smaller.}
+
 \item{...}{Additional arguments passed to \code{ggplot2::layer()}.}
 }
 \value{
@@ -36,6 +42,12 @@ A ggplot2 layer object.
 \description{
 Wraps a lazy \code{GeomBasemap} ggproto layer that defers tile fetching until
 \code{coord_sf()} has established the panel's geographic extent.
+}
+\details{
+The basemap is rendered when the plot is drawn, for the panel's size at
+the device's resolution: \code{ggsave(dpi = 300)} gets a basemap rendered
+natively at 300 dpi (and PDF / SVG output at 300 dpi), not an upscaled
+screen image.
 }
 \examples{
 \dontrun{

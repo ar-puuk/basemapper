@@ -87,6 +87,26 @@ measuring against MapLibre and investigating the difference.
 (`text-variable-anchor`), `icon-text-fit`, vertical text, and right-to-left
 scripts. Unsupported layer types are skipped with a warning.
 
+## Pixel ratio
+
+`RenderRequest.pixel_ratio` is MapLibre's devicePixelRatio. `width` and
+`height` are CSS pixels and set the view, the zoom, tile choice and label
+placement (collision runs in CSS pixels, so the same labels show); the image
+is `pixel_ratio` times larger. Geometry, line widths, offsets, blur, circle
+radii, translations and symbol quads scale by the ratio, while antialiasing
+stays one device pixel wide, as in MapLibre's shaders (`ANTIALIASING =
+1/dpr/2`, `EDGE_GAMMA = 0.105/dpr`, dash `sdfgamma / dpr`). Vector styles use
+the `@2x` sprite above ratio 1; raster tiles snap to the CSS pixel grid
+(MapLibre's `alignedProjMatrix`) before scaling. The `_x2` golden cases check
+this against MapLibre at `pixelRatio: 2` (0.000-0.064% of pixels off).
+
+The plotting integrations pick the ratio from the output: dpi / 96 (CSS
+pixels are 1/96 in), so map symbols keep their physical size and a 300 dpi
+figure gets a basemap rendered at 300 dpi. matplotlib's basemap is an artist
+that renders at draw time, so `savefig(dpi=...)` re-renders natively; in R,
+`geom_basemap()` renders at draw time from the device's resolution (300 dpi
+for PDF / SVG devices).
+
 ## SVG output
 
 `render_svg` / `render_svg_stack` (Rust core) write the same view as a true

@@ -8,7 +8,7 @@
 \description{
 \if{html}{\figure{logo.svg}{options: style='float: right' alt='logo' width='120'}}
 
-Renders styled spatial basemaps headlessly using a Rust core (maplibre-rs + wgpu) and exposes the result as raw RGBA pixel arrays to R. Integrates with ggplot2 via a lazy GeomBasemap ggproto layer and with tmap v4 via tm_basemap().
+Renders MapLibre GL styled basemaps (vector and raster tiles) headlessly with a Rust core: a software port of MapLibre GL JS's renderer, tested pixel by pixel against MapLibre GL JS. Renders at any fractional zoom and pixel ratio to PNG, rasters and arrays, or to true vector SVG; several styles can be stacked. Integrates with ggplot2 via geom_basemap() and with tmap v4 via tm_basemap(), rendering at the output device's resolution.
 }
 \author{
 \strong{Maintainer}: Pukar Bhandari \email{arpuuuk@gmail.com}

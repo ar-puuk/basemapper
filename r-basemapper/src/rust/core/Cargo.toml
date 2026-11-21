@@ -21,6 +21,7 @@ log         = { workspace = true }
 
 [dev-dependencies]
 httptest    = "0.15"
+resvg       = "0.50"
 tokio       = { workspace = true }
 reqwest     = { workspace = true, features = ["blocking"] }
 

@@ -204,3 +204,29 @@ pub struct RenderResult {
     pub height: u32,
     pub zoom_used: u8,
 }
+
+/// EPSG:3857 bbox of a `width x height` CSS-pixel view centred on
+/// (`lon`, `lat`) at MapLibre zoom `zoom` (512 px tiles; fractional zooms
+/// allowed), as MapLibre's camera shows it.
+pub fn bbox_from_center(lon: f64, lat: f64, zoom: f64, width: u32, height: u32) -> [f64; 4] {
+    let r = EARTH_HALF / std::f64::consts::PI;
+    let cx = lon.to_radians() * r;
+    let lat = lat.clamp(-85.051_128_779_806_59, 85.051_128_779_806_59);
+    let cy = (std::f64::consts::FRAC_PI_4 + lat.to_radians() / 2.0).tan().ln() * r;
+    let mpp = EARTH_CIRC / (512.0 * 2f64.powf(zoom));
+    let (hw, hh) = (width as f64 * mpp / 2.0, height as f64 * mpp / 2.0);
+    [cx - hw, cy - hh, cx + hw, cy + hh]
+}
+
+/// MapLibre zoom at which a `width x height` CSS-pixel view fits the
+/// EPSG:3857 `bounds` (fitBounds without padding), and the bounds' centre
+/// as (lon, lat).
+pub fn fit_bounds(bounds: [f64; 4], width: u32, height: u32) -> (f64, f64, f64) {
+    let r = EARTH_HALF / std::f64::consts::PI;
+    let mpp = ((bounds[2] - bounds[0]) / width as f64).max((bounds[3] - bounds[1]) / height as f64);
+    let zoom = (EARTH_CIRC / (512.0 * mpp)).log2();
+    let (cx, cy) = ((bounds[0] + bounds[2]) / 2.0, (bounds[1] + bounds[3]) / 2.0);
+    let lon = (cx / r).to_degrees();
+    let lat = (2.0 * (cy / r).exp().atan() - std::f64::consts::FRAC_PI_2).to_degrees();
+    (lon, lat, zoom)
+}

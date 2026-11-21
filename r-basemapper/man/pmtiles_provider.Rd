@@ -2,7 +2,11 @@
 % Please edit documentation in R/providers.R
 \name{pmtiles_provider}
 \alias{pmtiles_provider}
-\title{PMTiles provider style}
+\title{PMTiles provider style
+
+Build a MapLibre GL Style JSON string for a PMTiles raster archive served
+over HTTP.  The Rust core detects the \code{pmtiles://} scheme in the
+\code{tiles} array and routes tile fetching through the PMTiles pipeline.}
 \usage{
 pmtiles_provider(url)
 }
@@ -10,22 +14,12 @@ pmtiles_provider(url)
 \item{url}{Character: HTTPS URL of the \code{.pmtiles} archive file.}
 }
 \value{
-A JSON character string ready to pass to \code{\link{render_basemap_raw}()}.
+A JSON character string ready to pass to \code{render_basemap_raw()}.
 }
 \description{
+PMTiles provider style
+
 Build a MapLibre GL Style JSON string for a PMTiles raster archive served
 over HTTP.  The Rust core detects the \code{pmtiles://} scheme in the
-\code{tiles} array and routes tile fetching through the PMTiles HTTP
-range-request pipeline.
-}
-\examples{
-\dontrun{
-style <- pmtiles_provider("https://example.com/tiles/world.pmtiles")
-m <- render_basemap_raw(
-  bbox        = c(-122.5, 37.7, -122.4, 37.8),
-  width       = 400L,
-  height      = 300L,
-  style_input = style
-)
-}
+\code{tiles} array and routes tile fetching through the PMTiles pipeline.
 }

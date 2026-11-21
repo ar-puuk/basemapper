@@ -7,6 +7,7 @@
 \method{makeContent}{BasemapGrob}(x)
 }
 \description{
-Called by grid at draw time (inside an active viewport).  Converts npc
-to pixel dimensions, fetches tiles, and returns a rasterGrob child.
+Called by grid at draw time (inside an active viewport). Renders the
+basemap for the panel's size at the device's resolution and returns a
+rasterGrob child.
 }

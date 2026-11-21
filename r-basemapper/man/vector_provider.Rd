@@ -4,10 +4,15 @@
 \alias{vector_provider}
 \title{Generate a MapLibre GL Style JSON string for an MVT vector tile source.}
 \usage{
-vector_provider(url_template, paint = list())
+vector_provider(url_template, source_layer, paint = list())
 }
 \arguments{
 \item{url_template}{Character: MVT tile URL with \code{{z}}, \code{{x}}, \code{{y}} placeholders.}
+
+\item{source_layer}{Character: the name of the layer within each MVT tile to
+render. This is tile-server specific (e.g. \code{"water"}, \code{"roads"}); it maps
+to the MapLibre GL \code{"source-layer"} property and is required for vector
+sources.}
 
 \item{paint}{Named list of MapLibre GL paint properties.}
 }
@@ -22,6 +27,7 @@ with a \code{warning()}. An empty paint list applies a light-grey default style.
 \examples{
 style <- vector_provider(
   "https://example.com/tiles/{z}/{x}/{y}.mvt",
+  source_layer = "land",
   paint = list("fill-color" = "#e8e0d8", "line-color" = "#aaa")
 )
 }

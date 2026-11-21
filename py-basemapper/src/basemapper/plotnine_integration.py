@@ -18,8 +18,12 @@ class geom_basemap(geom):
     Defers all tile fetching to draw time so that the plot's coordinate system
     has been established. Uses the same injection logic as :func:`add_basemap`.
 
+    The basemap renders when the plot is drawn, at the output resolution
+    (natively at ``save(dpi=...)``), like :func:`add_basemap`.
+
     Args:
-        style_url: MapLibre GL style URL or inline JSON string.
+        style_url: MapLibre GL style URL or inline JSON string, a provider
+            object, or a list of those stacked bottom to top.
         zoom: Tile zoom level override (0–22). Auto-computed when None.
         alpha: Opacity of the basemap layer (0.0–1.0).
         layers: Optional layer filter list — plain IDs keep only those layers;
@@ -28,6 +32,7 @@ class geom_basemap(geom):
             plotnine has no spatial coordinate system to read it from, so it
             defaults to ``"EPSG:4326"`` (longitude/latitude). Pass e.g.
             ``crs=gdf.crs`` or ``crs="EPSG:3857"`` for projected data.
+        ratio: Device pixels per CSS pixel; default output dpi / 96.
 
     Example:
         >>> import pandas as pd
@@ -54,6 +59,7 @@ class geom_basemap(geom):
         alpha: float = 1.0,
         layers: Optional[List[str]] = None,
         crs: object = "EPSG:4326",
+        ratio: Optional[float] = None,
         **kwargs: object,
     ) -> None:
         self.style_url = style_url
@@ -61,18 +67,18 @@ class geom_basemap(geom):
         self.alpha = alpha
         self.layers = layers
         self.crs = crs
+        self.ratio = ratio
         super().__init__(mapping=None, data=None, **kwargs)
 
     def draw_panel(self, data, panel_params, coord, ax, **kwargs):  # type: ignore[override]
-        """Render basemap at draw time and inject via imshow.
+        """Add a basemap artist that renders at draw time.
 
-        The panel background is made transparent automatically so the basemap
-        shows through. Axis limits are restored after imshow.
+        The panel background is made transparent so the basemap shows
+        through. Axis limits are kept at the panel ranges.
         """
         import pyproj
 
-        from .bbox_utils import get_axes_pixel_dims
-        from . import render_basemap_raw
+        from .matplotlib_integration import BasemapImage
 
         # Panel ranges: plotnine passes a panel_view (x/y scale views with a
         # .range); older code paths used a dict.
@@ -86,34 +92,17 @@ class geom_basemap(geom):
         # from the layer (default EPSG:4326).
         crs = pyproj.CRS.from_user_input(self.crs)
 
-        width_px, height_px = get_axes_pixel_dims(ax)
-
-        raw = render_basemap_raw(
-            bbox=[x_range[0], y_range[0], x_range[1], y_range[1]],
-            crs=crs,
-            width=width_px,
-            height=height_px,
-            style_input=self.style_url,
-            zoom=self.zoom,
-            layers=self.layers,
+        ax.set_xlim(x_range[0], x_range[1])
+        ax.set_ylim(y_range[0], y_range[1])
+        img = BasemapImage(
+            ax, self.style_url, crs, self.ratio, self.zoom,
+            dict(layers=self.layers), alpha=self.alpha,
         )
-
-        arr = np.frombuffer(raw, dtype=np.uint8).reshape(height_px, width_px, 4)
+        img.set_extent((x_range[0], x_range[1], y_range[0], y_range[1]))
+        ax.add_image(img)
 
         # Make the panel background transparent so the basemap shows through
         # (ax.patch at zorder=1 would otherwise cover basemap at zorder=0).
         ax.set_facecolor("none")
-
-        ax.imshow(
-            arr,
-            extent=[x_range[0], x_range[1], y_range[0], y_range[1]],
-            origin="upper",
-            zorder=0,
-            interpolation="nearest",
-            aspect="auto",
-            alpha=self.alpha,
-        )
-
-        # Restore panel limits after imshow (which can reset them).
         ax.set_xlim(x_range[0], x_range[1])
         ax.set_ylim(y_range[0], y_range[1])

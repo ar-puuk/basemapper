@@ -31,9 +31,35 @@ pub struct RenderRequest {
     /// When `false`, individual tile fetch failures are logged and skipped
     /// rather than aborting the entire render.
     pub fail_on_tile_error: bool,
+    /// Device pixels per CSS pixel (MapLibre's devicePixelRatio). `width` and
+    /// `height` are CSS pixels and set the view and zoom; the image is
+    /// `pixel_ratio` times larger, with lines, labels and icons drawn at the
+    /// same size relative to the map (e.g. 2 for a sharp 2x image, or
+    /// dpi / 96 for print). Vector styles use the `@2x` sprite above 1.
+    pub pixel_ratio: f64,
 }
 
 impl RenderRequest {
+    /// A request with default settings: automatic zoom, pixel ratio 1, all
+    /// layers, 10 s tile timeout, at most 256 tiles, 16 parallel fetches,
+    /// failing on tile errors.
+    pub fn new(bbox: [f64; 4], width: u32, height: u32, style_input: crate::StyleInput) -> Self {
+        RenderRequest {
+            bbox,
+            width,
+            height,
+            style_input,
+            zoom: None,
+            tile_timeout_ms: 10_000,
+            max_tiles: 256,
+            tile_concurrency: 16,
+            layers: None,
+            auth_token: None,
+            fail_on_tile_error: true,
+            pixel_ratio: 1.0,
+        }
+    }
+
     pub fn validate(&self) -> Result<(), BasemapError> {
         let [xmin, ymin, xmax, ymax] = self.bbox;
         if !xmin.is_finite() || !ymin.is_finite() || !xmax.is_finite() || !ymax.is_finite() {
@@ -71,6 +97,16 @@ impl RenderRequest {
         // xmin > xmax is the anti-meridian case — accepted and handled by render().
         if self.width == 0 || self.height == 0 || self.width > 16_384 || self.height > 16_384 {
             return Err(BasemapError::InvalidDimensions(self.width, self.height));
+        }
+        if !self.pixel_ratio.is_finite() || self.pixel_ratio <= 0.0 || self.pixel_ratio > 16.0 {
+            return Err(BasemapError::InvalidBbox(format!(
+                "pixel_ratio {} must be > 0 and at most 16",
+                self.pixel_ratio
+            )));
+        }
+        let (dw, dh) = (self.width as f64 * self.pixel_ratio, self.height as f64 * self.pixel_ratio);
+        if dw.round() > 16_384.0 || dh.round() > 16_384.0 {
+            return Err(BasemapError::InvalidDimensions(dw.round() as u32, dh.round() as u32));
         }
         if let Some(z) = self.zoom {
             if z > 22 {
@@ -167,4 +203,30 @@ pub struct RenderResult {
     pub width: u32,
     pub height: u32,
     pub zoom_used: u8,
+}
+
+/// EPSG:3857 bbox of a `width x height` CSS-pixel view centred on
+/// (`lon`, `lat`) at MapLibre zoom `zoom` (512 px tiles; fractional zooms
+/// allowed), as MapLibre's camera shows it.
+pub fn bbox_from_center(lon: f64, lat: f64, zoom: f64, width: u32, height: u32) -> [f64; 4] {
+    let r = EARTH_HALF / std::f64::consts::PI;
+    let cx = lon.to_radians() * r;
+    let lat = lat.clamp(-85.051_128_779_806_59, 85.051_128_779_806_59);
+    let cy = (std::f64::consts::FRAC_PI_4 + lat.to_radians() / 2.0).tan().ln() * r;
+    let mpp = EARTH_CIRC / (512.0 * 2f64.powf(zoom));
+    let (hw, hh) = (width as f64 * mpp / 2.0, height as f64 * mpp / 2.0);
+    [cx - hw, cy - hh, cx + hw, cy + hh]
+}
+
+/// MapLibre zoom at which a `width x height` CSS-pixel view fits the
+/// EPSG:3857 `bounds` (fitBounds without padding), and the bounds' centre
+/// as (lon, lat).
+pub fn fit_bounds(bounds: [f64; 4], width: u32, height: u32) -> (f64, f64, f64) {
+    let r = EARTH_HALF / std::f64::consts::PI;
+    let mpp = ((bounds[2] - bounds[0]) / width as f64).max((bounds[3] - bounds[1]) / height as f64);
+    let zoom = (EARTH_CIRC / (512.0 * mpp)).log2();
+    let (cx, cy) = ((bounds[0] + bounds[2]) / 2.0, (bounds[1] + bounds[3]) / 2.0);
+    let lon = (cx / r).to_degrees();
+    let lat = (2.0 * (cy / r).exp().atan() - std::f64::consts::FRAC_PI_2).to_degrees();
+    (lon, lat, zoom)
 }

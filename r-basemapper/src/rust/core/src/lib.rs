@@ -5,7 +5,7 @@ pub mod style;
 pub mod tile_fetcher;
 pub mod vector;
 
-pub use bbox::{compute_zoom, RenderRequest, RenderResult, SpatialBounds};
+pub use bbox::{bbox_from_center, compute_zoom, fit_bounds, RenderRequest, RenderResult, SpatialBounds};
 pub use error::BasemapError;
 pub use style::{filter_style_layers, StyleInput};
 pub use tile_fetcher::TileSource;
@@ -25,6 +25,60 @@ static RUNTIME: Lazy<Runtime> =
 pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
     request.validate()?;
     RUNTIME.block_on(render_async(request))
+}
+
+/// Render several styles over the same view and composite them bottom to
+/// top (straight-alpha source-over), e.g. a basemap published as separate
+/// services. All requests must share bbox, size and pixel ratio.
+pub fn render_stack(requests: Vec<RenderRequest>) -> Result<RenderResult, BasemapError> {
+    let first = requests.first().ok_or_else(|| BasemapError::RenderError("no styles to render".into()))?;
+    let (bbox, w, h, r) = (first.bbox, first.width, first.height, first.pixel_ratio);
+    if requests.iter().any(|q| q.bbox != bbox || q.width != w || q.height != h || q.pixel_ratio != r) {
+        return Err(BasemapError::RenderError("all styles in a stack must share bbox, size and pixel ratio".into()));
+    }
+    let mut acc: Option<RenderResult> = None;
+    for q in requests {
+        let top = render(q)?;
+        acc = Some(match acc {
+            None => top,
+            Some(mut below) => {
+                if below.pixels.len() != top.pixels.len() {
+                    return Err(BasemapError::RenderError("stacked renders differ in size".into()));
+                }
+                composite_over(&mut below.pixels, &top.pixels);
+                below.zoom_used = below.zoom_used.max(top.zoom_used);
+                below
+            }
+        });
+    }
+    Ok(acc.expect("at least one request"))
+}
+
+/// `dst = src over dst`, both straight-alpha RGBA.
+fn composite_over(dst: &mut [u8], src: &[u8]) {
+    for (o, s) in dst.chunks_exact_mut(4).zip(src.chunks_exact(4)) {
+        let (sa, da) = (s[3] as f64 / 255.0, o[3] as f64 / 255.0);
+        let a = sa + da * (1.0 - sa);
+        if a <= 0.0 {
+            o.copy_from_slice(&[0, 0, 0, 0]);
+            continue;
+        }
+        for i in 0..3 {
+            let c = (s[i] as f64 / 255.0 * sa + o[i] as f64 / 255.0 * da * (1.0 - sa)) / a;
+            o[i] = (c * 255.0).round().clamp(0.0, 255.0) as u8;
+        }
+        o[3] = (a * 255.0).round() as u8;
+    }
+}
+
+/// Encode straight-alpha RGBA pixels as a PNG file.
+pub fn encode_png(pixels: &[u8], width: u32, height: u32) -> Result<Vec<u8>, BasemapError> {
+    use image::ImageEncoder;
+    let mut buf = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut buf)
+        .write_image(pixels, width, height, image::ExtendedColorType::Rgba8)
+        .map_err(|e| BasemapError::RenderError(format!("PNG encoding failed: {e}")))?;
+    Ok(buf)
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -153,41 +207,9 @@ async fn render_single_bbox(
         // tiles (512 px) fetched at floor(scale zoom), clamped to the source
         // maxzoom. An explicit request zoom is on the 256 px raster grid, which
         // is one level above the equivalent 512 px tile zoom.
-        let sz = vector::render::scale_zoom(bbox, width);
-        let tz = match request.zoom {
-            Some(z) => z.saturating_sub(1),
-            None => vector::render::tile_zoom(sz, None),
-        };
-        let tz = tile_source.maxzoom().map_or(tz, |m| tz.min(m));
-        // Tiles covering the view, including wrapped world copies; each
-        // canonical tile is fetched once.
-        let covering = vector::render::covering_tiles(bbox, tz);
-        let mut coords: Vec<tile_fetcher::TileCoord> = covering.iter().map(|c| c.0).collect();
-        coords.sort_by_key(|c| (c.z, c.x, c.y));
-        coords.dedup();
-        let urls = tile_fetcher::build_tile_urls(tile_source, &coords);
-        let tiles = tile_fetcher::fetch_all_tiles(
-            client,
-            urls,
-            tile_source,
-            request.tile_timeout_ms,
-            request.tile_concurrency,
-            request.fail_on_tile_error,
-        )
-        .await?;
-        let style_val: serde_json::Value = serde_json::from_str(style_json)
-            .map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
-        let assets = vector::symbol::SymbolAssets {
-            glyphs: fetch_glyphs(client, &style_val, style_base_url_of(request), &tiles, sz).await,
-            sprite: fetch_sprite(client, &style_val, style_base_url_of(request)).await,
-        };
-        let by_coord: std::collections::HashMap<(u8, u32, u32), &tile_fetcher::TileData> =
-            tiles.iter().map(|(c, d)| ((c.z, c.x, c.y), d)).collect();
-        let placed: Vec<(tile_fetcher::TileCoord, i32, tile_fetcher::TileData)> = covering
-            .iter()
-            .filter_map(|(c, wrap)| by_coord.get(&(c.z, c.x, c.y)).map(|d| (*c, *wrap, (*d).clone())))
-            .collect();
-        let out = vector::render::render(&style_val, &placed, &assets, bbox, width, height)
+        let (style_val, placed, assets, tz) =
+            fetch_vector_inputs(request, client, style_json, tile_source, bbox, width).await?;
+        let out = vector::render::render(&style_val, &placed, &assets, bbox, width, height, request.pixel_ratio)
             .map_err(BasemapError::RenderError)?;
         if !out.skipped_layer_types.is_empty() {
             log::warn!(
@@ -198,17 +220,22 @@ async fn render_single_bbox(
         return Ok(RenderResult {
             bounds,
             zoom_used: tz.saturating_add(1),
-            width,
-            height,
+            width: out.width,
+            height: out.height,
             pixels: out.pixels,
         });
     }
+    // Raster sources: tiles chosen for the CSS size, composited at device size.
+    let (width, height) = (
+        vector::render::device_px(width, request.pixel_ratio),
+        vector::render::device_px(height, request.pixel_ratio),
+    );
     // PMTiles: fetch via HTTP range requests.
     if let TileSource::PMTiles { ref url, .. } = tile_source {
         let coords = tile_fetcher::build_tile_coords(bbox, zoom);
         let tiles = fetch_pmtiles_tiles(url, &coords, client).await?;
         let canvas =
-            renderer::composite_raster_tiles(&tiles, bbox, zoom, width, height, transparent)?;
+            renderer::composite_raster_tiles(&tiles, bbox, zoom, width, height, transparent, request.pixel_ratio)?;
         return Ok(RenderResult {
             bounds,
             zoom_used: zoom,
@@ -231,7 +258,7 @@ async fn render_single_bbox(
     )
     .await?;
     let canvas =
-        renderer::composite_raster_tiles(&tiles, bbox, zoom, width, height, transparent)?;
+        renderer::composite_raster_tiles(&tiles, bbox, zoom, width, height, transparent, request.pixel_ratio)?;
     Ok(RenderResult {
         bounds,
         zoom_used: zoom,
@@ -282,8 +309,9 @@ async fn render_antimeridian_split(
     let row_w = west.width as usize * 4;
     let row_e = east.width as usize * 4;
     let row_out = row_w + row_e;
-    let mut pixels = vec![0u8; row_out * request.height as usize];
-    for row in 0..request.height as usize {
+    let rows = west.height.min(east.height) as usize;
+    let mut pixels = vec![0u8; row_out * rows];
+    for row in 0..rows {
         let out = &mut pixels[row * row_out..][..row_out];
         out[..row_w].copy_from_slice(&west.pixels[row * row_w..][..row_w]);
         out[row_w..].copy_from_slice(&east.pixels[row * row_e..][..row_e]);
@@ -293,7 +321,7 @@ async fn render_antimeridian_split(
         bounds: SpatialBounds { xmin, ymin, xmax, ymax, crs_epsg: 3857 },
         zoom_used: zoom,
         width: west.width + east.width,
-        height: request.height,
+        height: rows as u32,
         pixels,
     })
 }
@@ -545,10 +573,13 @@ async fn fetch_glyphs(
 
 /// Fetch the style's 1x sprite (`<sprite>.json` + `<sprite>.png`). A missing
 /// or broken sprite only disables icons.
+/// The style's sprite; above pixel ratio 1 the `@2x` sheet (as MapLibre
+/// loads it), falling back to 1x.
 async fn fetch_sprite(
     client: &reqwest::Client,
     style: &serde_json::Value,
     style_base_url: Option<&str>,
+    pixel_ratio: f64,
 ) -> vector::symbol::Sprite {
     let Some(sprite) = style["sprite"].as_str() else { return Default::default() };
     let base = resolve_url(sprite, style_base_url);
@@ -563,12 +594,151 @@ async fn fetch_sprite(
             resp.bytes().await.ok().map(|b| b.to_vec())
         }
     };
-    let (json, png) = tokio::join!(get(format!("{base}.json")), get(format!("{base}.png")));
-    match (json, png) {
-        (Some(j), Some(p)) => vector::symbol::Sprite::from_json_png(&j, &p).unwrap_or_else(|e| {
+    let mut fetched = None;
+    if pixel_ratio > 1.0 {
+        let (json, png) = tokio::join!(get(format!("{base}@2x.json")), get(format!("{base}@2x.png")));
+        if let (Some(j), Some(p)) = (json, png) {
+            fetched = Some((j, p));
+        }
+    }
+    if fetched.is_none() {
+        let (json, png) = tokio::join!(get(format!("{base}.json")), get(format!("{base}.png")));
+        if let (Some(j), Some(p)) = (json, png) {
+            fetched = Some((j, p));
+        }
+    }
+    let mut sprite = match fetched {
+        Some((j, p)) => vector::symbol::Sprite::from_json_png(&j, &p).unwrap_or_else(|e| {
             log::warn!("{e}");
             Default::default()
         }),
-        _ => Default::default(),
+        None => Default::default(),
+    };
+    sprite.device_pixel_ratio = pixel_ratio;
+    sprite
+}
+
+/// Tiles (with world-copy wrap), glyphs and sprite for rendering a vector
+/// style over `bbox`, fetched as MapLibre would: style evaluated at the true
+/// scale zoom, 512 px tiles at floor(zoom) clamped to the source maxzoom.
+/// An explicit request zoom is on the 256 px raster grid, one level above the
+/// equivalent 512 px tile zoom.
+#[allow(clippy::type_complexity)]
+async fn fetch_vector_inputs(
+    request: &RenderRequest,
+    client: &reqwest::Client,
+    style_json: &str,
+    tile_source: &TileSource,
+    bbox: [f64; 4],
+    width: u32,
+) -> Result<
+    (serde_json::Value, Vec<(tile_fetcher::TileCoord, i32, tile_fetcher::TileData)>, vector::symbol::SymbolAssets, u8),
+    BasemapError,
+> {
+    let sz = vector::render::scale_zoom(bbox, width);
+    let tz = match request.zoom {
+        Some(z) => z.saturating_sub(1),
+        None => vector::render::tile_zoom(sz, None),
+    };
+    let tz = tile_source.maxzoom().map_or(tz, |m| tz.min(m));
+    let covering = vector::render::covering_tiles(bbox, tz);
+    let mut coords: Vec<tile_fetcher::TileCoord> = covering.iter().map(|c| c.0).collect();
+    coords.sort_by_key(|c| (c.z, c.x, c.y));
+    coords.dedup();
+    let urls = tile_fetcher::build_tile_urls(tile_source, &coords);
+    let tiles = tile_fetcher::fetch_all_tiles(
+        client,
+        urls,
+        tile_source,
+        request.tile_timeout_ms,
+        request.tile_concurrency,
+        request.fail_on_tile_error,
+    )
+    .await?;
+    let style_val: serde_json::Value =
+        serde_json::from_str(style_json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
+    let assets = vector::symbol::SymbolAssets {
+        glyphs: fetch_glyphs(client, &style_val, style_base_url_of(request), &tiles, sz).await,
+        sprite: fetch_sprite(client, &style_val, style_base_url_of(request), request.pixel_ratio).await,
+    };
+    let by_coord: std::collections::HashMap<(u8, u32, u32), &tile_fetcher::TileData> =
+        tiles.iter().map(|(c, d)| ((c.z, c.x, c.y), d)).collect();
+    let placed = covering
+        .iter()
+        .filter_map(|(c, wrap)| by_coord.get(&(c.z, c.x, c.y)).map(|d| (*c, *wrap, (*d).clone())))
+        .collect();
+    Ok((style_val, placed, assets, tz))
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// SVG output
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// Render a vector style as an SVG document (see [`render_svg_stack`]).
+pub fn render_svg(request: RenderRequest) -> Result<String, BasemapError> {
+    render_svg_stack(vec![request])
+}
+
+/// Render several styles over the same view as one SVG document, bottom to
+/// top, each style in its own group (e.g. a basemap built from separate
+/// services). Fills, lines and circles are vector paths; labels are glyph
+/// outlines traced from the style's SDF glyphs; non-SDF icons are embedded
+/// sprite images. All requests must share bbox, width and height, and use
+/// vector tile sources.
+pub fn render_svg_stack(requests: Vec<RenderRequest>) -> Result<String, BasemapError> {
+    use std::fmt::Write as _;
+    let first = requests.first().ok_or_else(|| BasemapError::RenderError("no styles to render".into()))?;
+    let (bbox, width, height) = (first.bbox, first.width, first.height);
+    if bbox[0] > bbox[2] {
+        return Err(BasemapError::InvalidBbox("SVG output does not support anti-meridian (xmin > xmax) bboxes".into()));
     }
+    let mut defs = String::new();
+    let mut body = String::new();
+    for (k, request) in requests.into_iter().enumerate() {
+        if request.bbox != bbox || request.width != width || request.height != height {
+            return Err(BasemapError::RenderError("all styles in an SVG stack must share bbox and size".into()));
+        }
+        request.validate()?;
+        let parts = RUNTIME.block_on(async {
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_millis(request.tile_timeout_ms as u64))
+                .use_rustls_tls()
+                .user_agent(concat!("basemapper/", env!("CARGO_PKG_VERSION")))
+                .build()
+                .map_err(|e| BasemapError::RenderError(e.to_string()))?;
+            let raw_json = request.style_input.resolve(&client, request.auth_token.as_deref()).await?;
+            style::validate_maplibre_style(&raw_json)?;
+            let style_json = match &request.layers {
+                Some(layers) => filter_style_layers(&raw_json, layers)?,
+                None => raw_json,
+            };
+            let style_val: serde_json::Value =
+                serde_json::from_str(&style_json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
+            let tile_source =
+                extract_tile_source_from_style(&style_val, &client, request.auth_token.as_deref(), style_base_url_of(&request)).await?;
+            if !matches!(tile_source, TileSource::MapboxVectorTile { .. }) {
+                return Err(BasemapError::RenderError("SVG output needs a vector tile source".into()));
+            }
+            let (style_val, placed, assets, _) =
+                fetch_vector_inputs(&request, &client, &style_json, &tile_source, bbox, width).await?;
+            vector::render::render_svg(&style_val, &placed, &assets, bbox, width, height, &format!("s{k}_"))
+                .map_err(BasemapError::RenderError)
+        })?;
+        if !parts.skipped_layer_types.is_empty() {
+            log::warn!("SVG output does not draw these layer types yet: {}", parts.skipped_layer_types.join(", "));
+        }
+        defs.push_str(&parts.defs);
+        let _ = write!(body, r#"<g id="style{k}">{}</g>"#, parts.body);
+    }
+    Ok(format!(
+        concat!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" "#,
+            r#"width="{w}" height="{h}" viewBox="0 0 {w} {h}">"#,
+            r#"<defs>{defs}</defs>{body}</svg>"#
+        ),
+        w = width,
+        h = height,
+        defs = defs,
+        body = body
+    ))
 }

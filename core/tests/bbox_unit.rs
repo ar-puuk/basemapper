@@ -170,3 +170,13 @@ fn mercator_to_tile_smoke() {
     let (tx, ty) = mercator_to_tile(0.0, 0.0, 1);
     assert_eq!((tx, ty), (1, 1));
 }
+
+#[test]
+fn bbox_from_center_round_trips_through_fit_bounds() {
+    let b = basemapper_core::bbox_from_center(-111.8887, 40.7556, 12.4, 800, 600);
+    let (lon, lat, z) = basemapper_core::fit_bounds(b, 800, 600);
+    assert!((lon + 111.8887).abs() < 1e-9 && (lat - 40.7556).abs() < 1e-9, "{lon} {lat}");
+    assert!((z - 12.4).abs() < 1e-9, "{z}");
+    // 800 px at zoom 12.4: 14.48 m/px.
+    assert!(((b[2] - b[0]) / 800.0 - 14.482_108_758).abs() < 1e-6);
+}

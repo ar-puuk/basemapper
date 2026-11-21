@@ -15,6 +15,7 @@ pub fn composite_raster_tiles(
     width: u32,
     height: u32,
     transparent_background: bool,
+    pixel_ratio: f64,
 ) -> Result<RgbaImage, BasemapError> {
     let mut canvas = if transparent_background {
         RgbaImage::new(width, height)
@@ -50,8 +51,10 @@ pub fn composite_raster_tiles(
         );
         let tile_xmin = tx as f64 * tile_size_m - half_circ;
         let tile_ymax = half_circ - ty as f64 * tile_size_m;
-        let px_x = ((tile_xmin - bbox[0]) * scale_x).round() as i64;
-        let px_y = ((bbox[3] - tile_ymax) * scale_y).round() as i64;
+        // Tiles snap to the CSS pixel grid (MapLibre's alignedProjMatrix
+        // for raster tiles), then scale to device pixels.
+        let px_x = (((tile_xmin - bbox[0]) * scale_x / pixel_ratio).round() * pixel_ratio).round() as i64;
+        let px_y = (((bbox[3] - tile_ymax) * scale_y / pixel_ratio).round() * pixel_ratio).round() as i64;
         image::imageops::overlay(&mut canvas, &resized, px_x, px_y);
     }
 

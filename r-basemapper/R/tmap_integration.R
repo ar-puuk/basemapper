@@ -4,12 +4,16 @@
 #' bounding box resolved from the active `tm_shape()` — no explicit `bbox`
 #' argument is needed. This mirrors how tmap's own `tm_basemap()` works.
 #'
-#' @param style_input Character: a MapLibre GL style URL or inline JSON string.
+#' @param style_input Character: a MapLibre GL style URL or inline JSON
+#'   string, or a vector / list of styles stacked bottom to top.
 #' @param zoom Integer zoom level (0–22), or `NULL` for automatic.
 #' @param alpha Numeric opacity (0–1).
 #' @param layers Character vector of layer IDs to filter. See `render_basemap_raw()`.
-#' @param width_px,height_px Output dimensions in pixels. Defaults to 800×600
-#'   when `NULL`.
+#' @param width_px,height_px View size in CSS pixels (sets the zoom).
+#'   Defaults to 800×600 when `NULL`.
+#' @param ratio Device pixels per CSS pixel: the basemap raster is
+#'   `width_px * ratio` by `height_px * ratio` pixels with the same zoom and
+#'   label layout. Use e.g. `ratio = 300 / 96` for print.
 #' @param ... Reserved for future use.
 #'
 #' @return A composable tmap element (class `"tmap"`). Put it before `tm_shape()`
@@ -32,6 +36,7 @@ tm_basemap <- function(
     layers    = NULL,
     width_px  = NULL,
     height_px = NULL,
+    ratio     = 1,
     ...
 ) {
   if (!requireNamespace("tmap", quietly = TRUE)) stop("Package 'tmap' is required.")
@@ -44,7 +49,8 @@ tm_basemap <- function(
         alpha       = alpha,
         layers      = layers,
         width_px    = width_px,
-        height_px   = height_px
+        height_px   = height_px,
+        ratio       = ratio
       ),
       mapping.fun   = "tm_basemap_rust",
       zindex        = 0,
@@ -76,17 +82,14 @@ tmapGridAuxPrepare.tm_basemap_rust <- function(a, bs, id, o) {
   xs <- lapply(bs, function(b) {
     b_3857 <- sf::st_bbox(sf::st_transform(sf::st_as_sfc(b), crs = "EPSG:3857"))
 
+    ratio <- as.numeric(a$ratio %||% 1)
     m <- tryCatch(
-      render_basemap_raw(
-        bbox        = c(b_3857["xmin"], b_3857["ymin"],
-                        b_3857["xmax"], b_3857["ymax"]),
-        crs         = 3857L,
-        width       = w,
-        height      = h,
-        style_input = a$style_input,
-        zoom        = a$zoom,
-        layers      = a$layers
-      ),
+      pixels_to_array(render_styles_3857(
+        unname(c(b_3857["xmin"], b_3857["ymin"], b_3857["xmax"], b_3857["ymax"])),
+        w, h, a$style_input, ratio,
+        zoom    = a$zoom,
+        options = list(layers = a$layers)
+      )),
       error = function(e) {
         warning("basemapper: render_basemap_raw failed: ", conditionMessage(e))
         NULL
@@ -95,7 +98,7 @@ tmapGridAuxPrepare.tm_basemap_rust <- function(a, bs, id, o) {
     if (is.null(m)) return(NULL)
 
     r <- terra::rast(
-      nrows = h, ncols = w,
+      nrows = dim(m)[1], ncols = dim(m)[2],
       xmin  = unname(b_3857["xmin"]), xmax = unname(b_3857["xmax"]),
       ymin  = unname(b_3857["ymin"]), ymax = unname(b_3857["ymax"]),
       nlyr  = 3L, crs = "EPSG:3857"
@@ -171,7 +174,7 @@ tmapGridAuxPrepare.tm_basemap_rust <- function(a, bs, id, o) {
   .BASEMAPPER_TMAP$bmaps_shpTHs[[key]] <- shpTMs
   .BASEMAPPER_TMAP$bmaps_dts[[key]]    <- ds
 
-  a$style_input
+  style_strings(a$style_input)[1L]
 }
 
 #' @exportS3Method tmap::tmapGridAuxPlot

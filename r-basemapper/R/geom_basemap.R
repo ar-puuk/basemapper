@@ -13,7 +13,8 @@ GeomBasemap <- ggplot2::ggproto(
   default_aes   = ggplot2::aes(),
 
   draw_panel = function(data, panel_params, coord,
-                        style_url, zoom, tile_timeout, max_tiles, alpha, layers) {
+                        style_url, zoom, tile_timeout, max_tiles, alpha, layers,
+                        ratio = NULL) {
     # Extract panel extent and reproject to EPSG:3857.
     x_range <- panel_params$x.range %||% panel_params$x_range
     y_range <- panel_params$y.range %||% panel_params$y_range
@@ -32,43 +33,55 @@ GeomBasemap <- ggplot2::ggproto(
       max_tiles    = max_tiles,
       alpha        = alpha,
       layers       = layers,
+      ratio        = ratio,
       cl           = "BasemapGrob"
     )
   }
 )
 
+#' Output resolution of the current graphics device, in dpi.
+#'
+#' Raster devices report their resolution (e.g. `ggsave(dpi = 300)`); vector
+#' devices (PDF, SVG, PostScript) have none, so their embedded basemap is
+#' rendered at 300 dpi.
+#' @keywords internal
+device_dpi <- function() {
+  dev <- tolower(names(grDevices::dev.cur()))
+  if (any(startsWith(dev, c("pdf", "svg", "cairo_pdf", "cairo_ps", "postscript", "devsvg", "svglite")))) {
+    return(300)
+  }
+  tryCatch({
+    d <- grDevices::dev.size("px")[1] / grDevices::dev.size("in")[1]
+    if (is.finite(d) && d > 0) d else 96
+  }, error = function(e) 96)
+}
+
 #' makeContent method for BasemapGrob.
 #'
-#' Called by grid at draw time (inside an active viewport).  Converts npc
-#' to pixel dimensions, fetches tiles, and returns a rasterGrob child.
+#' Called by grid at draw time (inside an active viewport). Renders the
+#' basemap for the panel's size at the device's resolution and returns a
+#' rasterGrob child.
 #'
 #' @exportS3Method grid::makeContent
 makeContent.BasemapGrob <- function(x) {
-  dpi <- tryCatch(
-    round(grDevices::dev.size("px")[1] / grDevices::dev.size("in")[1]),
-    error = function(e) 96L
-  )
-  width_px  <- max(1L, round(
-    grid::convertWidth(grid::unit(1, "npc"), "in", valueOnly = TRUE) * dpi
-  ))
-  height_px <- max(1L, round(
-    grid::convertHeight(grid::unit(1, "npc"), "in", valueOnly = TRUE) * dpi
-  ))
+  dpi   <- device_dpi()
+  # CSS px are 1/96 in: by default render at the device resolution with map
+  # symbols at their physical size (ratio = dpi / 96).
+  ratio <- x$ratio %||% (dpi / 96)
+  w_in  <- grid::convertWidth(grid::unit(1, "npc"), "in", valueOnly = TRUE)
+  h_in  <- grid::convertHeight(grid::unit(1, "npc"), "in", valueOnly = TRUE)
+  css_w <- max(1L, as.integer(round(w_in * dpi / ratio)))
+  css_h <- max(1L, as.integer(round(h_in * dpi / ratio)))
 
-  m <- render_basemap_raw(
-    bbox            = x$bbox_3857,
-    crs             = 3857L,
-    width           = width_px,
-    height          = height_px,
-    style_input     = x$style_url,
-    zoom            = x$zoom,
-    tile_timeout_ms = x$tile_timeout,
-    max_tiles       = x$max_tiles,
-    layers          = x$layers
+  px <- render_styles_3857(
+    x$bbox_3857, css_w, css_h, x$style_url, ratio,
+    zoom    = x$zoom,
+    options = list(layers = x$layers, tile_timeout_ms = x$tile_timeout,
+                   max_tiles = x$max_tiles)
   )
 
   img <- grid::rasterGrob(
-    as.raster(m / 255),
+    as.raster(pixels_to_array(px) / 255),
     x             = 0.5,
     y             = 0.5,
     width         = grid::unit(1, "npc"),
@@ -86,13 +99,22 @@ makeContent.BasemapGrob <- function(x) {
 #' Wraps a lazy `GeomBasemap` ggproto layer that defers tile fetching until
 #' `coord_sf()` has established the panel's geographic extent.
 #'
-#' @param style_url Character: a MapLibre GL style URL or inline JSON string.
+#' The basemap is rendered when the plot is drawn, for the panel's size at
+#' the device's resolution: `ggsave(dpi = 300)` gets a basemap rendered
+#' natively at 300 dpi (and PDF / SVG output at 300 dpi), not an upscaled
+#' screen image.
+#'
+#' @param style_url Character: a MapLibre GL style URL or inline JSON string,
+#'   or a vector / list of styles stacked bottom to top.
 #' @param zoom Integer zoom level (0–22), or `NULL` for automatic selection.
 #' @param tile_timeout Integer per-tile HTTP timeout in milliseconds.
 #' @param max_tiles Integer maximum tile downloads per render.
 #' @param alpha Numeric opacity of the basemap layer (0–1).
 #' @param layers Character vector of layer IDs to filter. Plain IDs keep only
 #'   those layers; minus-prefixed IDs exclude those layers. `NULL` renders all.
+#' @param ratio Device pixels per CSS pixel (MapLibre's devicePixelRatio).
+#'   Default: device dpi / 96, so lines and labels keep their physical size at
+#'   any resolution. Larger values draw map symbols smaller.
 #' @param ... Additional arguments passed to `ggplot2::layer()`.
 #'
 #' @return A ggplot2 layer object.
@@ -115,6 +137,7 @@ geom_basemap <- function(
     max_tiles   = 256L,
     alpha       = 1,
     layers      = NULL,
+    ratio       = NULL,
     ...
 ) {
   ggplot2::layer(
@@ -132,6 +155,7 @@ geom_basemap <- function(
       max_tiles    = max_tiles,
       alpha        = alpha,
       layers       = layers,
+      ratio        = ratio,
       ...
     )
   )

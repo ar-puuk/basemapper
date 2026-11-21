@@ -2,7 +2,12 @@
 % Please edit documentation in R/providers.R
 \name{wms_provider}
 \alias{wms_provider}
-\title{WMS provider style}
+\title{WMS provider style
+
+Build a MapLibre GL Style JSON string that uses a WMS GetMap endpoint as a
+raster tile source.  The Rust tile engine substitutes \code{\{xmin\}},
+\code{\{ymin\}}, \code{\{xmax\}}, \code{\{ymax\}} with EPSG:3857 coordinates
+for each 256×256 tile.}
 \usage{
 wms_provider(
   url,
@@ -30,25 +35,13 @@ wms_provider(
 \item{extra_params}{Character or \code{NULL}: additional query parameters appended verbatim.}
 }
 \value{
-A JSON character string ready to pass to \code{\link{render_basemap_raw}()}.
+A JSON character string ready to pass to \code{render_basemap_raw()}.
 }
 \description{
+WMS provider style
+
 Build a MapLibre GL Style JSON string that uses a WMS GetMap endpoint as a
 raster tile source.  The Rust tile engine substitutes \code{\{xmin\}},
 \code{\{ymin\}}, \code{\{xmax\}}, \code{\{ymax\}} with EPSG:3857 coordinates
 for each 256×256 tile.
-}
-\examples{
-\dontrun{
-style <- wms_provider(
-  url    = "https://gis.example.com/wms",
-  layers = "imagery"
-)
-m <- render_basemap_raw(
-  bbox        = c(-122.5, 37.7, -122.4, 37.8),
-  width       = 400L,
-  height      = 300L,
-  style_input = style
-)
-}
 }

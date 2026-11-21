@@ -3,9 +3,15 @@
 A headless spatial basemap renderer for **R** and **Python**.
 
 basemapper renders styled basemaps (MapLibre / Mapbox GL styles, raster XYZ,
-WMS, WMTS, PMTiles, ESRI vector tiles) into RGBA pixel arrays with a Rust
-core, and adds them to **ggplot2**, **tmap**, **matplotlib** and **plotnine**
-plots. No browser, GPU, display server or GDAL is involved.
+WMS, WMTS, PMTiles, ESRI vector tiles) with a Rust core, to PNG, arrays and
+rasters, or true vector SVG, and adds them to **ggplot2**, **tmap**,
+**matplotlib** and **plotnine** plots. No browser, GPU, display server or
+GDAL is involved.
+
+Basemaps are rendered for the exact view and output resolution: any
+fractional zoom, any pixel ratio (a 300 dpi figure gets a basemap rendered at
+300 dpi, not upscaled tiles), and several styles can be stacked (e.g. a
+hillshade, base and labels published as separate services).
 
 Vector styles are drawn by basemapper's own CPU renderer, a software port of
 MapLibre GL JS's rendering pipeline, verified pixel by pixel against MapLibre
@@ -52,6 +58,39 @@ Optional: `plotnine >= 0.12` for `geom_basemap()`.
 ---
 
 ## Quick start
+
+### A map on its own
+
+```r
+library(basemapper)
+ugrc <- "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services"
+styles <- sprintf("%s/%s/VectorTileServer/resources/styles/root.json", ugrc,
+                  c("VectorHillshade", "LiteBase", "LiteLabels"))   # bottom to top
+
+m <- basemap(styles, width = 800, height = 600,
+             center = c(-111.8887, 40.7556), zoom = 12.4, ratio = 2)
+render_png(m, "slc.png")    # 1600 x 1200, rendered natively at zoom 12.4
+render_svg(m, "slc.svg")    # true vector: paths and glyph outlines
+r <- render_raster(m)       # terra SpatRaster (EPSG:3857)
+```
+
+```python
+import basemapper
+ugrc = "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services"
+styles = [f"{ugrc}/{s}/VectorTileServer/resources/styles/root.json"
+          for s in ("VectorHillshade", "LiteBase", "LiteLabels")]
+
+m = basemapper.Map(styles, width=800, height=600, ratio=2,
+                   center=(-111.8887, 40.7556), zoom=12.4)
+m.render_png("slc.png")
+m.render_svg("slc.svg")
+arr = m.render_array()      # (1200, 1600, 4) uint8
+```
+
+`width` / `height` are CSS pixels and set the view; images are `ratio`
+times larger with the same layout (MapLibre's devicePixelRatio). Fit an
+extent instead of a centre with `bounds =` (R: a bbox, `sf` object; Python: a
+bbox, GeoDataFrame).
 
 ### R — ggplot2
 
@@ -127,9 +166,13 @@ style = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
 
 | What you want | R | Python |
 |---|---|---|
-| Raw RGBA render | `render_basemap_raw()` | `render_basemap_raw()` |
-| ggplot2 / plotnine layer | `geom_basemap()` | `geom_basemap()` |
-| matplotlib inject | — | `add_basemap()` |
+| A map view (centre + zoom, or bounds) | `basemap()`, `set_view()`, `set_bounds()` | `Map(...)`, `.set_center()`, `.set_bounds()` |
+| PNG | `render_png()` | `Map.render_png()` |
+| Vector SVG | `render_svg()` | `Map.render_svg()` |
+| Array / raster | `render_array()`, `render_raster()` | `Map.render_array()` |
+| Raw RGBA render of a bbox | `render_basemap_raw()` | `render_basemap_raw()`, `render_styles_raw()` |
+| ggplot2 / plotnine layer (renders at the output dpi) | `geom_basemap()` | `geom_basemap()` |
+| matplotlib layer (renders at the output dpi) | — | `add_basemap()` |
 | tmap layer | `tm_basemap()` | — |
 | Named provider (25 sources) | `basemap_provider()` | `basemap_provider()` |
 | OSM / raster style | `raster_provider()` | `RasterProvider` |
@@ -234,7 +277,7 @@ supported yet, and how fidelity is verified.
 
 | What | Command | Notes |
 |---|---|---|
-| Rust core: unit, integration and golden-image tests | `cargo test -p basemapper-core` | 160 golden cases compared with MapLibre GL JS references, run in parallel; `"svg": true` cases also score the SVG output (rasterised with resvg) |
+| Rust core: unit, integration and golden-image tests | `cargo test -p basemapper-core` | 168 golden cases (incl. pixel ratio 2) compared with MapLibre GL JS references, run in parallel; `"svg": true` cases also score the SVG output (rasterised with resvg) |
 | Python | build the wheel with `maturin build`, install it with `pytest responses plotnine`, then run `pytest` in `py-basemapper/` | Includes end-to-end renders against the golden fixtures |
 | R | `R CMD INSTALL r-basemapper`, then `testthat::test_dir("r-basemapper/tests/testthat")` | |
 | Visual comparison | open `check/index.html` after `cargo test` | Overview grid, side-by-side, swipe, blink and diff views |
