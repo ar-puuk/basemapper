@@ -25,8 +25,10 @@ impl Color {
 
     pub fn parse(s: &str) -> Option<Color> {
         let c = csscolorparser::parse(s.trim()).ok()?;
-        let a = c.a as f32;
-        Some(Color { r: c.r as f32 * a, g: c.g as f32 * a, b: c.b as f32 * a, a })
+        // Premultiply in double precision, as MapLibre's JS Color does,
+        // before the float32 conversion a uniform upload performs.
+        let a = c.a;
+        Some(Color { r: (c.r * a) as f32, g: (c.g * a) as f32, b: (c.b * a) as f32, a: a as f32 })
     }
 
     pub fn with_opacity(self, o: f32) -> Color {

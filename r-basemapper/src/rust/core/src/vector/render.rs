@@ -1,28 +1,25 @@
-//! Rasterise decoded vector tiles with a MapLibre style using tiny-skia.
+//! Render decoded vector tiles with a MapLibre style, modelling MapLibre GL
+//! JS's WebGL pipeline in software (see `gl.rs`).
 //!
-//! The view is the EPSG:3857 bbox mapped onto a `width × height` canvas at
-//! MapLibre's scale zoom (512 px tiles). Layers are drawn in style order; within
-//! a layer, each tile's features are hard-clipped to that tile's square (as
-//! MapLibre's stencil test does), so geometry repeated in neighbouring tiles'
-//! buffers is never drawn twice.
+//! The view is centred on the bbox centre at MapLibre's scale zoom (512 px
+//! tiles), exactly as MapLibre's transform places it. Layers are drawn in style
+//! order; fill and line fragments are clipped to their tile's square (MapLibre's
+//! stencil test). Circles are not clipped; points outside the tile are dropped,
+//! as MapLibre's CircleBucket does.
 
 use super::expr::{eval_filter, eval_property, is_data_driven, Color, Ctx, Kind, Val};
-use super::mvt::{self, Feature, Geometry, Point, Tile};
+use super::gl::{
+    raster_gl_line, raster_polygon, raster_triangle, smoothstep, Cap, Clip, Dash, Framebuffer, Join,
+    LineBuilder, Vert, ATLAS_W, EXTENT,
+};
+use super::mvt::{self, Feature, Geometry, Tile};
 use crate::tile_fetcher::TileCoord;
 use serde_json::Value as Json;
-use tiny_skia::{
-    FillRule, LineCap, LineJoin, Mask, Paint, Path, PathBuilder, Pixmap, Rect, Stroke, StrokeDash,
-    Transform,
-};
 
 const EARTH_HALF: f64 = 20_037_508.342_789_244;
 const EARTH_CIRC: f64 = 2.0 * EARTH_HALF;
 /// MapLibre vector tiles are laid out on a 512 px grid.
 pub const TILE_PX: f64 = 512.0;
-/// Supersampling factor. MapLibre computes exact per-pixel coverage in its
-/// shaders; tiny-skia's 4x4 AA quantises edges to 1/4 px. Rendering at SS x
-/// and box-filtering down approximates exact area coverage.
-const SS: u32 = 2;
 
 /// MapLibre's scale zoom for a bbox drawn `width` pixels wide.
 pub fn scale_zoom(bbox: [f64; 4], width: u32) -> f64 {
@@ -43,15 +40,15 @@ pub fn tile_zoom(scale_zoom: f64, source_maxzoom: Option<u8>) -> u8 {
     source_maxzoom.map_or(z, |m| z.min(m))
 }
 
-/// A decoded tile placed on the canvas.
 struct PlacedTile {
     tile: Tile,
-    /// Canvas-pixel origin of the tile's top-left corner.
+    /// Canvas position of the tile's top-left corner, in px.
     ox: f64,
     oy: f64,
-    /// Canvas pixels per tile unit, for a given layer extent (set per layer).
-    tile_px: f64,
-    clip: Option<Mask>,
+    /// Canvas px per 8192-extent tile unit.
+    unit_px: f64,
+    clip: Clip,
+    overscaling: f64,
 }
 
 pub struct RenderOutput {
@@ -70,12 +67,14 @@ pub fn render(
 ) -> Result<RenderOutput, String> {
     let zoom = scale_zoom(bbox, width);
     let world_px = TILE_PX * 2f64.powf(zoom);
-    let view_x0 = (bbox[0] + EARTH_HALF) / EARTH_CIRC * world_px;
-    let view_y0 = (EARTH_HALF - bbox[3]) / EARTH_CIRC * world_px;
+    // MapLibre's transform: centre point minus half the viewport.
+    let cx = ((bbox[0] + bbox[2]) / 2.0 + EARTH_HALF) / EARTH_CIRC * world_px;
+    let cy = (EARTH_HALF - (bbox[1] + bbox[3]) / 2.0) / EARTH_CIRC * world_px;
+    let view_x0 = cx - width as f64 / 2.0;
+    let view_y0 = cy - height as f64 / 2.0;
 
-    let ss = SS as f64;
-    let (cw, ch) = (width * SS, height * SS);
-    let mut pixmap = Pixmap::new(cw, ch).ok_or("invalid canvas size")?;
+    let (w, h) = (width as usize, height as usize);
+    let mut fb = Framebuffer::new(w, h);
 
     let mut placed = Vec::with_capacity(tiles.len());
     for (c, bytes) in tiles {
@@ -86,18 +85,17 @@ pub fn render(
                 continue;
             }
         };
-        let tile_px = world_px / 2f64.powi(c.z as i32) * ss;
-        let ox = (c.x as f64 * world_px / 2f64.powi(c.z as i32) - view_x0) * ss;
-        let oy = (c.y as f64 * world_px / 2f64.powi(c.z as i32) - view_y0) * ss;
-        // Hard (non-AA) clip like a stencil test.
-        let clip = Rect::from_xywh(ox as f32, oy as f32, tile_px as f32, tile_px as f32)
-            .map(PathBuilder::from_rect)
-            .and_then(|p| {
-                let mut m = Mask::new(cw, ch)?;
-                m.fill_path(&p, FillRule::Winding, false, Transform::identity());
-                Some(m)
-            });
-        placed.push(PlacedTile { tile, ox, oy, tile_px, clip });
+        let tile_px = world_px / 2f64.powi(c.z as i32);
+        let ox = c.x as f64 * tile_px - view_x0;
+        let oy = c.y as f64 * tile_px - view_y0;
+        placed.push(PlacedTile {
+            tile,
+            ox,
+            oy,
+            unit_px: tile_px / EXTENT,
+            clip: Clip { x0: ox, y0: oy, x1: ox + tile_px, y1: oy + tile_px },
+            overscaling: 2f64.powi((zoom.floor() as i32 - c.z as i32).max(0)),
+        });
     }
 
     let mut skipped: Vec<String> = Vec::new();
@@ -112,29 +110,10 @@ pub fn render(
             continue;
         }
         match ltype {
-            "background" => draw_background(&mut pixmap, layer, zoom),
-            "fill" | "line" | "circle" => {
-                let Some(source_layer) = layer["source-layer"].as_str() else { continue };
-                for pt in &placed {
-                    let Some(l) = pt.tile.layers.get(source_layer) else { continue };
-                    let scale = pt.tile_px / l.extent as f64;
-                    let ctx_tile = TileXform { ox: pt.ox, oy: pt.oy, scale };
-                    let lp = LayerPaint::new(layer, ltype, zoom, SS as f32);
-                    for f in &l.features {
-                        let ctx = Ctx { zoom, feature: Some(f) };
-                        if let Some(filter) = layer.get("filter") {
-                            if !eval_filter(filter, &ctx) {
-                                continue;
-                            }
-                        }
-                        match ltype {
-                            "fill" => draw_fill(&mut pixmap, &lp, f, &ctx, &ctx_tile, pt.clip.as_ref()),
-                            "line" => draw_line(&mut pixmap, &lp, f, &ctx, &ctx_tile, pt.clip.as_ref()),
-                            _ => draw_circle(&mut pixmap, &lp, f, &ctx, &ctx_tile, pt.clip.as_ref()),
-                        }
-                    }
-                }
-            }
+            "background" => draw_background(&mut fb, layer, zoom),
+            "fill" => draw_fill_layer(&mut fb, layer, zoom, &placed),
+            "line" => draw_line_layer(&mut fb, layer, zoom, &placed),
+            "circle" => draw_circle_layer(&mut fb, layer, zoom, &placed),
             other => {
                 if !skipped.iter().any(|s| s == other) {
                     skipped.push(other.to_owned());
@@ -143,53 +122,34 @@ pub fn render(
         }
     }
 
-    // Box-filter the supersampled canvas (premultiplied), then convert to
-    // straight alpha, which is what MapLibre's canvas readback produces.
-    let src = pixmap.data();
-    let n = (SS * SS) as u32;
-    let mut out = Vec::with_capacity((width * height * 4) as usize);
-    for y in 0..height {
-        for x in 0..width {
-            let mut acc = [0u32; 4];
-            for sy in 0..SS {
-                let row = ((y * SS + sy) * cw + x * SS) as usize * 4;
-                for sx in 0..SS as usize {
-                    for (i, a) in acc.iter_mut().enumerate() {
-                        *a += src[row + sx * 4 + i] as u32;
-                    }
-                }
-            }
-            let a = (acc[3] + n / 2) / n;
-            let mut px = [0u8; 4];
-            px[3] = a as u8;
-            if a > 0 {
-                for i in 0..3 {
-                    // straight = premultiplied_sum / alpha_sum
-                    px[i] = ((acc[i] * 255 + acc[3] / 2) / acc[3]).min(255) as u8;
-                }
-            }
-            out.extend_from_slice(&px);
+    Ok(RenderOutput { pixels: fb.into_straight_rgba(), skipped_layer_types: skipped })
+}
+
+/// Features of `layer`'s source-layer in `pt` that pass the layer filter,
+/// with the scale from the layer's extent to MapLibre's 8192 extent.
+fn features<'a>(layer: &'a Json, pt: &'a PlacedTile, zoom: f64) -> impl Iterator<Item = (&'a Feature, f64)> + 'a {
+    let src = layer["source-layer"].as_str().and_then(|sl| pt.tile.layers.get(sl));
+    let scale = src.map_or(1.0, |l| EXTENT / l.extent as f64);
+    let feats = src.map(|l| l.features.as_slice()).unwrap_or(&[]);
+    feats.iter().filter_map(move |f| {
+        let ctx = Ctx { zoom, feature: Some(f) };
+        match layer.get("filter") {
+            Some(filter) if !eval_filter(filter, &ctx) => None,
+            _ => Some((f, scale)),
         }
-    }
-    Ok(RenderOutput { pixels: out, skipped_layer_types: skipped })
+    })
 }
 
-struct TileXform {
-    ox: f64,
-    oy: f64,
-    scale: f64,
-}
-
-impl TileXform {
-    fn apply(&self, p: Point) -> (f32, f32) {
-        ((self.ox + p.0 as f64 * self.scale) as f32, (self.oy + p.1 as f64 * self.scale) as f32)
-    }
+/// MapLibre's `loadGeometry`: scale to the 8192 extent and round.
+#[inline]
+fn to_extent(p: (f32, f32), scale: f64) -> (f64, f64) {
+    ((p.0 as f64 * scale + 0.5).floor(), (p.1 as f64 * scale + 0.5).floor())
 }
 
 // ── Paint properties ─────────────────────────────────────────────────────────
 
-/// A paint/layout property, hoisted to a constant when it doesn't depend on
-/// feature data.
+/// A paint property, hoisted to a constant when it doesn't depend on feature
+/// data (MapLibre passes those as uniforms; data-driven ones as attributes).
 enum Prop<'a> {
     Const(Val),
     Data(&'a Json, Kind),
@@ -217,307 +177,325 @@ impl<'a> Prop<'a> {
         self.get(ctx).and_then(|v| v.as_num()).unwrap_or(default)
     }
 
+    /// Data-driven colors are packed into 8-bit attributes (`packColor`
+    /// floors each premultiplied channel); uniforms keep full precision.
     fn color(&self, ctx: &Ctx, default: Color) -> Color {
-        self.get(ctx).and_then(|v| v.as_color()).unwrap_or(default)
+        let c = self.get(ctx).and_then(|v| v.as_color()).unwrap_or(default);
+        if matches!(self, Prop::Data(..)) {
+            let q = |v: f32| (v * 255.0).floor().clamp(0.0, 255.0) / 255.0;
+            Color { r: q(c.r), g: q(c.g), b: q(c.b), a: q(c.a) }
+        } else {
+            c
+        }
     }
 
     fn is_set(&self) -> bool {
         !matches!(self, Prop::Absent)
     }
-}
 
-struct LayerPaint<'a> {
-    color: Prop<'a>,
-    opacity: Prop<'a>,
-    outline_color: Prop<'a>,
-    translate: Prop<'a>,
-    width: Prop<'a>,
-    gap_width: Prop<'a>,
-    offset: Prop<'a>,
-    dasharray: Prop<'a>,
-    cap: LineCap,
-    join: LineJoin,
-    miter_limit: f32,
-    radius: Prop<'a>,
-    stroke_width: Prop<'a>,
-    stroke_color: Prop<'a>,
-    stroke_opacity: Prop<'a>,
-    antialias: bool,
-    /// Canvas pixels per CSS pixel (supersampling factor).
-    scale: f32,
-}
-
-impl<'a> LayerPaint<'a> {
-    fn new(layer: &'a Json, ltype: &str, zoom: f64, scale: f32) -> Self {
-        let p = &layer["paint"];
-        let l = &layer["layout"];
-        let g = |k: &str| p.get(format!("{ltype}-{k}"));
-        let cap = match l["line-cap"].as_str() {
-            Some("round") => LineCap::Round,
-            Some("square") => LineCap::Square,
-            _ => LineCap::Butt,
-        };
-        let join = match l["line-join"].as_str() {
-            Some("round") => LineJoin::Round,
-            Some("bevel") => LineJoin::Bevel,
-            _ => LineJoin::Miter,
-        };
-        LayerPaint {
-            color: Prop::new(g("color"), Kind::Color, zoom),
-            opacity: Prop::new(g("opacity"), Kind::Number, zoom),
-            outline_color: Prop::new(p.get("fill-outline-color"), Kind::Color, zoom),
-            translate: Prop::new(g("translate"), Kind::Array, zoom),
-            width: Prop::new(g("width"), Kind::Number, zoom),
-            gap_width: Prop::new(p.get("line-gap-width"), Kind::Number, zoom),
-            offset: Prop::new(p.get("line-offset"), Kind::Number, zoom),
-            dasharray: Prop::new(p.get("line-dasharray"), Kind::Array, zoom),
-            cap,
-            join,
-            miter_limit: l["line-miter-limit"].as_f64().unwrap_or(2.0) as f32,
-            radius: Prop::new(p.get("circle-radius"), Kind::Number, zoom),
-            stroke_width: Prop::new(p.get("circle-stroke-width"), Kind::Number, zoom),
-            stroke_color: Prop::new(p.get("circle-stroke-color"), Kind::Color, zoom),
-            stroke_opacity: Prop::new(p.get("circle-stroke-opacity"), Kind::Number, zoom),
-            antialias: p["fill-antialias"].as_bool().unwrap_or(true),
-            scale,
+    fn translate(&self, ctx: &Ctx) -> (f64, f64) {
+        match self.get(ctx).and_then(|v| v.as_num_array()) {
+            Some(t) if t.len() == 2 => (t[0], t[1]),
+            _ => (0.0, 0.0),
         }
     }
 }
 
-fn paint_for(c: Color, aa: bool) -> Option<Paint<'static>> {
-    if c.a <= 0.0 {
-        return None;
-    }
-    let a = c.a.clamp(0.0, 1.0);
-    let un = |v: f32| (v / a).clamp(0.0, 1.0);
-    let mut paint = Paint::default();
-    paint.set_color(tiny_skia::Color::from_rgba(un(c.r), un(c.g), un(c.b), a)?);
-    paint.anti_alias = aa;
-    Some(paint)
+#[inline]
+fn rgba(c: Color, k: f64) -> [f32; 4] {
+    let k = k as f32;
+    [c.r * k, c.g * k, c.b * k, c.a * k]
 }
 
-fn translate_of(lp: &LayerPaint, ctx: &Ctx) -> Transform {
-    match lp.translate.get(ctx).and_then(|v| v.as_num_array()) {
-        Some(t) if t.len() == 2 => {
-            Transform::from_translate(t[0] as f32 * lp.scale, t[1] as f32 * lp.scale)
-        }
-        _ => Transform::identity(),
-    }
+#[inline]
+fn scaled(c: [f32; 4], a: f64) -> [f32; 4] {
+    let a = a as f32;
+    [c[0] * a, c[1] * a, c[2] * a, c[3] * a]
 }
 
-// ── Layer drawing ────────────────────────────────────────────────────────────
+// ── Background ───────────────────────────────────────────────────────────────
 
-fn draw_background(pixmap: &mut Pixmap, layer: &Json, zoom: f64) {
+fn draw_background(fb: &mut Framebuffer, layer: &Json, zoom: f64) {
     let ctx = Ctx { zoom, feature: None };
     let p = &layer["paint"];
-    let color = p
-        .get("background-color")
-        .map(|j| eval_property(j, Kind::Color, &ctx))
-        .and_then(|v| v.as_color())
-        .unwrap_or(Color::BLACK);
-    let opacity = p
-        .get("background-opacity")
-        .map(|j| eval_property(j, Kind::Number, &ctx))
-        .and_then(|v| v.as_num())
-        .unwrap_or(1.0);
-    if let Some(paint) = paint_for(color.with_opacity(opacity as f32), false) {
-        let r = Rect::from_xywh(0.0, 0.0, pixmap.width() as f32, pixmap.height() as f32).unwrap();
-        pixmap.fill_rect(r, &paint, Transform::identity(), None);
-    }
-}
-
-fn ring_path(pb: &mut PathBuilder, ring: &[Point], xf: &TileXform, close: bool) {
-    let mut it = ring.iter();
-    if let Some(&p0) = it.next() {
-        let (x, y) = xf.apply(p0);
-        pb.move_to(x, y);
-        for &p in it {
-            let (x, y) = xf.apply(p);
-            pb.line_to(x, y);
-        }
-        if close {
-            pb.close();
-        }
-    }
-}
-
-fn draw_fill(
-    pixmap: &mut Pixmap,
-    lp: &LayerPaint,
-    f: &Feature,
-    ctx: &Ctx,
-    xf: &TileXform,
-    clip: Option<&Mask>,
-) {
-    let Geometry::Polygons(polys) = &f.geometry else { return };
-    let opacity = lp.opacity.num(ctx, 1.0) as f32;
-    let color = lp.color.color(ctx, Color::BLACK).with_opacity(opacity);
-    let mut pb = PathBuilder::new();
-    for poly in polys {
-        for ring in poly {
-            ring_path(&mut pb, ring, xf, true);
-        }
-    }
-    let Some(path) = pb.finish() else { return };
-    let t = translate_of(lp, ctx);
-    if let Some(paint) = paint_for(color, lp.antialias) {
-        pixmap.fill_path(&path, &paint, FillRule::Winding, t, clip);
-    }
-    // MapLibre draws a 1 px outline when fill-outline-color is set.
-    if lp.antialias && lp.outline_color.is_set() {
-        let oc = lp.outline_color.color(ctx, Color::BLACK).with_opacity(opacity);
-        if let Some(paint) = paint_for(oc, true) {
-            let stroke = Stroke { width: lp.scale, ..Stroke::default() };
-            pixmap.stroke_path(&path, &paint, &stroke, t, clip);
-        }
-    }
-}
-
-/// Offset a polyline perpendicular to its direction; positive is to the right
-/// in screen space (y down), using mitred vertex normals like MapLibre's
-/// line extrusion.
-fn offset_line(pts: &[(f32, f32)], d: f32) -> Vec<(f32, f32)> {
-    if pts.len() < 2 || d == 0.0 {
-        return pts.to_vec();
-    }
-    let normal = |a: (f32, f32), b: (f32, f32)| {
-        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
-        let len = (dx * dx + dy * dy).sqrt();
-        if len == 0.0 {
-            (0.0, 0.0)
-        } else {
-            (-dy / len, dx / len)
-        }
-    };
-    let n = pts.len();
-    let mut out = Vec::with_capacity(n);
-    for i in 0..n {
-        let prev = if i > 0 { normal(pts[i - 1], pts[i]) } else { normal(pts[0], pts[1]) };
-        let next = if i + 1 < n { normal(pts[i], pts[i + 1]) } else { prev };
-        let (mut mx, mut my) = (prev.0 + next.0, prev.1 + next.1);
-        let mlen = (mx * mx + my * my).sqrt();
-        if mlen < 1e-6 {
-            mx = next.0;
-            my = next.1;
-        } else {
-            mx /= mlen;
-            my /= mlen;
-        }
-        // Scale so the offset is `d` along both segment normals.
-        let cos = mx * next.0 + my * next.1;
-        let k = if cos.abs() > 0.1 { d / cos } else { d };
-        out.push((pts[i].0 + mx * k, pts[i].1 + my * k));
-    }
-    out
-}
-
-fn line_path(lines: &[Vec<Point>], xf: &TileXform, offset: f32, closed_rings: bool) -> Option<Path> {
-    let mut pb = PathBuilder::new();
-    for line in lines {
-        let pts: Vec<(f32, f32)> = line.iter().map(|&p| xf.apply(p)).collect();
-        let pts = offset_line(&pts, offset);
-        let mut it = pts.iter();
-        if let Some(&(x, y)) = it.next() {
-            pb.move_to(x, y);
-            for &(x, y) in it {
-                pb.line_to(x, y);
-            }
-            if closed_rings && line.len() > 2 && line.first() == line.last() {
-                pb.close();
-            }
-        }
-    }
-    pb.finish()
-}
-
-fn draw_line(
-    pixmap: &mut Pixmap,
-    lp: &LayerPaint,
-    f: &Feature,
-    ctx: &Ctx,
-    xf: &TileXform,
-    clip: Option<&Mask>,
-) {
-    // Polygon outlines can be styled as lines too.
-    let (lines, closed): (Vec<Vec<Point>>, bool) = match &f.geometry {
-        Geometry::Lines(l) => (l.clone(), false),
-        Geometry::Polygons(p) => (p.iter().flatten().cloned().collect(), true),
-        Geometry::Points(_) => return,
-    };
-    let opacity = lp.opacity.num(ctx, 1.0) as f32;
-    let color = lp.color.color(ctx, Color::BLACK).with_opacity(opacity);
-    let Some(paint) = paint_for(color, true) else { return };
-    let width = lp.width.num(ctx, 1.0) as f32 * lp.scale;
-    if width <= 0.0 {
+    let color = Prop::new(p.get("background-color"), Kind::Color, zoom).color(&ctx, Color::BLACK);
+    let opacity = Prop::new(p.get("background-opacity"), Kind::Number, zoom).num(&ctx, 1.0);
+    let c = rgba(color, opacity);
+    if c[3] <= 0.0 {
         return;
     }
-    let gap = lp.gap_width.num(ctx, 0.0) as f32 * lp.scale;
-    let offset = lp.offset.num(ctx, 0.0) as f32 * lp.scale;
-    let dash = lp
-        .dasharray
-        .get(ctx)
-        .and_then(|v| v.as_num_array())
-        .filter(|d| d.len() >= 2 && d.iter().any(|&x| x > 0.0));
-    let mut stroke = Stroke {
-        width,
-        line_cap: lp.cap,
-        line_join: lp.join,
-        miter_limit: lp.miter_limit,
-        dash: None,
-    };
-    if let Some(d) = dash {
-        // MapLibre dash lengths are multiples of the line width.
-        let mut v: Vec<f32> = d.iter().map(|&x| (x as f32 * width).max(0.0)).collect();
-        if v.len() % 2 == 1 {
-            let copy = v.clone();
-            v.extend(copy);
-        }
-        stroke.dash = StrokeDash::new(v, 0.0);
-    }
-    let t = translate_of(lp, ctx);
-    // line-gap-width draws two lines (a casing) either side of the gap.
-    let offsets: Vec<f32> = if gap > 0.0 {
-        let side = gap / 2.0 + width / 2.0;
-        vec![offset - side, offset + side]
-    } else {
-        vec![offset]
-    };
-    for off in offsets {
-        if let Some(path) = line_path(&lines, xf, off, closed) {
-            pixmap.stroke_path(&path, &paint, &stroke, t, clip);
+    for y in 0..fb.h {
+        for x in 0..fb.w {
+            fb.blend(x, y, c);
         }
     }
 }
 
-fn draw_circle(
-    pixmap: &mut Pixmap,
-    lp: &LayerPaint,
-    f: &Feature,
-    ctx: &Ctx,
-    xf: &TileXform,
-    clip: Option<&Mask>,
-) {
-    let Geometry::Points(pts) = &f.geometry else { return };
-    let radius = lp.radius.num(ctx, 5.0) as f32 * lp.scale;
-    let opacity = lp.opacity.num(ctx, 1.0) as f32;
-    let color = lp.color.color(ctx, Color::BLACK).with_opacity(opacity);
-    let sw = lp.stroke_width.num(ctx, 0.0) as f32 * lp.scale;
-    let sop = lp.stroke_opacity.num(ctx, 1.0) as f32;
-    let sc = lp.stroke_color.color(ctx, Color::BLACK).with_opacity(sop);
-    let t = translate_of(lp, ctx);
-    for &p in pts {
-        let (x, y) = xf.apply(p);
-        let Some(path) = PathBuilder::from_circle(x, y, radius.max(0.01)) else { continue };
-        if let Some(paint) = paint_for(color, true) {
-            pixmap.fill_path(&path, &paint, FillRule::Winding, t, clip);
+// ── Fill ─────────────────────────────────────────────────────────────────────
+
+type Rings = Vec<Vec<(f64, f64)>>;
+
+fn polys_px(pt: &PlacedTile, f: &Feature, scale: f64, t: (f64, f64)) -> Vec<Rings> {
+    let Geometry::Polygons(polys) = &f.geometry else { return Vec::new() };
+    polys
+        .iter()
+        .map(|poly| {
+            poly.iter()
+                .map(|ring| {
+                    ring.iter()
+                        .map(|&q| {
+                            let (x, y) = to_extent(q, scale);
+                            (pt.ox + x * pt.unit_px + t.0, pt.oy + y * pt.unit_px + t.1)
+                        })
+                        .collect()
+                })
+                .collect()
+        })
+        .collect()
+}
+
+fn draw_fill_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile]) {
+    let p = &layer["paint"];
+    let color = Prop::new(p.get("fill-color"), Kind::Color, zoom);
+    let opacity = Prop::new(p.get("fill-opacity"), Kind::Number, zoom);
+    let outline = Prop::new(p.get("fill-outline-color"), Kind::Color, zoom);
+    let translate = Prop::new(p.get("fill-translate"), Kind::Array, zoom);
+    let antialias = p["fill-antialias"].as_bool().unwrap_or(true);
+    if p.get("fill-pattern").is_some() {
+        log::debug!("fill-pattern is not supported yet (layer {})", layer["id"]);
+    }
+
+    // draw_fill.ts: opaque layers go through the opaque pass and write depth,
+    // so their default outline (sublayer 0) only lands outside the fill.
+    let opaque = matches!(&color, Prop::Const(v) if v.as_color().map_or(false, |c| c.a == 1.0))
+        && match &opacity {
+            Prop::Absent => true,
+            Prop::Const(v) => v.as_num() == Some(1.0),
+            Prop::Data(..) => false,
+        };
+    let cull_outline = opaque && !outline.is_set();
+    let (w, h) = (fb.w, fb.h);
+    let mut covered = if cull_outline { vec![false; w * h] } else { Vec::new() };
+
+    // Pass 1: interiors for all tiles (drawFillTiles, isOutline = false).
+    for pt in placed {
+        for (f, scale) in features(layer, pt, zoom) {
+            let ctx = Ctx { zoom, feature: Some(f) };
+            let c = rgba(color.color(&ctx, Color::BLACK), opacity.num(&ctx, 1.0));
+            if c[3] <= 0.0 {
+                continue;
+            }
+            for poly in polys_px(pt, f, scale, translate.translate(&ctx)) {
+                raster_polygon(w, h, &poly, &pt.clip, |x, y| {
+                    fb.blend(x, y, c);
+                    if cull_outline {
+                        covered[y * w + x] = true;
+                    }
+                });
+            }
         }
-        if sw > 0.0 {
-            // MapLibre's circle stroke sits outside the radius.
-            if let (Some(paint), Some(ring)) =
-                (paint_for(sc, true), PathBuilder::from_circle(x, y, radius + sw / 2.0))
-            {
-                let stroke = Stroke { width: sw, ..Stroke::default() };
-                pixmap.stroke_path(&ring, &paint, &stroke, t, clip);
+    }
+
+    // Pass 2: 1 px antialiasing outlines (gl.LINES + fill_outline shader).
+    if !antialias {
+        return;
+    }
+    for pt in placed {
+        for (f, scale) in features(layer, pt, zoom) {
+            let ctx = Ctx { zoom, feature: Some(f) };
+            let oc = if outline.is_set() { outline.color(&ctx, Color::BLACK) } else { color.color(&ctx, Color::BLACK) };
+            let base = rgba(oc, opacity.num(&ctx, 1.0));
+            if base[3] <= 0.0 {
+                continue;
+            }
+            for poly in polys_px(pt, f, scale, translate.translate(&ctx)) {
+                for ring in &poly {
+                    for seg in ring.windows(2) {
+                        raster_gl_line(w, h, seg[0], seg[1], &pt.clip, |x, y, d| {
+                            if cull_outline && covered[y * w + x] {
+                                return;
+                            }
+                            fb.blend(x, y, scaled(base, 1.0 - smoothstep(0.0, 1.0, d)));
+                        });
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Line ─────────────────────────────────────────────────────────────────────
+
+fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile]) {
+    let p = &layer["paint"];
+    let l = &layer["layout"];
+    let color = Prop::new(p.get("line-color"), Kind::Color, zoom);
+    let opacity = Prop::new(p.get("line-opacity"), Kind::Number, zoom);
+    let width = Prop::new(p.get("line-width"), Kind::Number, zoom);
+    let floor_width = Prop::new(p.get("line-width"), Kind::Number, zoom.floor());
+    let gap = Prop::new(p.get("line-gap-width"), Kind::Number, zoom);
+    let offset = Prop::new(p.get("line-offset"), Kind::Number, zoom);
+    let blur = Prop::new(p.get("line-blur"), Kind::Number, zoom);
+    let translate = Prop::new(p.get("line-translate"), Kind::Array, zoom);
+    let dasharray = Prop::new(p.get("line-dasharray"), Kind::Array, zoom);
+    let cap = match l["line-cap"].as_str() {
+        Some("round") => Cap::Round,
+        Some("square") => Cap::Square,
+        _ => Cap::Butt,
+    };
+    let join = match l["line-join"].as_str() {
+        Some("round") => Join::Round,
+        Some("bevel") => Join::Bevel,
+        _ => Join::Miter,
+    };
+    let miter_limit = l["line-miter-limit"].as_f64().unwrap_or(2.0);
+    let round_limit = l["line-round-limit"].as_f64().unwrap_or(1.05);
+
+    // line_sdf uniforms (lineSDFUniformValues): only pattern B shows
+    // (u_mix = 1 with no fade); gamma uses the smaller cross-fade width.
+    let dash = match &dasharray {
+        Prop::Const(v) => v
+            .as_num_array()
+            .filter(|d| d.len() >= 2 && d.iter().sum::<f64>() > 0.0)
+            .map(|d| Dash::new(&d, cap == Cap::Round)),
+        _ => None,
+    };
+    let from_scale = if zoom > zoom.floor() { 2.0 } else { 0.5 };
+    let tile_ratio = TILE_PX / EXTENT;
+
+    let (w, h) = (fb.w, fb.h);
+    for pt in placed {
+        for (f, scale) in features(layer, pt, zoom) {
+            let ctx = Ctx { zoom, feature: Some(f) };
+            let fctx = Ctx { zoom: zoom.floor(), feature: Some(f) };
+            let (lines, is_polygon): (Vec<&Vec<(f32, f32)>>, bool) = match &f.geometry {
+                Geometry::Lines(ls) => (ls.iter().collect(), false),
+                Geometry::Polygons(ps) => (ps.iter().flatten().collect(), true),
+                Geometry::Points(_) => continue,
+            };
+            let c = rgba(color.color(&ctx, Color::BLACK), opacity.num(&ctx, 1.0));
+            if c[3] <= 0.0 {
+                continue;
+            }
+            let lw = width.num(&ctx, 1.0);
+            // line.vertex.glsl: gapwidth / 2, halfwidth = width / 2, offset negated.
+            let gapw = gap.num(&ctx, 0.0) / 2.0;
+            let halfwidth = lw / 2.0;
+            let line_offset = -offset.num(&ctx, 0.0);
+            let aa = 0.5; // ANTIALIASING = 1 / devicePixelRatio / 2
+            let inset = gapw + if gapw > 0.0 { aa } else { 0.0 };
+            let outset =
+                gapw + halfwidth * if gapw > 0.0 { 2.0 } else { 1.0 } + if halfwidth == 0.0 { 0.0 } else { aa };
+            if outset <= 0.0 {
+                continue;
+            }
+            let blur2 = blur.num(&ctx, 0.0) + 1.0;
+            let floorwidth = floor_width.num(&fctx, lw);
+            let (tx, ty) = translate.translate(&ctx);
+
+            let dash_params = dash.as_ref().map(|d| {
+                let width_b = d.width;
+                let width_a = d.width * from_scale;
+                let sdfgamma = ATLAS_W as f64 / (width_a.min(width_b) * 256.0) / 2.0;
+                (d, tile_ratio / width_b / floorwidth, sdfgamma / floorwidth)
+            });
+
+            let mut b = LineBuilder::new(pt.overscaling);
+            for line in &lines {
+                let pts: Vec<(f64, f64)> = line.iter().map(|&q| to_extent(q, scale)).collect();
+                b.add_line(&pts, is_polygon, join, cap, miter_limit, round_limit);
+            }
+
+            // line.vertex.glsl, per vertex.
+            let verts: Vec<Vert<3>> = b
+                .verts
+                .iter()
+                .map(|v| {
+                    let ny = if v.up { 1.0 } else { -1.0 };
+                    let u = 0.5 * v.dir;
+                    let t = 1.0 - u.abs();
+                    let (ox, oy) = (line_offset * v.ex * ny, line_offset * v.ey * ny);
+                    let offset2 = (ox * t - oy * u, ox * u + oy * t);
+                    let dist = (outset * v.ex, outset * v.ey);
+                    Vert {
+                        x: pt.ox + v.x * pt.unit_px + offset2.0 + dist.0 + tx,
+                        y: pt.oy + v.y * pt.unit_px + offset2.1 + dist.1 + ty,
+                        v: [if v.round { 1.0 } else { 0.0 }, ny, v.linesofar],
+                    }
+                })
+                .collect();
+
+            for tri in &b.tris {
+                let t = [verts[tri[0] as usize], verts[tri[1] as usize], verts[tri[2] as usize]];
+                raster_triangle(w, h, t, &pt.clip, |x, y, var| {
+                    // line.fragment.glsl / line_sdf.fragment.glsl
+                    let d = (var[0] * var[0] + var[1] * var[1]).sqrt() * outset;
+                    let mut alpha = ((d - (inset - blur2)).min(outset - d) / blur2).clamp(0.0, 1.0);
+                    if let Some((dash, sx, g)) = dash_params {
+                        let sdf = dash.sample(var[2] * sx, dash.n as f64 * (1.0 - var[1]));
+                        alpha *= smoothstep(0.5 - g, 0.5 + g, sdf);
+                    }
+                    if alpha > 0.0 {
+                        fb.blend(x, y, scaled(c, alpha));
+                    }
+                });
+            }
+        }
+    }
+}
+
+// ── Circle ───────────────────────────────────────────────────────────────────
+
+fn draw_circle_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile]) {
+    let p = &layer["paint"];
+    let radius = Prop::new(p.get("circle-radius"), Kind::Number, zoom);
+    let color = Prop::new(p.get("circle-color"), Kind::Color, zoom);
+    let opacity = Prop::new(p.get("circle-opacity"), Kind::Number, zoom);
+    let blur = Prop::new(p.get("circle-blur"), Kind::Number, zoom);
+    let stroke_width = Prop::new(p.get("circle-stroke-width"), Kind::Number, zoom);
+    let stroke_color = Prop::new(p.get("circle-stroke-color"), Kind::Color, zoom);
+    let stroke_opacity = Prop::new(p.get("circle-stroke-opacity"), Kind::Number, zoom);
+    let translate = Prop::new(p.get("circle-translate"), Kind::Array, zoom);
+    let (w, h) = (fb.w, fb.h);
+    let full = Clip { x0: 0.0, y0: 0.0, x1: w as f64, y1: h as f64 };
+
+    for pt in placed {
+        for (f, scale) in features(layer, pt, zoom) {
+            let Geometry::Points(points) = &f.geometry else { continue };
+            let ctx = Ctx { zoom, feature: Some(f) };
+            let r = radius.num(&ctx, 5.0);
+            let sw = stroke_width.num(&ctx, 0.0);
+            let fill = rgba(color.color(&ctx, Color::BLACK), opacity.num(&ctx, 1.0));
+            let stroke = rgba(stroke_color.color(&ctx, Color::BLACK), stroke_opacity.num(&ctx, 1.0));
+            // circle.vertex.glsl: antialiasblur = -max(1 / dpr / (r + sw), blur)
+            let aablur = -(1.0 / (r + sw)).max(blur.num(&ctx, 0.0));
+            let (tx, ty) = translate.translate(&ctx);
+            let ext = r + sw;
+            for &q in points {
+                let (x, y) = to_extent(q, scale);
+                // CircleBucket: points outside the tile are not drawn.
+                if x < 0.0 || x >= EXTENT || y < 0.0 || y >= EXTENT {
+                    continue;
+                }
+                let (cx, cy) = (pt.ox + x * pt.unit_px + tx, pt.oy + y * pt.unit_px + ty);
+                let corner = |ex: f64, ey: f64| Vert { x: cx + ex * ext, y: cy + ey * ext, v: [ex, ey] };
+                let quad = [corner(-1.0, -1.0), corner(1.0, -1.0), corner(1.0, 1.0), corner(-1.0, 1.0)];
+                for tri in [[0, 1, 2], [0, 2, 3]] {
+                    raster_triangle(w, h, [quad[tri[0]], quad[tri[1]], quad[tri[2]]], &full, |px, py, v| {
+                        // circle.fragment.glsl
+                        let el = (v[0] * v[0] + v[1] * v[1]).sqrt();
+                        let opacity_t = smoothstep(0.0, aablur, el - 1.0);
+                        let color_t = if sw < 0.01 { 0.0 } else { smoothstep(aablur, 0.0, el - r / (r + sw)) };
+                        if opacity_t > 0.0 {
+                            let mut out = [0f32; 4];
+                            for i in 0..4 {
+                                out[i] = ((fill[i] as f64 * (1.0 - color_t) + stroke[i] as f64 * color_t)
+                                    * opacity_t) as f32;
+                            }
+                            fb.blend(px, py, out);
+                        }
+                    });
+                }
             }
         }
     }
@@ -534,12 +512,5 @@ mod tests {
         assert_eq!(z, 13.0);
         assert_eq!(tile_zoom(13.7, None), 13);
         assert_eq!(tile_zoom(13.7, Some(12)), 12);
-    }
-
-    #[test]
-    fn offset_is_to_the_right_in_screen_space() {
-        // Heading east (+x) in y-down screen space, "right" is +y.
-        let out = offset_line(&[(0.0, 0.0), (10.0, 0.0)], 2.0);
-        assert!((out[0].1 - 2.0).abs() < 1e-6 && (out[1].1 - 2.0).abs() < 1e-6);
     }
 }

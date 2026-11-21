@@ -14,7 +14,6 @@ lru         = "0.12"
 maplibre    = { git = "https://github.com/ar-puuk/maplibre-rs", rev = "3bb17231fc7895248bb3cd8a3882de472d74c12c", features = ["headless"] }
 cgmath      = "0.18.0"
 # In-house CPU vector renderer (core/src/vector/).
-tiny-skia   = "0.11"
 flate2      = "1"
 csscolorparser = "0.7"
 tokio       = { workspace = true }

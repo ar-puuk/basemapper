@@ -11,6 +11,6 @@
   "source_style": "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services/LiteBase/VectorTileServer/resources/styles/root.json",
   "width": 800,
   "zoom": 14,
-  "max_bad_pixel_frac": 0.01595,
-  "max_mean_diff": 1.87
+  "max_bad_pixel_frac": 0.00653,
+  "max_mean_diff": 0.552
 }
