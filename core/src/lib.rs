@@ -155,7 +155,7 @@ async fn render_single_bbox(
         // is one level above the equivalent 512 px tile zoom.
         let (style_val, placed, assets, tz) =
             fetch_vector_inputs(request, client, style_json, tile_source, bbox, width).await?;
-        let out = vector::render::render(&style_val, &placed, &assets, bbox, width, height)
+        let out = vector::render::render(&style_val, &placed, &assets, bbox, width, height, request.pixel_ratio)
             .map_err(BasemapError::RenderError)?;
         if !out.skipped_layer_types.is_empty() {
             log::warn!(
@@ -166,17 +166,22 @@ async fn render_single_bbox(
         return Ok(RenderResult {
             bounds,
             zoom_used: tz.saturating_add(1),
-            width,
-            height,
+            width: out.width,
+            height: out.height,
             pixels: out.pixels,
         });
     }
+    // Raster sources: tiles chosen for the CSS size, composited at device size.
+    let (width, height) = (
+        vector::render::device_px(width, request.pixel_ratio),
+        vector::render::device_px(height, request.pixel_ratio),
+    );
     // PMTiles: fetch via HTTP range requests.
     if let TileSource::PMTiles { ref url, .. } = tile_source {
         let coords = tile_fetcher::build_tile_coords(bbox, zoom);
         let tiles = fetch_pmtiles_tiles(url, &coords, client).await?;
         let canvas =
-            renderer::composite_raster_tiles(&tiles, bbox, zoom, width, height, transparent)?;
+            renderer::composite_raster_tiles(&tiles, bbox, zoom, width, height, transparent, request.pixel_ratio)?;
         return Ok(RenderResult {
             bounds,
             zoom_used: zoom,
@@ -199,7 +204,7 @@ async fn render_single_bbox(
     )
     .await?;
     let canvas =
-        renderer::composite_raster_tiles(&tiles, bbox, zoom, width, height, transparent)?;
+        renderer::composite_raster_tiles(&tiles, bbox, zoom, width, height, transparent, request.pixel_ratio)?;
     Ok(RenderResult {
         bounds,
         zoom_used: zoom,
@@ -250,8 +255,9 @@ async fn render_antimeridian_split(
     let row_w = west.width as usize * 4;
     let row_e = east.width as usize * 4;
     let row_out = row_w + row_e;
-    let mut pixels = vec![0u8; row_out * request.height as usize];
-    for row in 0..request.height as usize {
+    let rows = west.height.min(east.height) as usize;
+    let mut pixels = vec![0u8; row_out * rows];
+    for row in 0..rows {
         let out = &mut pixels[row * row_out..][..row_out];
         out[..row_w].copy_from_slice(&west.pixels[row * row_w..][..row_w]);
         out[row_w..].copy_from_slice(&east.pixels[row * row_e..][..row_e]);
@@ -261,7 +267,7 @@ async fn render_antimeridian_split(
         bounds: SpatialBounds { xmin, ymin, xmax, ymax, crs_epsg: 3857 },
         zoom_used: zoom,
         width: west.width + east.width,
-        height: request.height,
+        height: rows as u32,
         pixels,
     })
 }
@@ -513,10 +519,13 @@ async fn fetch_glyphs(
 
 /// Fetch the style's 1x sprite (`<sprite>.json` + `<sprite>.png`). A missing
 /// or broken sprite only disables icons.
+/// The style's sprite; above pixel ratio 1 the `@2x` sheet (as MapLibre
+/// loads it), falling back to 1x.
 async fn fetch_sprite(
     client: &reqwest::Client,
     style: &serde_json::Value,
     style_base_url: Option<&str>,
+    pixel_ratio: f64,
 ) -> vector::symbol::Sprite {
     let Some(sprite) = style["sprite"].as_str() else { return Default::default() };
     let base = resolve_url(sprite, style_base_url);
@@ -531,14 +540,28 @@ async fn fetch_sprite(
             resp.bytes().await.ok().map(|b| b.to_vec())
         }
     };
-    let (json, png) = tokio::join!(get(format!("{base}.json")), get(format!("{base}.png")));
-    match (json, png) {
-        (Some(j), Some(p)) => vector::symbol::Sprite::from_json_png(&j, &p).unwrap_or_else(|e| {
+    let mut fetched = None;
+    if pixel_ratio > 1.0 {
+        let (json, png) = tokio::join!(get(format!("{base}@2x.json")), get(format!("{base}@2x.png")));
+        if let (Some(j), Some(p)) = (json, png) {
+            fetched = Some((j, p));
+        }
+    }
+    if fetched.is_none() {
+        let (json, png) = tokio::join!(get(format!("{base}.json")), get(format!("{base}.png")));
+        if let (Some(j), Some(p)) = (json, png) {
+            fetched = Some((j, p));
+        }
+    }
+    let mut sprite = match fetched {
+        Some((j, p)) => vector::symbol::Sprite::from_json_png(&j, &p).unwrap_or_else(|e| {
             log::warn!("{e}");
             Default::default()
         }),
-        _ => Default::default(),
-    }
+        None => Default::default(),
+    };
+    sprite.device_pixel_ratio = pixel_ratio;
+    sprite
 }
 
 /// Tiles (with world-copy wrap), glyphs and sprite for rendering a vector
@@ -582,7 +605,7 @@ async fn fetch_vector_inputs(
         serde_json::from_str(style_json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
     let assets = vector::symbol::SymbolAssets {
         glyphs: fetch_glyphs(client, &style_val, style_base_url_of(request), &tiles, sz).await,
-        sprite: fetch_sprite(client, &style_val, style_base_url_of(request)).await,
+        sprite: fetch_sprite(client, &style_val, style_base_url_of(request), request.pixel_ratio).await,
     };
     let by_coord: std::collections::HashMap<(u8, u32, u32), &tile_fetcher::TileData> =
         tiles.iter().map(|(c, d)| ((c.z, c.x, c.y), d)).collect();

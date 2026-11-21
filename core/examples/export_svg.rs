@@ -56,6 +56,7 @@ fn main() {
         layers: None,
         auth_token: None,
         fail_on_tile_error: false,
+        pixel_ratio: 1.0,
     };
 
     let svg = render_svg_stack(args.style.iter().map(|s| request(s)).collect()).expect("SVG render failed");

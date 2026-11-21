@@ -31,9 +31,35 @@ pub struct RenderRequest {
     /// When `false`, individual tile fetch failures are logged and skipped
     /// rather than aborting the entire render.
     pub fail_on_tile_error: bool,
+    /// Device pixels per CSS pixel (MapLibre's devicePixelRatio). `width` and
+    /// `height` are CSS pixels and set the view and zoom; the image is
+    /// `pixel_ratio` times larger, with lines, labels and icons drawn at the
+    /// same size relative to the map (e.g. 2 for a sharp 2x image, or
+    /// dpi / 96 for print). Vector styles use the `@2x` sprite above 1.
+    pub pixel_ratio: f64,
 }
 
 impl RenderRequest {
+    /// A request with default settings: automatic zoom, pixel ratio 1, all
+    /// layers, 10 s tile timeout, at most 256 tiles, 16 parallel fetches,
+    /// failing on tile errors.
+    pub fn new(bbox: [f64; 4], width: u32, height: u32, style_input: crate::StyleInput) -> Self {
+        RenderRequest {
+            bbox,
+            width,
+            height,
+            style_input,
+            zoom: None,
+            tile_timeout_ms: 10_000,
+            max_tiles: 256,
+            tile_concurrency: 16,
+            layers: None,
+            auth_token: None,
+            fail_on_tile_error: true,
+            pixel_ratio: 1.0,
+        }
+    }
+
     pub fn validate(&self) -> Result<(), BasemapError> {
         let [xmin, ymin, xmax, ymax] = self.bbox;
         if !xmin.is_finite() || !ymin.is_finite() || !xmax.is_finite() || !ymax.is_finite() {
@@ -71,6 +97,16 @@ impl RenderRequest {
         // xmin > xmax is the anti-meridian case — accepted and handled by render().
         if self.width == 0 || self.height == 0 || self.width > 16_384 || self.height > 16_384 {
             return Err(BasemapError::InvalidDimensions(self.width, self.height));
+        }
+        if !self.pixel_ratio.is_finite() || self.pixel_ratio <= 0.0 || self.pixel_ratio > 16.0 {
+            return Err(BasemapError::InvalidBbox(format!(
+                "pixel_ratio {} must be > 0 and at most 16",
+                self.pixel_ratio
+            )));
+        }
+        let (dw, dh) = (self.width as f64 * self.pixel_ratio, self.height as f64 * self.pixel_ratio);
+        if dw.round() > 16_384.0 || dh.round() > 16_384.0 {
+            return Err(BasemapError::InvalidDimensions(dw.round() as u32, dh.round() as u32));
         }
         if let Some(z) = self.zoom {
             if z > 22 {

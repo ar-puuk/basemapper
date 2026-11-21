@@ -71,6 +71,7 @@ async function renderCase(browser, name) {
   const noSymbols = process.env.NO_SYMBOLS === '1';
   if (noSymbols) style.layers = style.layers.filter((l) => l.type !== 'symbol');
   const { center, zoom } = camera(kase.bbox, kase.width, kase.height);
+  const pixelRatio = kase.pixel_ratio ?? 1;
 
   const page = await browser.newPage({
     viewport: { width: kase.width, height: kase.height },
@@ -107,7 +108,7 @@ async function renderCase(browser, name) {
   await page.goto('http://assets.local/index.html');
 
   const dataUrl = await page.evaluate(
-    ({ style, center, zoom }) =>
+    ({ style, center, zoom, pixelRatio }) =>
       new Promise((resolve, reject) => {
         const map = new maplibregl.Map({
           container: 'map',
@@ -117,6 +118,8 @@ async function renderCase(browser, name) {
           interactive: false,
           attributionControl: false,
           fadeDuration: 0,
+          // case.json pixel_ratio (default 1): drawing buffer = size * ratio.
+          pixelRatio,
           // MapLibre defaults (no MSAA); preserveDrawingBuffer only so the
           // canvas can be read back.
           canvasContextAttributes: { preserveDrawingBuffer: true },
@@ -132,7 +135,7 @@ async function renderCase(browser, name) {
         });
         setTimeout(() => reject(new Error('timed out waiting for idle')), 60000);
       }),
-    { style, center, zoom },
+    { style, center, zoom, pixelRatio },
   );
   await page.close();
 

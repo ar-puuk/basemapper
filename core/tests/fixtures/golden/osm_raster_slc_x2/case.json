@@ -1,0 +1,17 @@
+{
+  "fixture_from": "osm_raster_slc",
+  "note": "osm_raster_slc at pixel ratio 2 (MapLibre devicePixelRatio): same view, image twice the size.",
+  "pixel_ratio": 2,
+  "bbox": [
+    -12459252.0,
+    4963454.0,
+    -12451608.0,
+    4969187.0
+  ],
+  "width": 800,
+  "height": 600,
+  "zoom": 14,
+  "attribution": "(c) OpenStreetMap contributors, ODbL",
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.018
+}

@@ -762,9 +762,16 @@ impl SpriteImage {
 #[derive(Default)]
 pub struct Sprite {
     pub images: HashMap<String, SpriteImage>,
+    /// The device pixel ratio the sprite is drawn at (0 means 1). Icons whose
+    /// image pixelRatio differs are sampled linearly (iconsNeedLinear).
+    pub device_pixel_ratio: f64,
 }
 
 impl Sprite {
+    pub fn dpr(&self) -> f64 {
+        if self.device_pixel_ratio > 0.0 { self.device_pixel_ratio } else { 1.0 }
+    }
+
     /// Build from a sprite's `.json` index and `.png` sheet.
     pub fn from_json_png(json: &[u8], png: &[u8]) -> Result<Sprite, String> {
         let index: Json = serde_json::from_slice(json).map_err(|e| format!("sprite json: {e}"))?;
@@ -800,7 +807,7 @@ impl Sprite {
                 },
             );
         }
-        Ok(Sprite { images })
+        Ok(Sprite { images, device_pixel_ratio: 1.0 })
     }
 }
 
@@ -1187,7 +1194,7 @@ fn build_icon(
     let name = feature_icon(layer, f, tile_zoom)?;
     let img = assets.sprite.images.get(&name)?;
     let rotate = num(layout, "icon-rotate", &lctx, 0.0);
-    let needs_linear = img.pixel_ratio != 1.0 || rotate != 0.0 || layout.get("icon-rotate").map_or(false, is_data_driven);
+    let needs_linear = img.pixel_ratio != assets.sprite.dpr() || rotate != 0.0 || layout.get("icon-rotate").map_or(false, is_data_driven);
     let (dw, dh) = (img.w as f64 / img.pixel_ratio, img.h as f64 / img.pixel_ratio);
     let (ha, va) = anchor_alignment(&string(layout, "icon-anchor", &lctx, "center"));
     let off = num_pair(layout, "icon-offset", &lctx);
@@ -1706,7 +1713,17 @@ fn halo_passes(paint: &Json, layout: &Json, prefix: &str) -> &'static [(bool, bo
 }
 
 /// Draw the placed symbols of one layer: icons for all tiles, then text.
-pub fn draw_layer(fb: &mut Framebuffer, layer: &Json, layer_idx: usize, placement: &Placement, assets: &SymbolAssets) {
+/// Draw one symbol layer. Placement is in CSS pixels (`css` is the CSS
+/// viewport size); quads are drawn `dpr` times larger.
+pub fn draw_layer(
+    fb: &mut Framebuffer,
+    layer: &Json,
+    layer_idx: usize,
+    placement: &Placement,
+    assets: &SymbolAssets,
+    dpr: f64,
+    css: (usize, usize),
+) {
     let Some(labels) = placement.labels.get(&layer_idx) else { return };
     let (w, h) = (fb.w, fb.h);
     let full = Clip { x0: 0.0, y0: 0.0, x1: w as f64, y1: h as f64 };
@@ -1724,7 +1741,7 @@ pub fn draw_layer(fb: &mut Framebuffer, layer: &Json, layer_idx: usize, placemen
                 for &(is_halo, is_plain) in passes {
                     for l in group {
                         if let Some(t) = &l.text {
-                            draw_text(fb, l.anchor_px, t, &assets.glyphs, is_halo, is_plain, &full, w, h);
+                            draw_text(fb, l.anchor_px, t, &assets.glyphs, is_halo, is_plain, &full, dpr, css);
                         }
                     }
                 }
@@ -1734,7 +1751,7 @@ pub fn draw_layer(fb: &mut Framebuffer, layer: &Json, layer_idx: usize, placemen
                 for &(is_halo, is_plain) in icon_passes {
                     for l in group {
                         if let Some(ic) = &l.icon {
-                            draw_icon(fb, l.anchor_px, ic, &assets.sprite, is_halo, is_plain, &full, w, h);
+                            draw_icon(fb, l.anchor_px, ic, &assets.sprite, is_halo, is_plain, &full, dpr, css);
                         }
                     }
                 }
@@ -1745,8 +1762,10 @@ pub fn draw_layer(fb: &mut Framebuffer, layer: &Json, layer_idx: usize, placemen
 }
 
 /// symbol_sdf.fragment.glsl for one fragment.
-fn sdf_fragment(dist: f64, font_scale: f64, s: &SdfStyle, is_halo: bool, is_plain: bool) -> [f64; 4] {
-    let gamma = EDGE_GAMMA / font_scale;
+fn sdf_fragment(dist: f64, font_scale: f64, s: &SdfStyle, is_halo: bool, is_plain: bool, dpr: f64) -> [f64; 4] {
+    // EDGE_GAMMA = 0.105 / DEVICE_PIXEL_RATIO
+    let edge_gamma = EDGE_GAMMA / dpr;
+    let gamma = edge_gamma / font_scale;
     let inner_edge = (256.0 - 64.0) / 256.0;
     let fill = [s.fill.r as f64, s.fill.g as f64, s.fill.b as f64, s.fill.a as f64];
     let halo = [s.halo.r as f64, s.halo.g as f64, s.halo.b as f64, s.halo.a as f64];
@@ -1761,7 +1780,7 @@ fn sdf_fragment(dist: f64, font_scale: f64, s: &SdfStyle, is_halo: bool, is_plai
     if !is_halo {
         return text;
     }
-    let gamma_halo = (s.halo_blur * 1.19 / SDF_PX + EDGE_GAMMA) / font_scale;
+    let gamma_halo = (s.halo_blur * 1.19 / SDF_PX + edge_gamma) / font_scale;
     let inner_edge_halo = inner_edge + gamma_halo;
     let halo_edge = (6.0 - s.halo_width / font_scale) / SDF_PX;
     let ah = smoothstep(inner_edge_halo - gamma_halo, inner_edge_halo + gamma_halo, dist);
@@ -1808,15 +1827,16 @@ fn draw_text(
     is_halo: bool,
     is_plain: bool,
     clip: &Clip,
-    w: usize,
-    h: usize,
+    dpr: f64,
+    css: (usize, usize),
 ) {
+    let (w, h) = (clip.x1 as usize, clip.y1 as usize);
     if t.style.opacity < 0.1 {
         return; // symbol_sdf.vertex: total_opacity < 0.1 is culled
     }
     let Some(gmap) = glyphs.stacks.get(&t.fontstack) else { return };
     let font_scale = t.size / 24.0;
-    let positions = match along_positions(t.along.as_ref(), anchor, t.quads.len(), w, h) {
+    let positions = match along_positions(t.along.as_ref(), anchor, t.quads.len(), css.0, css.1) {
         Some(p) => p,
         None => return,
     };
@@ -1828,12 +1848,16 @@ fn draw_text(
         let v: Vec<Vert<2>> = (0..4)
             .map(|i| {
                 let (ox, oy) = (q.corners[i].0 * font_scale, q.corners[i].1 * font_scale);
-                Vert { x: origin.0 + ca * ox - sa * oy, y: origin.1 + sa * ox + ca * oy, v: [tex[i].0, tex[i].1] }
+                Vert {
+                    x: (origin.0 + ca * ox - sa * oy) * dpr,
+                    y: (origin.1 + sa * ox + ca * oy) * dpr,
+                    v: [tex[i].0, tex[i].1],
+                }
             })
             .collect();
         for tri in [[0usize, 2, 1], [1, 2, 3]] {
             raster_triangle(w, h, [v[tri[0]], v[tri[1]], v[tri[2]]], clip, |x, y, tc| {
-                let out = sdf_fragment(g.sample(tc[0], tc[1]), font_scale, &t.style, is_halo, is_plain);
+                let out = sdf_fragment(g.sample(tc[0], tc[1]), font_scale, &t.style, is_halo, is_plain, dpr);
                 blend_out(fb, x, y, out);
             });
         }
@@ -1849,29 +1873,34 @@ fn draw_icon(
     is_halo: bool,
     is_plain: bool,
     clip: &Clip,
-    w: usize,
-    h: usize,
+    dpr: f64,
+    css: (usize, usize),
 ) {
+    let (w, h) = (clip.x1 as usize, clip.y1 as usize);
     if ic.style.opacity < 0.1 {
         return;
     }
     let Some(img) = sprite.images.get(&ic.image) else { return };
     let (cw, ch) = ((img.w + 2) as f64, (img.h + 2) as f64);
     let tex = [(0.0, 0.0), (cw, 0.0), (0.0, ch), (cw, ch)];
-    let Some(positions) = along_positions(ic.along.as_ref(), anchor, 1, w, h) else { return };
+    let Some(positions) = along_positions(ic.along.as_ref(), anchor, 1, css.0, css.1) else { return };
     let (origin, angle) = positions[0];
     let (sa, ca) = (angle.sin(), angle.cos());
     let v: Vec<Vert<2>> = (0..4)
         .map(|i| {
             let (ox, oy) = (ic.corners[i].0 * ic.size, ic.corners[i].1 * ic.size);
-            Vert { x: origin.0 + ca * ox - sa * oy, y: origin.1 + sa * ox + ca * oy, v: [tex[i].0, tex[i].1] }
+            Vert {
+                x: (origin.0 + ca * ox - sa * oy) * dpr,
+                y: (origin.1 + sa * ox + ca * oy) * dpr,
+                v: [tex[i].0, tex[i].1],
+            }
         })
         .collect();
     for tri in [[0usize, 2, 1], [1, 2, 3]] {
         raster_triangle(w, h, [v[tri[0]], v[tri[1]], v[tri[2]]], clip, |x, y, tc| {
             let s = img.sample(tc[0], tc[1], ic.linear);
             let out = if ic.sdf {
-                sdf_fragment(s[3] / 255.0, ic.size, &ic.style, is_halo, is_plain)
+                sdf_fragment(s[3] / 255.0, ic.size, &ic.style, is_halo, is_plain, dpr)
             } else {
                 let op = ic.style.opacity;
                 [s[0] / 255.0 * op, s[1] / 255.0 * op, s[2] / 255.0 * op, s[3] / 255.0 * op]

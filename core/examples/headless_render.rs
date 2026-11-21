@@ -50,6 +50,7 @@ fn main() {
         layers: None,
         auth_token: None,
         fail_on_tile_error: false,
+        pixel_ratio: 1.0,
     };
 
     let result = render(request).expect("render failed");

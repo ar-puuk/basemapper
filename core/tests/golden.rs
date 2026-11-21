@@ -166,6 +166,7 @@ fn render_fixture(dir: &Path, case: &Value, svg: bool) -> Result<(RgbaImage, Opt
         // Tiles outside a source's coverage are left out of fixtures (404);
         // MapLibre renders them as empty, so skip rather than fail.
         fail_on_tile_error: false,
+        pixel_ratio: case["pixel_ratio"].as_f64().unwrap_or(1.0),
     };
     let svg_doc = if svg {
         Some(render_svg(request.clone()).map_err(|e| format!("{name}: SVG render failed: {e}"))?)

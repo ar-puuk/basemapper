@@ -69,6 +69,7 @@ fn render_basemap_raw(
         layers: layers_val,
         auth_token: auth_token_val,
         fail_on_tile_error,
+        pixel_ratio: 1.0,
     };
 
     // render() drives async work on its own internal tokio Runtime; it is

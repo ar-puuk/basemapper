@@ -17,6 +17,7 @@ fn base_request() -> RenderRequest {
         layers: None,
         auth_token: None,
         fail_on_tile_error: false,
+        pixel_ratio: 1.0,
     }
 }
 

@@ -73,17 +73,36 @@ struct PlacedTile {
     unit_px: f64,
     clip: Clip,
     overscaling: f64,
+    /// Device pixels per CSS pixel; `ox`, `oy`, `unit_px` and `clip` are in
+    /// device pixels (MapLibre's drawing buffer), placement uses CSS pixels.
+    ratio: f64,
+}
+
+/// Device pixels for `css` CSS pixels at `ratio` (MapLibre's drawing buffer
+/// is the canvas size times devicePixelRatio).
+pub fn device_px(css: u32, ratio: f64) -> u32 {
+    ((css as f64 * ratio).round() as u32).max(1)
 }
 
 pub struct RenderOutput {
+    /// Device pixel size of `pixels`.
+    pub width: u32,
+    pub height: u32,
     pub pixels: Vec<u8>,
     /// Layer types present in the style that this renderer does not draw yet.
     pub skipped_layer_types: Vec<String>,
 }
 
 /// Decode `tiles` and place them on a `width x height` view of `bbox` at
-/// MapLibre's scale zoom (centre point minus half the viewport).
-fn prepare(tiles: &[(TileCoord, i32, Vec<u8>)], bbox: [f64; 4], width: u32, height: u32) -> (f64, Vec<PlacedTile>) {
+/// MapLibre's scale zoom (centre point minus half the viewport). `width` and
+/// `height` are CSS pixels; tiles are placed in device pixels (`ratio`).
+fn prepare(
+    tiles: &[(TileCoord, i32, Vec<u8>)],
+    bbox: [f64; 4],
+    width: u32,
+    height: u32,
+    ratio: f64,
+) -> (f64, Vec<PlacedTile>) {
     let zoom = scale_zoom(bbox, width);
     let world_px = TILE_PX * 2f64.powf(zoom);
     let cx = ((bbox[0] + bbox[2]) / 2.0 + EARTH_HALF) / EARTH_CIRC * world_px;
@@ -106,11 +125,12 @@ fn prepare(tiles: &[(TileCoord, i32, Vec<u8>)], bbox: [f64; 4], width: u32, heig
             coord: *c,
             wrap: *wrap,
             tile,
-            ox,
-            oy,
-            unit_px: tile_px / EXTENT,
-            clip: Clip { x0: ox, y0: oy, x1: ox + tile_px, y1: oy + tile_px },
+            ox: ox * ratio,
+            oy: oy * ratio,
+            unit_px: tile_px / EXTENT * ratio,
+            clip: Clip { x0: ox * ratio, y0: oy * ratio, x1: (ox + tile_px) * ratio, y1: (oy + tile_px) * ratio },
             overscaling: 2f64.powi((zoom.floor() as i32 - c.z as i32).max(0)),
+            ratio,
         });
     }
     (zoom, placed)
@@ -123,9 +143,9 @@ fn symbol_tiles(placed: &[PlacedTile]) -> Vec<SymbolTile<'_>> {
             coord: (p.coord.z, p.coord.x, p.coord.y),
             wrap: p.wrap,
             tile: &p.tile,
-            ox: p.ox,
-            oy: p.oy,
-            unit_px: p.unit_px,
+            ox: p.ox / p.ratio,
+            oy: p.oy / p.ratio,
+            unit_px: p.unit_px / p.ratio,
             overscaling: p.overscaling,
         })
         .collect()
@@ -134,6 +154,9 @@ fn symbol_tiles(placed: &[PlacedTile]) -> Vec<SymbolTile<'_>> {
 /// Render `tiles` (raw MVT bytes) with `style` over `bbox` at `width × height`.
 /// `assets` holds glyphs and sprite images for symbol layers (may be empty).
 /// Each tile carries its world-copy `wrap` (see [`covering_tiles`]).
+/// `width` and `height` are CSS pixels; the image is `ratio` times larger
+/// (MapLibre's devicePixelRatio: same view and layout, drawn denser).
+#[allow(clippy::too_many_arguments)]
 pub fn render(
     style: &Json,
     tiles: &[(TileCoord, i32, Vec<u8>)],
@@ -141,10 +164,11 @@ pub fn render(
     bbox: [f64; 4],
     width: u32,
     height: u32,
+    ratio: f64,
 ) -> Result<RenderOutput, String> {
-    let (zoom, placed) = prepare(tiles, bbox, width, height);
-    let (w, h) = (width as usize, height as usize);
-    let mut fb = Framebuffer::new(w, h);
+    let (zoom, placed) = prepare(tiles, bbox, width, height, ratio);
+    let (dw, dh) = (device_px(width, ratio), device_px(height, ratio));
+    let mut fb = Framebuffer::new(dw as usize, dh as usize);
 
     // Symbol placement runs once, top layer first, before drawing.
     let placement = symbol::place(style, &symbol_tiles(&placed), assets, zoom, width as f64, height as f64);
@@ -162,10 +186,18 @@ pub fn render(
         }
         match ltype {
             "background" => draw_background(&mut fb, layer, zoom),
-            "fill" => draw_fill_layer(&mut fb, layer, zoom, &placed),
-            "line" => draw_line_layer(&mut fb, layer, zoom, &placed),
-            "circle" => draw_circle_layer(&mut fb, layer, zoom, &placed),
-            "symbol" => symbol::draw_layer(&mut fb, layer, layer_idx, &placement, assets),
+            "fill" => draw_fill_layer(&mut fb, layer, zoom, &placed, ratio),
+            "line" => draw_line_layer(&mut fb, layer, zoom, &placed, ratio),
+            "circle" => draw_circle_layer(&mut fb, layer, zoom, &placed, ratio),
+            "symbol" => symbol::draw_layer(
+                &mut fb,
+                layer,
+                layer_idx,
+                &placement,
+                assets,
+                ratio,
+                (width as usize, height as usize),
+            ),
             other => {
                 if !skipped.iter().any(|s| s == other) {
                     skipped.push(other.to_owned());
@@ -174,7 +206,7 @@ pub fn render(
         }
     }
 
-    Ok(RenderOutput { pixels: fb.into_straight_rgba(), skipped_layer_types: skipped })
+    Ok(RenderOutput { width: dw, height: dh, pixels: fb.into_straight_rgba(), skipped_layer_types: skipped })
 }
 
 /// Features of `layer`'s source-layer in `pt` that pass the layer filter,
@@ -251,6 +283,12 @@ impl<'a> Prop<'a> {
             _ => (0.0, 0.0),
         }
     }
+
+    /// `translate` in device pixels.
+    fn translate_px(&self, ctx: &Ctx, ratio: f64) -> (f64, f64) {
+        let (x, y) = self.translate(ctx);
+        (x * ratio, y * ratio)
+    }
 }
 
 #[inline]
@@ -306,7 +344,7 @@ fn polys_px(pt: &PlacedTile, f: &Feature, scale: f64, t: (f64, f64)) -> Vec<Ring
         .collect()
 }
 
-fn draw_fill_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile]) {
+fn draw_fill_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile], dpr: f64) {
     let p = &layer["paint"];
     let color = Prop::new(p.get("fill-color"), Kind::Color, zoom);
     let opacity = Prop::new(p.get("fill-opacity"), Kind::Number, zoom);
@@ -337,7 +375,7 @@ fn draw_fill_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
             if c[3] <= 0.0 {
                 continue;
             }
-            for poly in polys_px(pt, f, scale, translate.translate(&ctx)) {
+            for poly in polys_px(pt, f, scale, translate.translate_px(&ctx, dpr)) {
                 raster_polygon(w, h, &poly, &pt.clip, |x, y| {
                     fb.blend(x, y, c);
                     if cull_outline {
@@ -360,7 +398,7 @@ fn draw_fill_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
             if base[3] <= 0.0 {
                 continue;
             }
-            for poly in polys_px(pt, f, scale, translate.translate(&ctx)) {
+            for poly in polys_px(pt, f, scale, translate.translate_px(&ctx, dpr)) {
                 for ring in &poly {
                     for seg in ring.windows(2) {
                         raster_gl_line(w, h, seg[0], seg[1], &pt.clip, |x, y, d| {
@@ -378,7 +416,7 @@ fn draw_fill_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
 
 // ── Line ─────────────────────────────────────────────────────────────────────
 
-fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile]) {
+fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile], dpr: f64) {
     let p = &layer["paint"];
     let l = &layer["layout"];
     let color = Prop::new(p.get("line-color"), Kind::Color, zoom);
@@ -430,26 +468,30 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
             if c[3] <= 0.0 {
                 continue;
             }
-            let lw = width.num(&ctx, 1.0);
+            // Widths in device pixels (CSS width * devicePixelRatio); the
+            // antialiasing ramp stays one device pixel wide.
+            let lw_css = width.num(&ctx, 1.0);
+            let lw = lw_css * dpr;
             // line.vertex.glsl: gapwidth / 2, halfwidth = width / 2, offset negated.
-            let gapw = gap.num(&ctx, 0.0) / 2.0;
+            let gapw = gap.num(&ctx, 0.0) * dpr / 2.0;
             let halfwidth = lw / 2.0;
-            let line_offset = -offset.num(&ctx, 0.0);
-            let aa = 0.5; // ANTIALIASING = 1 / devicePixelRatio / 2
+            let line_offset = -offset.num(&ctx, 0.0) * dpr;
+            let aa = 0.5; // ANTIALIASING = 1 / devicePixelRatio / 2 CSS px
             let inset = gapw + if gapw > 0.0 { aa } else { 0.0 };
             let outset =
                 gapw + halfwidth * if gapw > 0.0 { 2.0 } else { 1.0 } + if halfwidth == 0.0 { 0.0 } else { aa };
             if outset <= 0.0 {
                 continue;
             }
-            let blur2 = blur.num(&ctx, 0.0) + 1.0;
-            let floorwidth = floor_width.num(&fctx, lw);
-            let (tx, ty) = translate.translate(&ctx);
+            let blur2 = blur.num(&ctx, 0.0) * dpr + 1.0;
+            // Dash pattern scale is in CSS pixels (ratio-independent).
+            let floorwidth = floor_width.num(&fctx, lw_css);
+            let (tx, ty) = translate.translate_px(&ctx, dpr);
 
             let dash_params = dash.as_ref().map(|d| {
                 let width_b = d.width;
                 let width_a = d.width * from_scale;
-                let sdfgamma = ATLAS_W as f64 / (width_a.min(width_b) * 256.0) / 2.0;
+                let sdfgamma = ATLAS_W as f64 / (width_a.min(width_b) * 256.0 * dpr) / 2.0;
                 // lineSDFUniformValues: tileRatio = 1 / pixelsToTileUnits(tile, 1,
                 // tileZoom); an overscaled tile is 512 * overscaling px wide.
                 let tile_ratio = TILE_PX * pt.overscaling / EXTENT;
@@ -502,7 +544,7 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
 
 // ── Circle ───────────────────────────────────────────────────────────────────
 
-fn draw_circle_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile]) {
+fn draw_circle_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile], dpr: f64) {
     let p = &layer["paint"];
     let radius = Prop::new(p.get("circle-radius"), Kind::Number, zoom);
     let color = Prop::new(p.get("circle-color"), Kind::Color, zoom);
@@ -519,13 +561,14 @@ fn draw_circle_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Pl
         for (f, scale) in features(layer, pt, zoom) {
             let Geometry::Points(points) = &f.geometry else { continue };
             let ctx = Ctx { zoom, feature: Some(f) };
-            let r = radius.num(&ctx, 5.0);
-            let sw = stroke_width.num(&ctx, 0.0);
+            let r = radius.num(&ctx, 5.0) * dpr;
+            let sw = stroke_width.num(&ctx, 0.0) * dpr;
             let fill = rgba(color.color(&ctx, Color::BLACK), opacity.num(&ctx, 1.0));
             let stroke = rgba(stroke_color.color(&ctx, Color::BLACK), stroke_opacity.num(&ctx, 1.0));
-            // circle.vertex.glsl: antialiasblur = -max(1 / dpr / (r + sw), blur)
+            // circle.vertex.glsl: antialiasblur = -max(1 / dpr / (r + sw), blur),
+            // with r and sw in CSS px (here device px, so no 1 / dpr).
             let aablur = -(1.0 / (r + sw)).max(blur.num(&ctx, 0.0));
-            let (tx, ty) = translate.translate(&ctx);
+            let (tx, ty) = translate.translate_px(&ctx, dpr);
             let ext = r + sw;
             for &q in points {
                 let (x, y) = to_extent(q, scale);
@@ -596,7 +639,7 @@ pub fn render_svg(
     id_prefix: &str,
 ) -> Result<SvgParts, String> {
     use std::fmt::Write as _;
-    let (zoom, placed) = prepare(tiles, bbox, width, height);
+    let (zoom, placed) = prepare(tiles, bbox, width, height, 1.0);
     let placement = symbol::place(style, &symbol_tiles(&placed), assets, zoom, width as f64, height as f64);
     let mut defs = String::new();
     for (i, pt) in placed.iter().enumerate() {

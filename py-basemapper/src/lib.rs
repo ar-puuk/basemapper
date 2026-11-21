@@ -58,6 +58,8 @@ fn core_err_to_py(py: Python<'_>, e: BasemapError) -> PyErr {
 ///     fail_on_tile_error: When False, individual tile failures are skipped
 ///                         rather than aborting the render. Default True.
 ///     tile_concurrency: Maximum parallel tile downloads. Default 16.
+///     pixel_ratio: Device pixels per CSS pixel (MapLibre devicePixelRatio).
+///                  The output is width * pixel_ratio by height * pixel_ratio.
 ///
 /// Returns:
 ///     bytes: RGBA pixel data of length width * height * 4.
@@ -68,7 +70,7 @@ fn core_err_to_py(py: Python<'_>, e: BasemapError) -> PyErr {
 #[pyo3(signature = (
     bbox_3857, width, height, style_input,
     zoom=None, tile_timeout_ms=10_000, max_tiles=256, layers=None,
-    auth_token=None, fail_on_tile_error=true, tile_concurrency=16
+    auth_token=None, fail_on_tile_error=true, tile_concurrency=16, pixel_ratio=1.0
 ))]
 #[allow(clippy::too_many_arguments, clippy::useless_conversion)]
 fn render_basemap_raw(
@@ -84,6 +86,7 @@ fn render_basemap_raw(
     auth_token: Option<String>,
     fail_on_tile_error: bool,
     tile_concurrency: u32,
+    pixel_ratio: f64,
 ) -> PyResult<Py<PyBytes>> {
     if bbox_3857.len() != 4 {
         // Raise ValidationError for this input error too.
@@ -108,6 +111,7 @@ fn render_basemap_raw(
         layers,
         auth_token,
         fail_on_tile_error,
+        pixel_ratio,
     };
 
     // map_err then map avoids a ?-desugared From<PyErr>→PyErr that clippy flags.
