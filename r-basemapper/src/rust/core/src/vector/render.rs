@@ -233,7 +233,7 @@ pub fn render(
         match ltype {
             "background" => draw_background(&mut fb, layer, zoom),
             "fill" => draw_fill_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio, assets),
-            "line" => draw_line_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
+            "line" => draw_line_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio, assets),
             "circle" => draw_circle_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
             "heatmap" => draw_heatmap_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
             "fill-extrusion" => {
@@ -599,8 +599,10 @@ fn draw_fill_pattern_layer(
 
 // ── Line ─────────────────────────────────────────────────────────────────────
 
-fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile], dpr: f64) {
+fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile], dpr: f64, assets: &SymbolAssets) {
     let p = &layer["paint"];
+    // line-pattern replaces color and dashes (the linePattern program).
+    let pattern = Prop::new(p.get("line-pattern"), Kind::Enum, zoom);
     let l = &layer["layout"];
     let color = Prop::new(p.get("line-color"), Kind::Color, zoom);
     let opacity = Prop::new(p.get("line-opacity"), Kind::Number, zoom);
@@ -648,7 +650,19 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
                 Geometry::Polygons(ps) => (ps.iter().flatten().collect(), true),
                 Geometry::Points(_) => continue,
             };
-            let c = rgba(color.color(&ctx, Color::BLACK), opacity.num(&ctx, 1.0));
+            let image = if pattern.is_set() {
+                match pattern.get(&ctx) {
+                    Some(Val::Str(name)) => match assets.sprite.images.get(&name) {
+                        Some(img) => Some(img),
+                        None => continue,
+                    },
+                    _ => continue,
+                }
+            } else {
+                None
+            };
+            let op = opacity.num(&ctx, 1.0);
+            let c = if image.is_some() { [op as f32; 4] } else { rgba(color.color(&ctx, Color::BLACK), op) };
             if c[3] <= 0.0 {
                 continue;
             }
@@ -672,7 +686,16 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
             let floorwidth = floor_width.num(&fctx, lw_css);
             let (tx, ty) = translate.translate_px(&ctx, dpr);
 
-            let dash_params = dash.as_ref().map(|d| {
+            // line_pattern.fragment.glsl (pattern B, toScale 1): one repeat
+            // spans display_w / tileZoomRatio * floorwidth / display_h tile
+            // units along the line and the full outset across it, mapped onto
+            // the image plus its 1 px atlas padding.
+            let pattern_params = image.map(|img| {
+                let tile_ratio = TILE_PX * pt.overscaling / EXTENT;
+                let (dw, dh) = (img.w as f64 / img.pixel_ratio, img.h as f64 / img.pixel_ratio);
+                (img, tile_ratio * dh / (dw * floorwidth))
+            });
+            let dash_params = dash.as_ref().filter(|_| image.is_none()).map(|d| {
                 let width_b = d.width;
                 let width_a = d.width * from_scale;
                 let sdfgamma = ATLAS_W as f64 / (width_a.min(width_b) * 256.0 * dpr) / 2.0;
@@ -718,7 +741,15 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
                         alpha *= smoothstep(0.5 - g, 0.5 + g, sdf);
                     }
                     if alpha > 0.0 {
-                        fb.blend(x, y, scaled(c, alpha));
+                        if let Some((img, k)) = pattern_params {
+                            let xb = (var[2] * k).rem_euclid(1.0);
+                            let yb = 0.5 * var[1] + 0.5;
+                            let s = img.sample_atlas_pattern((img.w as f64 + 2.0) * xb, (img.h as f64 + 2.0) * yb);
+                            let m = alpha * op / 255.0;
+                            fb.blend(x, y, [(s[0] * m) as f32, (s[1] * m) as f32, (s[2] * m) as f32, (s[3] * m) as f32]);
+                        } else {
+                            fb.blend(x, y, scaled(c, alpha));
+                        }
                     }
                 });
             }
@@ -1345,6 +1376,15 @@ pub fn render_svg(
                 }
             }
             "fill" => svg_fill(&mut out, &mut defs, layer, zoom, layer_tiles(&placed, layer), &layer_clip(layer), assets, &mut pattern_ids),
+            "line" if layer["paint"].get("line-pattern").map_or(false, |v| !v.is_null()) => {
+                // Patterned lines stay raster: the layer drawn alone, embedded.
+                let mut lfb = Framebuffer::new(width as usize, height as usize);
+                draw_line_layer(&mut lfb, layer, zoom, layer_tiles(&placed, layer), 1.0, assets);
+                if lfb.px.iter().any(|p| p[3] > 0 || p[0] > 0 || p[1] > 0 || p[2] > 0) {
+                    let px = lfb.into_straight_rgba();
+                    let _ = write!(out, r#"<image width="{width}" height="{height}" href="{}"/>"#, svg::png_data_uri(width, height, &px));
+                }
+            }
             "line" => svg_line(&mut out, layer, zoom, layer_tiles(&placed, layer), &layer_clip(layer)),
             "circle" => svg_circle(&mut out, layer, zoom, layer_tiles(&placed, layer)),
             "fill-extrusion" => {

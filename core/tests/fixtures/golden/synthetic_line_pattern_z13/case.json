@@ -1,0 +1,18 @@
+{
+  "note": "Synthetic: line-pattern: data-driven pattern names, zoom-dependent data widths (floorwidth), round joins and caps, opacity, a constant pattern with line-offset; inline GeoJSON lines, generated sprite.",
+  "bbox": [
+    -12457699.790500749,
+    4975384.435523884,
+    -12453375.859218013,
+    4978627.383985937
+  ],
+  "width": 640,
+  "height": 480,
+  "zoom": 13.5,
+  "attribution": "Synthetic lines",
+  "max_bad_pixel_frac": 0.00068,
+  "max_mean_diff": 0.061,
+  "svg": true,
+  "max_bad_pixel_frac_svg": 0.00068,
+  "max_mean_diff_svg": 0.063
+}

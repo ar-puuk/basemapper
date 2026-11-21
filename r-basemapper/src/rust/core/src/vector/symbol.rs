@@ -777,6 +777,35 @@ impl SpriteImage {
         out
     }
 
+    /// GL_LINEAR sample of a pattern image as it sits in MapLibre's atlas, at
+    /// padded-cell coordinates: the 1 px padding holds the opposite edges
+    /// (wrapped), anything beyond it is transparent. Premultiplied 0..=255.
+    pub fn sample_atlas_pattern(&self, tx: f64, ty: f64) -> [f64; 4] {
+        let (w, h) = (self.w as i64, self.h as i64);
+        let wrap = |i: i64, n: i64| -> Option<i64> {
+            match i {
+                0 => Some(n),
+                i if i == n + 1 => Some(1),
+                i if i >= 1 && i <= n => Some(i),
+                _ => None,
+            }
+        };
+        let t = |ix: i64, iy: i64| match (wrap(ix, w), wrap(iy, h)) {
+            (Some(x), Some(y)) => self.texel(x, y),
+            _ => [0.0; 4],
+        };
+        let (x, y) = (tx - 0.5, ty - 0.5);
+        let (x0, y0) = (x.floor(), y.floor());
+        let (fx, fy) = (x - x0, y - y0);
+        let (ix, iy) = (x0 as i64, y0 as i64);
+        let (a, b, c, d) = (t(ix, iy), t(ix + 1, iy), t(ix, iy + 1), t(ix + 1, iy + 1));
+        let mut out = [0.0; 4];
+        for i in 0..4 {
+            out[i] = (a[i] * (1.0 - fx) + b[i] * fx) * (1.0 - fy) + (c[i] * (1.0 - fx) + d[i] * fx) * fy;
+        }
+        out
+    }
+
     fn texel(&self, ix: i64, iy: i64) -> [f64; 4] {
         let (cw, ch) = (self.w as i64 + 2, self.h as i64 + 2);
         if ix < 0 || iy < 0 || ix >= cw || iy >= ch {

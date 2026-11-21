@@ -1,0 +1,23 @@
+{
+ "arrow": {
+  "x": 0,
+  "y": 0,
+  "width": 32,
+  "height": 16,
+  "pixelRatio": 2
+ },
+ "rail": {
+  "x": 34,
+  "y": 0,
+  "width": 24,
+  "height": 12,
+  "pixelRatio": 2
+ },
+ "dots": {
+  "x": 60,
+  "y": 0,
+  "width": 16,
+  "height": 16,
+  "pixelRatio": 2
+ }
+}

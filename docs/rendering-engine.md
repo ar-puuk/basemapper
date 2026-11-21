@@ -82,7 +82,7 @@ measuring against MapLibre and investigating the difference.
 
 ### Not supported yet
 
-`line-pattern`, `line-gradient` and `fill-extrusion-pattern` layers, GeoJSON clustering, PMTiles sources inside vector styles, 3D terrain,
+`line-gradient` and `fill-extrusion-pattern`, GeoJSON clustering, PMTiles sources inside vector styles, 3D terrain,
 vertical text, and right-to-left scripts. Unsupported layer types are skipped
 with a warning.
 
@@ -101,6 +101,18 @@ sources and per-light colours are supported. MapLibre shares one slope
 texture per tile between all hillshade layers of a source, so the first
 layer's `resampling` applies to all of them; basemapper copies this. In SVG,
 a hillshade layer is embedded as an image.
+
+### Line patterns
+
+`line-pattern` follows line_pattern.fragment.glsl, replacing the line colour
+and any dashes. Only pattern B is drawn (no cross-fade, `toScale` 1). Along
+the line, one repeat spans `display_w / tileZoomRatio · floorwidth /
+display_h` tile units of line distance, where the display size is image px /
+pixelRatio and `floorwidth` is the width at the integer zoom. Across the
+line, the pattern spans the full outset, antialiasing included. Each repeat
+maps onto the image plus its 1 px atlas padding (wrapped edges, transparent
+beyond), sampled `LINEAR`. Pattern names can be data-driven. In SVG,
+patterned line layers are embedded as images.
 
 ### Heatmap
 
