@@ -192,7 +192,7 @@ fn main() {
                 continue;
             }
             let mut s = s.clone();
-            if s["type"] == "vector" || s["type"] == "raster" {
+            if s["type"] == "vector" || s["type"] == "raster" || s["type"] == "raster-dem" {
                 if let Some(o) = s.as_object_mut() {
                     o.remove("url");
                 }
@@ -206,7 +206,7 @@ fn main() {
             if kind == "geojson" {
                 continue; // handled above
             }
-            if kind != "vector" && kind != "raster" {
+            if kind != "vector" && kind != "raster" && kind != "raster-dem" {
                 new_sources.insert(id.clone(), s.clone());
                 continue;
             }
@@ -250,7 +250,8 @@ fn main() {
                 std::fs::write(dir.join(c.y.to_string()), bytes).unwrap();
             }
             let mut ns = json!({ "type": kind, "tiles": [format!("{{{{BASE}}}}/tiles/{id}/{{z}}/{{x}}/{{y}}")] });
-            for k in ["minzoom", "maxzoom", "tileSize"] {
+            // raster-dem: the elevation encoding travels with the tiles.
+            for k in ["minzoom", "maxzoom", "tileSize", "encoding", "redFactor", "greenFactor", "blueFactor", "baseShift"] {
                 if let Some(v) = pick(k) {
                     ns[k] = v;
                 }

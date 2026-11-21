@@ -1,0 +1,19 @@
+{
+  "note": "Synthetic: two stacked hillshade layers (basic with translucent colors as GDAL, igor) and standard with accent color and low exaggeration, on one DEM source. The first layer's resampling (linear) applies to all: MapLibre shares one slope texture per tile.",
+  "tiles_from": "synthetic_hillshade_standard",
+  "bbox": [
+    -12460207.093064213,
+    4937087.318758184,
+    -12408567.150153102,
+    4975817.275941517
+  ],
+  "width": 512,
+  "height": 384,
+  "zoom": 9.6,
+  "attribution": "Terrain Tiles (Mapzen, AWS Open Data): SRTM, GMTED, NED and others",
+  "svg": true,
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.248,
+  "max_bad_pixel_frac_svg": 5e-05,
+  "max_mean_diff_svg": 0.472
+}

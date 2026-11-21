@@ -357,8 +357,13 @@ async fn extract_tile_source_from_style(
             None
         }
     });
+    // Sources only the vector path draws (GeoJSON, DEM for hillshade): such
+    // styles render through it even without a vector source.
+    let needs_vector_path = sources.values().any(|s| matches!(s["type"].as_str(), Some("geojson" | "raster-dem")));
     let (src_type, source) = if let Some(entry) = vector_entry {
         entry
+    } else if needs_vector_path {
+        ("vector", &*GEOJSON_ONLY)
     } else {
         sources
             .values()
@@ -748,7 +753,7 @@ async fn fetch_vector_inputs(
             sources.vector.insert(id, tiles);
             continue;
         }
-        if kind != "vector" && kind != "raster" {
+        if kind != "vector" && kind != "raster" && kind != "raster-dem" {
             if !kind.is_empty() {
                 log::warn!("source {id}: type {kind} is not supported yet");
             }
@@ -792,7 +797,12 @@ async fn fetch_vector_inputs(
                 continue;
             }
             let tiles = fetch(tile_fetcher::build_tile_coords(bbox, z)).await?;
-            sources.raster.insert(id, vector::render::RasterTiles { zoom: z, tiles });
+            if kind == "raster-dem" {
+                let unpack = vector::hillshade::unpack_vector(src);
+                sources.dem.insert(id, vector::hillshade::DemTiles { zoom: z, tiles, unpack });
+            } else {
+                sources.raster.insert(id, vector::render::RasterTiles { zoom: z, tiles });
+            }
         }
     }
     let assets = vector::symbol::SymbolAssets {

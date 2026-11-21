@@ -82,10 +82,26 @@ measuring against MapLibre and investigating the difference.
 
 ### Not supported yet
 
-`line-pattern`, `line-gradient`, `fill-extrusion-pattern`, `heatmap`,
-`hillshade` layers, GeoJSON clustering, PMTiles sources inside vector styles,
+`line-pattern`, `line-gradient`, `fill-extrusion-pattern` and `heatmap`
+layers, GeoJSON clustering, PMTiles sources inside vector styles, 3D terrain,
 vertical text, and right-to-left scripts. Unsupported layer types are skipped
 with a warning.
+
+### Hillshade
+
+`hillshade` layers read `raster-dem` sources (`mapbox`, `terrarium` or
+`custom` encoding), fetched at the raster zoom. As in MapLibre, each DEM tile
+gets a 1 px border repeated from its edge, then backfilled from the
+neighbouring tiles in the view. Slopes are computed per DEM pixel, as
+hillshade_prepare.fragment.glsl does (Sobel kernel, exaggerated below z15,
+stored as 8-bit values). Every screen pixel then samples them like a texture
+(pixel-aligned raster placement, `LINEAR` or `NEAREST`), corrects for Mercator
+scale at its latitude and shades with hillshade.fragment.glsl's `standard`,
+`basic`, `combined`, `igor` or `multidirectional` method. Several light
+sources and per-light colours are supported. MapLibre shares one slope
+texture per tile between all hillshade layers of a source, so the first
+layer's `resampling` applies to all of them; basemapper copies this. In SVG,
+a hillshade layer is embedded as an image.
 
 ### GeoJSON sources
 

@@ -1,0 +1,16 @@
+{
+  "note": "Synthetic: hillshade, igor method with resampling nearest (slope texture sampled NEAREST at minification).",
+  "tiles_from": "synthetic_hillshade_standard",
+  "bbox": [
+    -12460207.093064213,
+    4937087.318758184,
+    -12408567.150153102,
+    4975817.275941517
+  ],
+  "width": 512,
+  "height": 384,
+  "zoom": 9.6,
+  "attribution": "Terrain Tiles (Mapzen, AWS Open Data): SRTM, GMTED, NED and others",
+  "max_bad_pixel_frac": 0.00302,
+  "max_mean_diff": 0.191
+}

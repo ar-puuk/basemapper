@@ -1,0 +1,48 @@
+{
+ "version": 8,
+ "sources": {
+  "dem": {
+   "type": "raster-dem",
+   "encoding": "terrarium",
+   "tileSize": 256,
+   "maxzoom": 15,
+   "tiles": [
+    "{{BASE}}/tiles/dem/{z}/{x}/{y}.png"
+   ]
+  }
+ },
+ "layers": [
+  {
+   "id": "background",
+   "type": "background",
+   "paint": {
+    "background-color": "#f2efe9"
+   }
+  },
+  {
+   "id": "hillshade",
+   "type": "hillshade",
+   "source": "dem",
+   "paint": {
+    "hillshade-method": "combined",
+    "hillshade-illumination-direction": 300,
+    "hillshade-illumination-altitude": 35,
+    "hillshade-exaggeration": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     8,
+     0.4,
+     12,
+     0.9
+    ],
+    "hillshade-shadow-color": "#203040",
+    "hillshade-highlight-color": "rgba(255, 255, 220, 0.6)"
+   }
+  }
+ ]
+}

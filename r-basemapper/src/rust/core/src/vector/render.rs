@@ -96,6 +96,8 @@ pub struct RasterTiles {
 pub struct SourceTiles {
     pub vector: std::collections::HashMap<String, Vec<(TileCoord, i32, Vec<u8>)>>,
     pub raster: std::collections::HashMap<String, RasterTiles>,
+    /// `raster-dem` sources (hillshade layers).
+    pub dem: std::collections::HashMap<String, super::hillshade::DemTiles>,
 }
 
 impl SourceTiles {
@@ -240,6 +242,12 @@ pub fn render(
             "raster" => {
                 if let Some(rt) = layer["source"].as_str().and_then(|s| sources.raster.get(s)) {
                     draw_raster_layer(&mut fb, layer, zoom, rt, bbox, ratio);
+                }
+            }
+            "hillshade" => {
+                if let Some(dem) = layer["source"].as_str().and_then(|s| sources.dem.get(s)) {
+                    let nearest = super::hillshade::source_nearest(style, layer["source"].as_str().unwrap_or(""), zoom);
+                    super::hillshade::draw_layer(&mut fb, layer, zoom, dem, bbox, width, height, ratio, nearest);
                 }
             }
             "symbol" => symbol::draw_layer(
@@ -1259,6 +1267,18 @@ pub fn render_svg(
                             svg::alpha(op.clamp(0.0, 1.0)),
                             svg::png_data_uri(width, height, img.as_raw())
                         );
+                    }
+                }
+            }
+            "hillshade" => {
+                // Shading stays raster: the layer drawn alone, embedded.
+                if let Some(dem) = layer["source"].as_str().and_then(|s| sources.dem.get(s)) {
+                    let mut lfb = Framebuffer::new(width as usize, height as usize);
+                    let nearest = super::hillshade::source_nearest(style, layer["source"].as_str().unwrap_or(""), zoom);
+                    super::hillshade::draw_layer(&mut lfb, layer, zoom, dem, bbox, width, height, 1.0, nearest);
+                    if lfb.px.iter().any(|p| p[3] > 0 || p[0] > 0 || p[1] > 0 || p[2] > 0) {
+                        let px = lfb.into_straight_rgba();
+                        let _ = write!(out, r#"<image width="{width}" height="{height}" href="{}"/>"#, svg::png_data_uri(width, height, &px));
                     }
                 }
             }

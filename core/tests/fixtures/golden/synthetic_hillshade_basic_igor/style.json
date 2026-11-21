@@ -1,0 +1,56 @@
+{
+ "version": 8,
+ "sources": {
+  "dem": {
+   "type": "raster-dem",
+   "encoding": "terrarium",
+   "tileSize": 256,
+   "maxzoom": 15,
+   "tiles": [
+    "{{BASE}}/tiles/dem/{z}/{x}/{y}.png"
+   ]
+  }
+ },
+ "layers": [
+  {
+   "id": "background",
+   "type": "background",
+   "paint": {
+    "background-color": "#f2efe9"
+   }
+  },
+  {
+   "id": "basic",
+   "type": "hillshade",
+   "source": "dem",
+   "paint": {
+    "hillshade-method": "basic",
+    "hillshade-exaggeration": 0.5,
+    "hillshade-shadow-color": "rgba(0,0,0,0.5)",
+    "hillshade-highlight-color": "rgba(255,255,255,0.5)"
+   }
+  },
+  {
+   "id": "igor",
+   "type": "hillshade",
+   "source": "dem",
+   "paint": {
+    "hillshade-method": "igor",
+    "hillshade-illumination-direction": 225,
+    "hillshade-shadow-color": "#5a3a1a",
+    "hillshade-highlight-color": "rgba(0,0,0,0)",
+    "hillshade-exaggeration": 0.8
+   }
+  },
+  {
+   "id": "standard",
+   "type": "hillshade",
+   "source": "dem",
+   "paint": {
+    "hillshade-exaggeration": 0.25,
+    "hillshade-accent-color": "#004060",
+    "hillshade-illumination-anchor": "map"
+   }
+  }
+ ]
+}
