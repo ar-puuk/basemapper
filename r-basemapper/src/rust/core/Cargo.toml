@@ -5,12 +5,12 @@ edition = "2021"
 
 [dependencies]
 wgpu        = { version = "22.1", features = ["wgsl"] }
-# Canonical pin for CI / cargo-publish (no local [patch] override there).
-# Local development redirects via [patch] in the root Cargo.toml to avoid a
-# network fetch — see README.md for setup instructions.
-# TODO: Replace with a crates.io release once maplibre-rs stabilises.
 pmtiles     = { version = "0.23.0", default-features = false, features = ["__async"] }
 lru         = "0.12"
+# ar-puuk's fork of maplibre-rs, pinned by full commit SHA. The fork carries
+# 5 commits on top of upstream (headless full-scene API, GL expression colors,
+# tessellation panic guards), so upstream cannot be used directly.
+# Scheduled for removal: being replaced by an in-house CPU vector renderer.
 maplibre    = { git = "https://github.com/ar-puuk/maplibre-rs", rev = "3bb17231fc7895248bb3cd8a3882de472d74c12c", features = ["headless"] }
 cgmath      = "0.18.0"
 tokio       = { workspace = true }

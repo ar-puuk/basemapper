@@ -2072,6 +2072,7 @@ dependencies = [
 [[package]]
 name = "maplibre"
 version = "0.1.0"
+source = "git+https://github.com/ar-puuk/maplibre-rs?rev=3bb17231fc7895248bb3cd8a3882de472d74c12c#3bb17231fc7895248bb3cd8a3882de472d74c12c"
 dependencies = [
  "async-trait",
  "bitflags 2.13.0",
@@ -2114,6 +2115,7 @@ dependencies = [
 [[package]]
 name = "maplibre-build-tools"
 version = "0.1.0"
+source = "git+https://github.com/ar-puuk/maplibre-rs?rev=3bb17231fc7895248bb3cd8a3882de472d74c12c#3bb17231fc7895248bb3cd8a3882de472d74c12c"
 dependencies = [
  "flate2",
  "log",
