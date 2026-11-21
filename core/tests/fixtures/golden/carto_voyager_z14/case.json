@@ -14,5 +14,8 @@
   "width": 800,
   "zoom": 15,
   "max_bad_pixel_frac": 0.00219,
-  "max_mean_diff": 0.182
+  "max_mean_diff": 0.182,
+  "svg": true,
+  "max_bad_pixel_frac_svg": 0.00135,
+  "max_mean_diff_svg": 1.052
 }

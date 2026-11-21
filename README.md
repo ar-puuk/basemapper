@@ -225,8 +225,8 @@ git push
 
 See [docs/rendering-engine.md](docs/rendering-engine.md): the raster and
 vector pipelines, which parts of MapLibre GL JS the vector renderer ports and
-the details that make its output match, what is not supported yet, and how
-fidelity is verified.
+the details that make its output match, SVG (true vector) output, what is not
+supported yet, and how fidelity is verified.
 
 ---
 
@@ -234,7 +234,7 @@ fidelity is verified.
 
 | What | Command | Notes |
 |---|---|---|
-| Rust core: unit, integration and golden-image tests | `cargo test -p basemapper-core` | 156 golden cases compared with MapLibre GL JS references, run in parallel |
+| Rust core: unit, integration and golden-image tests | `cargo test -p basemapper-core` | 160 golden cases compared with MapLibre GL JS references, run in parallel; `"svg": true` cases also score the SVG output (rasterised with resvg) |
 | Python | build the wheel with `maturin build`, install it with `pytest responses plotnine`, then run `pytest` in `py-basemapper/` | Includes end-to-end renders against the golden fixtures |
 | R | `R CMD INSTALL r-basemapper`, then `testthat::test_dir("r-basemapper/tests/testthat")` | |
 | Visual comparison | open `check/index.html` after `cargo test` | Overview grid, side-by-side, swipe, blink and diff views |

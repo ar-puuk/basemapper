@@ -13,6 +13,7 @@ use super::gl::{
     LineBuilder, Vert, ATLAS_W, EXTENT,
 };
 use super::mvt::{self, Feature, Geometry, Tile};
+use super::svg;
 use super::symbol::{self, SymbolAssets, SymbolTile};
 use crate::tile_fetcher::TileCoord;
 use serde_json::Value as Json;
@@ -80,28 +81,15 @@ pub struct RenderOutput {
     pub skipped_layer_types: Vec<String>,
 }
 
-/// Render `tiles` (raw MVT bytes) with `style` over `bbox` at `width × height`.
-/// `assets` holds glyphs and sprite images for symbol layers (may be empty).
-/// Each tile carries its world-copy `wrap` (see [`covering_tiles`]).
-pub fn render(
-    style: &Json,
-    tiles: &[(TileCoord, i32, Vec<u8>)],
-    assets: &SymbolAssets,
-    bbox: [f64; 4],
-    width: u32,
-    height: u32,
-) -> Result<RenderOutput, String> {
+/// Decode `tiles` and place them on a `width x height` view of `bbox` at
+/// MapLibre's scale zoom (centre point minus half the viewport).
+fn prepare(tiles: &[(TileCoord, i32, Vec<u8>)], bbox: [f64; 4], width: u32, height: u32) -> (f64, Vec<PlacedTile>) {
     let zoom = scale_zoom(bbox, width);
     let world_px = TILE_PX * 2f64.powf(zoom);
-    // MapLibre's transform: centre point minus half the viewport.
     let cx = ((bbox[0] + bbox[2]) / 2.0 + EARTH_HALF) / EARTH_CIRC * world_px;
     let cy = (EARTH_HALF - (bbox[1] + bbox[3]) / 2.0) / EARTH_CIRC * world_px;
     let view_x0 = cx - width as f64 / 2.0;
     let view_y0 = cy - height as f64 / 2.0;
-
-    let (w, h) = (width as usize, height as usize);
-    let mut fb = Framebuffer::new(w, h);
-
     let mut placed = Vec::with_capacity(tiles.len());
     for (c, wrap, bytes) in tiles {
         let tile = match mvt::decode(bytes) {
@@ -125,9 +113,11 @@ pub fn render(
             overscaling: 2f64.powi((zoom.floor() as i32 - c.z as i32).max(0)),
         });
     }
+    (zoom, placed)
+}
 
-    // Symbol placement runs once, top layer first, before drawing.
-    let symbol_tiles: Vec<SymbolTile> = placed
+fn symbol_tiles(placed: &[PlacedTile]) -> Vec<SymbolTile<'_>> {
+    placed
         .iter()
         .map(|p| SymbolTile {
             coord: (p.coord.z, p.coord.x, p.coord.y),
@@ -138,8 +128,26 @@ pub fn render(
             unit_px: p.unit_px,
             overscaling: p.overscaling,
         })
-        .collect();
-    let placement = symbol::place(style, &symbol_tiles, assets, zoom, width as f64, height as f64);
+        .collect()
+}
+
+/// Render `tiles` (raw MVT bytes) with `style` over `bbox` at `width × height`.
+/// `assets` holds glyphs and sprite images for symbol layers (may be empty).
+/// Each tile carries its world-copy `wrap` (see [`covering_tiles`]).
+pub fn render(
+    style: &Json,
+    tiles: &[(TileCoord, i32, Vec<u8>)],
+    assets: &SymbolAssets,
+    bbox: [f64; 4],
+    width: u32,
+    height: u32,
+) -> Result<RenderOutput, String> {
+    let (zoom, placed) = prepare(tiles, bbox, width, height);
+    let (w, h) = (width as usize, height as usize);
+    let mut fb = Framebuffer::new(w, h);
+
+    // Symbol placement runs once, top layer first, before drawing.
+    let placement = symbol::place(style, &symbol_tiles(&placed), assets, zoom, width as f64, height as f64);
 
     let mut skipped: Vec<String> = Vec::new();
     for (layer_idx, layer) in style["layers"].as_array().map(|v| v.as_slice()).unwrap_or(&[]).iter().enumerate() {
@@ -560,5 +568,274 @@ mod tests {
         assert_eq!(z, 13.0);
         assert_eq!(tile_zoom(13.7, None), 13);
         assert_eq!(tile_zoom(13.7, Some(12)), 12);
+    }
+}
+
+
+// ── SVG output ───────────────────────────────────────────────────────────────
+
+/// One style rendered as SVG fragments (ids prefixed so several styles can
+/// share one document).
+pub struct SvgParts {
+    pub defs: String,
+    pub body: String,
+    pub skipped_layer_types: Vec<String>,
+}
+
+/// Render `tiles` with `style` as vector SVG: the same view, tile clipping,
+/// evaluated style values and label placement as [`render`], written as
+/// paths instead of pixels. Labels are glyph outlines traced from the
+/// style's SDF glyphs at the shader's edge threshold.
+pub fn render_svg(
+    style: &Json,
+    tiles: &[(TileCoord, i32, Vec<u8>)],
+    assets: &SymbolAssets,
+    bbox: [f64; 4],
+    width: u32,
+    height: u32,
+    id_prefix: &str,
+) -> Result<SvgParts, String> {
+    use std::fmt::Write as _;
+    let (zoom, placed) = prepare(tiles, bbox, width, height);
+    let placement = symbol::place(style, &symbol_tiles(&placed), assets, zoom, width as f64, height as f64);
+    let mut defs = String::new();
+    for (i, pt) in placed.iter().enumerate() {
+        let _ = write!(
+            defs,
+            r#"<clipPath id="{id_prefix}t{i}"><rect x="{}" y="{}" width="{}" height="{}"/></clipPath>"#,
+            svg::num(pt.clip.x0),
+            svg::num(pt.clip.y0),
+            svg::num(pt.clip.x1 - pt.clip.x0),
+            svg::num(pt.clip.y1 - pt.clip.y0)
+        );
+    }
+    let mut body = String::new();
+    let mut skipped: Vec<String> = Vec::new();
+    for (layer_idx, layer) in style["layers"].as_array().map(|v| v.as_slice()).unwrap_or(&[]).iter().enumerate() {
+        let ltype = layer["type"].as_str().unwrap_or("");
+        if !symbol::layer_visible(layer, zoom) {
+            continue;
+        }
+        let id = svg::xml_escape(layer["id"].as_str().unwrap_or(""));
+        let mut out = String::new();
+        match ltype {
+            "background" => {
+                let ctx = Ctx { zoom, feature: None };
+                let p = &layer["paint"];
+                let c = Prop::new(p.get("background-color"), Kind::Color, zoom).color(&ctx, Color::BLACK);
+                let o = Prop::new(p.get("background-opacity"), Kind::Number, zoom).num(&ctx, 1.0);
+                if let Some((hex, a)) = svg::paint(c, o) {
+                    let _ = write!(out, r#"<rect width="{width}" height="{height}" fill="{hex}" fill-opacity="{}"/>"#, svg::num(a));
+                }
+            }
+            "fill" => svg_fill(&mut out, layer, zoom, &placed, id_prefix),
+            "line" => svg_line(&mut out, layer, zoom, &placed, id_prefix),
+            "circle" => svg_circle(&mut out, layer, zoom, &placed),
+            "symbol" => symbol::svg_layer(&mut out, &mut defs, layer, layer_idx, &placement, assets, width as usize, height as usize, id_prefix),
+            other => {
+                if !skipped.iter().any(|x| x == other) {
+                    skipped.push(other.to_owned());
+                }
+            }
+        }
+        if !out.is_empty() {
+            let _ = write!(body, r#"<g id="{id_prefix}{id}">{out}</g>"#);
+        }
+    }
+    Ok(SvgParts { defs, body, skipped_layer_types: skipped })
+}
+
+fn svg_fill(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], prefix: &str) {
+    use std::fmt::Write as _;
+    let p = &layer["paint"];
+    let color = Prop::new(p.get("fill-color"), Kind::Color, zoom);
+    let opacity = Prop::new(p.get("fill-opacity"), Kind::Number, zoom);
+    let outline = Prop::new(p.get("fill-outline-color"), Kind::Color, zoom);
+    let translate = Prop::new(p.get("fill-translate"), Kind::Array, zoom);
+    for (i, pt) in placed.iter().enumerate() {
+        let mut g = String::new();
+        for (f, scale) in features(layer, pt, zoom) {
+            let ctx = Ctx { zoom, feature: Some(f) };
+            let op = opacity.num(&ctx, 1.0);
+            let rings: Vec<Vec<(f64, f64)>> = polys_px(pt, f, scale, translate.translate(&ctx)).into_iter().flatten().collect();
+            if rings.is_empty() {
+                continue;
+            }
+            let d = svg::path_data(&rings, true);
+            if let Some((hex, a)) = svg::paint(color.color(&ctx, Color::BLACK), op) {
+                let _ = write!(g, r#"<path d="{d}" fill="{hex}" fill-opacity="{}" fill-rule="evenodd"/>"#, svg::num(a));
+            }
+            if outline.is_set() {
+                if let Some((hex, a)) = svg::paint(outline.color(&ctx, Color::BLACK), op) {
+                    let _ = write!(g, r#"<path d="{d}" fill="none" stroke="{hex}" stroke-opacity="{}" stroke-width="1"/>"#, svg::num(a));
+                }
+            }
+        }
+        if !g.is_empty() {
+            let _ = write!(out, r#"<g clip-path="url(#{prefix}t{i})">{g}</g>"#);
+        }
+    }
+}
+
+/// Offset a polyline perpendicular to its direction (positive = right of
+/// the direction in screen space), with mitred vertex normals.
+fn offset_polyline(pts: &[(f64, f64)], d: f64) -> Vec<(f64, f64)> {
+    if pts.len() < 2 || d == 0.0 {
+        return pts.to_vec();
+    }
+    let normal = |a: (f64, f64), b: (f64, f64)| {
+        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+        let len = (dx * dx + dy * dy).sqrt();
+        if len == 0.0 { (0.0, 0.0) } else { (-dy / len, dx / len) }
+    };
+    let n = pts.len();
+    (0..n)
+        .map(|i| {
+            let prev = if i > 0 { normal(pts[i - 1], pts[i]) } else { normal(pts[0], pts[1]) };
+            let next = if i + 1 < n { normal(pts[i], pts[i + 1]) } else { prev };
+            let (mut mx, mut my) = (prev.0 + next.0, prev.1 + next.1);
+            let m = (mx * mx + my * my).sqrt();
+            if m < 1e-9 {
+                mx = next.0;
+                my = next.1;
+            } else {
+                mx /= m;
+                my /= m;
+            }
+            let cos = mx * next.0 + my * next.1;
+            let k = if cos.abs() > 0.1 { d / cos } else { d };
+            (pts[i].0 + mx * k, pts[i].1 + my * k)
+        })
+        .collect()
+}
+
+fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], prefix: &str) {
+    use std::fmt::Write as _;
+    let p = &layer["paint"];
+    let l = &layer["layout"];
+    let color = Prop::new(p.get("line-color"), Kind::Color, zoom);
+    let opacity = Prop::new(p.get("line-opacity"), Kind::Number, zoom);
+    let width = Prop::new(p.get("line-width"), Kind::Number, zoom);
+    let floor_width = Prop::new(p.get("line-width"), Kind::Number, zoom.floor());
+    let gap = Prop::new(p.get("line-gap-width"), Kind::Number, zoom);
+    let offset = Prop::new(p.get("line-offset"), Kind::Number, zoom);
+    let translate = Prop::new(p.get("line-translate"), Kind::Array, zoom);
+    let dasharray = Prop::new(p.get("line-dasharray"), Kind::Enum, zoom);
+    let cap = l["line-cap"].as_str().unwrap_or("butt");
+    let join = l["line-join"].as_str().unwrap_or("miter");
+    let miter = l["line-miter-limit"].as_f64().unwrap_or(2.0);
+    let dash = match &dasharray {
+        Prop::Const(v) => v.as_num_array().filter(|d| d.len() >= 2 && d.iter().sum::<f64>() > 0.0),
+        _ => None,
+    };
+    for (i, pt) in placed.iter().enumerate() {
+        let mut g = String::new();
+        for (f, scale) in features(layer, pt, zoom) {
+            let ctx = Ctx { zoom, feature: Some(f) };
+            let fctx = Ctx { zoom: zoom.floor(), feature: Some(f) };
+            let lines: Vec<&Vec<(f32, f32)>> = match &f.geometry {
+                Geometry::Lines(ls) => ls.iter().collect(),
+                Geometry::Polygons(ps) => ps.iter().flatten().collect(),
+                Geometry::Points(_) => continue,
+            };
+            let lw = width.num(&ctx, 1.0);
+            if lw <= 0.0 {
+                continue;
+            }
+            let Some((hex, a)) = svg::paint(color.color(&ctx, Color::BLACK), opacity.num(&ctx, 1.0)) else { continue };
+            let (tx, ty) = translate.translate(&ctx);
+            let px: Vec<Vec<(f64, f64)>> = lines
+                .iter()
+                .map(|ln| {
+                    ln.iter()
+                        .map(|&q| {
+                            let (x, y) = to_extent(q, scale);
+                            (pt.ox + x * pt.unit_px + tx, pt.oy + y * pt.unit_px + ty)
+                        })
+                        .collect()
+                })
+                .collect();
+            let off = offset.num(&ctx, 0.0);
+            let gw = gap.num(&ctx, 0.0);
+            let offsets: Vec<f64> = if gw > 0.0 { vec![off - (gw / 2.0 + lw / 2.0), off + (gw / 2.0 + lw / 2.0)] } else { vec![off] };
+            let mut dash_attr = String::new();
+            if let Some(d) = &dash {
+                // MapLibre dash lengths are multiples of the line width at
+                // floor(zoom); round caps are drawn inside the dash in MapLibre
+                // but extend it in SVG, so shorten dashes by one width.
+                // The pattern is laid out in pixels at the tile's integer zoom
+                // (tileRatio), so it stretches with the fractional zoom.
+                let fw = floor_width.num(&fctx, lw) * pt.unit_px * EXTENT / (TILE_PX * pt.overscaling);
+                let round = cap == "round";
+                let vals: Vec<String> = d
+                    .iter()
+                    .enumerate()
+                    .map(|(k, &v)| {
+                        let base = v * fw;
+                        let adj = if round { if k % 2 == 0 { (base - lw).max(0.01) } else { base + lw } } else { base };
+                        svg::num(adj)
+                    })
+                    .collect();
+                dash_attr = format!(r#" stroke-dasharray="{}""#, vals.join(" "));
+            }
+            for o in offsets {
+                let rings: Vec<Vec<(f64, f64)>> = px.iter().map(|r| offset_polyline(r, o)).collect();
+                let d = svg::path_data(&rings, false);
+                let _ = write!(
+                    g,
+                    r#"<path d="{d}" fill="none" stroke="{hex}" stroke-opacity="{}" stroke-width="{}" stroke-linecap="{cap}" stroke-linejoin="{join}" stroke-miterlimit="{}"{dash_attr}/>"#,
+                    svg::num(a),
+                    svg::num(lw),
+                    svg::num(miter)
+                );
+            }
+        }
+        if !g.is_empty() {
+            let _ = write!(out, r#"<g clip-path="url(#{prefix}t{i})">{g}</g>"#);
+        }
+    }
+}
+
+fn svg_circle(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile]) {
+    use std::fmt::Write as _;
+    let p = &layer["paint"];
+    let radius = Prop::new(p.get("circle-radius"), Kind::Number, zoom);
+    let color = Prop::new(p.get("circle-color"), Kind::Color, zoom);
+    let opacity = Prop::new(p.get("circle-opacity"), Kind::Number, zoom);
+    let stroke_width = Prop::new(p.get("circle-stroke-width"), Kind::Number, zoom);
+    let stroke_color = Prop::new(p.get("circle-stroke-color"), Kind::Color, zoom);
+    let stroke_opacity = Prop::new(p.get("circle-stroke-opacity"), Kind::Number, zoom);
+    let translate = Prop::new(p.get("circle-translate"), Kind::Array, zoom);
+    for pt in placed {
+        for (f, scale) in features(layer, pt, zoom) {
+            let Geometry::Points(points) = &f.geometry else { continue };
+            let ctx = Ctx { zoom, feature: Some(f) };
+            let r = radius.num(&ctx, 5.0);
+            let sw = stroke_width.num(&ctx, 0.0);
+            let (tx, ty) = translate.translate(&ctx);
+            for &q in points {
+                let (x, y) = to_extent(q, scale);
+                if x < 0.0 || x >= EXTENT || y < 0.0 || y >= EXTENT {
+                    continue;
+                }
+                let (cx, cy) = (pt.ox + x * pt.unit_px + tx, pt.oy + y * pt.unit_px + ty);
+                if let Some((hex, a)) = svg::paint(color.color(&ctx, Color::BLACK), opacity.num(&ctx, 1.0)) {
+                    let _ = write!(out, r#"<circle cx="{}" cy="{}" r="{}" fill="{hex}" fill-opacity="{}"/>"#, svg::num(cx), svg::num(cy), svg::num(r), svg::num(a));
+                }
+                if sw > 0.0 {
+                    if let Some((hex, a)) = svg::paint(stroke_color.color(&ctx, Color::BLACK), stroke_opacity.num(&ctx, 1.0)) {
+                        let _ = write!(
+                            out,
+                            r#"<circle cx="{}" cy="{}" r="{}" fill="none" stroke="{hex}" stroke-opacity="{}" stroke-width="{}"/>"#,
+                            svg::num(cx),
+                            svg::num(cy),
+                            svg::num(r + sw / 2.0),
+                            svg::num(a),
+                            svg::num(sw)
+                        );
+                    }
+                }
+            }
+        }
     }
 }

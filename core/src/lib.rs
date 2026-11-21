@@ -153,40 +153,8 @@ async fn render_single_bbox(
         // tiles (512 px) fetched at floor(scale zoom), clamped to the source
         // maxzoom. An explicit request zoom is on the 256 px raster grid, which
         // is one level above the equivalent 512 px tile zoom.
-        let sz = vector::render::scale_zoom(bbox, width);
-        let tz = match request.zoom {
-            Some(z) => z.saturating_sub(1),
-            None => vector::render::tile_zoom(sz, None),
-        };
-        let tz = tile_source.maxzoom().map_or(tz, |m| tz.min(m));
-        // Tiles covering the view, including wrapped world copies; each
-        // canonical tile is fetched once.
-        let covering = vector::render::covering_tiles(bbox, tz);
-        let mut coords: Vec<tile_fetcher::TileCoord> = covering.iter().map(|c| c.0).collect();
-        coords.sort_by_key(|c| (c.z, c.x, c.y));
-        coords.dedup();
-        let urls = tile_fetcher::build_tile_urls(tile_source, &coords);
-        let tiles = tile_fetcher::fetch_all_tiles(
-            client,
-            urls,
-            tile_source,
-            request.tile_timeout_ms,
-            request.tile_concurrency,
-            request.fail_on_tile_error,
-        )
-        .await?;
-        let style_val: serde_json::Value = serde_json::from_str(style_json)
-            .map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
-        let assets = vector::symbol::SymbolAssets {
-            glyphs: fetch_glyphs(client, &style_val, style_base_url_of(request), &tiles, sz).await,
-            sprite: fetch_sprite(client, &style_val, style_base_url_of(request)).await,
-        };
-        let by_coord: std::collections::HashMap<(u8, u32, u32), &tile_fetcher::TileData> =
-            tiles.iter().map(|(c, d)| ((c.z, c.x, c.y), d)).collect();
-        let placed: Vec<(tile_fetcher::TileCoord, i32, tile_fetcher::TileData)> = covering
-            .iter()
-            .filter_map(|(c, wrap)| by_coord.get(&(c.z, c.x, c.y)).map(|d| (*c, *wrap, (*d).clone())))
-            .collect();
+        let (style_val, placed, assets, tz) =
+            fetch_vector_inputs(request, client, style_json, tile_source, bbox, width).await?;
         let out = vector::render::render(&style_val, &placed, &assets, bbox, width, height)
             .map_err(BasemapError::RenderError)?;
         if !out.skipped_layer_types.is_empty() {
@@ -571,4 +539,129 @@ async fn fetch_sprite(
         }),
         _ => Default::default(),
     }
+}
+
+/// Tiles (with world-copy wrap), glyphs and sprite for rendering a vector
+/// style over `bbox`, fetched as MapLibre would: style evaluated at the true
+/// scale zoom, 512 px tiles at floor(zoom) clamped to the source maxzoom.
+/// An explicit request zoom is on the 256 px raster grid, one level above the
+/// equivalent 512 px tile zoom.
+#[allow(clippy::type_complexity)]
+async fn fetch_vector_inputs(
+    request: &RenderRequest,
+    client: &reqwest::Client,
+    style_json: &str,
+    tile_source: &TileSource,
+    bbox: [f64; 4],
+    width: u32,
+) -> Result<
+    (serde_json::Value, Vec<(tile_fetcher::TileCoord, i32, tile_fetcher::TileData)>, vector::symbol::SymbolAssets, u8),
+    BasemapError,
+> {
+    let sz = vector::render::scale_zoom(bbox, width);
+    let tz = match request.zoom {
+        Some(z) => z.saturating_sub(1),
+        None => vector::render::tile_zoom(sz, None),
+    };
+    let tz = tile_source.maxzoom().map_or(tz, |m| tz.min(m));
+    let covering = vector::render::covering_tiles(bbox, tz);
+    let mut coords: Vec<tile_fetcher::TileCoord> = covering.iter().map(|c| c.0).collect();
+    coords.sort_by_key(|c| (c.z, c.x, c.y));
+    coords.dedup();
+    let urls = tile_fetcher::build_tile_urls(tile_source, &coords);
+    let tiles = tile_fetcher::fetch_all_tiles(
+        client,
+        urls,
+        tile_source,
+        request.tile_timeout_ms,
+        request.tile_concurrency,
+        request.fail_on_tile_error,
+    )
+    .await?;
+    let style_val: serde_json::Value =
+        serde_json::from_str(style_json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
+    let assets = vector::symbol::SymbolAssets {
+        glyphs: fetch_glyphs(client, &style_val, style_base_url_of(request), &tiles, sz).await,
+        sprite: fetch_sprite(client, &style_val, style_base_url_of(request)).await,
+    };
+    let by_coord: std::collections::HashMap<(u8, u32, u32), &tile_fetcher::TileData> =
+        tiles.iter().map(|(c, d)| ((c.z, c.x, c.y), d)).collect();
+    let placed = covering
+        .iter()
+        .filter_map(|(c, wrap)| by_coord.get(&(c.z, c.x, c.y)).map(|d| (*c, *wrap, (*d).clone())))
+        .collect();
+    Ok((style_val, placed, assets, tz))
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// SVG output
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// Render a vector style as an SVG document (see [`render_svg_stack`]).
+pub fn render_svg(request: RenderRequest) -> Result<String, BasemapError> {
+    render_svg_stack(vec![request])
+}
+
+/// Render several styles over the same view as one SVG document, bottom to
+/// top, each style in its own group (e.g. a basemap built from separate
+/// services). Fills, lines and circles are vector paths; labels are glyph
+/// outlines traced from the style's SDF glyphs; non-SDF icons are embedded
+/// sprite images. All requests must share bbox, width and height, and use
+/// vector tile sources.
+pub fn render_svg_stack(requests: Vec<RenderRequest>) -> Result<String, BasemapError> {
+    use std::fmt::Write as _;
+    let first = requests.first().ok_or_else(|| BasemapError::RenderError("no styles to render".into()))?;
+    let (bbox, width, height) = (first.bbox, first.width, first.height);
+    if bbox[0] > bbox[2] {
+        return Err(BasemapError::InvalidBbox("SVG output does not support anti-meridian (xmin > xmax) bboxes".into()));
+    }
+    let mut defs = String::new();
+    let mut body = String::new();
+    for (k, request) in requests.into_iter().enumerate() {
+        if request.bbox != bbox || request.width != width || request.height != height {
+            return Err(BasemapError::RenderError("all styles in an SVG stack must share bbox and size".into()));
+        }
+        request.validate()?;
+        let parts = RUNTIME.block_on(async {
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_millis(request.tile_timeout_ms as u64))
+                .use_rustls_tls()
+                .user_agent(concat!("basemapper/", env!("CARGO_PKG_VERSION")))
+                .build()
+                .map_err(|e| BasemapError::RenderError(e.to_string()))?;
+            let raw_json = request.style_input.resolve(&client, request.auth_token.as_deref()).await?;
+            style::validate_maplibre_style(&raw_json)?;
+            let style_json = match &request.layers {
+                Some(layers) => filter_style_layers(&raw_json, layers)?,
+                None => raw_json,
+            };
+            let style_val: serde_json::Value =
+                serde_json::from_str(&style_json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
+            let tile_source =
+                extract_tile_source_from_style(&style_val, &client, request.auth_token.as_deref(), style_base_url_of(&request)).await?;
+            if !matches!(tile_source, TileSource::MapboxVectorTile { .. }) {
+                return Err(BasemapError::RenderError("SVG output needs a vector tile source".into()));
+            }
+            let (style_val, placed, assets, _) =
+                fetch_vector_inputs(&request, &client, &style_json, &tile_source, bbox, width).await?;
+            vector::render::render_svg(&style_val, &placed, &assets, bbox, width, height, &format!("s{k}_"))
+                .map_err(BasemapError::RenderError)
+        })?;
+        if !parts.skipped_layer_types.is_empty() {
+            log::warn!("SVG output does not draw these layer types yet: {}", parts.skipped_layer_types.join(", "));
+        }
+        defs.push_str(&parts.defs);
+        let _ = write!(body, r#"<g id="style{k}">{}</g>"#, parts.body);
+    }
+    Ok(format!(
+        concat!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" "#,
+            r#"width="{w}" height="{h}" viewBox="0 0 {w} {h}">"#,
+            r#"<defs>{defs}</defs>{body}</svg>"#
+        ),
+        w = width,
+        h = height,
+        defs = defs,
+        body = body
+    ))
 }

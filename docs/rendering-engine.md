@@ -87,6 +87,44 @@ measuring against MapLibre and investigating the difference.
 (`text-variable-anchor`), `icon-text-fit`, vertical text, and right-to-left
 scripts. Unsupported layer types are skipped with a warning.
 
+## SVG output
+
+`render_svg` / `render_svg_stack` (Rust core) write the same view as a true
+vector SVG, built from the same placed tiles, evaluated style and label
+placement as the PNG:
+
+- **Fills** are `<path>`s (even-odd), clipped to their tile like MapLibre's
+  stencil clipping. **Lines** are stroked paths with MapLibre's widths, caps,
+  joins, offsets and gap widths; dash lengths are converted from MapLibre's
+  units (pixels at the tile's integer zoom, so they stretch with fractional
+  zoom), and round-capped dashes are shortened by one line width because SVG
+  caps extend past the dash. **Circles** are `<circle>`s.
+- **Labels** are glyph outlines traced (marching squares) from the style's
+  SDF glyphs at the shader's thresholds: the halo beneath the fill, each
+  glyph positioned exactly as placed for the PNG. No fonts are needed to view
+  the file. SDF icons are traced the same way; other icons are embedded
+  sprite images.
+- **Stacks** (several styles over one view, e.g. UGRC's three services) become
+  one document with a group per style.
+
+SVG cannot express MapLibre's antialiasing (a smoothstep over the SDF, a
+one-pixel ramp on line edges), so edges differ slightly from MapLibre's
+pixels. Cases with `"svg": true` measure this: the SVG is rasterised with
+resvg and scored against the same MapLibre reference, with its own ratchet
+limits (`max_bad_pixel_frac_svg`, `max_mean_diff_svg`). Typical results are
+0.04–1.2% of pixels off, against 0–0.2% for the PNG; rasterising in
+Chromium gives the same score as resvg (0.538% vs 0.541% on the full UGRC
+stack at zoom 12.4), so the result does not depend on the viewer.
+
+Export a view from a centre and a (fractional) MapLibre zoom with:
+
+```sh
+cargo run --release -p basemapper-core --example export_svg --   --style <hillshade style URL> --style <lite base style URL> --style <lite labels style URL>   --center=-111.8887,40.7556 --zoom 12.4 --width 800 --height 600   --output ugrc.svg --png ugrc.png
+```
+
+`tools/reference-render/shot_svg.mjs` rasterises an SVG in headless Chromium
+for cross-checking.
+
 ## How fidelity is verified
 
 `core/tests/golden.rs` renders offline fixtures and compares each image with
@@ -110,6 +148,7 @@ MapLibre GL JS's render of the same view.
 
 Coverage: CARTO Positron, Dark Matter and Voyager, and the UGRC Lite basemap
 (each service and the full stack), at MapLibre zooms 1 to 22 over Salt Lake
-City, plus OSM raster tiles and a layer-filtered style.
+City, the UGRC stack at fractional zoom 12.4, plus OSM raster tiles and a
+layer-filtered style.
 
 See `core/tests/fixtures/golden/README.md` for the fixture workflow.

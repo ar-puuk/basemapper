@@ -24,7 +24,7 @@
 //! `target/golden-output/<case>/`, and `check/manifest.js` (repo root,
 //! gitignored) is refreshed for the `check/index.html` comparison viewer.
 
-use basemapper_core::{render, RenderRequest, StyleInput};
+use basemapper_core::{render, render_svg, RenderRequest, StyleInput};
 use httptest::{matchers::request::method_path, responders::status_code, Expectation, Server};
 use image::{Rgba, RgbaImage};
 use serde_json::Value;
@@ -113,7 +113,8 @@ fn compare(actual: &RgbaImage, expected: &RgbaImage) -> Diff {
 }
 
 /// Render one fixture case (style + tiles served locally) with basemapper.
-fn render_fixture(dir: &Path, case: &Value) -> Result<RgbaImage, String> {
+/// With `svg`, also renders the case as SVG.
+fn render_fixture(dir: &Path, case: &Value, svg: bool) -> Result<(RgbaImage, Option<String>), String> {
     let name = dir.file_name().unwrap().to_string_lossy().into_owned();
     let fixture_dir = match case["fixture_from"].as_str() {
         Some(other) => golden_root().join(other),
@@ -166,9 +167,35 @@ fn render_fixture(dir: &Path, case: &Value) -> Result<RgbaImage, String> {
         // MapLibre renders them as empty, so skip rather than fail.
         fail_on_tile_error: false,
     };
+    let svg_doc = if svg {
+        Some(render_svg(request.clone()).map_err(|e| format!("{name}: SVG render failed: {e}"))?)
+    } else {
+        None
+    };
     let result = render(request).map_err(|e| format!("{name}: render failed: {e}"))?;
-    RgbaImage::from_raw(result.width, result.height, result.pixels)
-        .ok_or_else(|| format!("{name}: pixel buffer size mismatch"))
+    let img = RgbaImage::from_raw(result.width, result.height, result.pixels)
+        .ok_or_else(|| format!("{name}: pixel buffer size mismatch"))?;
+    Ok((img, svg_doc))
+}
+
+/// Rasterise an SVG document with resvg (the fixed renderer SVG output is
+/// scored with), as straight-alpha RGBA.
+fn rasterise_svg(name: &str, svg: &str) -> Result<RgbaImage, String> {
+    let tree = resvg::usvg::Tree::from_str(svg, &resvg::usvg::Options::default())
+        .map_err(|e| format!("{name}: SVG does not parse: {e}"))?;
+    let size = tree.size().to_int_size();
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(size.width(), size.height())
+        .ok_or_else(|| format!("{name}: empty SVG"))?;
+    resvg::render(&tree, resvg::tiny_skia::Transform::identity(), &mut pixmap.as_mut());
+    let data = pixmap
+        .pixels()
+        .iter()
+        .flat_map(|p| {
+            let c = p.demultiply();
+            [c.red(), c.green(), c.blue(), c.alpha()]
+        })
+        .collect();
+    RgbaImage::from_raw(size.width(), size.height(), data).ok_or_else(|| format!("{name}: SVG raster size mismatch"))
 
 }
 
@@ -220,27 +247,48 @@ fn run_case(dir: &Path, manifest: &mut Vec<Value>) -> Result<String, String> {
     let stack: Option<Vec<String>> = case["stack"]
         .as_array()
         .map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect());
-    let (actual, reference, reference_url) = match &stack {
+    // `"svg": true` cases are also rendered as SVG, rasterised with resvg and
+    // scored against the same reference (limits `max_*_svg`). Stacks
+    // composite the members' rasterised SVGs, like the PNGs.
+    let want_svg = case["svg"].as_bool().unwrap_or(false);
+    let (actual, reference, reference_url, actual_svg) = match &stack {
         Some(members) => {
-            let (mut ours, mut theirs): (Option<RgbaImage>, Option<RgbaImage>) = (None, None);
+            let (mut ours, mut theirs, mut ours_svg): (Option<RgbaImage>, Option<RgbaImage>, Option<RgbaImage>) =
+                (None, None, None);
             for m in members {
                 let mdir = golden_root().join(m);
                 let mcase: Value =
                     serde_json::from_str(&std::fs::read_to_string(mdir.join("case.json")).unwrap()).unwrap();
-                let a = render_fixture(&mdir, &mcase)?;
+                let (a, svg) = render_fixture(&mdir, &mcase, want_svg)?;
                 let r = load_reference(&mdir).map_err(|e| format!("{name}: {e}"))?;
                 ours = Some(match ours { None => a, Some(acc) => over(&acc, &a) });
                 theirs = Some(match theirs { None => r, Some(acc) => over(&acc, &r) });
+                if let Some(svg) = svg {
+                    std::fs::write(out.join(format!("{m}.svg")), &svg).unwrap();
+                    let a = rasterise_svg(&name, &svg)?;
+                    ours_svg = Some(match ours_svg { None => a, Some(acc) => over(&acc, &a) });
+                }
             }
             let theirs = theirs.ok_or_else(|| format!("{name}: empty stack"))?;
             theirs.save(out.join("reference.png")).unwrap();
-            (ours.unwrap(), theirs, format!("../target/golden-output/{name}/reference.png"))
+            (ours.unwrap(), theirs, format!("../target/golden-output/{name}/reference.png"), ours_svg)
         }
-        None => (
-            render_fixture(dir, &case)?,
-            load_reference(dir).map_err(|e| format!("{name}: {e}"))?,
-            format!("../core/tests/fixtures/golden/{name}/reference-maplibre-gl.png"),
-        ),
+        None => {
+            let (a, svg) = render_fixture(dir, &case, want_svg)?;
+            let svg_img = match svg {
+                Some(svg) => {
+                    std::fs::write(out.join("actual.svg"), &svg).unwrap();
+                    Some(rasterise_svg(&name, &svg)?)
+                }
+                None => None,
+            };
+            (
+                a,
+                load_reference(dir).map_err(|e| format!("{name}: {e}"))?,
+                format!("../core/tests/fixtures/golden/{name}/reference-maplibre-gl.png"),
+                svg_img,
+            )
+        }
     };
     let height = actual.height();
     if reference.dimensions() != actual.dimensions() {
@@ -294,13 +342,50 @@ fn run_case(dir: &Path, manifest: &mut Vec<Value>) -> Result<String, String> {
         "pass": pass,
         "geometry": geometry,
     }));
-    let summary = format!(
+    let mut summary = format!(
         "{name}: vs MapLibre GL: bad pixels {:.3}% (limit {:.3}%), mean diff {:.3} (limit {max_mean})",
         diff.bad_frac * 100.0,
         max_bad * 100.0,
         diff.mean,
     );
-    if diff.mean > max_mean + 1e-9 || diff.bad_frac > max_bad + 1e-9 {
+    let mut failed = diff.mean > max_mean + 1e-9 || diff.bad_frac > max_bad + 1e-9;
+    if let Some(svg_img) = &actual_svg {
+        if svg_img.dimensions() != reference.dimensions() {
+            return Err(format!("{name}: SVG size {:?} != reference {:?}", svg_img.dimensions(), reference.dimensions()));
+        }
+        let d = compare(svg_img, &reference);
+        svg_img.save(out.join("actual-svg.png")).unwrap();
+        d.image.save(out.join("diff-svg.png")).unwrap();
+        // Without limits the SVG score is reported only.
+        let max_mean_svg = case["max_mean_diff_svg"].as_f64().unwrap_or(f64::INFINITY);
+        let max_bad_svg = case["max_bad_pixel_frac_svg"].as_f64().unwrap_or(f64::INFINITY);
+        let pass_svg = d.mean <= max_mean_svg + 1e-9 && d.bad_frac <= max_bad_svg + 1e-9;
+        failed |= !pass_svg;
+        manifest.push(serde_json::json!({
+            "name": format!("{name}_svg"),
+            "group": format!("{group}_svg"),
+            "zoom": (gl_zoom * 1000.0).round() / 1000.0,
+            "width": width,
+            "height": height,
+            "ours": format!("../target/golden-output/{name}/actual-svg.png"),
+            "maplibre": reference_url,
+            "diff": format!("../target/golden-output/{name}/diff-svg.png"),
+            "maplibre_nosymbols": null,
+            "bad": d.bad_frac,
+            "mean": d.mean,
+            "max_bad": if max_bad_svg.is_finite() { max_bad_svg } else { 1.0 },
+            "max_mean": if max_mean_svg.is_finite() { max_mean_svg } else { 255.0 },
+            "pass": pass_svg,
+            "geometry": null,
+        }));
+        summary += &format!(
+            "; SVG (resvg): bad pixels {:.3}% (limit {:.3}%), mean diff {:.3} (limit {max_mean_svg})",
+            d.bad_frac * 100.0,
+            max_bad_svg * 100.0,
+            d.mean
+        );
+    }
+    if failed {
         return Err(format!("{summary} — see {}", out.display()));
     }
     let hint = if diff.bad_frac < max_bad * 0.9 || diff.mean < max_mean * 0.9 {
