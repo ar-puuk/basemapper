@@ -1968,29 +1968,51 @@ fn svg_sdf_quad(
             })
             .collect()
     };
-    // symbol_sdf.fragment.glsl thresholds (EDGE_GAMMA is the 1x value: the
-    // outline is resolution independent).
+    // symbol_sdf.fragment.glsl: alpha = smoothstep(edge - gamma, edge + gamma,
+    // dist), a ramp about 0.84 px wide at any size (EDGE_GAMMA at ratio 1).
+    // SVG has no such ramp, so it is approximated by SDF_BANDS nested
+    // outlines traced where the smoothstep crosses (k - 1/2) / N, with
+    // opacities that stack to k/N of the colour's alpha.
     let inner_edge = (256.0 - 64.0) / 256.0;
+    let mut banded = |out: &mut String, hex: &str, a: f64, edge: f64, gamma: f64, hole: Option<f64>| {
+        let n = SDF_BANDS;
+        let mut below = 0.0; // stacked alpha so far
+        for k in 1..=n {
+            let y = (k as f64 - 0.5) / n as f64;
+            let t = 0.5 - ((1.0 - 2.0 * y).asin() / 3.0).sin(); // smoothstep^-1(y)
+            let thr = edge + gamma * BAND_SPREAD * (2.0 * t - 1.0);
+            let target = a * k as f64 / n as f64;
+            let layer = if below >= 1.0 { 0.0 } else { ((target - below) / (1.0 - below)).clamp(0.0, 1.0) };
+            below = target;
+            let mut rings = rings_at(thr, false);
+            if let Some(h) = hole {
+                rings.extend(rings_at(h, true));
+            }
+            if !rings.is_empty() && layer > 0.0 {
+                let _ = write!(out, r#"<path d="{}" fill="{hex}" fill-opacity="{}"/>"#, svg::path_data(&rings, true), svg::alpha(layer));
+            }
+        }
+    };
     if is_halo && s.halo_width > 0.0 && s.halo.a > 0.0 {
         if let Some((hex, a)) = svg::paint(s.halo, s.opacity) {
             let gamma_halo = (s.halo_blur * 1.19 / SDF_PX + EDGE_GAMMA) / font_scale;
             let halo_edge = (6.0 - s.halo_width / font_scale) / SDF_PX;
-            let mut rings = rings_at(halo_edge, false);
-            rings.extend(rings_at(inner_edge + gamma_halo, true));
-            if !rings.is_empty() {
-                let _ = write!(out, r#"<path d="{}" fill="{hex}" fill-opacity="{}"/>"#, svg::path_data(&rings, true), svg::alpha(a));
-            }
+            banded(out, &hex, a, halo_edge, gamma_halo, Some(inner_edge + gamma_halo));
         }
     }
     if is_plain {
         if let Some((hex, a)) = svg::paint(s.fill, s.opacity) {
-            let rings = rings_at(inner_edge, false);
-            if !rings.is_empty() {
-                let _ = write!(out, r#"<path d="{}" fill="{hex}" fill-opacity="{}"/>"#, svg::path_data(&rings, true), svg::alpha(a));
-            }
+            banded(out, &hex, a, inner_edge, EDGE_GAMMA / font_scale, None);
         }
     }
 }
+
+/// Outlines per SDF edge in SVG output (see svg_sdf_quad), and how far apart
+/// they sit relative to the smoothstep's quantiles. Measured against MapLibre
+/// (resvg rasterisation): 2 bands at 0.85 fit best; more bands over-soften,
+/// because the rasteriser's own edge antialiasing adds to the ramp.
+const SDF_BANDS: usize = 2;
+const BAND_SPREAD: f64 = 0.85;
 
 /// Write one symbol layer as SVG in draw_layer's order: icons, then text,
 /// each per tile with the shader's halo passes. Glyphs and SDF icons are

@@ -124,14 +124,23 @@ placement as the PNG:
   draws it only outside the fills) and above translucent ones.
 - **Lines** are stroked paths, one per geometry line (MapLibre blends each
   separately), with MapLibre's widths, caps, joins, offsets and gap widths;
-  polygon rings are closed paths. Dash lengths are converted from MapLibre's
-  units (pixels at the tile's integer zoom, so they stretch with fractional
-  zoom), and round-capped dashes are shortened by one line width because SVG
-  caps extend past the dash. **Circles** are `<circle>`s.
+  polygon rings are closed paths, and offset paths take the join's shape
+  (round or bevelled) on the outside of turns, as MapLibre's join extrusions
+  do. Lines thinner than 1 px are stroked at the width that matches the
+  coverage of MapLibre's 1 px edge ramp ((w + 1)² / 4). Dash lengths are
+  converted from MapLibre's units (pixels at the tile's integer zoom, so they
+  stretch with fractional zoom); round-capped dashes are shortened by one line
+  width and shifted by half of it, because SVG caps extend past the dash; odd
+  dash arrays are rewritten as MapLibre's line atlas reads them (the last
+  dash joins the first: `1 2 3` is `4 2` entered 3 units in). **Circles** are
+  `<circle>`s.
 - **Labels** are glyph outlines traced (marching squares, consistently
   wound, `nonzero` fill) from the style's SDF glyphs at the shader's
-  thresholds, one path per glyph in MapLibre's draw order (per tile; halo then
-  fill per glyph, or all halos then all fills when MapLibre uses two passes).
+  thresholds, one set of paths per glyph in MapLibre's draw order (per tile;
+  halo then fill per glyph, or all halos then all fills when MapLibre uses two
+  passes). The shader's soft edge (a smoothstep about 0.84 px wide; wider
+  with `text-halo-blur`) is approximated by two nested outlines per edge at
+  the smoothstep's quantiles, with opacities that stack to the full colour.
   Halos are rings, as in the shader, so translucent text is not tinted by its
   halo. No fonts are needed to view the file. SDF icons are traced the same
   way; other icons are embedded sprite images.
@@ -140,14 +149,15 @@ placement as the PNG:
 - **Stacks** (several styles over one view, e.g. UGRC's three services) become
   one document with a group per style.
 
-What SVG cannot express is MapLibre's soft text edge (a smoothstep about
-±0.84 device pixels wide at any zoom), so glyph edges differ slightly.
-Cases with `"svg": true` measure the result: the SVG is rasterised with resvg
-and scored against the same MapLibre reference, with their own ratchet
-limits (`max_bad_pixel_frac_svg`, `max_mean_diff_svg`): 0.000-0.67% of
-pixels off (Hillshade 0.000%, the full UGRC stack at zoom 12.4 0.26%),
-against 0-0.2% for the PNG. Chromium scores the same SVG at 0.42% (its
-aliased rendering of crisp edges differs slightly from resvg's).
+Cases with `"svg": true` measure the result: the SVG is rasterised with
+resvg and scored against the same MapLibre reference, with their own ratchet
+limits (`max_bad_pixel_frac_svg`, `max_mean_diff_svg`): 0.000-0.64% of
+pixels off (Hillshade 0.000%, Positron 0.006%, Dark Matter 0.038%, the full
+UGRC stack at zoom 12.4 0.23%), against 0-0.2% for the PNG. Chromium scores
+the UGRC stack SVG at 0.39%. The rest is mostly MapLibre blending
+translucent wide lines twice where their segments overlap at sharp corners,
+which SVG strokes do not do, and pixel-level differences between an
+antialiased SVG edge and MapLibre's aliased 1 px fill outline.
 
 Export a view from a centre and a (fractional) MapLibre zoom with:
 

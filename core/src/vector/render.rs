@@ -754,11 +754,30 @@ fn svg_fill(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
     }
 }
 
+/// A MapLibre dasharray as an SVG one: (even-length pattern, phase).
+/// MapLibre's line atlas joins an odd array's last dash onto its first
+/// (getDashRanges starts the first dash at -last), so [1, 2, 3] is a dash
+/// of 4 and a gap of 2 entered 3 units into the dash; SVG would instead
+/// repeat it as 1 2 3 1 2 3. A single value is a solid line. None when no
+/// dashes show.
+fn even_dash_pattern(d: &[f64]) -> Option<(Vec<f64>, f64)> {
+    match d.len() {
+        0 | 1 => None,
+        n if n % 2 == 0 => Some((d.to_vec(), 0.0)),
+        n => {
+            let last = d[n - 1];
+            let mut p = vec![d[0] + last];
+            p.extend_from_slice(&d[1..n - 1]);
+            Some((p, last))
+        }
+    }
+}
+
 /// Offset a polyline perpendicular to its direction (positive = right of
 /// the direction in screen space), with mitred vertex normals.
 /// With `closed`, `pts` is a ring (no repeated end point) and the offset
 /// wraps around it.
-fn offset_polyline(pts: &[(f64, f64)], d: f64, closed: bool) -> Vec<(f64, f64)> {
+fn offset_polyline(pts: &[(f64, f64)], d: f64, closed: bool, join: &str, miter_limit: f64, round_limit: f64) -> Vec<(f64, f64)> {
     if pts.len() < 2 || d == 0.0 {
         return pts.to_vec();
     }
@@ -768,36 +787,80 @@ fn offset_polyline(pts: &[(f64, f64)], d: f64, closed: bool) -> Vec<(f64, f64)> 
         if len == 0.0 { (0.0, 0.0) } else { (-dy / len, dx / len) }
     };
     let n = pts.len();
-    (0..n)
-        .map(|i| {
-            let prev = if i > 0 {
-                normal(pts[i - 1], pts[i])
-            } else if closed {
-                normal(pts[n - 1], pts[0])
-            } else {
-                normal(pts[0], pts[1])
-            };
-            let next = if i + 1 < n {
-                normal(pts[i], pts[i + 1])
-            } else if closed {
-                normal(pts[n - 1], pts[0])
-            } else {
-                prev
-            };
-            let (mut mx, mut my) = (prev.0 + next.0, prev.1 + next.1);
-            let m = (mx * mx + my * my).sqrt();
-            if m < 1e-9 {
-                mx = next.0;
-                my = next.1;
-            } else {
-                mx /= m;
-                my /= m;
+    let mut out = Vec::with_capacity(n + 8);
+    for i in 0..n {
+        let p = pts[i];
+        let n1 = if i > 0 {
+            normal(pts[i - 1], p)
+        } else if closed {
+            normal(pts[n - 1], p)
+        } else {
+            normal(p, pts[1])
+        };
+        let n2 = if i + 1 < n {
+            normal(p, pts[i + 1])
+        } else if closed {
+            normal(p, pts[0])
+        } else {
+            n1
+        };
+        let (mut mx, mut my) = (n1.0 + n2.0, n1.1 + n2.1);
+        let m = (mx * mx + my * my).sqrt();
+        if m < 1e-9 {
+            mx = n2.0;
+            my = n2.1;
+        } else {
+            mx /= m;
+            my /= m;
+        }
+        let cos = (mx * n2.0 + my * n2.1).max(1e-6);
+        let miter_len = 1.0 / cos;
+        // The offset side is the outside of the turn when the next segment
+        // heads away from it (its direction is n2 rotated back by 90°).
+        let dir2 = (n2.1, -n2.0);
+        let outer = (dir2.0 * n1.0 + dir2.1 * n1.1) * d < -1e-9;
+        // MapLibre offsets each join vertex along its extrusion, so the offset
+        // path takes the join's shape on the outside of a turn (LineBucket:
+        // round joins below round_limit and miters within the limit stay
+        // mitred; otherwise round arcs or bevels).
+        let shape = if !outer {
+            "miter"
+        } else {
+            match join {
+                "round" if miter_len >= round_limit => "round",
+                "round" => "miter",
+                "bevel" => "bevel",
+                _ if miter_len > miter_limit => "bevel",
+                _ => "miter",
             }
-            let cos = mx * next.0 + my * next.1;
-            let k = if cos.abs() > 0.1 { d / cos } else { d };
-            (pts[i].0 + mx * k, pts[i].1 + my * k)
-        })
-        .collect()
+        };
+        match shape {
+            "round" => {
+                let a0 = n1.1.atan2(n1.0);
+                let mut sweep = n2.1.atan2(n2.0) - a0;
+                while sweep > std::f64::consts::PI {
+                    sweep -= 2.0 * std::f64::consts::PI;
+                }
+                while sweep < -std::f64::consts::PI {
+                    sweep += 2.0 * std::f64::consts::PI;
+                }
+                let steps = ((sweep.abs() / (std::f64::consts::PI / 12.0)).ceil() as usize).max(1);
+                for k in 0..=steps {
+                    let a = a0 + sweep * k as f64 / steps as f64;
+                    out.push((p.0 + a.cos() * d, p.1 + a.sin() * d));
+                }
+            }
+            "bevel" => {
+                out.push((p.0 + n1.0 * d, p.1 + n1.1 * d));
+                out.push((p.0 + n2.0 * d, p.1 + n2.1 * d));
+            }
+            _ => {
+                let k = if cos > 0.1 { d / cos } else { d };
+                out.push((p.0 + mx * k, p.1 + my * k));
+            }
+        }
+    }
+    out
 }
 
 fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], prefix: &str) {
@@ -815,6 +878,7 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
     let cap = l["line-cap"].as_str().unwrap_or("butt");
     let join = l["line-join"].as_str().unwrap_or("miter");
     let miter = l["line-miter-limit"].as_f64().unwrap_or(2.0);
+    let round_limit = l["line-round-limit"].as_f64().unwrap_or(1.05);
     let dash = match &dasharray {
         Prop::Const(v) => v.as_num_array().filter(|d| d.len() >= 2 && d.iter().sum::<f64>() > 0.0),
         _ => None,
@@ -857,7 +921,7 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
             let gw = gap.num(&ctx, 0.0);
             let offsets: Vec<f64> = if gw > 0.0 { vec![off - (gw / 2.0 + lw / 2.0), off + (gw / 2.0 + lw / 2.0)] } else { vec![off] };
             let mut dash_attr = String::new();
-            if let Some(d) = &dash {
+            if let Some((pattern, phase)) = dash.as_deref().and_then(even_dash_pattern) {
                 // MapLibre dash lengths are multiples of the line width at
                 // floor(zoom); round caps are drawn inside the dash in MapLibre
                 // but extend it in SVG, so shorten dashes by one width.
@@ -865,7 +929,7 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
                 // (tileRatio), so it stretches with the fractional zoom.
                 let fw = floor_width.num(&fctx, lw) * pt.unit_px * EXTENT / (TILE_PX * pt.overscaling);
                 let round = cap == "round";
-                let vals: Vec<String> = d
+                let vals: Vec<String> = pattern
                     .iter()
                     .enumerate()
                     .map(|(k, &v)| {
@@ -874,20 +938,28 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
                         svg::num(adj)
                     })
                     .collect();
+                let offset = phase * fw - if round { lw / 2.0 } else { 0.0 };
                 dash_attr = format!(r#" stroke-dasharray="{}""#, vals.join(" "));
+                if offset != 0.0 {
+                    dash_attr += &format!(r#" stroke-dashoffset="{}""#, svg::num(offset));
+                }
             }
+            // line.fragment.glsl ramps alpha over one pixel centred on each
+            // edge, so a line of width w < 1 covers (w + 1)^2 / 4 px, not w:
+            // stroke at the width with that coverage.
+            let stroke_w = if lw < 1.0 { (lw + 1.0).powi(2) / 4.0 } else { lw };
             // One path per line: MapLibre blends each line on its own, so
             // translucent lines darken where they overlap.
             let _ = write!(
                 g,
                 r#"<g fill="none" stroke="{hex}" stroke-opacity="{}" stroke-width="{}" stroke-linecap="{cap}" stroke-linejoin="{join}" stroke-miterlimit="{}"{dash_attr}>"#,
                 svg::alpha(a),
-                svg::num(lw),
+                svg::num(stroke_w),
                 svg::num(miter)
             );
             for o in &offsets {
                 for r in &px {
-                    let line = offset_polyline(r, *o, closed);
+                    let line = offset_polyline(r, *o, closed, join, miter, round_limit);
                     let _ = write!(g, r#"<path d="{}"/>"#, svg::path_data(std::slice::from_ref(&line), closed));
                 }
             }
