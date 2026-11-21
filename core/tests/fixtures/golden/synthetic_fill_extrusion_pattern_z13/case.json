@@ -1,0 +1,18 @@
+{
+  "note": "Synthetic: fill-extrusion-pattern: data-driven pattern names, heights and bases, a ring with a hole, a feature whose image is missing, a translucent constant pattern without vertical gradient; viewport light; inline GeoJSON, generated sprite.",
+  "bbox": [
+    -12457555.010129346,
+    4975493.020802436,
+    -12453520.639589416,
+    4978518.798707385
+  ],
+  "width": 640,
+  "height": 480,
+  "zoom": 13.6,
+  "attribution": "Synthetic buildings",
+  "max_bad_pixel_frac": 0.00076,
+  "max_mean_diff": 0.101,
+  "svg": true,
+  "max_bad_pixel_frac_svg": 0.00076,
+  "max_mean_diff_svg": 0.104
+}

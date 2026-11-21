@@ -215,6 +215,7 @@ pub fn render(
     let (zoom, placed) = prepare(sources, bbox, width, height, ratio);
     let (dw, dh) = (device_px(width, ratio), device_px(height, ratio));
     let mut fb = Framebuffer::new(dw as usize, dh as usize);
+    let mut depth3d: Vec<f64> = Vec::new();
 
     // Symbol placement runs once, top layer first, before drawing.
     let placement = symbol::place(style, &symbol_tiles(&placed), assets, zoom, width as f64, height as f64);
@@ -238,7 +239,7 @@ pub fn render(
             "heatmap" => draw_heatmap_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
             "fill-extrusion" => {
                 let view = ExtrusionView::new(style, bbox, width, height, ratio, zoom);
-                draw_fill_extrusion_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), &view);
+                draw_fill_extrusion_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), &view, assets, &mut depth3d);
             }
             "raster" => {
                 if let Some(rt) = layer["source"].as_str().and_then(|s| sources.raster.get(s)) {
@@ -844,6 +845,36 @@ impl ExtrusionView {
     }
 }
 
+impl ExtrusionView {
+    /// fill_extrusion_pattern.vertex.glsl lighting for one vertex (the
+    /// texture's multiplier, before opacity).
+    fn shade_pattern(&self, normal: (f64, f64, f64), t: f64, base: f64, height: f64, vertical_gradient: bool) -> [f64; 3] {
+        let i = self.light_intensity;
+        let lp = self.light_pos;
+        let mut directional = (normal.0 * lp[0] + normal.1 * lp[1] + normal.2 * lp[2]).clamp(0.0, 1.0);
+        let hi = (0.5 + i).max(1.0);
+        directional = (1.0 - i) * (1.0 - directional) + hi * directional;
+        if normal.1 != 0.0 {
+            let vg = if vertical_gradient { 1.0 } else { 0.0 };
+            let lo = 0.7 * i + 0.98 * (1.0 - i);
+            directional *= (1.0 - vg) + vg * ((t + base) * (height / 150.0).sqrt()).clamp(lo, 1.0);
+        }
+        let mut out = [0.0; 3];
+        for k in 0..3 {
+            let lc = self.light_color[k];
+            out[k] = (directional * lc).clamp(0.3 * (1.0 - lc), 1.0);
+        }
+        out
+    }
+
+    /// Map position (device px) under screen point (x, y) on a plane `h`
+    /// metres up.
+    fn unproject(&self, x: f64, y: f64, h: f64) -> (f64, f64) {
+        let s = self.d / (self.d - h * self.px_per_m);
+        (self.cx + (x - self.cx) / s, self.cy + (y - self.cy) / s)
+    }
+}
+
 /// FillExtrusionBucket's isEntirelyOutside: every point beyond one tile edge.
 fn ring_entirely_outside(ring: &[(f64, f64)]) -> bool {
     let e = EXTENT;
@@ -855,36 +886,74 @@ fn ring_entirely_outside(ring: &[(f64, f64)]) -> bool {
 /// per-vertex lighting interpolated perspective-correctly and a depth test.
 /// Translucent layers draw only the closest surface per pixel (a depth
 /// pre-pass, then colour where the depth matches, once per pixel).
-fn draw_fill_extrusion_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile], view: &ExtrusionView) {
+#[allow(clippy::too_many_arguments)]
+fn draw_fill_extrusion_layer(
+    fb: &mut Framebuffer,
+    layer: &Json,
+    zoom: f64,
+    placed: &[PlacedTile],
+    view: &ExtrusionView,
+    assets: &SymbolAssets,
+    depth: &mut Vec<f64>,
+) {
     let p = &layer["paint"];
     let color = Prop::new(p.get("fill-extrusion-color"), Kind::Color, zoom);
     let height = Prop::new(p.get("fill-extrusion-height"), Kind::Number, zoom);
     let base = Prop::new(p.get("fill-extrusion-base"), Kind::Number, zoom);
     let opacity = Prop::new(p.get("fill-extrusion-opacity"), Kind::Number, zoom).num(&Ctx { zoom, feature: None }, 1.0);
     let vertical_gradient = p["fill-extrusion-vertical-gradient"].as_bool().unwrap_or(true);
-    if p.get("fill-extrusion-pattern").is_some() {
-        log::warn!("fill-extrusion-pattern is not supported yet (layer {})", layer["id"]);
-    }
+    // fill-extrusion-pattern (the fillExtrusionPattern program): the image
+    // replaces the colour, lit without it; always drawn in two passes.
+    let pattern = Prop::new(p.get("fill-extrusion-pattern"), Kind::Enum, zoom);
+    let patterned = pattern.is_set();
     if opacity <= 0.0 {
         return;
     }
     let (w, h) = (fb.w, fb.h);
     let full = Clip { x0: 0.0, y0: 0.0, x1: w as f64, y1: h as f64 };
 
-    // Triangles in screen space: vertices (x, y, [r/w, g/w, b/w, 1/w]).
-    let mut tris: Vec<[Vert<4>; 3]> = Vec::new();
-    // Top faces: one planar polygon each (constant depth, colour).
-    let mut tops: Vec<(Rings, f64, [f64; 3])> = Vec::new();
+    // Triangles in screen space: vertices (x, y, [r/w, g/w, b/w, u/w, v/w,
+    // 1/w]), (u, v) the pattern position in repeats.
+    let mut tris: Vec<[Vert<6>; 3]> = Vec::new();
+    // Top faces: one planar polygon each (constant depth, colour), with the
+    // height for the pattern's inverse projection.
+    let mut tops: Vec<(Rings, f64, [f64; 3], f64)> = Vec::new();
+    // Patterned pieces: the image and the tile's pattern frame.
+    type Pat<'a> = Option<(Option<&'a symbol::SpriteImage>, usize)>;
+    let mut frames: Vec<PatternFrame> = Vec::new();
     // Draw order: MapLibre's bucket order (per polygon: walls, then top).
-    enum Piece {
-        Tris(usize, usize),
-        Top(usize),
+    enum Piece<'a> {
+        Tris(usize, usize, Pat<'a>),
+        Top(usize, Pat<'a>),
     }
     let mut order: Vec<Piece> = Vec::new();
     for pt in placed {
+        let frame = PatternFrame::new(pt);
+        // get_pattern_pos for a wall: (edgedistance, elevation *
+        // u_height_factor) in tile units, u_height_factor = -2^z / tileSize / 8
+        // (z overscaled, tileSize 512 times the overscaling).
+        let height_factor = -(2f64.powi(pt.coord.z as i32)) / TILE_PX / 8.0;
+        let world = (frame.world_x, frame.world_y);
+        let tile_ratio = frame.tile_ratio;
+        frames.push(frame);
+        let fi = frames.len() - 1;
         for (f, scale) in features(layer, pt, zoom) {
             let Geometry::Polygons(polys) = &f.geometry else { continue };
             let ctx = Ctx { zoom, feature: Some(f) };
+            // A feature whose pattern image is missing gets no pattern
+            // attributes: it draws nothing but still takes depth.
+            let img = match pattern.get(&ctx) {
+                Some(Val::Str(name)) if patterned => assets.sprite.images.get(&name),
+                _ => None,
+            };
+            let pat: Pat = patterned.then_some((img, fi));
+            let size = img.map_or((1.0, 1.0), |i| (i.w as f64 / i.pixel_ratio, i.h as f64 / i.pixel_ratio));
+            let pattern_pos = |pos: (f64, f64)| {
+                (
+                    (tile_ratio * pos.0 + world.0.rem_euclid(size.0)) / size.0,
+                    (tile_ratio * pos.1 + world.1.rem_euclid(size.1)) / size.1,
+                )
+            };
             let c = color.color(&ctx, Color::BLACK);
             let col = [c.r as f64, c.g as f64, c.b as f64, c.a as f64];
             let hgt = height.num(&ctx, 0.0).max(0.0);
@@ -900,6 +969,7 @@ fn draw_fill_extrusion_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, plac
                     if ring_entirely_outside(ring) {
                         continue;
                     }
+                    let mut edge_distance = 0.0f64;
                     for e in ring.windows(2) {
                         // FillExtrusionBucket: p1 is the current point, p2 the previous.
                         let (p1, p2) = (e[1], e[0]);
@@ -908,41 +978,63 @@ fn draw_fill_extrusion_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, plac
                         }
                         let (dx, dy) = (p1.0 - p2.0, p1.1 - p2.1);
                         let len = (dx * dx + dy * dy).sqrt();
+                        if edge_distance + len > 32768.0 {
+                            edge_distance = 0.0;
+                        }
+                        // a_normal_ed is Int16: the distance is truncated (and
+                        // 32768 wraps).
+                        let ed1 = edge_distance.trunc();
+                        edge_distance += len;
+                        let ed2 = (edge_distance.trunc() as i64 as i16) as f64;
                         if len == 0.0 {
                             continue;
                         }
                         // perp of (p1 - p2), unit; encoded y is exact, x carries the top flag.
                         let n = (-dy / len, dx / len, 0.0);
                         let ny = (n.1 * 16384.0).trunc() / 16384.0;
-                        let vert = |q: (f64, f64), t: f64| -> Vert<4> {
-                            let (x, y, iw) = view.project(to_px(q), if t > 0.0 { hgt } else { bse });
-                            let s = view.shade(col, (n.0, ny, n.2), t, bse, hgt, vertical_gradient);
-                            Vert { x, y, v: [s[0] * iw, s[1] * iw, s[2] * iw, iw] }
+                        let vert = |q: (f64, f64), t: f64, ed: f64| -> Vert<6> {
+                            let elevation = if t > 0.0 { hgt } else { bse };
+                            let (x, y, iw) = view.project(to_px(q), elevation);
+                            let s = if patterned {
+                                view.shade_pattern((n.0, ny, n.2), t, bse, hgt, vertical_gradient)
+                            } else {
+                                view.shade(col, (n.0, ny, n.2), t, bse, hgt, vertical_gradient)
+                            };
+                            let (u, v) = pattern_pos((ed, elevation * height_factor));
+                            Vert { x, y, v: [s[0] * iw, s[1] * iw, s[2] * iw, u * iw, v * iw, iw] }
                         };
-                        let v = [vert(p1, 0.0), vert(p1, 1.0), vert(p2, 0.0), vert(p2, 1.0)];
+                        let v = [vert(p1, 0.0, ed1), vert(p1, 1.0, ed1), vert(p2, 0.0, ed2), vert(p2, 1.0, ed2)];
                         tris.push([v[0], v[2], v[1]]);
                         tris.push([v[1], v[2], v[3]]);
                     }
                 }
-                order.push(Piece::Tris(first, tris.len()));
+                order.push(Piece::Tris(first, tris.len(), pat));
                 let (_, _, iw) = view.project((0.0, 0.0), hgt);
                 let top: Rings = rings
                     .iter()
                     .map(|r| r.iter().map(|&q| { let (x, y, _) = view.project(to_px(q), hgt); (x, y) }).collect())
                     .collect();
-                tops.push((top, iw, view.shade(col, (0.0, 0.0, 1.0), 1.0, bse, hgt, vertical_gradient)));
-                order.push(Piece::Top(tops.len() - 1));
+                let light = if patterned {
+                    view.shade_pattern((0.0, 0.0, 1.0), 1.0, bse, hgt, vertical_gradient)
+                } else {
+                    view.shade(col, (0.0, 0.0, 1.0), 1.0, bse, hgt, vertical_gradient)
+                };
+                tops.push((top, iw, light, hgt));
+                order.push(Piece::Top(tops.len() - 1, pat));
             }
         }
     }
 
-    let mut depth = vec![0.0f64; w * h];
+    // One depth buffer for all 3D layers (cleared once per frame).
+    if depth.len() != w * h {
+        *depth = vec![0.0f64; w * h];
+    }
     let mut drawn = vec![false; w * h];
-    let translucent = opacity < 1.0;
+    let translucent = opacity < 1.0 || patterned;
     let passes: &[bool] = if translucent { &[true, false] } else { &[false] };
     for &depth_only in passes {
         for piece in &order {
-            let mut frag = |x: usize, y: usize, iw: f64, rgb: [f64; 3], fb: &mut Framebuffer| {
+            let mut frag = |x: usize, y: usize, iw: f64, rgba: [f64; 4], fb: &mut Framebuffer| {
                 let k = y * w + x;
                 if depth_only {
                     if iw > depth[k] {
@@ -962,10 +1054,10 @@ fn draw_fill_extrusion_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, plac
                     depth[k] = iw;
                 }
                 let a = opacity;
-                fb.blend(x, y, [(rgb[0] * a) as f32, (rgb[1] * a) as f32, (rgb[2] * a) as f32, a as f32]);
+                fb.blend(x, y, [(rgba[0] * a) as f32, (rgba[1] * a) as f32, (rgba[2] * a) as f32, (rgba[3] * a) as f32]);
             };
             match piece {
-                Piece::Tris(a, b) => {
+                Piece::Tris(a, b, pat) => {
                     for t in &tris[*a..*b] {
                         // CullFaceMode.backCCW: GL's clip space is y-up, so a
                         // front (CCW) face winds the other way on screen.
@@ -974,19 +1066,49 @@ fn draw_fill_extrusion_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, plac
                             continue;
                         }
                         raster_triangle(w, h, *t, &full, |x, y, v| {
-                            let iw = v[3];
+                            let iw = v[5];
                             if iw > 0.0 {
-                                frag(x, y, iw, [v[0] / iw, v[1] / iw, v[2] / iw], fb);
+                                let c = if depth_only {
+                                    [0.0; 4]
+                                } else {
+                                    extrusion_texel(*pat, v[3] / iw, v[4] / iw, [v[0] / iw, v[1] / iw, v[2] / iw])
+                                };
+                                frag(x, y, iw, c, fb);
                             }
                         });
                     }
                 }
-                Piece::Top(i) => {
-                    let (rings, iw, rgb) = &tops[*i];
-                    raster_polygon(w, h, rings, &full, |x, y| frag(x, y, *iw, *rgb, fb));
+                Piece::Top(i, pat) => {
+                    let (rings, iw, rgb, hgt) = &tops[*i];
+                    raster_polygon(w, h, rings, &full, |x, y| {
+                        let c = match pat {
+                            Some((Some(img), fi)) if !depth_only => {
+                                // get_pattern_pos for a top: a_pos (no translate).
+                                let m = view.unproject(x as f64 + 0.5, y as f64 + 0.5, *hgt);
+                                let (u, v) = frames[*fi].coord(img, m.0, m.1, (0.0, 0.0));
+                                extrusion_texel(*pat, u, v, *rgb)
+                            }
+                            _ if depth_only => [0.0; 4],
+                            _ => extrusion_texel(*pat, 0.0, 0.0, *rgb),
+                        };
+                        frag(x, y, *iw, c, fb)
+                    });
                 }
             }
         }
+    }
+}
+
+/// fill_extrusion(_pattern).fragment.glsl before opacity: the pattern texel
+/// at (u, v) repeats times the lighting, or the lit colour.
+fn extrusion_texel(pat: Option<(Option<&symbol::SpriteImage>, usize)>, u: f64, v: f64, rgb: [f64; 3]) -> [f64; 4] {
+    match pat {
+        Some((None, _)) => [0.0; 4],
+        Some((Some(img), _)) => {
+            let s = img.sample_wrapped(u.rem_euclid(1.0) * img.w as f64, v.rem_euclid(1.0) * img.h as f64);
+            [s[0] / 255.0 * rgb[0], s[1] / 255.0 * rgb[1], s[2] / 255.0 * rgb[2], s[3] / 255.0]
+        }
+        None => [rgb[0], rgb[1], rgb[2], 1.0],
     }
 }
 
@@ -1353,6 +1475,7 @@ pub fn render_svg(
         }
     }
     let mut pattern_ids: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut depth3d: Vec<f64> = Vec::new();
     let layer_clip = |layer: &Json| -> String {
         layer["source"].as_str().and_then(|s| clip_prefix.get(s)).cloned().unwrap_or_default()
     };
@@ -1389,7 +1512,17 @@ pub fn render_svg(
             "circle" => svg_circle(&mut out, layer, zoom, layer_tiles(&placed, layer)),
             "fill-extrusion" => {
                 let view = ExtrusionView::new(style, bbox, width, height, 1.0, zoom);
-                svg_fill_extrusion(&mut out, layer, zoom, layer_tiles(&placed, layer), &view);
+                if layer["paint"].get("fill-extrusion-pattern").map_or(false, |v| !v.is_null()) {
+                    // Patterned extrusions stay raster: the layer drawn alone, embedded.
+                    let mut lfb = Framebuffer::new(width as usize, height as usize);
+                    draw_fill_extrusion_layer(&mut lfb, layer, zoom, layer_tiles(&placed, layer), &view, assets, &mut depth3d);
+                    if lfb.px.iter().any(|p| p[3] > 0 || p[0] > 0 || p[1] > 0 || p[2] > 0) {
+                        let px = lfb.into_straight_rgba();
+                        let _ = write!(out, r#"<image width="{width}" height="{height}" href="{}"/>"#, svg::png_data_uri(width, height, &px));
+                    }
+                } else {
+                    svg_fill_extrusion(&mut out, layer, zoom, layer_tiles(&placed, layer), &view);
+                }
             }
             "raster" => {
                 // Raster tiles stay raster: the composited view, embedded.

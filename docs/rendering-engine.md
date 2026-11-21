@@ -82,7 +82,7 @@ measuring against MapLibre and investigating the difference.
 
 ### Not supported yet
 
-`line-gradient` and `fill-extrusion-pattern`, GeoJSON clustering, PMTiles sources inside vector styles, 3D terrain,
+`line-gradient`, GeoJSON clustering, PMTiles sources inside vector styles, 3D terrain,
 vertical text, and right-to-left scripts. Unsupported layer types are skipped
 with a warning.
 
@@ -169,9 +169,22 @@ centre, so tall buildings lean outward from the centre), heights converted at
 the centre latitude, fill_extrusion.vertex.glsl's per-vertex lighting
 (style `light`, default from 210° at 30°, intensity 0.5; vertical gradient on
 walls) interpolated perspective-correctly, back-face culling and a depth
-buffer; translucent layers draw only the nearest surface per pixel. In SVG,
+buffer shared by all extrusion layers (MapLibre clears depth once per frame);
+translucent layers draw only the nearest surface per pixel. In SVG,
 faces are polygons sorted far to near in a group carrying the layer opacity.
 Golden case: OpenFreeMap Liberty at zoom 16 (0.49%).
+
+`fill-extrusion-pattern` follows fill_extrusion_pattern.vertex/fragment.glsl.
+The image replaces the colour and is lit without it
+(`mix(1 - intensity, max(0.5 + intensity, 1), directional)`), and the layer
+always takes the two-pass translucent path. Tops repeat the pattern in tile
+space like `fill-pattern`. Walls repeat it along the ring's edge distance
+(truncated to Int16 as the vertex attribute stores it, restarting past 32768)
+and up the elevation times `-2^z / tileSize / 8`. Only pattern B is drawn.
+A feature whose image is missing gets no pattern attributes: it draws
+nothing but still writes depth, hiding what lies behind it. In SVG,
+patterned extrusion layers are embedded as images. Golden cases:
+`synthetic_fill_extrusion_pattern_z13` (0.07%) and `_x2` (0.12%).
 
 Enum layout properties (`symbol-placement`, rotation alignments,
 `symbol-z-order`, `line-cap`, `line-join`) may be expressions such as
