@@ -206,22 +206,12 @@ git push
 
 ## Rust developer build prerequisites
 
-`cargo build --workspace` works from a fresh clone; no sibling checkouts are
-needed. The `maplibre` crate is fetched from the
-[ar-puuk/maplibre-rs](https://github.com/ar-puuk/maplibre-rs) fork at the full
-commit SHA pinned in `core/Cargo.toml`.
-
-The fork's build script compiles a `.proto` file, so `protoc` must be on your
-`PATH` (or set the `PROTOC` environment variable):
-
-```sh
-winget install -e --id Google.Protobuf   # Windows
-brew install protobuf                     # macOS
-sudo apt-get install protobuf-compiler    # Debian/Ubuntu
-```
-
-> **Planned:** the maplibre-rs dependency (and with it `wgpu` and `protoc`) is
-> being replaced by an in-house CPU vector renderer.
+`cargo build --workspace` works from a fresh clone with only a Rust
+toolchain: no sibling checkouts, no GPU, no `protoc`, no system libraries.
+Vector tiles are rendered by basemapper's own CPU renderer (`core/src/vector/`),
+a software port of MapLibre GL JS's rendering pipeline that is checked
+pixel-by-pixel against MapLibre GL JS by the golden-image tests
+(`core/tests/golden.rs`).
 
 ---
 

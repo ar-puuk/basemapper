@@ -28,15 +28,6 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      # maplibre-rs's build script compiles a .proto file. The repo's
-      # .cargo/config.toml sets PROTOC to a local Windows path; an explicit
-      # environment variable takes precedence over it.
-      - uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Point PROTOC at the installed compiler
-        shell: bash
-        run: echo "PROTOC=$(command -v protoc)" >> "$GITHUB_ENV"
 
       - name: Build workspace
         run: cargo build --workspace --all-targets
@@ -59,11 +50,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Point PROTOC at the installed compiler
-        run: echo "PROTOC=$(command -v protoc)" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -89,11 +75,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Point PROTOC at the installed compiler
-        run: echo "PROTOC=$(command -v protoc)" >> "$GITHUB_ENV"
       - uses: r-lib/actions/setup-r@v2
         with:
           r-version: "4.6.0"

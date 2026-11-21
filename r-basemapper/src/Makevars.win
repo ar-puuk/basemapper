@@ -29,7 +29,7 @@ REPO_CORE     = $(CURDIR)/../../core
 # $(CURDIR) is src/ at make time; configure.win writes libR.dll.a there.
 PKG_LIBS = -L$(CURDIR) -L$(LIBDIR) -lr_basemapper -lR.dll \
   -lws2_32 -lbcrypt -lcrypt32 -lsecur32 -lntdll -ladvapi32 -luserenv \
-  -lole32 -ld3dcompiler_47 -lopengl32 -lgdi32
+  -lole32 -lgdi32
 
 .PHONY: all clean sync-core
 

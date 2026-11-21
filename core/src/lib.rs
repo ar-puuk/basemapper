@@ -133,10 +133,8 @@ async fn render_single_bbox(
         crs_epsg: 3857,
     };
 
-    // Vector tiles: in-house CPU renderer (default) or the legacy maplibre-rs
-    // engine (BASEMAPPER_VECTOR_ENGINE=maplibre) while it is being retired.
-    let legacy_engine = std::env::var("BASEMAPPER_VECTOR_ENGINE").as_deref() == Ok("maplibre");
-    if matches!(tile_source, TileSource::MapboxVectorTile { .. }) && !legacy_engine {
+    // Vector tiles: in-house CPU renderer (core/src/vector/).
+    if matches!(tile_source, TileSource::MapboxVectorTile { .. }) {
         // MapLibre convention: style evaluated at the true scale zoom; vector
         // tiles (512 px) fetched at floor(scale zoom), clamped to the source
         // maxzoom. An explicit request zoom is on the 256 px raster grid, which
@@ -180,25 +178,6 @@ async fn render_single_bbox(
             pixels: out.pixels,
         });
     }
-    if let TileSource::MapboxVectorTile { ref url_template, .. } = tile_source {
-        let pixels = renderer::render_vector_tiles(
-            client,
-            style_json,
-            url_template,
-            request.auth_token.as_deref(),
-            bbox,
-            zoom,
-            width,
-            height,
-            request.tile_timeout_ms,
-            request.tile_concurrency,
-            request.fail_on_tile_error,
-            transparent,
-        )
-        .await?;
-        return Ok(RenderResult { bounds, zoom_used: zoom, width, height, pixels });
-    }
-
     // PMTiles: fetch via HTTP range requests.
     if let TileSource::PMTiles { ref url, .. } = tile_source {
         let coords = tile_fetcher::build_tile_coords(bbox, zoom);
