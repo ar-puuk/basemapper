@@ -34,6 +34,18 @@ class _FixtureHandler(http.server.SimpleHTTPRequestHandler):
     """Serves /tiles, /fonts and /sprites from the fixture's directories."""
 
     roots: dict = {}
+    # When set, tiles outside the fixture are answered with an empty tile (a
+    # valid, empty MVT), so a plot at any size and zoom still renders.
+    empty_missing_tiles = False
+
+    def do_GET(self):
+        path = pathlib.Path(self.translate_path(self.path))
+        if self.empty_missing_tiles and "/tiles/" in self.path and not path.is_file():
+            self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        super().do_GET()
 
     def translate_path(self, path: str) -> str:
         parts = [urllib.parse.unquote(p) for p in urllib.parse.urlsplit(path).path.split("/") if p]
@@ -50,7 +62,7 @@ def _case(name: str) -> dict:
     return json.loads((GOLDEN / name / "case.json").read_text(encoding="utf-8"))
 
 
-def _serve(name: str):
+def _serve(name: str, empty_missing_tiles: bool = False):
     case = _case(name)
     base = GOLDEN / name
     fixture = GOLDEN / case["fixture_from"] if case.get("fixture_from") else base
@@ -59,7 +71,7 @@ def _serve(name: str):
         "fonts": GOLDEN / case["fonts_from"] if case.get("fonts_from") else fixture,
         "sprites": fixture,
     }
-    handler = type("Handler", (_FixtureHandler,), {"roots": roots})
+    handler = type("Handler", (_FixtureHandler,), {"roots": roots, "empty_missing_tiles": empty_missing_tiles})
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     style = (fixture / "style.json").read_text(encoding="utf-8")
@@ -133,3 +145,36 @@ def test_add_basemap_with_explicit_crs():
     values = np.asarray(arr)
     assert values.ndim == 3 and values.shape[2] == 4
     assert values[..., 3].max() == 255  # something opaque was drawn
+
+
+def test_plotnine_geom_basemap_renders():
+    """geom_basemap draws under a plotnine plot (lon/lat data, default CRS)."""
+    pytest.importorskip("plotnine")
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import pandas as pd
+    import pyproj
+    import matplotlib.pyplot as plt
+    from plotnine import aes, geom_point, ggplot
+
+    from basemapper import geom_basemap
+
+    server, style, case = _serve("carto_positron_z13", empty_missing_tiles=True)
+    try:
+        to_ll = pyproj.Transformer.from_crs(3857, 4326, always_xy=True)
+        xmin, ymin, xmax, ymax = case["bbox"]
+        (lon0, lat0), (lon1, lat1) = to_ll.transform(xmin, ymin), to_ll.transform(xmax, ymax)
+        df = pd.DataFrame({"lon": [lon0, lon1], "lat": [lat0, lat1]})
+        plot = ggplot(df, aes("lon", "lat")) + geom_basemap(style_url=style) + geom_point(color="red")
+        fig = plot.draw()
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+        FigureCanvasAgg(fig).draw()
+        rgba = np.asarray(fig.canvas.buffer_rgba())
+        plt.close(fig)
+    finally:
+        server.shutdown()
+    # Positron's background colour (#fafaf8) must appear in the panel.
+    near_bg = (np.abs(rgba[..., :3].astype(int) - [250, 250, 248]).max(axis=2) <= 2).mean()
+    assert near_bg > 0.05, f"basemap not visible (background fraction {near_bg:.3f})"

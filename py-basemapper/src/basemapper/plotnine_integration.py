@@ -24,11 +24,19 @@ class geom_basemap(geom):
         alpha: Opacity of the basemap layer (0.0–1.0).
         layers: Optional layer filter list — plain IDs keep only those layers;
                 minus-prefixed IDs exclude those layers.
+        crs: CRS of the plot's x/y data (anything ``pyproj.CRS`` accepts).
+            plotnine has no spatial coordinate system to read it from, so it
+            defaults to ``"EPSG:4326"`` (longitude/latitude). Pass e.g.
+            ``crs=gdf.crs`` or ``crs="EPSG:3857"`` for projected data.
 
     Example:
-        >>> from plotnine import ggplot, geom_sf
+        >>> import pandas as pd
+        >>> from plotnine import ggplot, aes, geom_point
         >>> from basemapper import geom_basemap
-        >>> (ggplot(gdf) + geom_basemap(style_url="https://...") + geom_sf())
+        >>> df = pd.DataFrame({"lon": [-111.95, -111.80], "lat": [40.68, 40.80]})
+        >>> (ggplot(df, aes("lon", "lat"))
+        ...  + geom_basemap(style_url="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json")
+        ...  + geom_point())
     """
 
     REQUIRED_AES: set = set()
@@ -45,12 +53,14 @@ class geom_basemap(geom):
         zoom: Optional[int] = None,
         alpha: float = 1.0,
         layers: Optional[List[str]] = None,
+        crs: object = "EPSG:4326",
         **kwargs: object,
     ) -> None:
         self.style_url = style_url
         self.zoom = zoom
         self.alpha = alpha
         self.layers = layers
+        self.crs = crs
         super().__init__(mapping=None, data=None, **kwargs)
 
     def draw_panel(self, data, panel_params, coord, ax, **kwargs):  # type: ignore[override]
@@ -61,24 +71,20 @@ class geom_basemap(geom):
         """
         import pyproj
 
-        from .bbox_utils import detect_crs_from_axes, get_axes_pixel_dims
+        from .bbox_utils import get_axes_pixel_dims
         from . import render_basemap_raw
 
-        # Extract coordinate bounds from panel_params (plotnine mirrors ggplot2).
-        x_range = panel_params.get("x_range", panel_params.get("x.range", [0.0, 1.0]))
-        y_range = panel_params.get("y_range", panel_params.get("y.range", [0.0, 1.0]))
-
-        # CRS resolution: coord_sf stores the resolved CRS in panel_params['crs']
-        # (same as R's panel_params$crs set by CoordSf$setup_panel_params).
-        # Fall back to axes-level detection for non-sf coordinates.
-        crs_raw = panel_params.get("crs")
-        if crs_raw is not None:
-            try:
-                crs = pyproj.CRS.from_user_input(crs_raw)
-            except Exception:
-                crs = detect_crs_from_axes(ax)
+        # Panel ranges: plotnine passes a panel_view (x/y scale views with a
+        # .range); older code paths used a dict.
+        if hasattr(panel_params, "x") and hasattr(panel_params.x, "range"):
+            x_range, y_range = panel_params.x.range, panel_params.y.range
         else:
-            crs = detect_crs_from_axes(ax)
+            x_range = panel_params.get("x_range", panel_params.get("x.range", [0.0, 1.0]))
+            y_range = panel_params.get("y_range", panel_params.get("y.range", [0.0, 1.0]))
+
+        # plotnine has no spatial coordinate system, so the data CRS comes
+        # from the layer (default EPSG:4326).
+        crs = pyproj.CRS.from_user_input(self.crs)
 
         width_px, height_px = get_axes_pixel_dims(ax)
 

@@ -2,10 +2,14 @@
 
 A headless spatial basemap renderer for **R** and **Python**.
 
-basemapper fetches and composites styled map tiles into RGBA pixel arrays
-using a Rust core (reqwest + image). It integrates with **ggplot2**,
-**tmap**, **matplotlib**, and **plotnine** so you can add basemaps to spatial
-plots without a browser, a display server, or GDAL.
+basemapper renders styled basemaps (MapLibre / Mapbox GL styles, raster XYZ,
+WMS, WMTS, PMTiles, ESRI vector tiles) into RGBA pixel arrays with a Rust
+core, and adds them to **ggplot2**, **tmap**, **matplotlib** and **plotnine**
+plots. No browser, GPU, display server or GDAL is involved.
+
+Vector styles are drawn by basemapper's own CPU renderer, a software port of
+MapLibre GL JS's rendering pipeline, verified pixel by pixel against MapLibre
+GL JS (see [How rendering works](docs/rendering-engine.md)).
 
 📖 [R documentation](https://ar-puuk.github.io/basemapper/r/) ·
 🐍 [Python documentation](https://ar-puuk.github.io/basemapper/python/)
@@ -17,12 +21,17 @@ plots without a browser, a display server, or GDAL.
 ### R
 
 ```r
-# Requires devtools or remotes
+# Requires remotes (or devtools); compiles the Rust core from source.
 remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
 ```
 
-Depends on: `ggplot2 (>= 3.4)`, `sf (>= 1.0)`, `jsonlite (>= 1.8)`, `grid`.  
-Optional: `tmap (>= 4.0)`, `stars (>= 0.6)` for `tm_basemap()`.
+Building from source needs a [Rust toolchain](https://rustup.rs) and, on
+Windows, [RTools45](https://cran.r-project.org/bin/windows/Rtools/) plus the
+GNU target: `rustup target add x86_64-pc-windows-gnu`.
+
+Depends on: `ggplot2 (>= 3.4)`, `sf (>= 1.0)`, `jsonlite (>= 1.8)`,
+`httr2 (>= 1.0)`, `terra (>= 1.7)`, `grid`.
+Optional: `tmap (>= 4.0)` for `tm_basemap()`.
 
 > CRAN and R-Universe packages are planned after an extended testing period.
 
@@ -32,7 +41,10 @@ Optional: `tmap (>= 4.0)`, `stars (>= 0.6)` for `tm_basemap()`.
 pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
 ```
 
-Depends on: `numpy`, `pyproj`, `matplotlib`, `requests`.  
+Building from source needs a [Rust toolchain](https://rustup.rs); pip builds
+the extension with maturin automatically.
+
+Depends on: `numpy`, `pyproj`, `matplotlib`, `requests`, `xarray`.
 Optional: `plotnine >= 0.12` for `geom_basemap()`.
 
 > PyPI and conda packages are planned after an extended testing period.
@@ -79,30 +91,33 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 from basemapper import add_basemap, RasterProvider
 
-world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+world = gpd.read_file(
+    "https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_countries.zip"
+)
+europe = world[world.CONTINENT == "Europe"].cx[-25:45, 34:72]
 fig, ax = plt.subplots(figsize=(10, 6))
-world[world.continent == "Europe"].plot(ax=ax, facecolor="none", edgecolor="black")
+europe.plot(ax=ax, facecolor="none", edgecolor="black")
 
 style = str(RasterProvider("https://tile.openstreetmap.org/{z}/{x}/{y}.png"))
-add_basemap(ax, style_url=style)
+# Axes from a GeoDataFrame plot carry no CRS: pass it explicitly.
+add_basemap(ax, style_url=style, crs=europe.crs)
 plt.show()
 ```
 
 ### Python — plotnine
 
 ```python
-from plotnine import ggplot, geom_sf, coord_fixed
-from basemapper import geom_basemap, RasterProvider
-import geopandas as gpd
+import pandas as pd
+from plotnine import ggplot, aes, geom_point
+from basemapper import geom_basemap
 
-world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
-style = str(RasterProvider("https://tile.openstreetmap.org/{z}/{x}/{y}.png"))
+cities = pd.DataFrame({"lon": [-111.89, -111.98], "lat": [40.76, 40.66]})
+style = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
 
 (
-    ggplot(world)
-    + geom_basemap(style_url=style)
-    + geom_sf(fill="none", colour="steelblue")
-    + coord_fixed()
+    ggplot(cities, aes("lon", "lat"))
+    + geom_basemap(style_url=style)          # data CRS defaults to EPSG:4326
+    + geom_point(colour="red", size=3)
 )
 ```
 
@@ -128,11 +143,13 @@ style = str(RasterProvider("https://tile.openstreetmap.org/{z}/{x}/{y}.png"))
 
 ---
 
-## Anti-meridian support
+## Anti-meridian and world copies
 
 Bboxes where `xmin > xmax` in EPSG:3857 (Pacific-centred views, date-line
-crossings) are rendered correctly by splitting into west and east halves at
-proportional pixel widths and stitching the result horizontally.
+crossings) are rendered by splitting into west and east halves and stitching
+the result. A view that extends past ±180° (for example a whole-world map at
+low zoom) shows the wrapped world copy there, as MapLibre does; vector styles
+draw it directly on one canvas.
 
 ```r
 # R — Pacific-centred map crossing the date line
@@ -183,7 +200,7 @@ The documentation site is pre-built locally and committed to `site/`.
 CI deploys whatever is in that directory on every push to `main` that touches `site/**`.
 
 **Prerequisites** (one-time):
-- R 4.x with packages: `roxygen2`, `pkgdown`, `ggplot2`, `sf`, `jsonlite`, `tmap`, `stars`, `knitr`, `rmarkdown` — the build script installs any that are missing automatically
+- R 4.x with packages: `roxygen2`, `pkgdown`, `ggplot2`, `sf`, `jsonlite`, `tmap`, `terra`, `knitr`, `rmarkdown` — the build script installs any that are missing automatically
 - Rust toolchain + RTools45 (required by `roxygen2::roxygenize()` to compile the R package)
 - Python with `basemapper[dev]` installed (`pip install -e ".[dev]"` from `py-basemapper/`)
 - `great-docs` CLI on PATH (installed by the above pip command)
@@ -204,6 +221,31 @@ git push
 
 ---
 
+## How rendering works
+
+See [docs/rendering-engine.md](docs/rendering-engine.md): the raster and
+vector pipelines, which parts of MapLibre GL JS the vector renderer ports and
+the details that make its output match, what is not supported yet, and how
+fidelity is verified.
+
+---
+
+## Testing
+
+| What | Command | Notes |
+|---|---|---|
+| Rust core: unit, integration and golden-image tests | `cargo test -p basemapper-core` | 156 golden cases compared with MapLibre GL JS references, run in parallel |
+| Python | build the wheel with `maturin build`, install it with `pytest responses plotnine`, then run `pytest` in `py-basemapper/` | Includes end-to-end renders against the golden fixtures |
+| R | `R CMD INSTALL r-basemapper`, then `testthat::test_dir("r-basemapper/tests/testthat")` | |
+| Visual comparison | open `check/index.html` after `cargo test` | Overview grid, side-by-side, swipe, blink and diff views |
+| Re-render MapLibre references | `cd tools/reference-render`, `npm install`, `npx playwright install chromium`, `node render.mjs` | Needed after adding or re-capturing fixtures |
+
+Fixtures are captured from live services with
+`cargo run -p basemapper-core --example capture_fixture`; see
+[core/tests/fixtures/golden/README.md](core/tests/fixtures/golden/README.md).
+
+---
+
 ## Rust developer build prerequisites
 
 `cargo build --workspace` works from a fresh clone with only a Rust
@@ -215,27 +257,24 @@ pixel-by-pixel against MapLibre GL JS by the golden-image tests
 
 ---
 
-## Developer setup (Windows — R package only)
+## Developer setup (Windows, R package)
 
-The R package ships a pre-compiled `basemapper.dll`, so end users need only
-R itself. Developers who want to rebuild the Rust code must use the
-**`x86_64-pc-windows-gnu`** target with RTools45 — the MSVC toolchain cannot
-correctly import R.dll's DATA-exported global variables.
+On Windows the R package is built with the **`x86_64-pc-windows-gnu`** Rust
+target and RTools45: the MSVC toolchain cannot import R.dll's DATA-exported
+globals. `R CMD INSTALL` does the rest: `configure.win` generates the R import
+library, and `src/Makevars.win` syncs the core crate into the package and runs
+cargo.
 
 ```powershell
-# One-time setup
+# One-time setup: install RTools45 (R sets RTOOLS45_HOME), then
 rustup target add x86_64-pc-windows-gnu
-.\scripts\build-r-importlib.ps1   # regenerates .r-lib/libR.dll.a
 
-# Build
-$env:PATH = "C:\rtools45\x86_64-w64-mingw32.static.posix\bin;C:\rtools45\usr\bin;" + $env:PATH
-$env:R_HOME = "C:\Program Files\R\R-4.6.0"
-cargo build --release -p r-basemapper --target x86_64-pc-windows-gnu
-Copy-Item target\x86_64-pc-windows-gnu\release\r_basemapper.dll `
-          r-basemapper\src\basemapper.dll -Force
+# Build and install
+R CMD INSTALL r-basemapper
 ```
 
-Linux and macOS builds use the standard `cargo build` flow.
+On Linux and macOS, `R CMD INSTALL r-basemapper` uses `src/Makevars` and the
+host Rust target.
 
 ---
 
