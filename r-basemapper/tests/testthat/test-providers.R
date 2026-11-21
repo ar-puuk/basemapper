@@ -43,7 +43,7 @@ test_that("vector_provider unknown paint key triggers warning", {
 
 test_that("vector_provider with empty paint uses default grey values", {
   style <- jsonlite::fromJSON(
-    vector_provider("https://x.com/{z}/{x}/{y}.mvt"),
+    vector_provider("https://x.com/{z}/{x}/{y}.mvt", source_layer = "roads"),
     simplifyVector = FALSE
   )
   fill_layer <- Filter(function(l) l$type == "fill", style$layers)[[1]]
