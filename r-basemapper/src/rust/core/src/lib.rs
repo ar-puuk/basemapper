@@ -160,7 +160,8 @@ async fn render_single_bbox(
         .await?;
         let style_val: serde_json::Value = serde_json::from_str(style_json)
             .map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
-        let out = vector::render::render(&style_val, &tiles, bbox, width, height)
+        let glyphs = fetch_glyphs(client, &style_val, style_base_url_of(request), &tiles, sz).await;
+        let out = vector::render::render(&style_val, &tiles, &glyphs, bbox, width, height)
             .map_err(BasemapError::RenderError)?;
         if !out.skipped_layer_types.is_empty() {
             log::warn!(
@@ -471,3 +472,58 @@ fn resolve_url(url: &str, base: Option<&str>) -> String {
     }
     url.to_owned()
 }
+
+fn style_base_url_of(request: &RenderRequest) -> Option<&str> {
+    match &request.style_input {
+        StyleInput::Url(u) => Some(u.as_str()),
+        StyleInput::InlineJson(_) => None,
+    }
+}
+
+/// Fetch the glyph PBF ranges the visible text labels need, from the style's
+/// `glyphs` URL template. Failures are logged and skipped (labels whose glyphs
+/// are missing are not drawn), as MapLibre does.
+async fn fetch_glyphs(
+    client: &reqwest::Client,
+    style: &serde_json::Value,
+    style_base_url: Option<&str>,
+    tiles: &[(tile_fetcher::TileCoord, tile_fetcher::TileData)],
+    zoom: f64,
+) -> vector::symbol::GlyphMap {
+    let mut map = vector::symbol::GlyphMap::default();
+    let Some(template) = style["glyphs"].as_str() else { return map };
+    let template = resolve_url(template, style_base_url);
+    let decoded: Vec<vector::mvt::Tile> = tiles.iter().filter_map(|(_, b)| vector::mvt::decode(b).ok()).collect();
+    let mut needed: Vec<(String, u32)> =
+        vector::symbol::required_glyph_ranges(style, decoded.iter(), zoom).into_iter().collect();
+    needed.sort();
+    let mut set = tokio::task::JoinSet::new();
+    for (stack, start) in needed {
+        let url = template
+            .replace("{fontstack}", &stack)
+            .replace("{range}", &format!("{}-{}", start, start + 255));
+        let client = client.clone();
+        set.spawn(async move {
+            let resp = client.get(&url).send().await.ok()?;
+            if !resp.status().is_success() {
+                log::warn!("glyphs {url}: HTTP {}", resp.status());
+                return None;
+            }
+            Some((stack, resp.bytes().await.ok()?.to_vec()))
+        });
+    }
+    let mut results = Vec::new();
+    while let Some(r) = set.join_next().await {
+        if let Ok(Some(x)) = r {
+            results.push(x);
+        }
+    }
+    results.sort_by(|a, b| a.0.cmp(&b.0));
+    for (stack, bytes) in results {
+        if let Err(e) = map.add_pbf(&stack, &bytes) {
+            log::warn!("glyphs for {stack}: {e}");
+        }
+    }
+    map
+}
+

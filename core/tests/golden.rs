@@ -133,6 +133,14 @@ fn run_case(dir: &Path, manifest: &mut Vec<Value>) -> Result<String, String> {
         Some(other) => golden_root().join(other),
         None => fixture_dir.clone(),
     };
+    // Anything not in the fixture is a 404, as a real server would answer
+    // (e.g. a glyph range MapLibre never requested). Registered first:
+    // httptest prefers the most recently added matching expectation.
+    server.expect(
+        Expectation::matching(httptest::matchers::any())
+            .times(..)
+            .respond_with(status_code(404)),
+    );
     serve_fixture(&server, &fixture_dir, &tiles_dir, &fonts_dir);
     let base = server.url_str("");
     let style = style_template.replace("{{BASE}}", base.trim_end_matches('/'));

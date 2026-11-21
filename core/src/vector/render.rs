@@ -13,6 +13,7 @@ use super::gl::{
     LineBuilder, Vert, ATLAS_W, EXTENT,
 };
 use super::mvt::{self, Feature, Geometry, Tile};
+use super::symbol::{self, GlyphMap, SymbolTile};
 use crate::tile_fetcher::TileCoord;
 use serde_json::Value as Json;
 
@@ -41,6 +42,7 @@ pub fn tile_zoom(scale_zoom: f64, source_maxzoom: Option<u8>) -> u8 {
 }
 
 struct PlacedTile {
+    coord: TileCoord,
     tile: Tile,
     /// Canvas position of the tile's top-left corner, in px.
     ox: f64,
@@ -58,9 +60,11 @@ pub struct RenderOutput {
 }
 
 /// Render `tiles` (raw MVT bytes) with `style` over `bbox` at `width × height`.
+/// `glyphs` holds the glyph PBFs for text labels (may be empty).
 pub fn render(
     style: &Json,
     tiles: &[(TileCoord, Vec<u8>)],
+    glyphs: &GlyphMap,
     bbox: [f64; 4],
     width: u32,
     height: u32,
@@ -89,6 +93,7 @@ pub fn render(
         let ox = c.x as f64 * tile_px - view_x0;
         let oy = c.y as f64 * tile_px - view_y0;
         placed.push(PlacedTile {
+            coord: *c,
             tile,
             ox,
             oy,
@@ -98,8 +103,22 @@ pub fn render(
         });
     }
 
+    // Symbol placement runs once, top layer first, before drawing.
+    let symbol_tiles: Vec<SymbolTile> = placed
+        .iter()
+        .map(|p| SymbolTile {
+            coord: (p.coord.z, p.coord.x, p.coord.y),
+            tile: &p.tile,
+            ox: p.ox,
+            oy: p.oy,
+            unit_px: p.unit_px,
+            overscaling: p.overscaling,
+        })
+        .collect();
+    let placement = symbol::place(style, &symbol_tiles, glyphs, zoom, width as f64, height as f64);
+
     let mut skipped: Vec<String> = Vec::new();
-    for layer in style["layers"].as_array().map(|v| v.as_slice()).unwrap_or(&[]) {
+    for (layer_idx, layer) in style["layers"].as_array().map(|v| v.as_slice()).unwrap_or(&[]).iter().enumerate() {
         let ltype = layer["type"].as_str().unwrap_or("");
         if layer["layout"]["visibility"] == "none" {
             continue;
@@ -114,6 +133,7 @@ pub fn render(
             "fill" => draw_fill_layer(&mut fb, layer, zoom, &placed),
             "line" => draw_line_layer(&mut fb, layer, zoom, &placed),
             "circle" => draw_circle_layer(&mut fb, layer, zoom, &placed),
+            "symbol" => symbol::draw_layer(&mut fb, layer, layer_idx, &placement, glyphs),
             other => {
                 if !skipped.iter().any(|s| s == other) {
                     skipped.push(other.to_owned());

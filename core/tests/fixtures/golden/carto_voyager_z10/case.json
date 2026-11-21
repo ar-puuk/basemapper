@@ -12,7 +12,7 @@
   "tiles_from": "carto_positron_z10",
   "width": 800,
   "zoom": 11,
-  "max_bad_pixel_frac": 0.01148,
-  "max_mean_diff": 0.726,
+  "max_bad_pixel_frac": 0.00026,
+  "max_mean_diff": 0.066,
   "fonts_from": "carto_positron_z4"
 }
