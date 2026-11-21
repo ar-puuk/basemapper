@@ -13,7 +13,7 @@ use super::gl::{
     LineBuilder, Vert, ATLAS_W, EXTENT,
 };
 use super::mvt::{self, Feature, Geometry, Tile};
-use super::symbol::{self, GlyphMap, SymbolTile};
+use super::symbol::{self, SymbolAssets, SymbolTile};
 use crate::tile_fetcher::TileCoord;
 use serde_json::Value as Json;
 
@@ -60,11 +60,11 @@ pub struct RenderOutput {
 }
 
 /// Render `tiles` (raw MVT bytes) with `style` over `bbox` at `width × height`.
-/// `glyphs` holds the glyph PBFs for text labels (may be empty).
+/// `assets` holds glyphs and sprite images for symbol layers (may be empty).
 pub fn render(
     style: &Json,
     tiles: &[(TileCoord, Vec<u8>)],
-    glyphs: &GlyphMap,
+    assets: &SymbolAssets,
     bbox: [f64; 4],
     width: u32,
     height: u32,
@@ -115,7 +115,7 @@ pub fn render(
             overscaling: p.overscaling,
         })
         .collect();
-    let placement = symbol::place(style, &symbol_tiles, glyphs, zoom, width as f64, height as f64);
+    let placement = symbol::place(style, &symbol_tiles, assets, zoom, width as f64, height as f64);
 
     let mut skipped: Vec<String> = Vec::new();
     for (layer_idx, layer) in style["layers"].as_array().map(|v| v.as_slice()).unwrap_or(&[]).iter().enumerate() {
@@ -133,7 +133,7 @@ pub fn render(
             "fill" => draw_fill_layer(&mut fb, layer, zoom, &placed),
             "line" => draw_line_layer(&mut fb, layer, zoom, &placed),
             "circle" => draw_circle_layer(&mut fb, layer, zoom, &placed),
-            "symbol" => symbol::draw_layer(&mut fb, layer, layer_idx, &placement, glyphs),
+            "symbol" => symbol::draw_layer(&mut fb, layer, layer_idx, &placement, assets),
             other => {
                 if !skipped.iter().any(|s| s == other) {
                     skipped.push(other.to_owned());

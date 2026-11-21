@@ -12,7 +12,7 @@
   "tiles_from": null,
   "width": 800,
   "zoom": 8,
-  "max_bad_pixel_frac": 0.00052,
-  "max_mean_diff": 0.068,
+  "max_bad_pixel_frac": 0.00016,
+  "max_mean_diff": 0.029,
   "fonts_from": "carto_positron_z4"
 }

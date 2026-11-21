@@ -14,7 +14,12 @@
 //! - Drawing (`webgl/draw/draw_symbol.ts`, `symbol_sdf.*.glsl`): bilinear SDF
 //!   sampling, EDGE_GAMMA, one- or two-pass halos.
 //!
-//! Not yet: line placement, icons, variable anchors, vertical text.
+//! - Icons (`render/image_atlas.ts`, `getIconQuads`, `symbol_icon.*.glsl`):
+//!   premultiplied sprite images with 1 px padding, NEAREST/LINEAR per
+//!   draw_symbol.ts, SDF icons through the text shader; text/icon placement
+//!   combined through text-optional / icon-optional.
+//!
+//! Not yet: line placement, variable anchors, icon-text-fit, vertical text.
 
 use super::expr::{eval_filter, eval_property, is_data_driven, Color, Ctx, Kind, Val};
 use super::gl::{raster_triangle, smoothstep, Clip, Framebuffer, Vert, EXTENT};
@@ -707,6 +712,122 @@ fn pole_of_inaccessibility(poly: &[Vec<(f64, f64)>], precision: f64) -> (f64, f6
     (best.x, best.y)
 }
 
+// ── Sprites ──────────────────────────────────────────────────────────────────
+
+/// A sprite image as MapLibre stores it in its icon atlas: premultiplied RGBA
+/// (`premultiplyAlpha`, Math.round(c * a / 255)) with 1 px of zero padding.
+#[derive(Clone, Debug)]
+pub struct SpriteImage {
+    pub w: usize,
+    pub h: usize,
+    pub pixel_ratio: f64,
+    pub sdf: bool,
+    /// (w + 2) * (h + 2) * 4 bytes.
+    pub cell: Vec<u8>,
+}
+
+impl SpriteImage {
+    fn texel(&self, ix: i64, iy: i64) -> [f64; 4] {
+        let (cw, ch) = (self.w as i64 + 2, self.h as i64 + 2);
+        if ix < 0 || iy < 0 || ix >= cw || iy >= ch {
+            return [0.0; 4];
+        }
+        let o = ((iy * cw + ix) * 4) as usize;
+        [self.cell[o] as f64, self.cell[o + 1] as f64, self.cell[o + 2] as f64, self.cell[o + 3] as f64]
+    }
+
+    /// Sample at padded-cell coordinates; GL_LINEAR or GL_NEAREST. 0..=255.
+    fn sample(&self, tx: f64, ty: f64, linear: bool) -> [f64; 4] {
+        if !linear {
+            return self.texel(tx.floor() as i64, ty.floor() as i64);
+        }
+        let (x, y) = (tx - 0.5, ty - 0.5);
+        let (x0, y0) = (x.floor(), y.floor());
+        let (fx, fy) = (x - x0, y - y0);
+        let (ix, iy) = (x0 as i64, y0 as i64);
+        let (a, b, c, d) = (self.texel(ix, iy), self.texel(ix + 1, iy), self.texel(ix, iy + 1), self.texel(ix + 1, iy + 1));
+        let mut out = [0.0; 4];
+        for i in 0..4 {
+            out[i] = (a[i] * (1.0 - fx) + b[i] * fx) * (1.0 - fy) + (c[i] * (1.0 - fx) + d[i] * fx) * fy;
+        }
+        out
+    }
+}
+
+#[derive(Default)]
+pub struct Sprite {
+    pub images: HashMap<String, SpriteImage>,
+}
+
+impl Sprite {
+    /// Build from a sprite's `.json` index and `.png` sheet.
+    pub fn from_json_png(json: &[u8], png: &[u8]) -> Result<Sprite, String> {
+        let index: Json = serde_json::from_slice(json).map_err(|e| format!("sprite json: {e}"))?;
+        let sheet = image::load_from_memory(png).map_err(|e| format!("sprite png: {e}"))?.to_rgba8();
+        let mut images = HashMap::new();
+        for (name, e) in index.as_object().ok_or("sprite json is not an object")? {
+            let g = |k: &str| e[k].as_u64().unwrap_or(0) as usize;
+            let (x, y, w, h) = (g("x"), g("y"), g("width"), g("height"));
+            if w == 0 || h == 0 || x + w > sheet.width() as usize || y + h > sheet.height() as usize {
+                continue;
+            }
+            let cw = w + 2;
+            let mut cell = vec![0u8; cw * (h + 2) * 4];
+            for row in 0..h {
+                for col in 0..w {
+                    let p = sheet.get_pixel((x + col) as u32, (y + row) as u32).0;
+                    let a = p[3] as f64;
+                    let o = ((row + 1) * cw + col + 1) * 4;
+                    for i in 0..3 {
+                        cell[o + i] = (p[i] as f64 * a / 255.0 + 0.5).floor() as u8;
+                    }
+                    cell[o + 3] = p[3];
+                }
+            }
+            images.insert(
+                name.clone(),
+                SpriteImage {
+                    w,
+                    h,
+                    pixel_ratio: e["pixelRatio"].as_f64().unwrap_or(1.0),
+                    sdf: e["sdf"].as_bool().unwrap_or(false),
+                    cell,
+                },
+            );
+        }
+        Ok(Sprite { images })
+    }
+}
+
+/// Everything symbol layers need besides the tiles.
+#[derive(Default)]
+pub struct SymbolAssets {
+    pub glyphs: GlyphMap,
+    pub sprite: Sprite,
+}
+
+/// The icon image name a symbol layer shows for a feature, or None.
+pub fn feature_icon(layer: &Json, f: &Feature, zoom: f64) -> Option<String> {
+    let ii = layer["layout"].get("icon-image")?;
+    let ctx = Ctx { zoom, feature: Some(f) };
+    let name = match ii {
+        Json::String(s) if s.contains('{') => {
+            let mut out = String::new();
+            let mut rest = s.as_str();
+            while let Some(i) = rest.find('{') {
+                out.push_str(&rest[..i]);
+                let Some(j) = rest[i..].find('}') else { break };
+                out.push_str(&prop_string(f, &rest[i + 1..i + j]));
+                rest = &rest[i + j + 1..];
+            }
+            out.push_str(rest);
+            out
+        }
+        other => val_text(eval_property(other, Kind::Enum, &ctx))?,
+    };
+    (!name.is_empty()).then_some(name)
+}
+
 // ── Placement + drawing ──────────────────────────────────────────────────────
 
 /// A tile placed on the canvas, as the renderer sees it.
@@ -721,34 +842,52 @@ pub struct SymbolTile<'a> {
     pub overscaling: f64,
 }
 
-/// A label that survived placement, ready to draw.
-struct Label {
-    anchor_px: (f64, f64),
-    quads: Vec<GlyphQuad>,
-    fontstack: String,
-    size: f64,
+#[derive(Clone)]
+struct SdfStyle {
     fill: Color,
     halo: Color,
     halo_width: f64,
     halo_blur: f64,
     opacity: f64,
-    /// Tile index (draw order groups by tile).
+}
+
+#[derive(Clone)]
+struct TextPart {
+    quads: Vec<GlyphQuad>,
+    fontstack: String,
+    size: f64,
+    style: SdfStyle,
+}
+
+#[derive(Clone)]
+struct IconPart {
+    image: String,
+    /// tl, tr, bl, br in icon px (before icon-size), quantised to 1/32.
+    corners: [(f64, f64); 4],
+    size: f64,
+    sdf: bool,
+    linear: bool,
+    style: SdfStyle,
+}
+
+/// A symbol that survived placement, ready to draw.
+struct Label {
+    anchor_px: (f64, f64),
+    text: Option<TextPart>,
+    icon: Option<IconPart>,
     tile: usize,
 }
 
-/// Placed labels per style layer index.
+/// Placed symbols per style layer index.
 pub struct Placement {
     labels: HashMap<usize, Vec<Label>>,
 }
 
 struct Instance {
-    layer_idx: usize,
     tile_idx: usize,
     sort_key: f64,
-    anchor_px: (f64, f64),
-    box_px: [f64; 4],
-    overlap_always: bool,
-    ignore_placement: bool,
+    text_box: Option<[f64; 4]>,
+    icon_box: Option<[f64; 4]>,
     label: Label,
 }
 
@@ -786,12 +925,166 @@ fn color(paint: &Json, key: &str, ctx: &Ctx, default: Color) -> Color {
     }
 }
 
+fn sdf_style(paint: &Json, prefix: &str, ctx: &Ctx) -> SdfStyle {
+    SdfStyle {
+        fill: color(paint, &format!("{prefix}-color"), ctx, Color::BLACK),
+        halo: color(paint, &format!("{prefix}-halo-color"), ctx, Color::TRANSPARENT),
+        halo_width: num(paint, &format!("{prefix}-halo-width"), ctx, 0.0),
+        halo_blur: num(paint, &format!("{prefix}-halo-blur"), ctx, 0.0),
+        opacity: num(paint, &format!("{prefix}-opacity"), ctx, 1.0),
+    }
+}
+
 fn to_extent(p: (f32, f32), scale: f64) -> (f64, f64) {
     ((p.0 as f64 * scale + 0.5).floor(), (p.1 as f64 * scale + 0.5).floor())
 }
 
-/// Run MapLibre's placement for every visible point-text symbol layer.
-pub fn place(style: &Json, tiles: &[SymbolTile], glyphs: &GlyphMap, zoom: f64, width: f64, height: f64) -> Placement {
+fn rotated_envelope(b: [f64; 4], deg: f64) -> [f64; 4] {
+    if deg == 0.0 {
+        return b;
+    }
+    let (s, c) = (deg.to_radians().sin(), deg.to_radians().cos());
+    let pts = [(b[0], b[1]), (b[2], b[1]), (b[0], b[3]), (b[2], b[3])].map(|(x, y)| (c * x - s * y, s * x + c * y));
+    [
+        pts.iter().map(|p| p.0).fold(f64::INFINITY, f64::min),
+        pts.iter().map(|p| p.1).fold(f64::INFINITY, f64::min),
+        pts.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max),
+        pts.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max),
+    ]
+}
+
+fn padding4(layout: &Json, key: &str, ctx: &Ctx, default: f64) -> [f64; 4] {
+    // [top, right, bottom, left] (CSS order); a single number applies to all.
+    match layout.get(key).map(|j| eval_property(j, Kind::Array, ctx)) {
+        Some(Val::Num(n)) => [n; 4],
+        Some(Val::Array(a)) => {
+            let v: Vec<f64> = a.iter().filter_map(|x| x.as_num()).collect();
+            match v.len() {
+                1 => [v[0]; 4],
+                2 => [v[0], v[1], v[0], v[1]],
+                3 => [v[0], v[1], v[2], v[1]],
+                4 => [v[0], v[1], v[2], v[3]],
+                _ => [default; 4],
+            }
+        }
+        _ => [default; 4],
+    }
+}
+
+/// Text shaping parameters and output for one feature.
+fn build_text(
+    layer: &Json,
+    f: &Feature,
+    assets: &SymbolAssets,
+    zoom: f64,
+    tile_zoom: f64,
+    tile_pixel_ratio: f64,
+) -> Option<(TextPart, [f64; 4])> {
+    let layout = &layer["layout"];
+    let paint = &layer["paint"];
+    let ctx = Ctx { zoom, feature: Some(f) };
+    let lctx = Ctx { zoom: tile_zoom, feature: Some(f) };
+    let next_ctx = Ctx { zoom: tile_zoom + 1.0, feature: Some(f) };
+    let t = feature_text(layer, f, tile_zoom)?;
+    let stack = feature_fontstack(layer, Some(f), tile_zoom);
+    let gmap = assets.glyphs.stacks.get(&stack)?;
+    let spacing = num(layout, "text-letter-spacing", &lctx, 0.0) * ONE_EM;
+    let anchor = string(layout, "text-anchor", &lctx, "center");
+    let mut justify = string(layout, "text-justify", &lctx, "center");
+    if justify == "auto" {
+        justify = match anchor.as_str() {
+            "right" | "top-right" | "bottom-right" => "right",
+            "left" | "top-left" | "bottom-left" => "left",
+            _ => "center",
+        }
+        .to_owned();
+    }
+    let max_width = num(layout, "text-max-width", &lctx, 10.0) * ONE_EM;
+    let line_height = num(layout, "text-line-height", &lctx, 1.2) * ONE_EM;
+    let radial = num(layout, "text-radial-offset", &lctx, 0.0);
+    let text_offset = if radial != 0.0 {
+        radial_offset(&anchor, radial * ONE_EM)
+    } else {
+        let o = num_pair(layout, "text-offset", &lctx);
+        (o.0 * ONE_EM, o.1 * ONE_EM)
+    };
+    let shaping = shape_text(&t, gmap, max_width, line_height, &anchor, &justify, spacing, text_offset)?;
+    let rotate = num(layout, "text-rotate", &lctx, 0.0);
+    let quads = glyph_quads(&shaping, gmap, text_offset, rotate);
+    if quads.is_empty() {
+        return None;
+    }
+    let layout_size = num(layout, "text-size", &next_ctx, 16.0);
+    let box_scale = tile_pixel_ratio * layout_size / 24.0;
+    let pad = num(layout, "text-padding", &lctx, 2.0) * tile_pixel_ratio;
+    let b = rotated_envelope(
+        [shaping.left * box_scale - pad, shaping.top * box_scale - pad, shaping.right * box_scale + pad, shaping.bottom * box_scale + pad],
+        rotate,
+    );
+    Some((
+        TextPart { quads, fontstack: stack, size: num(layout, "text-size", &ctx, 16.0), style: sdf_style(paint, "text", &ctx) },
+        b,
+    ))
+}
+
+/// Icon shaping (shapeIcon + getIconQuads without icon-text-fit). Returns
+/// the part, its collision box (tile units) and whether it needs LINEAR.
+fn build_icon(
+    layer: &Json,
+    f: &Feature,
+    assets: &SymbolAssets,
+    zoom: f64,
+    tile_zoom: f64,
+    tile_pixel_ratio: f64,
+) -> Option<(IconPart, [f64; 4], bool)> {
+    let layout = &layer["layout"];
+    let paint = &layer["paint"];
+    let ctx = Ctx { zoom, feature: Some(f) };
+    let lctx = Ctx { zoom: tile_zoom, feature: Some(f) };
+    let next_ctx = Ctx { zoom: tile_zoom + 1.0, feature: Some(f) };
+    let name = feature_icon(layer, f, tile_zoom)?;
+    let img = assets.sprite.images.get(&name)?;
+    let rotate = num(layout, "icon-rotate", &lctx, 0.0);
+    let needs_linear = img.pixel_ratio != 1.0 || rotate != 0.0 || layout.get("icon-rotate").map_or(false, is_data_driven);
+    let (dw, dh) = (img.w as f64 / img.pixel_ratio, img.h as f64 / img.pixel_ratio);
+    let (ha, va) = anchor_alignment(&string(layout, "icon-anchor", &lctx, "center"));
+    let off = num_pair(layout, "icon-offset", &lctx);
+    let (left, top) = (off.0 - dw * ha, off.1 - dh * va);
+    let (right, bottom) = (left + dw, top + dh);
+    // Padded by one image pixel on each side, like the atlas cell.
+    let (px, py) = (dw / img.w as f64, dh / img.h as f64);
+    let mut corners = [(left - px, top - py), (right + px, top - py), (left - px, bottom + py), (right + px, bottom + py)];
+    if rotate != 0.0 {
+        let (s, c) = (rotate.to_radians().sin(), rotate.to_radians().cos());
+        for p in &mut corners {
+            *p = (c * p.0 - s * p.1, s * p.0 + c * p.1);
+        }
+    }
+    for p in &mut corners {
+        *p = (js_round(p.0 * 32.0) / 32.0, js_round(p.1 * 32.0) / 32.0);
+    }
+    let box_scale = tile_pixel_ratio * num(layout, "icon-size", &next_ctx, 1.0);
+    let pad = padding4(layout, "icon-padding", &lctx, 2.0).map(|v| v * tile_pixel_ratio);
+    let b = rotated_envelope(
+        [left * box_scale - pad[3], top * box_scale - pad[0], right * box_scale + pad[1], bottom * box_scale + pad[2]],
+        rotate,
+    );
+    Some((
+        IconPart {
+            image: name,
+            corners,
+            size: num(layout, "icon-size", &ctx, 1.0),
+            sdf: img.sdf,
+            linear: false,
+            style: sdf_style(paint, "icon", &ctx),
+        },
+        b,
+        needs_linear,
+    ))
+}
+
+/// Run MapLibre's placement for every visible point-placed symbol layer.
+pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f64, width: f64, height: f64) -> Placement {
     let layers = style["layers"].as_array().map(|v| v.as_slice()).unwrap_or(&[]);
     // Tile order for placement: by x, then y (OverscaledTileID.isLessThan).
     let mut tile_order: Vec<usize> = (0..tiles.len()).collect();
@@ -801,25 +1094,45 @@ pub fn place(style: &Json, tiles: &[SymbolTile], glyphs: &GlyphMap, zoom: f64, w
         zb.cmp(&za).then(xa.cmp(&xb)).then(ya.cmp(&yb))
     });
 
+    // Collision grid (brute force; same results as GridIndex).
     let mut boxes: Vec<[f64; 4]> = Vec::new();
     let mut placed: HashMap<usize, Vec<Label>> = HashMap::new();
+    let grid_w = width + 2.0 * VIEWPORT_PADDING;
+    let grid_h = height + 2.0 * VIEWPORT_PADDING;
 
     for (layer_idx, layer) in layers.iter().enumerate().rev() {
-        if layer["type"] != "symbol" || !layer_visible(layer, zoom) || layer["layout"].get("text-field").is_none() {
+        if layer["type"] != "symbol" || !layer_visible(layer, zoom) {
             continue;
         }
         let layout = &layer["layout"];
-        let placement = layout["symbol-placement"].as_str().unwrap_or("point");
-        if placement != "point" {
+        let has_text_field = layout.get("text-field").is_some();
+        let has_icon_image = layout.get("icon-image").is_some();
+        if !has_text_field && !has_icon_image {
+            continue;
+        }
+        if layout["symbol-placement"].as_str().unwrap_or("point") != "point" {
             continue; // line placement: not yet
         }
         let Some(sl) = layer["source-layer"].as_str() else { continue };
         let paint = &layer["paint"];
         let sort_key_j = layout.get("symbol-sort-key");
         let sort_by_key = layout["symbol-z-order"] != "viewport-y" && sort_key_j.map_or(false, is_data_driven);
-        let overlap_always = layout["text-overlap"] == "always"
-            || (layout.get("text-overlap").is_none() && layout["text-allow-overlap"] == true);
-        let ignore_placement = layout["text-ignore-placement"] == true;
+        let overlap = |kind: &str| {
+            layout[format!("{kind}-overlap")] == "always"
+                || (layout.get(format!("{kind}-overlap")).is_none() && layout[format!("{kind}-allow-overlap")] == true)
+        };
+        let (text_always, icon_always) = (overlap("text"), overlap("icon"));
+        let text_ignore = layout["text-ignore-placement"] == true;
+        let icon_ignore = layout["icon-ignore-placement"] == true;
+        let text_optional = layout["text-optional"] == true;
+        let icon_optional = layout["icon-optional"] == true;
+        // Bucket-level icon filtering (draw_symbol.ts).
+        let icon_size_scaled = match layout.get("icon-size") {
+            None => false,
+            Some(j) if is_data_driven(j) => true,
+            Some(j) => eval_property(j, Kind::Number, &Ctx { zoom, feature: None }).as_num() != Some(1.0),
+        };
+        let mut icons_need_linear = false;
 
         let mut instances: Vec<Instance> = Vec::new();
         for &ti in &tile_order {
@@ -830,7 +1143,6 @@ pub fn place(style: &Json, tiles: &[SymbolTile], glyphs: &GlyphMap, zoom: f64, w
             let tile_pixel_ratio = EXTENT / (512.0 * st.overscaling);
             let text_pixel_ratio = 512.0 * st.overscaling / EXTENT;
 
-            // Features (filtered), sorted by sort key (stable) if data-driven.
             let mut feats: Vec<(f64, &Feature)> = Vec::new();
             for f in &src.features {
                 let ctx = Ctx { zoom: tile_zoom, feature: Some(f) };
@@ -850,84 +1162,20 @@ pub fn place(style: &Json, tiles: &[SymbolTile], glyphs: &GlyphMap, zoom: f64, w
 
             for (key, f) in feats {
                 let ctx = Ctx { zoom, feature: Some(f) };
-                let lctx = Ctx { zoom: tile_zoom, feature: Some(f) };
-                let Some(text) = feature_text(layer, f, tile_zoom) else { continue };
-                let stack = feature_fontstack(layer, Some(f), tile_zoom);
-                let Some(gmap) = glyphs.stacks.get(&stack) else { continue };
-                let spacing = num(layout, "text-letter-spacing", &lctx, 0.0) * ONE_EM;
-                let anchor = string(layout, "text-anchor", &lctx, "center");
-                let mut justify = string(layout, "text-justify", &lctx, "center");
-                if justify == "auto" {
-                    justify = match anchor.as_str() {
-                        "right" | "top-right" | "bottom-right" => "right",
-                        "left" | "top-left" | "bottom-left" => "left",
-                        _ => "center",
-                    }
-                    .to_owned();
+                let text = if has_text_field { build_text(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio) } else { None };
+                let icon = if has_icon_image { build_icon(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio) } else { None };
+                if icon.as_ref().map_or(false, |i| i.2) {
+                    icons_need_linear = true;
                 }
-                let max_width = num(layout, "text-max-width", &lctx, 10.0) * ONE_EM;
-                let line_height = num(layout, "text-line-height", &lctx, 1.2) * ONE_EM;
-                let radial = num(layout, "text-radial-offset", &lctx, 0.0);
-                let text_offset = if radial != 0.0 {
-                    radial_offset(&anchor, radial * ONE_EM)
-                } else {
-                    let o = num_pair(layout, "text-offset", &lctx);
-                    (o.0 * ONE_EM, o.1 * ONE_EM)
-                };
-                let Some(shaping) =
-                    shape_text(&text, gmap, max_width, line_height, &anchor, &justify, spacing, text_offset)
-                else {
-                    continue;
-                };
-                let rotate = num(layout, "text-rotate", &lctx, 0.0);
-                let quads = glyph_quads(&shaping, gmap, text_offset, rotate);
-                if quads.is_empty() {
+                if text.is_none() && icon.is_none() {
                     continue;
                 }
-                // Collision box: shaping bounds * textBoxScale ± padding, in
-                // tile units; fontScale uses text-size at tile zoom + 1.
-                let layout_size = num(layout, "text-size", &Ctx { zoom: tile_zoom + 1.0, feature: Some(f) }, 16.0);
-                let text_box_scale = tile_pixel_ratio * layout_size / 24.0;
-                let padding = num(layout, "text-padding", &lctx, 2.0) * tile_pixel_ratio;
-                let (mut bx1, mut by1, mut bx2, mut by2) = (
-                    shaping.left * text_box_scale - padding,
-                    shaping.top * text_box_scale - padding,
-                    shaping.right * text_box_scale + padding,
-                    shaping.bottom * text_box_scale + padding,
-                );
-                if rotate != 0.0 {
-                    let (s, c) = (rotate.to_radians().sin(), rotate.to_radians().cos());
-                    let pts = [(bx1, by1), (bx2, by1), (bx1, by2), (bx2, by2)].map(|(x, y)| (c * x - s * y, s * x + c * y));
-                    bx1 = pts.iter().map(|p| p.0).fold(f64::INFINITY, f64::min);
-                    bx2 = pts.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max);
-                    by1 = pts.iter().map(|p| p.1).fold(f64::INFINITY, f64::min);
-                    by2 = pts.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max);
-                }
-
-                let size = num(layout, "text-size", &ctx, 16.0);
-                let translate = num_pair(paint, "text-translate", &ctx);
-                let mk_label = |ax: f64, ay: f64| Label {
-                    anchor_px: (ax, ay),
-                    quads: quads.clone(),
-                    fontstack: stack.clone(),
-                    size,
-                    fill: color(paint, "text-color", &ctx, Color::BLACK),
-                    halo: color(paint, "text-halo-color", &ctx, Color::TRANSPARENT),
-                    halo_width: num(paint, "text-halo-width", &ctx, 0.0),
-                    halo_blur: num(paint, "text-halo-blur", &ctx, 0.0),
-                    opacity: num(paint, "text-opacity", &ctx, 1.0),
-                    tile: ti,
-                };
 
                 // Anchors (addFeature).
                 let mut anchors: Vec<(f64, f64)> = Vec::new();
                 match &f.geometry {
-                    Geometry::Points(pts) => {
-                        anchors.extend(pts.iter().map(|&p| to_extent(p, scale)));
-                    }
-                    Geometry::Lines(ls) => {
-                        anchors.extend(ls.iter().filter_map(|l| l.first().map(|&p| to_extent(p, scale))));
-                    }
+                    Geometry::Points(pts) => anchors.extend(pts.iter().map(|&p| to_extent(p, scale))),
+                    Geometry::Lines(ls) => anchors.extend(ls.iter().filter_map(|l| l.first().map(|&p| to_extent(p, scale)))),
                     Geometry::Polygons(polys) => {
                         for poly in polys {
                             let rings: Vec<Vec<(f64, f64)>> =
@@ -936,54 +1184,83 @@ pub fn place(style: &Json, tiles: &[SymbolTile], glyphs: &GlyphMap, zoom: f64, w
                         }
                     }
                 }
+                let ttr = num_pair(paint, "text-translate", &ctx);
+                let itr = num_pair(paint, "icon-translate", &ctx);
                 for (ax, ay) in anchors {
                     if ax < 0.0 || ax >= EXTENT || ay < 0.0 || ay >= EXTENT {
                         continue;
                     }
-                    let px = st.ox + ax * st.unit_px + translate.0;
-                    let py = st.oy + ay * st.unit_px + translate.1;
+                    let px = st.ox + ax * st.unit_px;
+                    let py = st.oy + ay * st.unit_px;
                     let r = text_pixel_ratio;
-                    // Collision index coordinates are offset by the viewport padding.
-                    let (cx, cy) = (px + VIEWPORT_PADDING, py + VIEWPORT_PADDING);
+                    let proj = |b: [f64; 4], t: (f64, f64)| {
+                        let (cx, cy) = (px + t.0 + VIEWPORT_PADDING, py + t.1 + VIEWPORT_PADDING);
+                        [cx + b[0] * r, cy + b[1] * r, cx + b[2] * r, cy + b[3] * r]
+                    };
                     instances.push(Instance {
-                        layer_idx,
                         tile_idx: ti,
                         sort_key: key,
-                        anchor_px: (px, py),
-                        box_px: [cx + bx1 * r, cy + by1 * r, cx + bx2 * r, cy + by2 * r],
-                        overlap_always,
-                        ignore_placement,
-                        label: mk_label(px, py),
+                        text_box: text.as_ref().map(|t| proj(t.1, ttr)),
+                        icon_box: icon.as_ref().map(|i| proj(i.1, itr)),
+                        label: Label {
+                            anchor_px: (px, py),
+                            text: text.as_ref().map(|t| t.0.clone()),
+                            icon: icon.as_ref().map(|i| i.0.clone()),
+                            tile: ti,
+                        },
                     });
                 }
             }
         }
-        // sortAcrossTiles: placement in sort-key order across all tiles.
         if sort_by_key {
             instances.sort_by(|a, b| a.sort_key.partial_cmp(&b.sort_key).unwrap_or(std::cmp::Ordering::Equal));
         }
-        let grid_w = width + 2.0 * VIEWPORT_PADDING;
-        let grid_h = height + 2.0 * VIEWPORT_PADDING;
+        let has_icon_data = instances.iter().any(|i| i.icon_box.is_some());
+        let has_text_data = instances.iter().any(|i| i.text_box.is_some());
+        let always_show_text = text_always && (icon_always || !has_icon_data || icon_optional);
+        let always_show_icon = icon_always && (text_always || !has_text_data || text_optional);
+
         let mut layer_labels: Vec<(f64, usize, Label)> = Vec::new();
-        for inst in instances {
-            let [x1, y1, x2, y2] = inst.box_px;
-            let inside_grid = x2 >= 0.0 && x1 < grid_w && y2 >= 0.0 && y1 < grid_h;
-            if !inside_grid {
-                continue;
+        for mut inst in instances {
+            let placeable = |b: &[f64; 4], always: bool, boxes: &Vec<[f64; 4]>| {
+                let inside = b[2] >= 0.0 && b[0] < grid_w && b[3] >= 0.0 && b[1] < grid_h;
+                inside && (always || !boxes.iter().any(|o| b[0] <= o[2] && b[1] <= o[3] && b[2] >= o[0] && b[3] >= o[1]))
+            };
+            let mut place_text = inst.text_box.as_ref().map_or(false, |b| placeable(b, text_always, &boxes));
+            let mut place_icon = inst.icon_box.as_ref().map_or(false, |b| placeable(b, icon_always, &boxes));
+            let icon_without_text = text_optional || inst.text_box.is_none();
+            let text_without_icon = icon_optional || inst.icon_box.is_none();
+            if !icon_without_text && !text_without_icon {
+                let both = place_icon && place_text;
+                place_icon = both;
+                place_text = both;
+            } else if !text_without_icon {
+                place_text = place_icon && place_text;
+            } else if !icon_without_text {
+                place_icon = place_icon && place_text;
             }
-            let hit = !inst.overlap_always
-                && boxes.iter().any(|b| x1 <= b[2] && y1 <= b[3] && x2 >= b[0] && y2 >= b[1]);
-            if hit {
-                continue;
+            if place_text && !text_ignore {
+                boxes.push(inst.text_box.unwrap());
             }
-            if !inst.ignore_placement {
-                boxes.push(inst.box_px);
+            if place_icon && !icon_ignore {
+                boxes.push(inst.icon_box.unwrap());
             }
-            let _ = (inst.layer_idx, inst.anchor_px);
-            layer_labels.push((inst.sort_key, inst.tile_idx, inst.label));
+            let text_visible = place_text || (always_show_text && inst.text_box.is_some());
+            let icon_visible = place_icon || (always_show_icon && inst.icon_box.is_some());
+            if !text_visible {
+                inst.label.text = None;
+            }
+            if !icon_visible {
+                inst.label.icon = None;
+            }
+            if let Some(ic) = inst.label.icon.as_mut() {
+                ic.linear = ic.sdf || icon_size_scaled || icons_need_linear;
+            }
+            if inst.label.text.is_some() || inst.label.icon.is_some() {
+                layer_labels.push((inst.sort_key, inst.tile_idx, inst.label));
+            }
         }
-        // Draw order: per tile (draw coords), symbols in bucket order (which
-        // is sort-key order within the tile).
+        // Draw order: per tile, symbols in bucket order (sort-key order).
         layer_labels.sort_by(|a, b| a.1.cmp(&b.1).then(a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)));
         placed.insert(layer_idx, layer_labels.into_iter().map(|l| l.2).collect());
     }
@@ -1004,102 +1281,171 @@ fn radial_offset(anchor: &str, r: f64) -> (f64, f64) {
     }
 }
 
-/// Draw the placed labels of one symbol layer.
-pub fn draw_layer(fb: &mut Framebuffer, layer: &Json, layer_idx: usize, placement: &Placement, glyphs: &GlyphMap) {
+/// Halo passes for a layer (draw_symbol.ts): a separate halo pass when the
+/// (constant) halo width exceeds 1, is data-driven, or letter spacing is
+/// negative; otherwise halo and fill in one pass.
+fn halo_passes(paint: &Json, layout: &Json, prefix: &str) -> &'static [(bool, bool)] {
+    let halo_j = paint.get(format!("{prefix}-halo-width"));
+    let has_halo = halo_j.map_or(true, |j| is_data_driven(j) || j.as_f64() != Some(0.0));
+    let halo_const = halo_j.and_then(|j| if is_data_driven(j) { None } else { j.as_f64() });
+    let spacing_neg = layout.get("text-letter-spacing").and_then(|j| j.as_f64()).map_or(false, |s| s * ONE_EM < 0.0);
+    let glyph_overlap = spacing_neg || halo_const.map_or(halo_j.is_some(), |hw| hw > 1.0);
+    if has_halo && glyph_overlap {
+        &[(true, false), (false, true)]
+    } else if has_halo {
+        &[(true, true)]
+    } else {
+        &[(false, true)]
+    }
+}
+
+/// Draw the placed symbols of one layer: icons for all tiles, then text.
+pub fn draw_layer(fb: &mut Framebuffer, layer: &Json, layer_idx: usize, placement: &Placement, assets: &SymbolAssets) {
     let Some(labels) = placement.labels.get(&layer_idx) else { return };
     let (w, h) = (fb.w, fb.h);
     let full = Clip { x0: 0.0, y0: 0.0, x1: w as f64, y1: h as f64 };
     let paint = &layer["paint"];
     let layout = &layer["layout"];
-    // draw_symbol.ts: halo drawn in its own pass when the (constant) halo
-    // width exceeds 1, it is data-driven, or letter spacing is negative.
-    let halo_j = paint.get("text-halo-width");
-    let has_halo = halo_j.map_or(true, |j| is_data_driven(j) || j.as_f64() != Some(0.0));
-    let halo_const = halo_j.and_then(|j| if is_data_driven(j) { None } else { j.as_f64() });
-    let spacing_neg = layout.get("text-letter-spacing").and_then(|j| j.as_f64()).map_or(false, |s| s * ONE_EM < 0.0);
-    let glyph_overlap = spacing_neg || halo_const.map_or(halo_j.is_some(), |hw| hw > 1.0);
 
-    // Group by tile, preserving order.
-    let mut start = 0;
-    while start < labels.len() {
-        let tile = labels[start].tile;
-        let end = labels[start..].iter().position(|l| l.tile != tile).map_or(labels.len(), |p| start + p);
-        let group = &labels[start..end];
-        let passes: &[(bool, bool)] = if has_halo && glyph_overlap {
-            &[(true, false), (false, true)]
-        } else if has_halo {
-            &[(true, true)]
-        } else {
-            &[(false, true)]
-        };
-        for &(is_halo, is_plain) in passes {
-            for l in group {
-                draw_label(fb, l, glyphs, is_halo, is_plain, &full, w, h);
+    for is_text in [false, true] {
+        let passes = if is_text { halo_passes(paint, layout, "text") } else { halo_passes(paint, layout, "icon") };
+        let mut start = 0;
+        while start < labels.len() {
+            let tile = labels[start].tile;
+            let end = labels[start..].iter().position(|l| l.tile != tile).map_or(labels.len(), |p| start + p);
+            let group = &labels[start..end];
+            if is_text {
+                for &(is_halo, is_plain) in passes {
+                    for l in group {
+                        if let Some(t) = &l.text {
+                            draw_text(fb, l.anchor_px, t, &assets.glyphs, is_halo, is_plain, &full, w, h);
+                        }
+                    }
+                }
+            } else {
+                let sdf = group.iter().any(|l| l.icon.as_ref().map_or(false, |i| i.sdf));
+                let icon_passes: &[(bool, bool)] = if sdf { passes } else { &[(false, true)] };
+                for &(is_halo, is_plain) in icon_passes {
+                    for l in group {
+                        if let Some(ic) = &l.icon {
+                            draw_icon(fb, l.anchor_px, ic, &assets.sprite, is_halo, is_plain, &full, w, h);
+                        }
+                    }
+                }
             }
+            start = end;
         }
-        start = end;
+    }
+}
+
+/// symbol_sdf.fragment.glsl for one fragment.
+fn sdf_fragment(dist: f64, font_scale: f64, s: &SdfStyle, is_halo: bool, is_plain: bool) -> [f64; 4] {
+    let gamma = EDGE_GAMMA / font_scale;
+    let inner_edge = (256.0 - 64.0) / 256.0;
+    let fill = [s.fill.r as f64, s.fill.g as f64, s.fill.b as f64, s.fill.a as f64];
+    let halo = [s.halo.r as f64, s.halo.g as f64, s.halo.b as f64, s.halo.a as f64];
+    let op = s.opacity;
+    let mut text = [0f64; 4];
+    if is_plain {
+        let a = smoothstep(inner_edge - gamma, inner_edge + gamma, dist);
+        for i in 0..4 {
+            text[i] = op * a * fill[i];
+        }
+    }
+    if !is_halo {
+        return text;
+    }
+    let gamma_halo = (s.halo_blur * 1.19 / SDF_PX + EDGE_GAMMA) / font_scale;
+    let inner_edge_halo = inner_edge + gamma_halo;
+    let halo_edge = (6.0 - s.halo_width / font_scale) / SDF_PX;
+    let ah = smoothstep(inner_edge_halo - gamma_halo, inner_edge_halo + gamma_halo, dist);
+    let ah = smoothstep(halo_edge - gamma_halo, halo_edge + gamma_halo, dist).min(1.0 - ah);
+    let mut out = [0f64; 4];
+    for i in 0..4 {
+        let hc = op * ah * halo[i];
+        out[i] = if is_plain { text[i] + (1.0 - text[3]) * hc } else { hc };
+    }
+    out
+}
+
+fn blend_out(fb: &mut Framebuffer, x: usize, y: usize, out: [f64; 4]) {
+    if out[3] > 0.0 || out[0] > 0.0 || out[1] > 0.0 || out[2] > 0.0 {
+        fb.blend(x, y, [out[0] as f32, out[1] as f32, out[2] as f32, out[3] as f32]);
     }
 }
 
 #[allow(clippy::too_many_arguments)]
-fn draw_label(fb: &mut Framebuffer, l: &Label, glyphs: &GlyphMap, is_halo: bool, is_plain: bool, clip: &Clip, w: usize, h: usize) {
-    if l.opacity < 0.1 {
+fn draw_text(
+    fb: &mut Framebuffer,
+    anchor: (f64, f64),
+    t: &TextPart,
+    glyphs: &GlyphMap,
+    is_halo: bool,
+    is_plain: bool,
+    clip: &Clip,
+    w: usize,
+    h: usize,
+) {
+    if t.style.opacity < 0.1 {
         return; // symbol_sdf.vertex: total_opacity < 0.1 is culled
     }
-    let Some(gmap) = glyphs.stacks.get(&l.fontstack) else { return };
-    let font_scale = l.size / 24.0;
-    let gamma = EDGE_GAMMA / font_scale;
-    let inner_edge = (256.0 - 64.0) / 256.0;
-    let gamma_halo = (l.halo_blur * 1.19 / SDF_PX + EDGE_GAMMA) / font_scale;
-    let inner_edge_halo = inner_edge + gamma_halo;
-    let halo_edge = (6.0 - l.halo_width / font_scale) / SDF_PX;
-    let fill = [l.fill.r as f64, l.fill.g as f64, l.fill.b as f64, l.fill.a as f64];
-    let halo = [l.halo.r as f64, l.halo.g as f64, l.halo.b as f64, l.halo.a as f64];
-    let op = l.opacity;
-
-    for q in &l.quads {
+    let Some(gmap) = glyphs.stacks.get(&t.fontstack) else { return };
+    let font_scale = t.size / 24.0;
+    for q in &t.quads {
         let Some(g) = gmap.get(&q.codepoint) else { continue };
         let tex = [(0.0, 0.0), (g.rect_w as f64, 0.0), (0.0, g.rect_h as f64), (g.rect_w as f64, g.rect_h as f64)];
         let v: Vec<Vert<2>> = (0..4)
             .map(|i| Vert {
-                x: l.anchor_px.0 + q.corners[i].0 * font_scale,
-                y: l.anchor_px.1 + q.corners[i].1 * font_scale,
+                x: anchor.0 + q.corners[i].0 * font_scale,
+                y: anchor.1 + q.corners[i].1 * font_scale,
                 v: [tex[i].0, tex[i].1],
             })
             .collect();
         for tri in [[0usize, 2, 1], [1, 2, 3]] {
-            raster_triangle(w, h, [v[tri[0]], v[tri[1]], v[tri[2]]], clip, |x, y, t| {
-                let dist = g.sample(t[0], t[1]);
-                let mut out = [0f64; 4];
-                let mut text = [0f64; 4];
-                if is_plain {
-                    let a = smoothstep(inner_edge - gamma, inner_edge + gamma, dist);
-                    for i in 0..4 {
-                        text[i] = op * a * fill[i];
-                    }
-                }
-                if is_halo {
-                    let ah = smoothstep(inner_edge_halo - gamma_halo, inner_edge_halo + gamma_halo, dist);
-                    let ah = smoothstep(halo_edge - gamma_halo, halo_edge + gamma_halo, dist).min(1.0 - ah);
-                    let mut hc = [0f64; 4];
-                    for i in 0..4 {
-                        hc[i] = op * ah * halo[i];
-                    }
-                    if is_plain {
-                        for i in 0..4 {
-                            out[i] = text[i] + (1.0 - text[3]) * hc[i];
-                        }
-                    } else {
-                        out = hc;
-                    }
-                } else {
-                    out = text;
-                }
-                if out[3] > 0.0 || out[0] > 0.0 {
-                    fb.blend(x, y, [out[0] as f32, out[1] as f32, out[2] as f32, out[3] as f32]);
-                }
+            raster_triangle(w, h, [v[tri[0]], v[tri[1]], v[tri[2]]], clip, |x, y, tc| {
+                let out = sdf_fragment(g.sample(tc[0], tc[1]), font_scale, &t.style, is_halo, is_plain);
+                blend_out(fb, x, y, out);
             });
         }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_icon(
+    fb: &mut Framebuffer,
+    anchor: (f64, f64),
+    ic: &IconPart,
+    sprite: &Sprite,
+    is_halo: bool,
+    is_plain: bool,
+    clip: &Clip,
+    w: usize,
+    h: usize,
+) {
+    if ic.style.opacity < 0.1 {
+        return;
+    }
+    let Some(img) = sprite.images.get(&ic.image) else { return };
+    let (cw, ch) = ((img.w + 2) as f64, (img.h + 2) as f64);
+    let tex = [(0.0, 0.0), (cw, 0.0), (0.0, ch), (cw, ch)];
+    let v: Vec<Vert<2>> = (0..4)
+        .map(|i| Vert {
+            x: anchor.0 + ic.corners[i].0 * ic.size,
+            y: anchor.1 + ic.corners[i].1 * ic.size,
+            v: [tex[i].0, tex[i].1],
+        })
+        .collect();
+    for tri in [[0usize, 2, 1], [1, 2, 3]] {
+        raster_triangle(w, h, [v[tri[0]], v[tri[1]], v[tri[2]]], clip, |x, y, tc| {
+            let s = img.sample(tc[0], tc[1], ic.linear);
+            let out = if ic.sdf {
+                sdf_fragment(s[3] / 255.0, ic.size, &ic.style, is_halo, is_plain)
+            } else {
+                let op = ic.style.opacity;
+                [s[0] / 255.0 * op, s[1] / 255.0 * op, s[2] / 255.0 * op, s[3] / 255.0 * op]
+            };
+            blend_out(fb, x, y, out);
+        });
     }
 }
 

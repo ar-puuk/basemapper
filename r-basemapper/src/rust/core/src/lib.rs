@@ -160,8 +160,11 @@ async fn render_single_bbox(
         .await?;
         let style_val: serde_json::Value = serde_json::from_str(style_json)
             .map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
-        let glyphs = fetch_glyphs(client, &style_val, style_base_url_of(request), &tiles, sz).await;
-        let out = vector::render::render(&style_val, &tiles, &glyphs, bbox, width, height)
+        let assets = vector::symbol::SymbolAssets {
+            glyphs: fetch_glyphs(client, &style_val, style_base_url_of(request), &tiles, sz).await,
+            sprite: fetch_sprite(client, &style_val, style_base_url_of(request)).await,
+        };
+        let out = vector::render::render(&style_val, &tiles, &assets, bbox, width, height)
             .map_err(BasemapError::RenderError)?;
         if !out.skipped_layer_types.is_empty() {
             log::warn!(
@@ -527,3 +530,32 @@ async fn fetch_glyphs(
     map
 }
 
+/// Fetch the style's 1x sprite (`<sprite>.json` + `<sprite>.png`). A missing
+/// or broken sprite only disables icons.
+async fn fetch_sprite(
+    client: &reqwest::Client,
+    style: &serde_json::Value,
+    style_base_url: Option<&str>,
+) -> vector::symbol::Sprite {
+    let Some(sprite) = style["sprite"].as_str() else { return Default::default() };
+    let base = resolve_url(sprite, style_base_url);
+    let get = |url: String| {
+        let client = client.clone();
+        async move {
+            let resp = client.get(&url).send().await.ok()?;
+            if !resp.status().is_success() {
+                log::warn!("sprite {url}: HTTP {}", resp.status());
+                return None;
+            }
+            resp.bytes().await.ok().map(|b| b.to_vec())
+        }
+    };
+    let (json, png) = tokio::join!(get(format!("{base}.json")), get(format!("{base}.png")));
+    match (json, png) {
+        (Some(j), Some(p)) => vector::symbol::Sprite::from_json_png(&j, &p).unwrap_or_else(|e| {
+            log::warn!("{e}");
+            Default::default()
+        }),
+        _ => Default::default(),
+    }
+}
