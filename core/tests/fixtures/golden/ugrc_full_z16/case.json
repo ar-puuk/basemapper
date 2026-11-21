@@ -1,0 +1,20 @@
+{
+  "stack": [
+    "ugrc_hillshade_z16",
+    "ugrc_litebase_z16",
+    "ugrc_litelabels_z16"
+  ],
+  "note": "Full UGRC Lite basemap: Hillshade (bottom), Lite Base, Lite Labels (top), each rendered on its own and composited.",
+  "bbox": [
+    -12455907.731426783,
+    4965962.201429913,
+    -12454952.268573217,
+    4966678.798570087
+  ],
+  "width": 800,
+  "height": 600,
+  "zoom": 17,
+  "attribution": "Utah Geospatial Resource Center (UGRC), State of Utah",
+  "max_bad_pixel_frac": 7e-05,
+  "max_mean_diff": 0.041
+}

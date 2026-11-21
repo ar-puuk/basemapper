@@ -48,6 +48,7 @@ against the no-labels reference.
 | `ugrc_litebase_slc`, `ugrc_filtered_slc` | UGRC Lite Base (ESRI VectorTileServer style), full and layer-filtered (transparent) |
 | `ugrc_hillshade_slc`, `ugrc_litelabels_slc` | UGRC Vector Hillshade and Lite Labels services |
 | `ugrc_full_slc` | `stack` of Hillshade, Lite Base and Lite Labels (bottom to top): the full UGRC Lite basemap. Lite Base has no background; the hillshade beneath supplies it |
+| `ugrc_{hillshade,litebase,litelabels,full}_z{4,7,10,16}` | The three UGRC services and their full stack at MapLibre zooms 4, 7, 10 and 16 (the `_slc` cases are zoom 13). Glyphs shared with the `_slc` cases via `fonts_from` |
 | `osm_raster_slc` | OpenStreetMap raster tiles |
 
 The test always writes `actual.png` and `diff.png` (bad pixels in red) to

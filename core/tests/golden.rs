@@ -160,7 +160,9 @@ fn render_fixture(dir: &Path, case: &Value) -> Result<RgbaImage, String> {
         tile_concurrency: 8,
         layers,
         auth_token: None,
-        fail_on_tile_error: true,
+        // Tiles outside a source's coverage are left out of fixtures (404);
+        // MapLibre renders them as empty, so skip rather than fail.
+        fail_on_tile_error: false,
     };
     let result = render(request).map_err(|e| format!("{name}: render failed: {e}"))?;
     RgbaImage::from_raw(result.width, result.height, result.pixels)

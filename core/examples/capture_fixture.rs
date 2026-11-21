@@ -170,7 +170,7 @@ fn main() {
         println!("reusing tiles from {}", tdir.display());
         for c in &coords {
             let p = tdir.join(c.z.to_string()).join(c.x.to_string()).join(c.y.to_string());
-            let bytes = std::fs::read(&p).unwrap_or_else(|e| panic!("{}: {e}", p.display()));
+            let Ok(bytes) = std::fs::read(&p) else { continue }; // tile left out (404)
             if src["type"] == "vector" {
                 note_chars(&bytes);
             }
@@ -178,7 +178,15 @@ fn main() {
     } else {
         println!("{} tiles from {template}", coords.len());
         for c in &coords {
-            let bytes = get(&client, &expand_url(&template, *c));
+            let url = expand_url(&template, *c);
+            let resp = client.get(&url).send().unwrap_or_else(|e| panic!("GET {url}: {e}"));
+            if !resp.status().is_success() {
+                // Sources with limited coverage return 404 outside it;
+                // MapLibre treats those tiles as empty, so store nothing.
+                println!("  tile {}/{}/{}: HTTP {} (left out)", c.z, c.x, c.y, resp.status());
+                continue;
+            }
+            let bytes = resp.bytes().expect("read body").to_vec();
             if src["type"] == "vector" {
                 note_chars(&bytes);
             }
