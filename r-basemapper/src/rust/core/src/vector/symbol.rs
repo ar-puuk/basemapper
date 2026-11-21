@@ -1272,8 +1272,16 @@ fn build_icon(
     ))
 }
 
-/// Shaping for a line label: centred, no line breaks; quads with along-line
-/// glyph offsets (getGlyphQuads with alongLine = true).
+/// A line-placed label's text: (part, glyph offsets along the line, shaped
+/// width, collision diameter, text offset, point box).
+type LineText = (TextPart, Vec<f64>, f64, f64, (f64, f64), Option<[f64; 4]>);
+
+/// Shaping for a line label: centred, no line breaks. With `along` (text
+/// rotation alignment `map`), quads carry along-line glyph offsets
+/// (getGlyphQuads with alongLine = true); otherwise the label is drawn like
+/// a point label at its anchor (textAlongLine is false for `viewport`), with
+/// point quads and a collision box.
+#[allow(clippy::too_many_arguments)]
 fn build_line_text(
     layer: &Json,
     f: &Feature,
@@ -1281,7 +1289,9 @@ fn build_line_text(
     assets: &SymbolAssets,
     zoom: f64,
     tile_zoom: f64,
-) -> Option<(TextPart, Vec<f64>, f64, f64, (f64, f64))> {
+    along: bool,
+    tile_pixel_ratio: f64,
+) -> Option<LineText> {
     let layout = &layer["layout"];
     let paint = &layer["paint"];
     let ctx = Ctx { zoom, feature: Some(f) };
@@ -1319,6 +1329,17 @@ fn build_line_text(
     let height = shaping.bottom - shaping.top;
     let layout_size = num(layout, "text-size", &next_ctx, 16.0);
     let diameter = if height > 0.0 { height.max(10.0) * layout_size / ONE_EM } else { -1.0 };
+    let mut point_box = None;
+    if !along {
+        let rotate = num(layout, "text-rotate", &lctx, 0.0);
+        quads = glyph_quads(&shaping, gmap, text_offset, rotate);
+        let box_scale = tile_pixel_ratio * layout_size / 24.0;
+        let pad = num(layout, "text-padding", &lctx, 2.0) * tile_pixel_ratio;
+        point_box = Some(rotated_envelope(
+            [shaping.left * box_scale - pad, shaping.top * box_scale - pad, shaping.right * box_scale + pad, shaping.bottom * box_scale + pad],
+            rotate,
+        ));
+    }
     Some((
         TextPart {
             quads,
@@ -1331,6 +1352,7 @@ fn build_line_text(
         shaping.right - shaping.left,
         diameter,
         text_offset,
+        point_box,
     ))
 }
 
@@ -1401,7 +1423,9 @@ fn line_instances(
         let ctx = Ctx { zoom, feature: Some(f) };
         let lctx = Ctx { zoom: tile_zoom, feature: Some(f) };
         let text = match (&lf.text, has_text_field) {
-            (Some(t), true) if !t.is_empty() => build_line_text(layer, f, t, assets, zoom, tile_zoom),
+            (Some(t), true) if !t.is_empty() => {
+                build_line_text(layer, f, t, assets, zoom, tile_zoom, text_rotate_to_line, tile_pixel_ratio)
+            }
             _ => None,
         };
         let icon = if has_icon_image { build_icon(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio) } else { None };
@@ -1455,7 +1479,16 @@ fn line_instances(
                 let to_px = |p: (f64, f64), t: (f64, f64)| (st.ox + p.0 * st.unit_px + t.0, st.oy + p.1 * st.unit_px + t.1);
                 let anchor_px = to_px((a.x, a.y), (0.0, 0.0));
                 let mut text_line = None;
-                let text_part = text.as_ref().map(|(part, offsets, _, diameter, text_offset)| {
+                // Viewport-aligned text: a point label at the anchor.
+                let r = text_pixel_ratio;
+                let point_text_box = text.as_ref().and_then(|t| t.5).map(|b| {
+                    let (cx, cy) = (anchor_px.0 + ttr.0 + VIEWPORT_PADDING, anchor_px.1 + ttr.1 + VIEWPORT_PADDING);
+                    [cx + b[0] * r, cy + b[1] * r, cx + b[2] * r, cy + b[3] * r]
+                });
+                let text_part = text.as_ref().map(|(part, offsets, _, diameter, text_offset, point_box)| {
+                    if point_box.is_some() {
+                        return part.clone();
+                    }
                     let line_px: Vec<(f64, f64)> = ln.iter().map(|&p| to_px(p, ttr)).collect();
                     let anchor_t = to_px((a.x, a.y), ttr);
                     let font_scale = part.size / ONE_EM;
@@ -1477,7 +1510,6 @@ fn line_instances(
                     });
                     p
                 });
-                let r = text_pixel_ratio;
                 let icon_box = icon.as_ref().map(|i| {
                     let (cx, cy) = (anchor_px.0 + itr.0 + VIEWPORT_PADDING, anchor_px.1 + itr.1 + VIEWPORT_PADDING);
                     [cx + i.1[0] * r, cy + i.1[1] * r, cx + i.1[2] * r, cy + i.1[3] * r]
@@ -1501,7 +1533,7 @@ fn line_instances(
                 out.push(Instance {
                     tile_idx: ti,
                     sort_key: key,
-                    text_box: None,
+                    text_box: point_text_box,
                     text_line,
                     icon_box,
                     label: Label { anchor_px, text: text_part, icon: icon_part, tile: ti },
