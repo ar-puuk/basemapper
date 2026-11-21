@@ -84,7 +84,7 @@ measuring against MapLibre and investigating the difference.
 
 `line-pattern`, `line-gradient`, `fill-extrusion-pattern`, `heatmap`,
 `hillshade` layers, GeoJSON sources, PMTiles sources inside vector styles,
-variable label anchors (`text-variable-anchor`), `icon-text-fit`, vertical
+variable label anchors (`text-variable-anchor`), vertical
 text, and right-to-left scripts. Unsupported layer types are skipped with a
 warning.
 
@@ -125,6 +125,12 @@ Enum layout properties (`symbol-placement`, rotation alignments,
 zoom. Line-placed labels with `text-rotation-alignment: viewport` are drawn
 upright at their anchor, like point labels. Legacy `{token}` strings are resolved in plain
 `text-field` strings and in the stop values of legacy functions.
+
+`icon-text-fit` (both / width / height, with `icon-text-fit-padding`)
+follows fitIconToText and getIconQuads: stretchable sprite images
+(`stretchX`, `stretchY`, `content`) become a nine-slice grid whose fixed
+parts keep their pixel size (golden case `synthetic_icon_text_fit`, a
+generated sprite over CARTO tiles).
 
 In SVG, `line-blur` is approximated by three nested strokes spread over the
 blur ramp with opacities stacking to the line's alpha (MapLibre demotiles

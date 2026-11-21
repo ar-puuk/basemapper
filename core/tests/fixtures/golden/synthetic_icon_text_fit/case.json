@@ -1,0 +1,20 @@
+{
+  "note": "Synthetic: icon-text-fit both/width/height with a nine-slice stretchable sprite (stretchX/stretchY/content) over CARTO Positron z13 tiles.",
+  "tiles_from": "carto_positron_z13",
+  "fonts_from": "carto_positron_z4",
+  "bbox": [
+    -12459251.85141426,
+    4963454.111439306,
+    -12451608.14858574,
+    4969186.888560694
+  ],
+  "width": 800,
+  "height": 600,
+  "zoom": 14,
+  "attribution": "(c) OpenStreetMap contributors, (c) CARTO",
+  "svg": true,
+  "max_bad_pixel_frac": 0.00036,
+  "max_mean_diff": 0.139,
+  "max_bad_pixel_frac_svg": 0.00848,
+  "max_mean_diff_svg": 1.12
+}

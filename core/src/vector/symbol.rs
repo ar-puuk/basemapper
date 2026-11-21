@@ -731,6 +731,11 @@ pub struct SpriteImage {
     pub h: usize,
     pub pixel_ratio: f64,
     pub sdf: bool,
+    /// Stretchable image metadata (image px): content box [x1, y1, x2, y2]
+    /// and stretch ranges, used with icon-text-fit.
+    pub content: Option<[f64; 4]>,
+    pub stretch_x: Option<Vec<(f64, f64)>>,
+    pub stretch_y: Option<Vec<(f64, f64)>>,
     /// (w + 2) * (h + 2) * 4 bytes.
     pub cell: Vec<u8>,
 }
@@ -799,6 +804,18 @@ impl SpriteImage {
     }
 }
 
+fn stretch_ranges(j: &Json) -> Option<Vec<(f64, f64)>> {
+    let a = j.as_array()?;
+    let v: Vec<(f64, f64)> = a
+        .iter()
+        .filter_map(|r| {
+            let r = r.as_array()?;
+            Some((r.first()?.as_f64()?, r.get(1)?.as_f64()?))
+        })
+        .collect();
+    (!v.is_empty()).then_some(v)
+}
+
 #[derive(Default)]
 pub struct Sprite {
     pub images: HashMap<String, SpriteImage>,
@@ -843,6 +860,12 @@ impl Sprite {
                     h,
                     pixel_ratio: e["pixelRatio"].as_f64().unwrap_or(1.0),
                     sdf: e["sdf"].as_bool().unwrap_or(false),
+                    content: e["content"].as_array().filter(|a| a.len() == 4).map(|a| {
+                        let v: Vec<f64> = a.iter().map(|x| x.as_f64().unwrap_or(0.0)).collect();
+                        [v[0], v[1], v[2], v[3]]
+                    }),
+                    stretch_x: stretch_ranges(&e["stretchX"]),
+                    stretch_y: stretch_ranges(&e["stretchY"]),
                     cell,
                 },
             );
@@ -933,10 +956,36 @@ struct AlongLine {
 }
 
 #[derive(Clone)]
+/// One icon quad (getIconQuads): corner offsets tl, tr, bl, br in icon px,
+/// scaled by max(min_scale, icon-size) and then shifted by fixed pixel
+/// offsets (stretchable images keep their fixed parts at pixel size); the
+/// texture rectangle in padded atlas-cell coordinates.
+#[derive(Debug)]
+struct IconQuad {
+    em: [(f64, f64); 4],
+    px_tl: (f64, f64),
+    px_br: (f64, f64),
+    min_scale: (f64, f64),
+    tex: (f64, f64, f64, f64),
+}
+
+impl IconQuad {
+    /// Corner offsets (tl, tr, bl, br) at icon size `size`.
+    fn corners(&self, size: f64) -> [(f64, f64); 4] {
+        let (sx, sy) = (self.min_scale.0.max(size), self.min_scale.1.max(size));
+        let px = [self.px_tl, (self.px_br.0, self.px_tl.1), (self.px_tl.0, self.px_br.1), self.px_br];
+        let mut out = [(0.0, 0.0); 4];
+        for i in 0..4 {
+            out[i] = (self.em[i].0 * sx + px[i].0, self.em[i].1 * sy + px[i].1);
+        }
+        out
+    }
+}
+
+#[derive(Clone)]
 struct IconPart {
     image: String,
-    /// tl, tr, bl, br in icon px (before icon-size), quantised to 1/32.
-    corners: [(f64, f64); 4],
+    quads: Vec<IconQuad>,
     size: f64,
     sdf: bool,
     linear: bool,
@@ -1165,7 +1214,7 @@ fn build_text(
     zoom: f64,
     tile_zoom: f64,
     tile_pixel_ratio: f64,
-) -> Option<(TextPart, [f64; 4])> {
+) -> Option<(TextPart, [f64; 4], (TextExtents, f64))> {
     let layout = &layer["layout"];
     let paint = &layer["paint"];
     let ctx = Ctx { zoom, feature: Some(f) };
@@ -1216,11 +1265,109 @@ fn build_text(
             along: None,
         },
         b,
+        ((shaping.left, shaping.right, shaping.top, shaping.bottom), layout_size / ONE_EM),
     ))
 }
 
 /// Icon shaping (shapeIcon + getIconQuads without icon-text-fit). Returns
 /// the part, its collision box (tile units) and whether it needs LINEAR.
+/// Shaped text extents (left, right, top, bottom, in em units before the
+/// font scale), for icon-text-fit.
+type TextExtents = (f64, f64, f64, f64);
+
+/// getIconQuads: one quad for plain icons; with icon-text-fit and stretch
+/// metadata, a grid of quads whose stretchable parts scale and fixed parts
+/// keep their pixel size. `shaped` is the icon box (left, top, right, bottom).
+fn icon_quads(img: &SpriteImage, shaped: (f64, f64, f64, f64), rotate: f64, has_fit: bool) -> Vec<IconQuad> {
+    let (l, u) = (img.w as f64, img.h as f64);
+    let pr = img.pixel_ratio;
+    let hx = img.stretch_x.clone().unwrap_or_else(|| vec![(0.0, l)]);
+    let hy = img.stretch_y.clone().unwrap_or_else(|| vec![(0.0, u)]);
+    let sum = |r: &[(f64, f64)]| r.iter().map(|x| x.1 - x.0).sum::<f64>();
+    let within = |r: &[(f64, f64)], a: f64, b: f64| r.iter().map(|x| a.max(b.min(x.1)) - a.max(b.min(x.0))).sum::<f64>();
+    let (d, y) = (sum(&hx), sum(&hy));
+    let (m, g) = (l - d, u - y);
+    let (mut x0, mut v, mut b0, mut wv, mut fx0, mut sw, mut fy0, mut sh) = (0.0, d, 0.0, y, 0.0, m, 0.0, g);
+    if let (Some(c), true) = (img.content, has_fit) {
+        x0 = within(&hx, 0.0, c[0]);
+        b0 = within(&hy, 0.0, c[1]);
+        v = within(&hx, c[0], c[2]);
+        wv = within(&hy, c[1], c[3]);
+        fx0 = c[0] - x0;
+        fy0 = c[1] - b0;
+        sw = c[2] - c[0] - v;
+        sh = c[3] - c[1] - wv;
+    }
+    let (k, i0, e, t) = (shaped.0, shaped.1, shaped.2 - shaped.0, shaped.3 - shaped.1);
+    let em = |stretch: f64, off: f64, size: f64, total: f64, origin: f64| if size == 0.0 { origin } else { (stretch - off) / size * total + origin };
+    let pxo = |fixed: f64, off: f64, fixed_size: f64, stretch: f64, stretch_total: f64| {
+        if stretch_total == 0.0 { fixed - off } else { fixed - off - fixed_size * stretch / stretch_total }
+    };
+    #[derive(Clone, Copy)]
+    struct P {
+        fixed: f64,
+        stretch: f64,
+    }
+    let make = |a: P, bq: P, c: P, dq: P| -> IconQuad {
+        let lx = em(a.stretch, x0, v, e, k);
+        let lpx = pxo(a.fixed, fx0, sw, a.stretch, d);
+        let ty = em(bq.stretch, b0, wv, t, i0);
+        let tpx = pxo(bq.fixed, fy0, sh, bq.stretch, y);
+        let rx = em(c.stretch, x0, v, e, k);
+        let rpx = pxo(c.fixed, fx0, sw, c.stretch, d);
+        let by = em(dq.stretch, b0, wv, t, i0);
+        let bpx = pxo(dq.fixed, fy0, sh, dq.stretch, y);
+        let mut corners = [(lx, ty), (rx, ty), (lx, by), (rx, by)];
+        if rotate != 0.0 {
+            let (sn, cs) = (rotate.to_radians().sin(), rotate.to_radians().cos());
+            for p in &mut corners {
+                *p = (cs * p.0 - sn * p.1, sn * p.0 + cs * p.1);
+            }
+        }
+        // Vertex attributes: a_offset * 32, a_pixeloffset * 16, min font scale * 256.
+        for p in &mut corners {
+            *p = (js_round(p.0 * 32.0) / 32.0, js_round(p.1 * 32.0) / 32.0);
+        }
+        let q16 = |x: f64| js_round(x / pr * 16.0) / 16.0;
+        let q256 = |x: f64| js_round(x * 256.0) / 256.0;
+        let x1 = a.stretch + a.fixed;
+        let y1 = bq.stretch + bq.fixed;
+        IconQuad {
+            em: corners,
+            px_tl: (q16(lpx), q16(tpx)),
+            px_br: (q16(rpx), q16(bpx)),
+            min_scale: (if e == 0.0 { 0.0 } else { q256(sw / pr / e) }, if t == 0.0 { 0.0 } else { q256(sh / pr / t) }),
+            tex: (1.0 + x1, 1.0 + y1, c.stretch + c.fixed - x1, dq.stretch + dq.fixed - y1),
+        }
+    };
+    if has_fit && (img.stretch_x.is_some() || img.stretch_y.is_some()) {
+        let parts = |r: &[(f64, f64)], fixed: f64, stretch: f64| {
+            let mut out = vec![P { fixed: -1.0, stretch: 0.0 }];
+            for &(a, b) in r {
+                let last = *out.last().unwrap();
+                out.push(P { fixed: a - last.stretch, stretch: last.stretch });
+                out.push(P { fixed: a - last.stretch, stretch: last.stretch + (b - a) });
+            }
+            out.push(P { fixed: fixed + 1.0, stretch });
+            out
+        };
+        let (xs, ys) = (parts(&hx, m, d), parts(&hy, g, y));
+        let mut quads = Vec::new();
+        for xi in 0..xs.len() - 1 {
+            for yi in 0..ys.len() - 1 {
+                quads.push(make(xs[xi], ys[yi], xs[xi + 1], ys[yi + 1]));
+            }
+        }
+        quads
+    } else {
+        vec![make(P { fixed: 0.0, stretch: -1.0 }, P { fixed: 0.0, stretch: -1.0 }, P { fixed: 0.0, stretch: l + 1.0 }, P { fixed: 0.0, stretch: u + 1.0 })]
+    }
+}
+
+/// An icon's part, collision box and whether it needs linear sampling.
+/// `text` is the shaped text's extents and its layout font scale, for
+/// icon-text-fit (fitIconToText).
+#[allow(clippy::too_many_arguments)]
 fn build_icon(
     layer: &Json,
     f: &Feature,
@@ -1228,6 +1375,7 @@ fn build_icon(
     zoom: f64,
     tile_zoom: f64,
     tile_pixel_ratio: f64,
+    text: Option<(TextExtents, f64)>,
 ) -> Option<(IconPart, [f64; 4], bool)> {
     let layout = &layer["layout"];
     let paint = &layer["paint"];
@@ -1239,32 +1387,53 @@ fn build_icon(
     let rotate = num(layout, "icon-rotate", &lctx, 0.0);
     let needs_linear = img.pixel_ratio != assets.sprite.dpr() || rotate != 0.0 || layout.get("icon-rotate").map_or(false, is_data_driven);
     let (dw, dh) = (img.w as f64 / img.pixel_ratio, img.h as f64 / img.pixel_ratio);
-    let (ha, va) = anchor_alignment(&string(layout, "icon-anchor", &lctx, "center"));
     let off = num_pair(layout, "icon-offset", &lctx);
-    let (left, top) = (off.0 - dw * ha, off.1 - dh * va);
-    let (right, bottom) = (left + dw, top + dh);
-    // Padded by one image pixel on each side, like the atlas cell.
-    let (px, py) = (dw / img.w as f64, dh / img.h as f64);
-    let mut corners = [(left - px, top - py), (right + px, top - py), (left - px, bottom + py), (right + px, bottom + py)];
-    if rotate != 0.0 {
-        let (s, c) = (rotate.to_radians().sin(), rotate.to_radians().cos());
-        for p in &mut corners {
-            *p = (c * p.0 - s * p.1, s * p.0 + c * p.1);
+    let fit = super::expr::layout_enum(layout, "icon-text-fit", tile_zoom).unwrap_or_else(|| "none".into());
+    let mut collision_pad: Option<[f64; 4]> = None;
+    let (left, top, right, bottom) = match (fit.as_str(), text) {
+        (mode, Some(((tl, tr, tt, tb), font_scale))) if mode != "none" => {
+            // fitIconToText: centred on the text, stretched in the fitted
+            // dimensions (icon-anchor is ignored).
+            if let Some(c) = img.content {
+                let pr = img.pixel_ratio;
+                collision_pad = Some([c[0] / pr, c[1] / pr, dw - c[2] / pr, dh - c[3] / pr]);
+            }
+            let pad = padding4(layout, "icon-text-fit-padding", &lctx, 0.0);
+            let (l, r) = (tl * font_scale, tr * font_scale);
+            let (lx, rx) = if mode == "width" || mode == "both" {
+                (off.0 + l - pad[3], off.0 + r + pad[1])
+            } else {
+                let lx = off.0 + (l + r - dw) / 2.0;
+                (lx, lx + dw)
+            };
+            let (t, b) = (tt * font_scale, tb * font_scale);
+            let (ty, by) = if mode == "height" || mode == "both" {
+                (off.1 + t - pad[0], off.1 + b + pad[2])
+            } else {
+                let ty = off.1 + (t + b - dh) / 2.0;
+                (ty, ty + dh)
+            };
+            (lx, ty, rx, by)
         }
-    }
-    for p in &mut corners {
-        *p = (js_round(p.0 * 32.0) / 32.0, js_round(p.1 * 32.0) / 32.0);
-    }
+        _ => {
+            let (ha, va) = anchor_alignment(&string(layout, "icon-anchor", &lctx, "center"));
+            let (l, t) = (off.0 - dw * ha, off.1 - dh * va);
+            (l, t, l + dw, t + dh)
+        }
+    };
+    let has_fit = fit != "none" && text.is_some();
+    let quads = icon_quads(img, (left, top, right, bottom), rotate, has_fit);
     let box_scale = tile_pixel_ratio * num(layout, "icon-size", &next_ctx, 1.0);
     let pad = padding4(layout, "icon-padding", &lctx, 2.0).map(|v| v * tile_pixel_ratio);
-    let b = rotated_envelope(
-        [left * box_scale - pad[3], top * box_scale - pad[0], right * box_scale + pad[1], bottom * box_scale + pad[2]],
-        rotate,
-    );
+    let mut bx = [left * box_scale - pad[3], top * box_scale - pad[0], right * box_scale + pad[1], bottom * box_scale + pad[2]];
+    if let Some(cp) = collision_pad {
+        bx = [bx[0] - cp[0] * box_scale, bx[1] - cp[1] * box_scale, bx[2] + cp[2] * box_scale, bx[3] + cp[3] * box_scale];
+    }
+    let b = rotated_envelope(bx, rotate);
     Some((
         IconPart {
             image: name,
-            corners,
+            quads,
             size: num(layout, "icon-size", &ctx, 1.0),
             sdf: img.sdf,
             linear: false,
@@ -1278,7 +1447,7 @@ fn build_icon(
 
 /// A line-placed label's text: (part, glyph offsets along the line, shaped
 /// width, collision diameter, text offset, point box).
-type LineText = (TextPart, Vec<f64>, f64, f64, (f64, f64), Option<[f64; 4]>);
+type LineText = (TextPart, Vec<f64>, f64, f64, (f64, f64), Option<[f64; 4]>, (TextExtents, f64));
 
 /// Shaping for a line label: centred, no line breaks. With `along` (text
 /// rotation alignment `map`), quads carry along-line glyph offsets
@@ -1357,6 +1526,7 @@ fn build_line_text(
         diameter,
         text_offset,
         point_box,
+        ((shaping.left, shaping.right, shaping.top, shaping.bottom), layout_size / ONE_EM),
     ))
 }
 
@@ -1438,7 +1608,11 @@ fn line_instances(
             }
             _ => None,
         };
-        let icon = if has_icon_image { build_icon(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio) } else { None };
+        let icon = if has_icon_image {
+            build_icon(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio, text.as_ref().map(|t| t.6))
+        } else {
+            None
+        };
         if icon.as_ref().map_or(false, |i| i.2) {
             *icons_need_linear = true;
         }
@@ -1495,7 +1669,7 @@ fn line_instances(
                     let (cx, cy) = (anchor_px.0 + ttr.0 + VIEWPORT_PADDING, anchor_px.1 + ttr.1 + VIEWPORT_PADDING);
                     [cx + b[0] * r, cy + b[1] * r, cx + b[2] * r, cy + b[3] * r]
                 });
-                let text_part = text.as_ref().map(|(part, offsets, _, diameter, text_offset, point_box)| {
+                let text_part = text.as_ref().map(|(part, offsets, _, diameter, text_offset, point_box, _)| {
                     if point_box.is_some() {
                         return part.clone();
                     }
@@ -1643,7 +1817,11 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
             for (key, f) in feats {
                 let ctx = Ctx { zoom, feature: Some(f) };
                 let text = if has_text_field { build_text(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio) } else { None };
-                let icon = if has_icon_image { build_icon(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio) } else { None };
+                let icon = if has_icon_image {
+                    build_icon(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio, text.as_ref().map(|t| t.2))
+                } else {
+                    None
+                };
                 if icon.as_ref().map_or(false, |i| i.2) {
                     icons_need_linear = true;
                 }
@@ -1967,14 +2145,16 @@ fn draw_icon(
         return;
     }
     let Some(img) = sprite.images.get(&ic.image) else { return };
-    let (cw, ch) = ((img.w + 2) as f64, (img.h + 2) as f64);
-    let tex = [(0.0, 0.0), (cw, 0.0), (0.0, ch), (cw, ch)];
     let Some(positions) = along_positions(ic.along.as_ref(), anchor, 1, css.0, css.1) else { return };
     let (origin, angle) = positions[0];
     let (sa, ca) = (angle.sin(), angle.cos());
+    for q in &ic.quads {
+    let (tx, ty, tw, th) = q.tex;
+    let tex = [(tx, ty), (tx + tw, ty), (tx, ty + th), (tx + tw, ty + th)];
+    let corners = q.corners(ic.size);
     let v: Vec<Vert<2>> = (0..4)
         .map(|i| {
-            let (ox, oy) = (ic.corners[i].0 * ic.size, ic.corners[i].1 * ic.size);
+            let (ox, oy) = corners[i];
             Vert {
                 x: (origin.0 + ca * ox - sa * oy) * dpr,
                 y: (origin.1 + sa * ox + ca * oy) * dpr,
@@ -1993,6 +2173,7 @@ fn draw_icon(
             };
             blend_out(fb, x, y, out);
         });
+    }
     }
 }
 
@@ -2152,13 +2333,35 @@ pub fn svg_layer(
                 }
                 let Some(img) = assets.sprite.images.get(&ic.image) else { continue };
                 let Some(pos) = along_positions(ic.along.as_ref(), l.anchor_px, 1, w, h) else { continue };
-                let q = quad_screen(&ic.corners, pos[0].0, pos[0].1, ic.size);
                 let (cw, ch) = (img.w + 2, img.h + 2);
+                let multi = ic.quads.len() > 1;
+                for (qi, iq) in ic.quads.iter().enumerate() {
+                // Corners at the icon's size (pixel offsets included).
+                let q = quad_screen(&iq.corners(ic.size), pos[0].0, pos[0].1, 1.0);
+                let _ = qi;
+                let (tx, ty, tw, th) = iq.tex;
+                // Affine map from cell (u, v) to screen for this quad.
+                let (tl, tr, bl) = (q[0], q[1], q[2]);
+                let (a_, b_) = ((tr.0 - tl.0) / tw, (tr.1 - tl.1) / tw);
+                let (c_, d_) = ((bl.0 - tl.0) / th, (bl.1 - tl.1) / th);
+                let (e_, f_) = (tl.0 - a_ * tx - c_ * ty, tl.1 - b_ * tx - d_ * ty);
+                let clip_open = if multi {
+                    let d = svg::path_data(&[vec![q[0], q[1], q[3], q[2]]], true);
+                    let cid = format!("{prefix}{lid}_q{}", image_ids.len() * 1000 + defs.len());
+                    let _ = write!(defs, r#"<clipPath id="{cid}"><path d="{d}"/></clipPath>"#);
+                    let _ = write!(out, r#"<g clip-path="url(#{cid})">"#);
+                    true
+                } else {
+                    false
+                };
                 if img.sdf {
-                    let map = cell_to_screen(q, cw as f64, ch as f64);
+                    let map = move |p: (f64, f64)| (a_ * p.0 + c_ * p.1 + e_, b_ * p.0 + d_ * p.1 + f_);
                     let value = |i: usize, j: usize| img.cell[(j * cw + i) * 4 + 3] as f64 / 255.0;
                     let key = format!("icon:{}", ic.image);
                     svg_sdf_quad(out, &mut cache, (&key, 0), cw, ch, &value, &map, ic.size, &ic.style, is_halo, is_plain);
+                    if clip_open {
+                        out.push_str("</g>");
+                    }
                     continue;
                 }
                 let n = image_ids.len();
@@ -2171,9 +2374,6 @@ pub fn svg_layer(
                     })
                     .clone();
                 // matrix maps cell (u, v) to screen; the image sits at cell (1, 1).
-                let (tl, tr, bl) = (q[0], q[1], q[2]);
-                let (a_, b_) = ((tr.0 - tl.0) / cw as f64, (tr.1 - tl.1) / cw as f64);
-                let (c_, d_) = ((bl.0 - tl.0) / ch as f64, (bl.1 - tl.1) / ch as f64);
                 let render = if ic.linear { "" } else { r#" style="image-rendering:pixelated""# };
                 let _ = write!(
                     out,
@@ -2183,9 +2383,13 @@ pub fn svg_layer(
                     b_,
                     c_,
                     d_,
-                    svg::num(tl.0),
-                    svg::num(tl.1)
+                    svg::num(e_),
+                    svg::num(f_)
                 );
+                if clip_open {
+                    out.push_str("</g>");
+                }
+                }
             }
         }
     }
