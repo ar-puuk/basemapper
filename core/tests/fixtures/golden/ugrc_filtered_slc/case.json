@@ -1,0 +1,19 @@
+{
+  "attribution": "Utah Geospatial Resource Center (UGRC), State of Utah",
+  "bbox": [
+    -12459252.0,
+    4963454.0,
+    -12451608.0,
+    4969187.0
+  ],
+  "height": 600,
+  "layers": [
+    "Base/PARKS & REC/ParksLocal",
+    "Base/Roads - white version/Major Local Roads Paved/1",
+    "Base/Roads - white version/US Highways/1"
+  ],
+  "source_style": "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services/LiteBase/VectorTileServer/resources/styles/root.json",
+  "width": 800,
+  "zoom": 14,
+  "fixture_from": "ugrc_litebase_slc"
+}

@@ -27,6 +27,7 @@ pollster    = { workspace = true }
 [dev-dependencies]
 httptest    = "0.15"
 tokio       = { workspace = true }
+reqwest     = { workspace = true, features = ["blocking"] }
 
 [[example]]
 name = "headless_render"

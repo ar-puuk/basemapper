@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Vector golden cases need a GPU adapter for the current maplibre-rs/wgpu
+  # renderer, which hosted runners do not reliably provide. They run locally
+  # until the CPU vector renderer replaces it; raster golden cases and all
+  # other tests run here.
+  BASEMAPPER_NO_GPU: "1"
+
+jobs:
+  rust:
+    name: Rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # maplibre-rs's build script compiles a .proto file. The repo's
+      # .cargo/config.toml sets PROTOC to a local Windows path; an explicit
+      # environment variable takes precedence over it.
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Point PROTOC at the installed compiler
+        shell: bash
+        run: echo "PROTOC=$(command -v protoc)" >> "$GITHUB_ENV"
+
+      - name: Build workspace
+        run: cargo build --workspace --all-targets
+
+      - name: Test core (unit, integration, golden images)
+        run: cargo test -p basemapper-core
+
+      - name: Upload golden-image diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-output-${{ matrix.os }}
+          path: target/golden-output/
+          if-no-files-found: ignore
+
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Point PROTOC at the installed compiler
+        run: echo "PROTOC=$(command -v protoc)" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build and install the wheel
+        working-directory: py-basemapper
+        run: |
+          python -m pip install --upgrade pip maturin
+          maturin build --release --out dist
+          python -m pip install dist/*.whl pytest responses plotnine
+      - name: pytest
+        working-directory: py-basemapper
+        run: python -m pytest -v
+
+  r:
+    name: R CMD check
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      _R_CHECK_FORCE_SUGGESTS_: "false"
+      # r-basemapper/.Rprofile auto-activates renv; let setup-r-dependencies
+      # manage the library instead.
+      RENV_ACTIVATE_PROJECT: "FALSE"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Point PROTOC at the installed compiler
+        run: echo "PROTOC=$(command -v protoc)" >> "$GITHUB_ENV"
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "4.6.0"
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          working-directory: r-basemapper
+          extra-packages: any::rcmdcheck
+          needs: check
+      # Errors fail the job; warnings/notes (CRAN metadata cleanup is a
+      # tracked follow-up) are reported but do not.
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: r-basemapper
+          error-on: '"error"'
+          args: 'c("--no-manual")'

@@ -26,6 +26,9 @@ r-basemapper/src/*.so
 r-basemapper/src/*.o
 r-basemapper/src/libR.dll.a
 
+# Node (tools/reference-render)
+node_modules/
+
 # Environment / editor
 .env
 .env.*

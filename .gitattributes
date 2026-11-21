@@ -1,0 +1,3 @@
+# Golden-image fixture tiles have no extension; never line-ending-convert them.
+core/tests/fixtures/golden/**/tiles/** binary
+*.png binary
