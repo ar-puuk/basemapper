@@ -82,7 +82,7 @@ measuring against MapLibre and investigating the difference.
 
 ### Not supported yet
 
-`fill-pattern`, `line-pattern`, `line-gradient`, `fill-extrusion`, `heatmap`,
+`line-pattern`, `line-gradient`, `fill-extrusion`, `heatmap`,
 `hillshade` layers, GeoJSON sources, PMTiles sources inside vector styles,
 variable label anchors (`text-variable-anchor`), `icon-text-fit`, vertical
 text, and right-to-left scripts. Unsupported layer types are skipped with a
@@ -100,6 +100,14 @@ contrast and brightness range. Multi-sprite styles (`"sprite": [{id, url}]`)
 load every sheet, with images of non-default sprites named `id:name`. Golden
 cases: OpenFreeMap Liberty at zoom 5 (raster relief + vector) and Versatiles
 Colorful at zoom 8 (two vector sources, multi-sprite).
+
+`fill-pattern` follows the fill_pattern shaders: the sprite image repeats in
+tile space at its display size (pixels / pixelRatio) in CSS pixels at the
+tile's integer zoom, phased by the tile's world pixel position so tiles line
+up, sampled linearly with wrap-around; pattern fills use the translucent pass
+with a patterned antialiasing outline. In SVG each image becomes a
+world-aligned `<pattern>`. Golden case: ESRI World Basemap at zoom 8 (marsh
+and intermittent-lake patterns, 0.15%).
 
 The output is always Web Mercator: a style's `projection` (e.g. globe) is
 ignored, and references are rendered in Mercator too.

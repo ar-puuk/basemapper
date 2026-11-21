@@ -63,6 +63,8 @@ against the no-labels reference.
 | `*_x2` | Pixel ratio 2 (MapLibre `pixelRatio: 2`, @2x sprites): the z12.4 UGRC cases, CARTO z7/z13/z14 and OSM raster, via `fixture_from` |
 | `openfreemap_liberty_z5` | OpenFreeMap Liberty over Utah: a raster source (Natural Earth relief) and a vector source in one style (`--all-sources`) |
 | `versatiles_colorful_z8` | VersaTiles Colorful over Salt Lake City: two vector sources and a multi-sprite (`[{id, url}]`) style; its globe projection is ignored |
+| `esri_world_basemap_z8` | ESRI World Basemap over the Great Salt Lake: `fill-pattern` (marsh, intermittent lakes), also scored as SVG |
+| `openfreemap_liberty_z16` | OpenFreeMap Liberty downtown Salt Lake City: pedestrian-area patterns and 3D buildings (`fill-extrusion`, not supported yet: its limit tracks that) |
 | `osm_raster_slc` | OpenStreetMap raster tiles |
 
 The test always writes `actual.png` and `diff.png` (bad pixels in red) to
@@ -80,6 +82,7 @@ MapLibre zoom is an integer (`render.mjs` prints it). MapLibre picks tiles by
 | `osm_raster_slc` | © OpenStreetMap contributors, standard tile layer | Data ODbL; tiles CC BY-SA 2.0 |
 | `carto_*` | © OpenStreetMap contributors, © CARTO (styles, glyphs, sprites); tiles from CARTO basemaps | Data ODbL; styles per CARTO basemap terms |
 | `openfreemap_*` | © OpenStreetMap contributors, © OpenMapTiles, Natural Earth; style, tiles, glyphs and sprites from OpenFreeMap | Data ODbL; OpenMapTiles schema CC-BY 4.0; Natural Earth public domain |
+| `esri_*` | Esri, HERE, Garmin, © OpenStreetMap contributors; ESRI World Basemap style, tiles, glyphs and sprites | Per Esri terms of use |
 | `versatiles_*` | © OpenStreetMap contributors; style, tiles, glyphs and sprites from VersaTiles | Data ODbL; styles per VersaTiles terms |
 
 A handful of tiles is stored here for offline testing only.

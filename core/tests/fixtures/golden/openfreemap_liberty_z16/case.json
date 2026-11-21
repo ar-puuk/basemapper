@@ -1,0 +1,20 @@
+{
+  "attribution": "OpenFreeMap, OpenMapTiles, OpenStreetMap contributors",
+  "bbox": [
+    -12456071.216031559,
+    4977896.901399944,
+    -12455115.753177993,
+    4978613.498540118
+  ],
+  "fonts_from": null,
+  "height": 600,
+  "layers": null,
+  "source_style": "https://tiles.openfreemap.org/styles/liberty",
+  "tiles_from": null,
+  "width": 800,
+  "zoom": 17,
+  "svg": false,
+  "max_bad_pixel_frac": 0.085,
+  "max_mean_diff": 9.681,
+  "note": "fill-extrusion (3D buildings) not supported yet: the limit tracks that gap."
+}

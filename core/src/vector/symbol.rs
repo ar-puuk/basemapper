@@ -732,6 +732,42 @@ pub struct SpriteImage {
 }
 
 impl SpriteImage {
+    /// The image as a straight-alpha PNG data URI (unpadded).
+    pub fn png_data_uri(&self) -> String {
+        let cw = self.w + 2;
+        let mut rgba = Vec::with_capacity(self.w * self.h * 4);
+        for row in 0..self.h {
+            for col in 0..self.w {
+                let o = ((row + 1) * cw + col + 1) * 4;
+                let a = self.cell[o + 3] as u32;
+                for k in 0..3 {
+                    let c = self.cell[o + k] as u32;
+                    rgba.push(if a == 0 { 0 } else { ((c * 255 + a / 2) / a).min(255) as u8 });
+                }
+                rgba.push(a as u8);
+            }
+        }
+        super::svg::png_data_uri(self.w as u32, self.h as u32, &rgba)
+    }
+
+    /// GL_LINEAR sample at image-pixel coordinates (u, v), wrapping around the
+    /// edges: pattern images are stored in MapLibre's atlas with their
+    /// opposite edges copied into the padding. Premultiplied 0..=255.
+    pub fn sample_wrapped(&self, u: f64, v: f64) -> [f64; 4] {
+        let (w, h) = (self.w as i64, self.h as i64);
+        let (x, y) = (u - 0.5, v - 0.5);
+        let (x0, y0) = (x.floor(), y.floor());
+        let (fx, fy) = (x - x0, y - y0);
+        let t = |ix: i64, iy: i64| self.texel(ix.rem_euclid(w) + 1, iy.rem_euclid(h) + 1);
+        let (ix, iy) = (x0 as i64, y0 as i64);
+        let (a, b, c, d) = (t(ix, iy), t(ix + 1, iy), t(ix, iy + 1), t(ix + 1, iy + 1));
+        let mut out = [0.0; 4];
+        for i in 0..4 {
+            out[i] = (a[i] * (1.0 - fx) + b[i] * fx) * (1.0 - fy) + (c[i] * (1.0 - fx) + d[i] * fx) * fy;
+        }
+        out
+    }
+
     fn texel(&self, ix: i64, iy: i64) -> [f64; 4] {
         let (cw, ch) = (self.w as i64 + 2, self.h as i64 + 2);
         if ix < 0 || iy < 0 || ix >= cw || iy >= ch {
@@ -2087,26 +2123,7 @@ pub fn svg_layer(
                     .entry(ic.image.clone())
                     .or_insert_with(|| {
                         let id = format!("{prefix}{lid}_img{n}");
-                        // Straight-alpha, unpadded copy of the sprite image.
-                        let mut rgba = Vec::with_capacity(img.w * img.h * 4);
-                        for row in 0..img.h {
-                            for col in 0..img.w {
-                                let o = ((row + 1) * cw + col + 1) * 4;
-                                let a = img.cell[o + 3] as u32;
-                                for k in 0..3 {
-                                    let c = img.cell[o + k] as u32;
-                                    rgba.push(if a == 0 { 0 } else { ((c * 255 + a / 2) / a).min(255) as u8 });
-                                }
-                                rgba.push(a as u8);
-                            }
-                        }
-                        let _ = write!(
-                            defs,
-                            r#"<image id="{id}" width="{}" height="{}" href="{}"/>"#,
-                            img.w,
-                            img.h,
-                            svg::png_data_uri(img.w as u32, img.h as u32, &rgba)
-                        );
+                        let _ = write!(defs, r#"<image id="{id}" width="{}" height="{}" href="{}"/>"#, img.w, img.h, img.png_data_uri());
                         id
                     })
                     .clone();

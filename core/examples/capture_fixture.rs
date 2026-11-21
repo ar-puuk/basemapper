@@ -181,6 +181,9 @@ fn main() {
         let gl = scale_zoom(bbox, args.width);
         let mut used: Vec<String> = Vec::new();
         for l in style["layers"].as_array().unwrap() {
+            if !basemapper_core::vector::symbol::layer_visible(l, gl) {
+                continue;
+            }
             if let Some(src) = l["source"].as_str() {
                 if !used.iter().any(|u| u == src) {
                     used.push(src.to_owned());
@@ -188,6 +191,22 @@ fn main() {
             }
         }
         let mut new_sources = serde_json::Map::new();
+        // Every source stays in the style (layers reference them); tiles are
+        // stored only for sources of layers visible at this view. Unused
+        // tile sources point at the fixture too, with no tiles behind them.
+        for (id, s) in &sources {
+            if used.contains(id) {
+                continue;
+            }
+            let mut s = s.clone();
+            if s["type"] == "vector" || s["type"] == "raster" {
+                if let Some(o) = s.as_object_mut() {
+                    o.remove("url");
+                }
+                s["tiles"] = json!([format!("{{{{BASE}}}}/tiles/{id}/{{z}}/{{x}}/{{y}}")]);
+            }
+            new_sources.insert(id.clone(), s);
+        }
         for id in used {
             let Some(s) = sources.get(&id) else { continue };
             let kind = s["type"].as_str().unwrap_or("").to_owned();

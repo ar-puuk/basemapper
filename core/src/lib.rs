@@ -688,9 +688,12 @@ async fn fetch_vector_inputs(
     };
     let primary_tz = vector_tz(primary.maxzoom(), 0).unwrap_or(0);
 
-    // Sources used by layers, in style order.
+    // Sources used by layers visible at this zoom, in style order.
     let mut used: Vec<String> = Vec::new();
     for l in style_val["layers"].as_array().map(|v| v.as_slice()).unwrap_or(&[]) {
+        if !vector::symbol::layer_visible(l, sz) {
+            continue;
+        }
         if let Some(src) = l["source"].as_str() {
             if !used.iter().any(|u| u == src) {
                 used.push(src.to_owned());

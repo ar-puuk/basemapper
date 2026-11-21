@@ -230,7 +230,7 @@ pub fn render(
         }
         match ltype {
             "background" => draw_background(&mut fb, layer, zoom),
-            "fill" => draw_fill_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
+            "fill" => draw_fill_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio, assets),
             "line" => draw_line_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
             "circle" => draw_circle_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
             "raster" => {
@@ -393,15 +393,63 @@ fn polys_px(pt: &PlacedTile, f: &Feature, scale: f64, t: (f64, f64)) -> Vec<Ring
         .collect()
 }
 
-fn draw_fill_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile], dpr: f64) {
+/// fill_pattern shaders: where a fragment falls in the pattern. The pattern
+/// repeats in tile space with its display size (image px / pixelRatio) in
+/// CSS px at the tile's integer zoom, phased by the tile's world pixel
+/// position (u_pixel_coord), so it lines up across tiles and stretches with
+/// the fractional zoom. Only pattern B shows (no cross-fade).
+struct PatternFrame {
+    ox: f64,
+    oy: f64,
+    unit_px: f64,
+    tile_ratio: f64,
+    world_x: f64,
+    world_y: f64,
+}
+
+impl PatternFrame {
+    fn new(pt: &PlacedTile) -> Self {
+        let n = 2f64.powi(pt.coord.z as i32);
+        let tile_px = TILE_PX * pt.overscaling;
+        PatternFrame {
+            ox: pt.ox,
+            oy: pt.oy,
+            unit_px: pt.unit_px,
+            tile_ratio: tile_px / EXTENT,
+            world_x: tile_px * (pt.coord.x as f64 + pt.wrap as f64 * n),
+            world_y: tile_px * pt.coord.y as f64,
+        }
+    }
+
+    /// Pattern coordinates (in repeats) at device position (x, y), with the
+    /// layer's translate `t` (device px) removed.
+    fn coord(&self, img: &symbol::SpriteImage, x: f64, y: f64, t: (f64, f64)) -> (f64, f64) {
+        let size = (img.w as f64 / img.pixel_ratio, img.h as f64 / img.pixel_ratio);
+        let pos = ((x - t.0 - self.ox) / self.unit_px, (y - t.1 - self.oy) / self.unit_px);
+        (
+            (self.tile_ratio * pos.0 + self.world_x.rem_euclid(size.0)) / size.0,
+            (self.tile_ratio * pos.1 + self.world_y.rem_euclid(size.1)) / size.1,
+        )
+    }
+
+    /// Premultiplied colour (0..1) of `img` at device pixel (x, y).
+    fn sample(&self, img: &symbol::SpriteImage, x: usize, y: usize, t: (f64, f64)) -> [f64; 4] {
+        let v = self.coord(img, x as f64 + 0.5, y as f64 + 0.5, t);
+        let s = img.sample_wrapped(v.0.rem_euclid(1.0) * img.w as f64, v.1.rem_euclid(1.0) * img.h as f64);
+        [s[0] / 255.0, s[1] / 255.0, s[2] / 255.0, s[3] / 255.0]
+    }
+}
+
+fn draw_fill_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile], dpr: f64, assets: &SymbolAssets) {
     let p = &layer["paint"];
     let color = Prop::new(p.get("fill-color"), Kind::Color, zoom);
     let opacity = Prop::new(p.get("fill-opacity"), Kind::Number, zoom);
     let outline = Prop::new(p.get("fill-outline-color"), Kind::Color, zoom);
     let translate = Prop::new(p.get("fill-translate"), Kind::Array, zoom);
     let antialias = p["fill-antialias"].as_bool().unwrap_or(true);
-    if p.get("fill-pattern").is_some() {
-        log::debug!("fill-pattern is not supported yet (layer {})", layer["id"]);
+    let pattern = Prop::new(p.get("fill-pattern"), Kind::Enum, zoom);
+    if pattern.is_set() {
+        return draw_fill_pattern_layer(fb, layer, zoom, placed, dpr, assets, &pattern, &opacity, &outline, &translate, antialias);
     }
 
     // draw_fill.ts: opaque layers go through the opaque pass and write depth,
@@ -456,6 +504,79 @@ fn draw_fill_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
                             }
                             fb.blend(x, y, scaled(base, 1.0 - smoothstep(0.0, 1.0, d)));
                         });
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// draw_fill.ts with a pattern: always the translucent pass; interiors with
+/// fill_pattern, then (fill-antialias) outlines with fill_outline_pattern, or
+/// in fill-outline-color when one is set. Features whose image is missing
+/// are not drawn.
+#[allow(clippy::too_many_arguments)]
+fn draw_fill_pattern_layer(
+    fb: &mut Framebuffer,
+    layer: &Json,
+    zoom: f64,
+    placed: &[PlacedTile],
+    dpr: f64,
+    assets: &SymbolAssets,
+    pattern: &Prop,
+    opacity: &Prop,
+    outline: &Prop,
+    translate: &Prop,
+    antialias: bool,
+) {
+    let (w, h) = (fb.w, fb.h);
+    let image_of = |ctx: &Ctx| -> Option<&symbol::SpriteImage> {
+        match pattern.get(ctx)? {
+            Val::Str(name) => assets.sprite.images.get(&name),
+            _ => None,
+        }
+    };
+    for pass_outline in [false, true] {
+        if pass_outline && !antialias {
+            break;
+        }
+        for pt in placed {
+            let frame = PatternFrame::new(pt);
+            for (f, scale) in features(layer, pt, zoom) {
+                let ctx = Ctx { zoom, feature: Some(f) };
+                let Some(img) = image_of(&ctx) else { continue };
+                let op = opacity.num(&ctx, 1.0);
+                if op <= 0.0 {
+                    continue;
+                }
+                let t = translate.translate_px(&ctx, dpr);
+                let polys = polys_px(pt, f, scale, t);
+                if !pass_outline {
+                    for poly in &polys {
+                        raster_polygon(w, h, poly, &pt.clip, |x, y| {
+                            let c = frame.sample(img, x, y, t);
+                            fb.blend(x, y, [(c[0] * op) as f32, (c[1] * op) as f32, (c[2] * op) as f32, (c[3] * op) as f32]);
+                        });
+                    }
+                    continue;
+                }
+                let plain = outline.is_set().then(|| rgba(outline.color(&ctx, Color::BLACK), op));
+                for poly in &polys {
+                    for ring in poly {
+                        for seg in ring.windows(2) {
+                            raster_gl_line(w, h, seg[0], seg[1], &pt.clip, |x, y, d| {
+                                let k = 1.0 - smoothstep(0.0, 1.0, d);
+                                let c = match plain {
+                                    Some(c) => scaled(c, k),
+                                    None => {
+                                        let s = frame.sample(img, x, y, t);
+                                        let m = op * k;
+                                        [(s[0] * m) as f32, (s[1] * m) as f32, (s[2] * m) as f32, (s[3] * m) as f32]
+                                    }
+                                };
+                                fb.blend(x, y, c);
+                            });
+                        }
                     }
                 }
             }
@@ -770,6 +891,7 @@ pub fn render_svg(
             );
         }
     }
+    let mut pattern_ids: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     let layer_clip = |layer: &Json| -> String {
         layer["source"].as_str().and_then(|s| clip_prefix.get(s)).cloned().unwrap_or_default()
     };
@@ -792,7 +914,7 @@ pub fn render_svg(
                     let _ = write!(out, r#"<rect width="{width}" height="{height}" fill="{hex}" fill-opacity="{}"/>"#, svg::alpha(a));
                 }
             }
-            "fill" => svg_fill(&mut out, layer, zoom, layer_tiles(&placed, layer), &layer_clip(layer)),
+            "fill" => svg_fill(&mut out, &mut defs, layer, zoom, layer_tiles(&placed, layer), &layer_clip(layer), assets, &mut pattern_ids),
             "line" => svg_line(&mut out, layer, zoom, layer_tiles(&placed, layer), &layer_clip(layer)),
             "circle" => svg_circle(&mut out, layer, zoom, layer_tiles(&placed, layer)),
             "raster" => {
@@ -832,7 +954,17 @@ pub fn render_svg(
 /// the same as drawing it beneath them. The outline is an aliased gl.LINES
 /// line (one pixel per column, alpha 1 - smoothstep(0, 1, d)), which covers
 /// about 0.81 px on average: hence a 0.8 px stroke.
-fn svg_fill(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], prefix: &str) {
+#[allow(clippy::too_many_arguments)]
+fn svg_fill(
+    out: &mut String,
+    defs: &mut String,
+    layer: &Json,
+    zoom: f64,
+    placed: &[PlacedTile],
+    prefix: &str,
+    assets: &SymbolAssets,
+    pattern_ids: &mut std::collections::HashMap<String, String>,
+) {
     use std::fmt::Write as _;
     let p = &layer["paint"];
     let color = Prop::new(p.get("fill-color"), Kind::Color, zoom);
@@ -840,13 +972,46 @@ fn svg_fill(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
     let outline = Prop::new(p.get("fill-outline-color"), Kind::Color, zoom);
     let translate = Prop::new(p.get("fill-translate"), Kind::Array, zoom);
     let antialias = p["fill-antialias"].as_bool().unwrap_or(true);
+    let pattern = Prop::new(p.get("fill-pattern"), Kind::Enum, zoom);
+    // fill-pattern: an SVG <pattern> per image, aligned to the world grid as
+    // the fill_pattern shader tiles it (see PatternFrame), for interiors and
+    // the antialiasing outline. Always the translucent pass (outline above).
+    let mut pattern_paint = |ctx: &Ctx, pt: &PlacedTile| -> Option<String> {
+        let Some(Val::Str(name)) = pattern.get(ctx) else { return None };
+        let img = assets.sprite.images.get(&name)?;
+        let frame = PatternFrame::new(pt);
+        let k = pt.unit_px / frame.tile_ratio; // screen px per CSS px at tile zoom
+        let (sw, sh) = (img.w as f64 / img.pixel_ratio * k, img.h as f64 / img.pixel_ratio * k);
+        let (x0, y0) = (pt.ox - frame.world_x * k, pt.oy - frame.world_y * k);
+        let key = format!("{name}@{}", svg::num(k * 1000.0));
+        let n = pattern_ids.len();
+        let id = pattern_ids
+            .entry(key)
+            .or_insert_with(|| {
+                let id = format!("{prefix}pat{n}");
+                let _ = write!(
+                    defs,
+                    r#"<pattern id="{id}" patternUnits="userSpaceOnUse" x="{}" y="{}" width="{}" height="{}"><image width="{}" height="{}" preserveAspectRatio="none" href="{}"/></pattern>"#,
+                    svg::num(x0.rem_euclid(sw)),
+                    svg::num(y0.rem_euclid(sh)),
+                    sw,
+                    sh,
+                    sw,
+                    sh,
+                    img.png_data_uri()
+                );
+                id
+            })
+            .clone();
+        Some(format!("url(#{id})"))
+    };
     let opaque = matches!(&color, Prop::Const(v) if v.as_color().map_or(false, |c| c.a == 1.0))
         && match &opacity {
             Prop::Absent => true,
             Prop::Const(v) => v.as_num() == Some(1.0),
             Prop::Data(..) => false,
         };
-    let outline_beneath = opaque && !outline.is_set();
+    let outline_beneath = opaque && !outline.is_set() && !pattern.is_set();
 
     let mut fills = String::new();
     let mut outlines = String::new();
@@ -857,6 +1022,25 @@ fn svg_fill(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
             let op = opacity.num(&ctx, 1.0);
             let polys = polys_px(pt, f, scale, translate.translate(&ctx));
             if polys.is_empty() {
+                continue;
+            }
+            if pattern.is_set() {
+                // Features whose pattern image is missing are not drawn.
+                let Some(paint) = pattern_paint(&ctx, pt) else { continue };
+                if op <= 0.0 {
+                    continue;
+                }
+                for poly in &polys {
+                    let _ = write!(gf, r#"<path d="{}" fill="{paint}" fill-opacity="{}"/>"#, svg::path_data(poly, true), svg::alpha(op.min(1.0)));
+                }
+                if antialias {
+                    let rings: Vec<Vec<(f64, f64)>> = polys.into_iter().flatten().collect();
+                    let stroke = match outline.is_set().then(|| svg::paint(outline.color(&ctx, Color::BLACK), op)).flatten() {
+                        Some((hex, a)) => format!(r#"stroke="{hex}" stroke-opacity="{}""#, svg::alpha(a)),
+                        None => format!(r#"stroke="{paint}" stroke-opacity="{}""#, svg::alpha(op.min(1.0))),
+                    };
+                    let _ = write!(go, r#"<path d="{}" {stroke}/>"#, svg::path_data(&rings, true));
+                }
                 continue;
             }
             if let Some((hex, a)) = svg::paint(color.color(&ctx, Color::BLACK), op) {
