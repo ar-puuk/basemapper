@@ -349,6 +349,9 @@ pub struct LineVertex {
     pub dir: f64,
     /// `v_linesofar` in tile units, quantised as the shader decodes it.
     pub linesofar: f64,
+    /// `a_uv_x` (line-gradient): progress through this tiled line, 0..1
+    /// (Float32), when the line has clips; 0 otherwise.
+    pub uv_x: f64,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -383,11 +386,21 @@ pub struct LineBuilder {
     e1: i64,
     e2: i64,
     overscaling: f64,
+    /// lineMetrics clip range of the lines being added (fractions of the
+    /// whole line), and the current line's total length in tile units.
+    clip: Option<(f64, f64)>,
+    total_distance: f64,
 }
 
 impl LineBuilder {
     pub fn new(overscaling: f64) -> Self {
-        LineBuilder { verts: Vec::new(), tris: Vec::new(), distance: 0.0, e1: -1, e2: -1, overscaling }
+        LineBuilder { verts: Vec::new(), tris: Vec::new(), distance: 0.0, e1: -1, e2: -1, overscaling, clip: None, total_distance: 0.0 }
+    }
+
+    /// LineBucket#lineFeatureClips: the geojson-vt clip range of the
+    /// following lines (`None` for lines without lineMetrics).
+    pub fn set_clip(&mut self, clip: Option<(f64, f64)>) {
+        self.clip = clip;
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -402,6 +415,7 @@ impl LineBuilder {
     ) {
         let v: Vec<P> = vertices.iter().map(|&(x, y)| P { x, y }).collect();
         self.distance = 0.0;
+        self.total_distance = if self.clip.is_some() { v.windows(2).map(|w| w[0].dist(w[1])).sum() } else { 0.0 };
         let mut len = v.len();
         while len >= 2 && v[len - 1] == v[len - 2] {
             len -= 1;
@@ -610,7 +624,7 @@ impl LineBuilder {
         let ry = -normal.y - normal.x * end_right;
         self.add_half_vertex(p, lx, ly, round, false, end_left);
         self.add_half_vertex(p, rx, ry, round, true, -end_right);
-        if self.distance > MAX_LINE_DISTANCE / 2.0 {
+        if self.distance > MAX_LINE_DISTANCE / 2.0 && self.clip.is_none() {
             self.distance = 0.0;
             self.add_current_vertex(p, normal, end_left, end_right, round);
         }
@@ -620,7 +634,16 @@ impl LineBuilder {
         // Attribute encoding round trip (a_data is 4 x u8).
         let qx = to_uint8(js_round(EXTRUDE_SCALE * ex) + 128.0) as f64 - 128.0;
         let qy = to_uint8(js_round(EXTRUDE_SCALE * ey) + 128.0) as f64 - 128.0;
-        let scaled = (self.distance * LINE_DISTANCE_SCALE).trunc() as i64;
+        // updateScaledDistance: with clips, the distance is the position
+        // along the whole line, scaled to [0, 2^15).
+        let (sofar, uv_x) = match self.clip {
+            Some((start, end)) => {
+                let scaled = start + (end - start) * self.distance / self.total_distance;
+                (scaled * (MAX_LINE_DISTANCE - 1.0), ((scaled - start) / (end - start)) as f32 as f64)
+            }
+            None => (self.distance, 0.0),
+        };
+        let scaled = (sofar * LINE_DISTANCE_SCALE).trunc() as i64;
         let z = to_uint8((((if dir == 0.0 { 0 } else if dir < 0.0 { -1 } else { 1 }) + 1) | ((scaled & 0x3F) << 2)) as f64);
         let wv = to_uint8((scaled >> 6) as f64);
         let linesofar = ((z as f64 / 4.0).floor() + wv as f64 * 64.0) * 2.0;
@@ -634,6 +657,7 @@ impl LineBuilder {
             up,
             dir: a_dir,
             linesofar,
+            uv_x,
         });
         let e = (self.verts.len() - 1) as i64;
         if self.e1 >= 0 && self.e2 >= 0 {

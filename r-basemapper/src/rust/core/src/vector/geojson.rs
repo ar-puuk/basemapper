@@ -19,11 +19,19 @@ use serde_json::Value as Json;
 
 const EXTENT: f64 = 8192.0;
 
+/// geojson-vt's lineMetrics feature properties (read by LineBucket).
+pub const CLIP_START: &str = "geojsonvt_clip_start";
+pub const CLIP_END: &str = "geojsonvt_clip_end";
+
 #[derive(Clone, Debug)]
 struct Line {
     pts: Vec<[f64; 3]>,
     /// Area (polygon rings) or length (lines), in world units.
     size: f64,
+    /// lineMetrics: where this slice starts and ends along the whole line
+    /// (world units; 0 and `size` for an unclipped line).
+    start: f64,
+    end: f64,
 }
 
 #[derive(Clone, Debug)]
@@ -58,6 +66,8 @@ pub struct GeoJsonOptions {
     pub buffer: f64,
     /// Simplification tolerance in tile units (MapLibre: tolerance * 16).
     pub tolerance: f64,
+    /// `lineMetrics`: lines carry their clip range for `line-gradient`.
+    pub line_metrics: bool,
 }
 
 impl GeoJsonOptions {
@@ -68,6 +78,7 @@ impl GeoJsonOptions {
             max_zoom: src["maxzoom"].as_u64().map_or(18, |z| z.min(24) as u8),
             buffer: src["buffer"].as_f64().unwrap_or(128.0) * scale,
             tolerance: src["tolerance"].as_f64().unwrap_or(0.375) * scale,
+            line_metrics: src["lineMetrics"].as_bool().unwrap_or(false),
         }
     }
 }
@@ -82,8 +93,8 @@ impl GeoJsonIndex {
     pub fn new(data: &Json, opts: GeoJsonOptions) -> Self {
         let sq_tol = (opts.tolerance / ((1u64 << opts.max_zoom) as f64 * EXTENT)).powi(2);
         let mut features = Vec::new();
-        convert(data, &mut features, sq_tol, None);
-        let features = wrap(features, opts.buffer / EXTENT);
+        convert(data, &mut features, sq_tol, None, opts.line_metrics);
+        let features = wrap(features, opts.buffer / EXTENT, opts.line_metrics);
         GeoJsonIndex { features, opts }
     }
 
@@ -93,10 +104,11 @@ impl GeoJsonIndex {
         let k = self.opts.buffer / EXTENT;
         let (x0, x1) = ((x as f64 - k) / z2, (x as f64 + 1.0 + k) / z2);
         let (y0, y1) = ((y as f64 - k) / z2, (y as f64 + 1.0 + k) / z2);
-        let clipped = clip(&self.features, x0, x1, 0);
-        let clipped = clip(&clipped, y0, y1, 1);
+        let m = self.opts.line_metrics;
+        let clipped = clip(&self.features, x0, x1, 0, m);
+        let clipped = clip(&clipped, y0, y1, 1, m);
         let tol = if z >= self.opts.max_zoom { 0.0 } else { self.opts.tolerance / (z2 * EXTENT) };
-        encode_tile(&clipped, z2, x as f64, y as f64, tol)
+        encode_tile(&clipped, z2, x as f64, y as f64, tol, m)
     }
 }
 
@@ -112,20 +124,20 @@ fn project_y(lat: f64) -> f64 {
     y.clamp(0.0, 1.0)
 }
 
-fn convert(data: &Json, out: &mut Vec<Feat>, sq_tol: f64, inherit: Option<(&Json, Option<u64>)>) {
+fn convert(data: &Json, out: &mut Vec<Feat>, sq_tol: f64, inherit: Option<(&Json, Option<u64>)>, metrics: bool) {
     match data["type"].as_str() {
         Some("FeatureCollection") => {
             for f in data["features"].as_array().map(|v| v.as_slice()).unwrap_or(&[]) {
-                convert(f, out, sq_tol, None);
+                convert(f, out, sq_tol, None, metrics);
             }
         }
         Some("Feature") => {
             let id = feature_id(&data["id"]);
-            convert_geometry(&data["geometry"], &data["properties"], id, out, sq_tol);
+            convert_geometry(&data["geometry"], &data["properties"], id, out, sq_tol, metrics);
         }
         Some(_) => {
             let (props, id) = inherit.unwrap_or((&Json::Null, None));
-            convert_geometry(data, props, id, out, sq_tol);
+            convert_geometry(data, props, id, out, sq_tol, metrics);
         }
         None => {}
     }
@@ -156,7 +168,7 @@ fn props_of(p: &Json) -> Vec<(String, Prop)> {
         .collect()
 }
 
-fn convert_geometry(g: &Json, props: &Json, id: Option<u64>, out: &mut Vec<Feat>, sq_tol: f64) {
+fn convert_geometry(g: &Json, props: &Json, id: Option<u64>, out: &mut Vec<Feat>, sq_tol: f64, metrics: bool) {
     let coords = &g["coordinates"];
     let point = |c: &Json| -> Option<[f64; 3]> {
         let a = c.as_array()?;
@@ -173,6 +185,15 @@ fn convert_geometry(g: &Json, props: &Json, id: Option<u64>, out: &mut Vec<Feat>
         Some("Point") => point(coords).map(|p| Geom::Points(vec![p])),
         Some("MultiPoint") => Some(Geom::Points(coords.as_array().map(|a| a.iter().filter_map(point).collect()).unwrap_or_default())),
         Some("LineString") => line(coords, false).map(|l| Geom::Lines(vec![l])),
+        Some("MultiLineString") if metrics => {
+            // Exploded into LineStrings so each tracks its own metrics.
+            for c in coords.as_array().map(|v| v.as_slice()).unwrap_or(&[]) {
+                if let Some(l) = line(c, false) {
+                    out.push(make_feat(id, Geom::Lines(vec![l]), props_of(props)));
+                }
+            }
+            None
+        }
         Some("MultiLineString") => {
             Some(Geom::Lines(coords.as_array().map(|a| a.iter().filter_map(|c| line(c, false)).collect()).unwrap_or_default()))
         }
@@ -188,7 +209,7 @@ fn convert_geometry(g: &Json, props: &Json, id: Option<u64>, out: &mut Vec<Feat>
         )),
         Some("GeometryCollection") => {
             for sub in g["geometries"].as_array().map(|v| v.as_slice()).unwrap_or(&[]) {
-                convert_geometry(sub, props, id, out, sq_tol);
+                convert_geometry(sub, props, id, out, sq_tol, metrics);
             }
             None
         }
@@ -227,7 +248,7 @@ fn convert_line(mut pts: Vec<[f64; 3]>, sq_tol: f64, polygon: bool) -> Line {
     pts[0][2] = 1.0;
     simplify(&mut pts, 0, last, sq_tol);
     pts[last][2] = 1.0;
-    Line { pts, size: size.abs() }
+    Line { pts, size: size.abs(), start: 0.0, end: size.abs() }
 }
 
 /// simplify.js: Douglas-Peucker, storing each kept vertex's importance
@@ -283,14 +304,14 @@ fn sq_seg_dist(px: f64, py: f64, mut x: f64, mut y: f64, bx: f64, by: f64) -> f6
 
 // ── wrap.js ──────────────────────────────────────────────────────────────────
 
-fn wrap(features: Vec<Feat>, buffer: f64) -> Vec<Feat> {
-    let left = clip(&features, -1.0 - buffer, buffer, 0);
-    let right = clip(&features, 1.0 - buffer, 2.0 + buffer, 0);
+fn wrap(features: Vec<Feat>, buffer: f64, metrics: bool) -> Vec<Feat> {
+    let left = clip(&features, -1.0 - buffer, buffer, 0, metrics);
+    let right = clip(&features, 1.0 - buffer, 2.0 + buffer, 0, metrics);
     if left.is_empty() && right.is_empty() {
         return features;
     }
     let mut merged: Vec<Feat> = left.into_iter().map(|f| shift(f, 1.0)).collect();
-    merged.extend(clip(&features, -buffer, 1.0 + buffer, 0));
+    merged.extend(clip(&features, -buffer, 1.0 + buffer, 0, metrics));
     merged.extend(right.into_iter().map(|f| shift(f, -1.0)));
     merged
 }
@@ -310,7 +331,8 @@ fn shift(mut f: Feat, dx: f64) -> Feat {
 // ── clip.js ──────────────────────────────────────────────────────────────────
 
 /// Features clipped to k1 <= coord <= k2 along `axis` (0 = x, 1 = y).
-fn clip(features: &[Feat], k1: f64, k2: f64, axis: usize) -> Vec<Feat> {
+/// With `metrics`, every slice of a line becomes its own feature.
+fn clip(features: &[Feat], k1: f64, k2: f64, axis: usize, metrics: bool) -> Vec<Feat> {
     let mut out = Vec::new();
     for f in features {
         let (min, max) = if axis == 0 { (f.min.0, f.max.0) } else { (f.min.1, f.max.1) };
@@ -329,16 +351,25 @@ fn clip(features: &[Feat], k1: f64, k2: f64, axis: usize) -> Vec<Feat> {
             Geom::Lines(ls) => {
                 let mut nl = Vec::new();
                 for l in ls {
-                    clip_line(l, &mut nl, k1, k2, axis, false);
+                    clip_line(l, &mut nl, k1, k2, axis, false, metrics);
                 }
-                if nl.is_empty() { None } else { Some(Geom::Lines(nl)) }
+                if metrics {
+                    for l in nl {
+                        out.push(make_feat(f.id, Geom::Lines(vec![l]), f.props.clone()));
+                    }
+                    None
+                } else if nl.is_empty() {
+                    None
+                } else {
+                    Some(Geom::Lines(nl))
+                }
             }
             Geom::Polygons(ps) => {
                 let mut np = Vec::new();
                 for p in ps {
                     let mut rings = Vec::new();
                     for r in p {
-                        clip_line(r, &mut rings, k1, k2, axis, true);
+                        clip_line(r, &mut rings, k1, k2, axis, true, false);
                     }
                     if !rings.is_empty() {
                         np.push(rings);
@@ -354,45 +385,55 @@ fn clip(features: &[Feat], k1: f64, k2: f64, axis: usize) -> Vec<Feat> {
     out
 }
 
-fn clip_line(geom: &Line, out: &mut Vec<Line>, k1: f64, k2: f64, axis: usize, polygon: bool) {
-    let new_slice = || Line { pts: Vec::new(), size: geom.size };
+fn clip_line(geom: &Line, out: &mut Vec<Line>, k1: f64, k2: f64, axis: usize, polygon: bool, metrics: bool) {
+    let new_slice = || Line { pts: Vec::new(), size: geom.size, start: geom.start, end: geom.end };
     let mut slice = new_slice();
-    let intersect = |s: &mut Line, a: [f64; 3], b: [f64; 3], k: f64| {
+    let intersect = |s: &mut Line, a: [f64; 3], b: [f64; 3], k: f64| -> f64 {
         if axis == 0 {
             let t = (k - a[0]) / (b[0] - a[0]);
             s.pts.push([k, a[1] + (b[1] - a[1]) * t, 1.0]);
+            t
         } else {
             let t = (k - a[1]) / (b[1] - a[1]);
             s.pts.push([a[0] + (b[0] - a[0]) * t, k, 1.0]);
+            t
         }
     };
+    // lineMetrics: distance along the whole line at the segment start.
+    let mut len = geom.start;
     let n = geom.pts.len();
     for i in 0..n.saturating_sub(1) {
         let (pa, pb) = (geom.pts[i], geom.pts[i + 1]);
         let (a, b) = (pa[axis], pb[axis]);
+        let seg = if metrics { ((pa[0] - pb[0]).powi(2) + (pa[1] - pb[1]).powi(2)).sqrt() } else { 0.0 };
         let mut exited = false;
+        let mut t = 0.0;
         if a < k1 {
             if b > k1 {
-                intersect(&mut slice, pa, pb, k1);
+                t = intersect(&mut slice, pa, pb, k1);
+                slice.start = len + seg * t;
             }
         } else if a > k2 {
             if b < k2 {
-                intersect(&mut slice, pa, pb, k2);
+                t = intersect(&mut slice, pa, pb, k2);
+                slice.start = len + seg * t;
             }
         } else {
             slice.pts.push(pa);
         }
         if b < k1 && a >= k1 {
-            intersect(&mut slice, pa, pb, k1);
+            t = intersect(&mut slice, pa, pb, k1);
             exited = true;
         }
         if b > k2 && a <= k2 {
-            intersect(&mut slice, pa, pb, k2);
+            t = intersect(&mut slice, pa, pb, k2);
             exited = true;
         }
         if !polygon && exited {
+            slice.end = len + seg * t;
             out.push(std::mem::replace(&mut slice, new_slice()));
         }
+        len += seg;
     }
     if let Some(&last) = geom.pts.last() {
         if last[axis] >= k1 && last[axis] <= k2 {
@@ -413,7 +454,7 @@ fn clip_line(geom: &Line, out: &mut Vec<Line>, k1: f64, k2: f64, axis: usize, po
 
 // ── tile.js + transform, encoded as MVT ──────────────────────────────────────
 
-fn encode_tile(features: &[Feat], z2: f64, tx: f64, ty: f64, tol: f64) -> Vec<u8> {
+fn encode_tile(features: &[Feat], z2: f64, tx: f64, ty: f64, tol: f64, metrics: bool) -> Vec<u8> {
     let sq_tol = tol * tol;
     let transform = |p: &[f64; 3]| -> (i64, i64) {
         ((EXTENT * (p[0] * z2 - tx)).round() as i64, (EXTENT * (p[1] * z2 - ty)).round() as i64)
@@ -464,7 +505,15 @@ fn encode_tile(features: &[Feat], z2: f64, tx: f64, ty: f64, tol: f64) -> Vec<u8
             }
         };
         let mut tags = Vec::new();
-        for (k, v) in &f.props {
+        // tile.js addLineTileFeature: the slice's range as fractions of the line.
+        let clip_props: Vec<(String, Prop)> = match &f.geom {
+            Geom::Lines(ls) if metrics && ls.len() == 1 => vec![
+                (CLIP_START.to_owned(), Prop::Num(ls[0].start / ls[0].size)),
+                (CLIP_END.to_owned(), Prop::Num(ls[0].end / ls[0].size)),
+            ],
+            _ => Vec::new(),
+        };
+        for (k, v) in f.props.iter().chain(clip_props.iter()) {
             let ki = keys.iter().position(|x| x == k).unwrap_or_else(|| {
                 keys.push(k.clone());
                 keys.len() - 1
@@ -578,7 +627,7 @@ mod tests {
             {"type": "Feature", "properties": {"kind": "park"},
              "geometry": {"type": "Polygon", "coordinates": [[[-10.0, -10.0], [10.0, -10.0], [10.0, 10.0], [-10.0, 10.0], [-10.0, -10.0]]]}}
         ]});
-        let idx = GeoJsonIndex::new(&data, GeoJsonOptions { max_zoom: 18, buffer: 2048.0, tolerance: 6.0 });
+        let idx = GeoJsonIndex::new(&data, GeoJsonOptions { max_zoom: 18, buffer: 2048.0, tolerance: 6.0, line_metrics: false });
         let bytes = idx.tile(1, 1, 1);
         let tile = super::super::mvt::decode(&bytes).unwrap();
         let layer = &tile.layers[GEOJSON_LAYER];
@@ -606,7 +655,7 @@ mod tests {
         let coords: Vec<Json> = (0..=200).map(|i| json!([i as f64 * 0.01, (i as f64 * 0.3).sin() * 0.0001])).collect();
         let data = json!({"type": "LineString", "coordinates": coords});
         // maxzoom 4: the whole 2-degree line lies in one tile at z <= 4.
-        let idx = GeoJsonIndex::new(&data, GeoJsonOptions { max_zoom: 4, buffer: 2048.0, tolerance: 6.0 });
+        let idx = GeoJsonIndex::new(&data, GeoJsonOptions { max_zoom: 4, buffer: 2048.0, tolerance: 6.0, line_metrics: false });
         let count = |z: u8| {
             let n = 1u32 << z;
             let (x, y) = ((0.5 + 1.0 / 360.0) * n as f64, 0.5 * n as f64);
@@ -618,5 +667,33 @@ mod tests {
         };
         assert!(count(2) < 10, "below maxzoom the line is simplified");
         assert_eq!(count(4), 201, "at maxzoom every vertex is kept");
+    }
+
+    #[test]
+    fn line_metrics_give_each_slice_its_clip_range() {
+        // Along the equator from x = 0.25 to 0.75; at z1 the buffer is 1/8
+        // of the world, so tile 0 clips at x = 0.625 and tile 1 at 0.375.
+        let data = json!({"type": "Feature", "properties": {"k": 1},
+            "geometry": {"type": "LineString", "coordinates": [[-90.0, 0.0], [0.0, 0.0], [90.0, 0.0]]}});
+        let idx = GeoJsonIndex::new(&data, GeoJsonOptions { max_zoom: 18, buffer: 2048.0, tolerance: 6.0, line_metrics: true });
+        let range = |x: u32| {
+            let t = super::super::mvt::decode(&idx.tile(1, x, 1)).unwrap();
+            let f = &t.layers[GEOJSON_LAYER].features[0];
+            let num = |k: &str| match f.properties.get(k) {
+                Some(super::super::mvt::Value::Number(v)) => *v,
+                v => panic!("{k}: {v:?}"),
+            };
+            (num(CLIP_START), num(CLIP_END))
+        };
+        let (s0, e0) = range(0);
+        let (s1, e1) = range(1);
+        assert_eq!(s0, 0.0);
+        assert!((e0 - 0.75).abs() < 1e-12, "{e0}");
+        assert!((s1 - 0.25).abs() < 1e-12, "{s1}");
+        assert_eq!(e1, 1.0);
+        // Without lineMetrics no clip properties are added.
+        let plain = GeoJsonIndex::new(&data, GeoJsonOptions { max_zoom: 18, buffer: 2048.0, tolerance: 6.0, line_metrics: false });
+        let t = super::super::mvt::decode(&plain.tile(1, 0, 1)).unwrap();
+        assert!(!t.layers[GEOJSON_LAYER].features[0].properties.contains_key(CLIP_START));
     }
 }

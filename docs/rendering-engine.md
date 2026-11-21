@@ -82,7 +82,7 @@ measuring against MapLibre and investigating the difference.
 
 ### Not supported yet
 
-`line-gradient`, GeoJSON clustering, PMTiles sources inside vector styles, 3D terrain,
+GeoJSON clustering, PMTiles sources inside vector styles, 3D terrain,
 vertical text, and right-to-left scripts. Unsupported layer types are skipped
 with a warning.
 
@@ -140,7 +140,28 @@ to the tile plus buffer, simplification, ring rewinding and rounding. Tiles
 are encoded as vector tiles with the layer `_geojsonTileLayer`, which style
 layers without a `source-layer` read, so filters, expressions and numeric
 feature ids behave as with vector tiles. `cluster: true` is ignored with a
-warning (features are drawn unclustered).
+warning (features are drawn unclustered). `lineMetrics: true` follows
+geojson-vt: multi-lines are split into one feature per line, clipping tracks
+where each slice starts and ends along the whole line, and every line feature
+carries `geojsonvt_clip_start` / `geojsonvt_clip_end` as fractions of it.
+
+### Line gradients
+
+`line-gradient` follows line_gradient.fragment.glsl. Each tiled line gets its
+own ramp row (renderColorRamp with clips): texel `i` of `n` is the gradient
+at `start + (end - start) · i / (n - 1)` of `["line-progress"]`, stored
+unpremultiplied and rounded, then premultiplied. Along the line, the texture
+coordinate is the vertex's distance over the slice's length (Float32),
+sampled `LINEAR`, or `NEAREST` with a texture of
+`clamp(nextPowerOfTwo(longest line / 8192 · 1024), 256, 16384)` texels when the
+gradient is a top-level `step` (MapLibre's stepInterpolant). The texel is
+multiplied by antialiasing and opacity, replacing `line-color`. Lines without
+clips (sources without `lineMetrics`) are not drawn; MapLibre rejects such
+layers. With clips, `linesofar` is the position along the whole line scaled
+to `[0, 2^15)`, which phases dashes. Gradient lines with `line-dasharray`
+(line_gradient_sdf) use an SDF edge of `(atlas width / 256) / dash width /
+floorwidth`, without the pixel ratio. In SVG, gradient line layers are
+embedded as images.
 
 ### Styles with several sources
 

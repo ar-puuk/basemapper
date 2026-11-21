@@ -1,0 +1,18 @@
+{
+  "note": "Synthetic: line-gradient over GeoJSON lineMetrics: lines crossing tile boundaries (clip ranges), an exploded MultiLineString, a translucent end stop, round joins and caps; a step gradient with offset and opacity.",
+  "bbox": [
+    -12464806.374464713,
+    4970054.49755091,
+    -12446269.275254048,
+    4983957.321958911
+  ],
+  "width": 640,
+  "height": 480,
+  "zoom": 11.4,
+  "attribution": "Synthetic lines",
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.019,
+  "svg": true,
+  "max_bad_pixel_frac_svg": 5e-05,
+  "max_mean_diff_svg": 0.025
+}

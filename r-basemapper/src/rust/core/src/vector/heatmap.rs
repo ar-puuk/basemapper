@@ -27,10 +27,17 @@ fn substitute(expr: &Json, op: &str, v: f64) -> Json {
 /// texels, stored as RGBAImage#setPixel does (unpremultiplied, rounded), then
 /// premultiplied on upload as Texture does. Premultiplied RGBA8 texels.
 pub fn color_ramp(expr: &Json, op: &str, zoom: f64) -> Vec<[u8; 4]> {
+    color_ramp_range(expr, op, zoom, 256, 0.0, 1.0)
+}
+
+/// renderColorRamp with clips: `n` texels, texel `i` evaluated at
+/// `start + (end - start) * i / (n - 1)`.
+pub fn color_ramp_range(expr: &Json, op: &str, zoom: f64, n: usize, start: f64, end: f64) -> Vec<[u8; 4]> {
     let ctx = Ctx { zoom, feature: None };
-    (0..256)
+    (0..n)
         .map(|i| {
-            let e = substitute(expr, op, i as f64 / 255.0);
+            let p = i as f64 / (n - 1) as f64;
+            let e = substitute(expr, op, start * (1.0 - p) + end * p);
             let c = match eval_property(&e, Kind::Color, &ctx) {
                 Val::Color(c) => c,
                 _ => Color::TRANSPARENT,
@@ -45,8 +52,16 @@ pub fn color_ramp(expr: &Json, op: &str, zoom: f64) -> Vec<[u8; 4]> {
         .collect()
 }
 
-/// A 256-texel ramp sampled `LINEAR` with `CLAMP_TO_EDGE` at `t`, as
-/// premultiplied floats.
+/// A ramp sampled `NEAREST` with `CLAMP_TO_EDGE` at `t`, as premultiplied
+/// floats.
+pub fn sample_ramp_nearest(ramp: &[[u8; 4]], t: f32) -> [f32; 4] {
+    let n = ramp.len();
+    let i = ((t * n as f32).floor().max(0.0) as usize).min(n - 1);
+    ramp[i].map(|v| v as f32 / 255.0)
+}
+
+/// A ramp sampled `LINEAR` with `CLAMP_TO_EDGE` at `t`, as premultiplied
+/// floats.
 pub fn sample_ramp(ramp: &[[u8; 4]], t: f32) -> [f32; 4] {
     let n = ramp.len() as f32;
     let s = (t * n - 0.5).clamp(0.0, n - 1.0);

@@ -1,0 +1,18 @@
+{
+  "note": "Synthetic: line-gradient with line-dasharray (the lineGradientSDF program): constant dashes with butt and round caps.",
+  "bbox": [
+    -12461025.517900134,
+    4972835.263043938,
+    -12450050.131818628,
+    4981176.556465883
+  ],
+  "width": 500,
+  "height": 380,
+  "zoom": 11.8,
+  "attribution": "Synthetic lines",
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.021,
+  "svg": true,
+  "max_bad_pixel_frac_svg": 5e-05,
+  "max_mean_diff_svg": 0.026
+}

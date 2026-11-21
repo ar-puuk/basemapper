@@ -1,0 +1,16 @@
+{
+  "note": "Synthetic: line-gradient at pixel ratio 2 and a fractional zoom, more tiles.",
+  "bbox": [
+    -12458642.13282913,
+    4974677.678777599,
+    -12452433.516889632,
+    4979334.140732222
+  ],
+  "width": 400,
+  "height": 300,
+  "zoom": 12.3,
+  "attribution": "Synthetic lines",
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.011,
+  "pixel_ratio": 2
+}
