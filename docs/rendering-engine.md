@@ -84,7 +84,7 @@ measuring against MapLibre and investigating the difference.
 
 `line-pattern`, `line-gradient`, `fill-extrusion-pattern`, `heatmap`,
 `hillshade` layers, GeoJSON sources, PMTiles sources inside vector styles,
-variable label anchors (`text-variable-anchor`), vertical
+vertical
 text, and right-to-left scripts. Unsupported layer types are skipped with a
 warning.
 
@@ -131,6 +131,15 @@ follows fitIconToText and getIconQuads: stretchable sprite images
 (`stretchX`, `stretchY`, `content`) become a nine-slice grid whose fixed
 parts keep their pixel size (golden case `synthetic_icon_text_fit`, a
 generated sprite over CARTO tiles).
+
+`text-variable-anchor` / `text-variable-anchor-offset` follow
+getTextVariableAnchorOffset and the placement attempts: text is shaped about
+the centre once per justification the anchors need (`text-justify: auto`),
+and each anchor in turn shifts the collision box (calculateVariableLayoutShift)
+until one fits (a second round allowing overlap with `text-allow-overlap`);
+the chosen anchor's glyphs are drawn with the render shift, and text-fit
+icons follow. Radial and explicit offsets include MapLibre's 7-unit baseline
+adjustment (golden case `synthetic_variable_anchor`).
 
 In SVG, `line-blur` is approximated by three nested strokes spread over the
 blur ramp with opacities stacking to the line's alpha (MapLibre demotiles

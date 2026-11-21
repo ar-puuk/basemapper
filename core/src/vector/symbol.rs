@@ -938,6 +938,8 @@ struct TextPart {
     size: f64,
     style: SdfStyle,
     along: Option<AlongLine>,
+    /// Render shift (px) of a variable-anchor label (calculateVariableRenderShift).
+    shift: (f64, f64),
 }
 
 /// Geometry for a symbol drawn along a line (updateLineLabels).
@@ -986,6 +988,8 @@ impl IconQuad {
 struct IconPart {
     image: String,
     quads: Vec<IconQuad>,
+    /// Render shift (px): text-fit icons follow a variable-anchor label.
+    shift: (f64, f64),
     size: f64,
     sdf: bool,
     linear: bool,
@@ -1009,6 +1013,9 @@ pub struct Placement {
 struct Instance {
     tile_idx: usize,
     sort_key: f64,
+    /// Variable-anchor attempts: (screen collision box, text part shifted
+    /// for that anchor, icon box / render shift for text-fit icons).
+    variants: Vec<([f64; 4], TextPart, Option<([f64; 4], (f64, f64))>)>,
     text_box: Option<[f64; 4]>,
     /// Line labels collide with runtime circles along their projected path.
     text_line: Option<TextCircles>,
@@ -1214,6 +1221,7 @@ fn build_text(
     zoom: f64,
     tile_zoom: f64,
     tile_pixel_ratio: f64,
+    variable_justify: Option<&str>,
 ) -> Option<(TextPart, [f64; 4], (TextExtents, f64))> {
     let layout = &layer["layout"];
     let paint = &layer["paint"];
@@ -1224,8 +1232,10 @@ fn build_text(
     let stack = feature_fontstack(layer, Some(f), tile_zoom);
     let gmap = assets.glyphs.stacks.get(&stack)?;
     let spacing = num(layout, "text-letter-spacing", &lctx, 0.0) * ONE_EM;
-    let anchor = string(layout, "text-anchor", &lctx, "center");
-    let mut justify = string(layout, "text-justify", &lctx, "center");
+    // Variable anchors: shaped about the centre with the anchor's
+    // justification; the offset is applied when placing.
+    let anchor = if variable_justify.is_some() { "center".to_owned() } else { string(layout, "text-anchor", &lctx, "center") };
+    let mut justify = variable_justify.map(str::to_owned).unwrap_or_else(|| string(layout, "text-justify", &lctx, "center"));
     if justify == "auto" {
         justify = match anchor.as_str() {
             "right" | "top-right" | "bottom-right" => "right",
@@ -1237,8 +1247,10 @@ fn build_text(
     let max_width = num(layout, "text-max-width", &lctx, 10.0) * ONE_EM;
     let line_height = num(layout, "text-line-height", &lctx, 1.2) * ONE_EM;
     let radial = num(layout, "text-radial-offset", &lctx, 0.0);
-    let text_offset = if radial != 0.0 {
-        radial_offset(&anchor, radial * ONE_EM)
+    let text_offset = if variable_justify.is_some() {
+        (0.0, 0.0)
+    } else if radial != 0.0 {
+        variable_offset(&anchor, VarOffset::Radial(radial * ONE_EM))
     } else {
         let o = num_pair(layout, "text-offset", &lctx);
         (o.0 * ONE_EM, o.1 * ONE_EM)
@@ -1263,6 +1275,7 @@ fn build_text(
             size: num(layout, "text-size", &ctx, 16.0),
             style: sdf_style(paint, "text", &ctx),
             along: None,
+            shift: (0.0, 0.0),
         },
         b,
         ((shaping.left, shaping.right, shaping.top, shaping.bottom), layout_size / ONE_EM),
@@ -1434,6 +1447,7 @@ fn build_icon(
         IconPart {
             image: name,
             quads,
+            shift: (0.0, 0.0),
             size: num(layout, "icon-size", &ctx, 1.0),
             sdf: img.sdf,
             linear: false,
@@ -1520,6 +1534,7 @@ fn build_line_text(
             size: num(layout, "text-size", &ctx, 16.0),
             style: sdf_style(paint, "text", &ctx),
             along: None,
+            shift: (0.0, 0.0),
         },
         offsets,
         shaping.right - shaping.left,
@@ -1717,6 +1732,7 @@ fn line_instances(
                 out.push(Instance {
                     tile_idx: ti,
                     sort_key: key,
+                    variants: Vec::new(),
                     text_box: point_text_box,
                     text_line,
                     icon_box,
@@ -1816,7 +1832,29 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
 
             for (key, f) in feats {
                 let ctx = Ctx { zoom, feature: Some(f) };
-                let text = if has_text_field { build_text(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio) } else { None };
+                let lctx_f = Ctx { zoom: tile_zoom, feature: Some(f) };
+                // Variable anchors: text shaped per justification the anchors use.
+                let var_offsets = if has_text_field { variable_anchor_offsets(layout, &lctx_f) } else { None };
+                let mut by_justify: Vec<(String, (TextPart, [f64; 4], (TextExtents, f64)))> = Vec::new();
+                if let Some(vo) = &var_offsets {
+                    let tj = string(layout, "text-justify", &lctx_f, "center");
+                    for (a, _) in vo {
+                        let j = if tj == "auto" { anchor_justification(a).to_owned() } else { tj.clone() };
+                        if by_justify.iter().any(|(k, _)| *k == j) {
+                            continue;
+                        }
+                        if let Some(t) = build_text(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio, Some(&j)) {
+                            by_justify.push((j, t));
+                        }
+                    }
+                }
+                let text = if var_offsets.is_some() {
+                    by_justify.first().map(|(_, t)| t.clone())
+                } else if has_text_field {
+                    build_text(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio, None)
+                } else {
+                    None
+                };
                 let icon = if has_icon_image {
                     build_icon(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio, text.as_ref().map(|t| t.2))
                 } else {
@@ -1855,9 +1893,39 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
                         let (cx, cy) = (px + t.0 + VIEWPORT_PADDING, py + t.1 + VIEWPORT_PADDING);
                         [cx + b[0] * r, cy + b[1] * r, cx + b[2] * r, cy + b[3] * r]
                     };
+                    // calculateVariableLayoutShift / RenderShift per anchor.
+                    let mut variants = Vec::new();
+                    if let (Some(vo), Some(base)) = (&var_offsets, &text) {
+                        let b = base.1;
+                        let (w, h) = (b[2] - b[0], b[3] - b[1]);
+                        let box_scale = tile_pixel_ratio * (base.2).1;
+                        let fit = super::expr::layout_enum(layout, "icon-text-fit", tile_zoom).is_some_and(|m| m != "none");
+                        for (a, (ox, oy)) in vo {
+                            let tj = string(layout, "text-justify", &lctx_f, "center");
+                            let j = if tj == "auto" { anchor_justification(a).to_owned() } else { tj };
+                            let Some((_, part)) = by_justify.iter().find(|(k, _)| *k == j) else { continue };
+                            let (ha, va) = anchor_alignment(a);
+                            let shift_tile = (-(ha - 0.5) * w + ox * box_scale, -(va - 0.5) * h + oy * box_scale);
+                            let fs = part.0.size / ONE_EM;
+                            let shift_px = ((-(ha - 0.5) * w / box_scale + ox) * fs, (-(va - 0.5) * h / box_scale + oy) * fs);
+                            let sb = [b[0] + shift_tile.0, b[1] + shift_tile.1, b[2] + shift_tile.0, b[3] + shift_tile.1];
+                            let mut tp = part.0.clone();
+                            tp.shift = shift_px;
+                            let icon_v = if fit {
+                                icon.as_ref().map(|i| {
+                                    let ib = [i.1[0] + shift_tile.0, i.1[1] + shift_tile.1, i.1[2] + shift_tile.0, i.1[3] + shift_tile.1];
+                                    (proj(ib, itr), shift_px)
+                                })
+                            } else {
+                                None
+                            };
+                            variants.push((proj(sb, ttr), tp, icon_v));
+                        }
+                    }
                     instances.push(Instance {
                         tile_idx: ti,
                         sort_key: key,
+                        variants,
                         text_line: None,
                         text_box: text.as_ref().map(|t| proj(t.1, ttr)),
                         icon_box: icon.as_ref().map(|i| proj(i.1, itr)),
@@ -1886,7 +1954,34 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
                 inside && (always || !hit_box(items, b, grid_w, grid_h))
             };
             let mut circles: Vec<(f64, f64, f64)> = Vec::new();
+            // Variable anchors: the first anchor whose shifted box fits (a
+            // second round allowing overlap with text-allow-overlap).
+            let mut variant_placed: Option<bool> = None;
+            if !inst.variants.is_empty() {
+                let n = inst.variants.len();
+                let attempts = if text_always { 2 * n } else { n };
+                let mut chosen = None;
+                for i in 0..attempts {
+                    let (b, _, iv) = &inst.variants[i % n];
+                    let allow = i >= n;
+                    let icon_ok = iv.as_ref().map_or(true, |(ib, _)| placeable(ib, icon_always, &items));
+                    if placeable(b, allow, &items) && icon_ok {
+                        chosen = Some(i % n);
+                        break;
+                    }
+                }
+                let k = chosen.unwrap_or(0);
+                let (b, tp, iv) = inst.variants[k].clone();
+                inst.text_box = Some(b);
+                inst.label.text = Some(tp);
+                if let (Some((ib, sh)), Some(ic)) = (iv, inst.label.icon.as_mut()) {
+                    inst.icon_box = Some(ib);
+                    ic.shift = sh;
+                }
+                variant_placed = Some(chosen.is_some());
+            }
             let mut place_text = match (&inst.text_box, &inst.text_line) {
+                (Some(_), _) if variant_placed.is_some() => variant_placed.unwrap(),
                 (Some(b), _) => placeable(b, text_always, &items),
                 (None, Some(tc)) => {
                     let (c, collided) = match &tc.path {
@@ -1944,17 +2039,109 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
     Placement { labels: placed }
 }
 
-fn radial_offset(anchor: &str, r: f64) -> (f64, f64) {
-    // evaluateVariableOffset for a radial offset (no explicit y).
-    let hypot = r / std::f64::consts::SQRT_2;
+/// A label offset for evaluateVariableOffset: radial, or an explicit
+/// text-offset (in 24 px glyph units).
+#[derive(Clone, Copy)]
+enum VarOffset {
+    Radial(f64),
+    Xy(f64, f64),
+}
+
+/// evaluateVariableOffset: the offset (24 px glyph units) of a label placed
+/// at `anchor`, including MapLibre's 7-unit baseline adjustment for top and
+/// bottom anchors.
+fn variable_offset(anchor: &str, off: VarOffset) -> (f64, f64) {
+    match off {
+        VarOffset::Xy(x, y) => {
+            let (x, y) = (x.abs(), y.abs());
+            let oy = match anchor {
+                "top-right" | "top-left" | "top" => y - 7.0,
+                "bottom-right" | "bottom-left" | "bottom" => 7.0 - y,
+                _ => 0.0,
+            };
+            let ox = match anchor {
+                "top-right" | "bottom-right" | "right" => -x,
+                "top-left" | "bottom-left" | "left" => x,
+                _ => 0.0,
+            };
+            (ox, oy)
+        }
+        VarOffset::Radial(r) => {
+            let r = r.max(0.0);
+            let h = r / std::f64::consts::SQRT_2;
+            let oy = match anchor {
+                "top-right" | "top-left" => h - 7.0,
+                "bottom-right" | "bottom-left" => 7.0 - h,
+                "bottom" => 7.0 - r,
+                "top" => r - 7.0,
+                _ => 0.0,
+            };
+            let ox = match anchor {
+                "top-right" | "bottom-right" => -h,
+                "top-left" | "bottom-left" => h,
+                "left" => r,
+                "right" => -r,
+                _ => 0.0,
+            };
+            (ox, oy)
+        }
+    }
+}
+
+/// getTextVariableAnchorOffset: the anchors a label tries, in order, with
+/// their offsets (24 px glyph units), from text-variable-anchor-offset or
+/// text-variable-anchor (+ text-radial-offset / text-offset). None when the
+/// layer has neither.
+fn variable_anchor_offsets(layout: &Json, ctx: &Ctx) -> Option<Vec<(String, (f64, f64))>> {
+    // Plain arrays start with an anchor name, which the expression evaluator
+    // would take for an operator: read those literally.
+    const ANCHORS: [&str; 9] = ["center", "left", "right", "top", "bottom", "top-left", "top-right", "bottom-left", "bottom-right"];
+    let literal = |j: &Json| j.as_array().and_then(|a| a.first()).and_then(|f| f.as_str()).is_some_and(|f| ANCHORS.contains(&f));
+    let eval = |j: &Json| if literal(j) { Val::from_json(j) } else { eval_property(j, Kind::Array, ctx) };
+    if let Some(j) = layout.get("text-variable-anchor-offset").filter(|j| !j.is_null()) {
+        let v = eval(j);
+        let items = match v {
+            Val::Array(a) => a,
+            _ => return None,
+        };
+        let mut out = Vec::new();
+        for pair in items.chunks(2) {
+            let (Some(Val::Str(a)), Some(o)) = (pair.first(), pair.get(1)) else { continue };
+            let o = o.as_num_array().unwrap_or_default();
+            let (mut x, mut y) = (o.first().copied().unwrap_or(0.0) * ONE_EM, o.get(1).copied().unwrap_or(0.0) * ONE_EM);
+            if a.starts_with("top") {
+                y -= 7.0;
+            } else if a.starts_with("bottom") {
+                y += 7.0;
+            }
+            out.push((a.clone(), (x, y)));
+        }
+        return (!out.is_empty()).then_some(out);
+    }
+    let anchors = layout.get("text-variable-anchor").filter(|j| !j.is_null())?;
+    let anchors: Vec<String> = match eval(anchors) {
+        Val::Array(a) => a.into_iter().filter_map(|v| if let Val::Str(s) = v { Some(s) } else { None }).collect(),
+        _ => return None,
+    };
+    let off = if layout.get("text-radial-offset").is_some_and(|j| !j.is_null()) {
+        VarOffset::Radial(num(layout, "text-radial-offset", ctx, 0.0) * ONE_EM)
+    } else {
+        let o = num_pair(layout, "text-offset", ctx);
+        VarOffset::Xy(o.0 * ONE_EM, o.1 * ONE_EM)
+    };
+    let out: Vec<(String, (f64, f64))> = anchors.into_iter().map(|a| {
+        let o = variable_offset(&a, off);
+        (a, o)
+    }).collect();
+    (!out.is_empty()).then_some(out)
+}
+
+/// getAnchorJustification.
+fn anchor_justification(anchor: &str) -> &'static str {
     match anchor {
-        "top-right" | "top-left" => (if anchor.ends_with("left") { hypot } else { -hypot }, hypot),
-        "bottom-right" | "bottom-left" => (if anchor.ends_with("left") { hypot } else { -hypot }, -hypot),
-        "bottom" => (0.0, -r),
-        "top" => (0.0, r),
-        "right" => (-r, 0.0),
-        "left" => (r, 0.0),
-        _ => (0.0, 0.0),
+        "right" | "top-right" | "bottom-right" => "right",
+        "left" | "top-left" | "bottom-left" => "left",
+        _ => "center",
     }
 }
 
@@ -2005,7 +2192,8 @@ pub fn draw_layer(
                 for &(is_halo, is_plain) in passes {
                     for l in group {
                         if let Some(t) = &l.text {
-                            draw_text(fb, l.anchor_px, t, &assets.glyphs, is_halo, is_plain, &full, dpr, css);
+                            let a = (l.anchor_px.0 + t.shift.0, l.anchor_px.1 + t.shift.1);
+                            draw_text(fb, a, t, &assets.glyphs, is_halo, is_plain, &full, dpr, css);
                         }
                     }
                 }
@@ -2015,7 +2203,8 @@ pub fn draw_layer(
                 for &(is_halo, is_plain) in icon_passes {
                     for l in group {
                         if let Some(ic) = &l.icon {
-                            draw_icon(fb, l.anchor_px, ic, &assets.sprite, is_halo, is_plain, &full, dpr, css);
+                            let a = (l.anchor_px.0 + ic.shift.0, l.anchor_px.1 + ic.shift.1);
+                            draw_icon(fb, a, ic, &assets.sprite, is_halo, is_plain, &full, dpr, css);
                         }
                     }
                 }
@@ -2333,7 +2522,7 @@ pub fn svg_layer(
                     continue;
                 }
                 let Some(img) = assets.sprite.images.get(&ic.image) else { continue };
-                let Some(pos) = along_positions(ic.along.as_ref(), l.anchor_px, 1, w, h) else { continue };
+                let Some(pos) = along_positions(ic.along.as_ref(), (l.anchor_px.0 + ic.shift.0, l.anchor_px.1 + ic.shift.1), 1, w, h) else { continue };
                 let (cw, ch) = (img.w + 2, img.h + 2);
                 let multi = ic.quads.len() > 1;
                 for (qi, iq) in ic.quads.iter().enumerate() {
@@ -2409,7 +2598,7 @@ pub fn svg_layer(
                 }
                 let Some(gmap) = assets.glyphs.stacks.get(&t.fontstack) else { continue };
                 let fs = t.size / 24.0;
-                let Some(pos) = along_positions(t.along.as_ref(), l.anchor_px, t.quads.len(), w, h) else { continue };
+                let Some(pos) = along_positions(t.along.as_ref(), (l.anchor_px.0 + t.shift.0, l.anchor_px.1 + t.shift.1), t.quads.len(), w, h) else { continue };
                 let shift = *shifts.entry(t.fontstack.clone()).or_insert_with(|| {
                     let tops: Vec<(u32, f64)> = gmap.iter().filter(|(_, g)| g.height > 0.0).map(|(cp, g)| (*cp, g.top)).collect();
                     fonts.baseline_shift(&t.fontstack, &tops)
@@ -2485,7 +2674,7 @@ pub fn svg_layer(
                 }
                 let Some(gmap) = assets.glyphs.stacks.get(&t.fontstack) else { continue };
                 let fs = t.size / 24.0;
-                let Some(pos) = along_positions(t.along.as_ref(), l.anchor_px, t.quads.len(), w, h) else { continue };
+                let Some(pos) = along_positions(t.along.as_ref(), (l.anchor_px.0 + t.shift.0, l.anchor_px.1 + t.shift.1), t.quads.len(), w, h) else { continue };
                 for (qi, q) in t.quads.iter().enumerate() {
                     let Some(g) = gmap.get(&q.codepoint) else { continue };
                     let sq = quad_screen(&q.corners, pos[qi].0, pos[qi].1, fs);
