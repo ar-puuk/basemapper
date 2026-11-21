@@ -105,7 +105,9 @@ pixels are 1/96 in), so map symbols keep their physical size and a 300 dpi
 figure gets a basemap rendered at 300 dpi. matplotlib's basemap is an artist
 that renders at draw time, so `savefig(dpi=...)` re-renders natively; in R,
 `geom_basemap()` renders at draw time from the device's resolution (300 dpi
-for PDF / SVG devices).
+for PDF / SVG devices), and `tm_basemap()` sizes its raster from the
+estimated map panel (device size, margins, facets) at that resolution, so
+`ggsave(dpi = 300)` and `tmap_save(dpi = 300)` both get native basemaps.
 
 ## SVG output
 

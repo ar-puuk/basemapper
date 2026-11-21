@@ -11,7 +11,7 @@ tm_basemap(
   layers = NULL,
   width_px = NULL,
   height_px = NULL,
-  ratio = 1,
+  ratio = NULL,
   ...
 )
 }
@@ -25,12 +25,14 @@ string, or a vector / list of styles stacked bottom to top.}
 
 \item{layers}{Character vector of layer IDs to filter. See \code{render_basemap_raw()}.}
 
-\item{width_px, height_px}{View size in CSS pixels (sets the zoom).
-Defaults to 800×600 when \code{NULL}.}
+\item{width_px, height_px}{View size in CSS pixels (sets the zoom). By
+default the map panel's size is estimated from the device size, margins
+and facet layout, at 96 CSS px per inch.}
 
 \item{ratio}{Device pixels per CSS pixel: the basemap raster is
 \code{width_px * ratio} by \code{height_px * ratio} pixels with the same zoom and
-label layout. Use e.g. \code{ratio = 300 / 96} for print.}
+label layout. Default: device dpi / 96 (300 dpi for PDF / SVG devices),
+so \code{tmap_save(dpi = 300)} gets a basemap rendered at 300 dpi.}
 
 \item{...}{Reserved for future use.}
 }

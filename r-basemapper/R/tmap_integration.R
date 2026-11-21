@@ -9,11 +9,13 @@
 #' @param zoom Integer zoom level (0–22), or `NULL` for automatic.
 #' @param alpha Numeric opacity (0–1).
 #' @param layers Character vector of layer IDs to filter. See `render_basemap_raw()`.
-#' @param width_px,height_px View size in CSS pixels (sets the zoom).
-#'   Defaults to 800×600 when `NULL`.
+#' @param width_px,height_px View size in CSS pixels (sets the zoom). By
+#'   default the map panel's size is estimated from the device size, margins
+#'   and facet layout, at 96 CSS px per inch.
 #' @param ratio Device pixels per CSS pixel: the basemap raster is
 #'   `width_px * ratio` by `height_px * ratio` pixels with the same zoom and
-#'   label layout. Use e.g. `ratio = 300 / 96` for print.
+#'   label layout. Default: device dpi / 96 (300 dpi for PDF / SVG devices),
+#'   so `tmap_save(dpi = 300)` gets a basemap rendered at 300 dpi.
 #' @param ... Reserved for future use.
 #'
 #' @return A composable tmap element (class `"tmap"`). Put it before `tm_shape()`
@@ -36,7 +38,7 @@ tm_basemap <- function(
     layers    = NULL,
     width_px  = NULL,
     height_px = NULL,
-    ratio     = 1,
+    ratio     = NULL,
     ...
 ) {
   if (!requireNamespace("tmap", quietly = TRUE)) stop("Package 'tmap' is required.")
@@ -76,13 +78,16 @@ tmapGridAuxPrepare.tm_basemap_rust <- function(a, bs, id, o) {
   isproj      <- !sf::st_is_longlat(crs)
   crs_is_3857 <- isTRUE(crs == sf::st_crs("EPSG:3857"))
 
-  w <- as.integer(a$width_px  %||% 800L)
-  h <- as.integer(a$height_px %||% 600L)
+  dpi <- device_dpi()
+  ratio <- as.numeric(a$ratio %||% (dpi / 96))
 
   xs <- lapply(bs, function(b) {
     b_3857 <- sf::st_bbox(sf::st_transform(sf::st_as_sfc(b), crs = "EPSG:3857"))
 
-    ratio <- as.numeric(a$ratio %||% 1)
+    # CSS size: given, or the estimated panel size at the device resolution.
+    panel_in <- tmap_panel_inches(o, b_3857)
+    w <- as.integer(a$width_px  %||% max(1L, round(panel_in[1] * dpi / ratio)))
+    h <- as.integer(a$height_px %||% max(1L, round(panel_in[2] * dpi / ratio)))
     m <- tryCatch(
       pixels_to_array(render_styles_3857(
         unname(c(b_3857["xmin"], b_3857["ymin"], b_3857["xmax"], b_3857["ymax"])),
@@ -208,3 +213,19 @@ tmapLeafletAuxPlot.tm_basemap_rust <- function(a, bi, bbx, facet_row, facet_col,
                                                facet_page, id, pane, group, o) {
   invisible(NULL)
 }
+
+# Estimated size (inches) of one map panel: the device size minus tmap's
+# outer margins, split over the facet grid, fitted to the bbox's aspect.
+tmap_panel_inches <- function(o, b_3857) {
+  dev <- o$devsize %||% tryCatch(grDevices::dev.size("in"), error = function(e) c(7, 7))
+  om  <- o$outer.margins %||% rep(0.02, 4)   # bottom, left, top, right
+  if (length(om) != 4L || anyNA(om)) om <- rep(0.02, 4)
+  w <- dev[1] * (1 - om[2] - om[4]) / (o$ncols %||% 1)
+  h <- dev[2] * (1 - om[1] - om[3]) / (o$nrows %||% 1)
+  asp <- unname((b_3857["xmax"] - b_3857["xmin"]) / (b_3857["ymax"] - b_3857["ymin"]))
+  if (is.finite(asp) && asp > 0) {
+    if (w / h > asp) w <- h * asp else h <- w / asp
+  }
+  c(max(w, 0.1), max(h, 0.1))
+}
+
