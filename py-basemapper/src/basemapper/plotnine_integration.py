@@ -34,6 +34,9 @@ class geom_basemap(geom):
     REQUIRED_AES: set = set()
     DEFAULT_AES = aes()
     NON_MISSING_AES: set = set()
+    # plotnine >= 0.15 reads stat/position from DEFAULT_PARAMS (the base class
+    # no longer supplies them).
+    DEFAULT_PARAMS = {"stat": "identity", "position": "identity", "na_rm": False}
     GROUP = -1
 
     def __init__(

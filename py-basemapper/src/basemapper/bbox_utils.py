@@ -47,10 +47,10 @@ def detect_crs_from_axes(ax: "matplotlib.axes.Axes") -> "pyproj.CRS":
             pass
 
     raise ValidationError(
-        "Could not detect a geographic CRS from the axes. "
-        "Use a cartopy-projected axes (e.g. via GeoAxes) or a GeoDataFrame plot "
-        "so that the axes carries projection metadata. "
-        "Alternatively, pass bbox= and crs= explicitly to avoid CRS auto-detection."
+        "Could not detect a CRS from the axes: plain matplotlib axes and "
+        "GeoDataFrame plots carry none. Pass it explicitly, e.g. "
+        "add_basemap(ax, style, crs=gdf.crs) or crs=\"EPSG:4326\", "
+        "or plot on cartopy GeoAxes."
     )
 
 

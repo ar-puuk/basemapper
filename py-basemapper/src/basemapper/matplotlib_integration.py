@@ -22,6 +22,7 @@ def add_basemap(
     max_tiles: int = 256,
     alpha: float = 1.0,
     layers: Optional[List[str]] = None,
+    crs: Optional[object] = None,
 ) -> "xr.DataArray":
     """Render a basemap and composite it beneath existing axes content.
 
@@ -38,6 +39,10 @@ def add_basemap(
         alpha: Opacity of the basemap layer (0.0–1.0).
         layers: Optional layer filter. Plain IDs keep only those layers;
                 minus-prefixed IDs exclude those layers.
+        crs: CRS of the axes data coordinates (anything ``pyproj.CRS``
+            accepts, e.g. ``"EPSG:4326"``, ``gdf.crs``). Required for plain
+            matplotlib axes and GeoDataFrame plots, whose axes carry no CRS;
+            detected automatically for cartopy axes when omitted.
 
     Returns:
         xarray.DataArray of shape (height, width, 4) with spatial bounds and
@@ -54,7 +59,12 @@ def add_basemap(
 
     from . import render_basemap_raw  # imported here to avoid circular import
 
-    crs = detect_crs_from_axes(ax)
+    if crs is not None:
+        import pyproj
+
+        crs = pyproj.CRS.from_user_input(crs)
+    else:
+        crs = detect_crs_from_axes(ax)
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
     width_px, height_px = get_axes_pixel_dims(ax)
