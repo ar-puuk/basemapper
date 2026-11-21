@@ -12,11 +12,6 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  # Vector golden cases need a GPU adapter for the current maplibre-rs/wgpu
-  # renderer, which hosted runners do not reliably provide. They run locally
-  # until the CPU vector renderer replaces it; raster golden cases and all
-  # other tests run here.
-  BASEMAPPER_NO_GPU: "1"
 
 jobs:
   rust:
@@ -46,7 +41,7 @@ jobs:
       - name: Build workspace
         run: cargo build --workspace --all-targets
 
-      - name: Test core (unit, integration, golden images)
+      - name: Test core (unit, integration, golden images vs MapLibre GL JS)
         run: cargo test -p basemapper-core
 
       - name: Upload golden-image diffs

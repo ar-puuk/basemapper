@@ -1,25 +1,24 @@
-//! Golden-image render tests.
+//! Golden-image render tests: basemapper vs MapLibre GL JS.
 //!
 //! Each directory under `tests/fixtures/golden/` holds an offline fixture
 //! captured by `examples/capture_fixture.rs`:
 //!
 //! - `case.json`    bbox / width / height / zoom / optional layer filter
-//!                  (`fixture_from` reuses another case's style + tiles)
+//!                  (`fixture_from` reuses another case's style + tiles), and
+//!                  the case's fidelity limits `max_bad_pixel_frac` /
+//!                  `max_mean_diff`
 //! - `style.json`   style whose tile source points at `{{BASE}}/{z}/{x}/{y}`
 //! - `tiles/z/x/y`  raw tile bytes
-//! - `expected.png` regression snapshot from basemapper's current renderer
-//!   (pass/fail)
-//! - `reference-maplibre-gl.png` MapLibre GL JS render of the same view, from
-//!   `tools/reference-render` (fidelity score, reported only)
+//! - `reference-maplibre-gl.png`  MapLibre GL JS render of the same view, from
+//!   `tools/reference-render`. This is the target.
 //!
 //! The tiles are served from a local mock server, so the test never touches the
-//! network. The render must match `expected.png` within the case's tolerance.
+//! network. A case fails if basemapper's render differs from the MapLibre
+//! reference by more than its limits. The limits are a ratchet: when a change
+//! improves fidelity, lower them in `case.json` (the test prints a hint) so the
+//! gain can't silently regress. The goal is 0.
 //!
-//! Environment variables:
-//! - `BASEMAPPER_BLESS=1`   (re)write `expected.png` from the current renderer
-//! - `BASEMAPPER_NO_GPU=1`  skip vector cases (for machines without a GPU adapter)
-//!
-//! On a mismatch, `actual.png` and `diff.png` are written to
+//! `actual.png` and `diff.png` (differing pixels in red) are always written to
 //! `target/golden-output/<case>/` for inspection.
 
 use basemapper_core::{render, RenderRequest, StyleInput};
@@ -30,15 +29,12 @@ use std::path::{Path, PathBuf};
 
 /// A channel difference above this counts the pixel as "bad".
 const BAD_CHANNEL_DIFF: u8 = 24;
-const DEFAULT_MAX_MEAN_DIFF: f64 = 1.0;
-const DEFAULT_MAX_BAD_FRAC: f64 = 0.005;
+/// Limits when a case does not set its own: exact parity.
+const DEFAULT_MAX_MEAN_DIFF: f64 = 0.0;
+const DEFAULT_MAX_BAD_FRAC: f64 = 0.0;
 
 fn golden_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/golden")
-}
-
-fn env_flag(name: &str) -> bool {
-    std::env::var(name).map(|v| v == "1").unwrap_or(false)
 }
 
 /// Serve every file under `tiles/` at `/{z}/{x}/{y}`.
@@ -93,8 +89,8 @@ fn compare(actual: &RgbaImage, expected: &RgbaImage) -> Diff {
     Diff { mean: total as f64 / (n * 4.0), bad_frac: bad as f64 / n, image }
 }
 
-/// Render one case; returns an error message on mismatch, `None` if skipped.
-fn run_case(dir: &Path) -> Result<Option<String>, String> {
+/// Render one case; returns an error message on mismatch.
+fn run_case(dir: &Path) -> Result<String, String> {
     let name = dir.file_name().unwrap().to_string_lossy().into_owned();
     let case: Value =
         serde_json::from_str(&std::fs::read_to_string(dir.join("case.json")).unwrap()).unwrap();
@@ -104,16 +100,6 @@ fn run_case(dir: &Path) -> Result<Option<String>, String> {
         None => dir.to_path_buf(),
     };
     let style_template = std::fs::read_to_string(fixture_dir.join("style.json")).unwrap();
-    let style_val: Value = serde_json::from_str(&style_template).unwrap();
-    let is_vector = style_val["sources"]
-        .as_object()
-        .unwrap()
-        .values()
-        .any(|s| s["type"] == "vector");
-    if is_vector && env_flag("BASEMAPPER_NO_GPU") {
-        return Ok(None);
-    }
-
     let server = Server::run();
     serve_tiles(&server, &fixture_dir.join("tiles"));
     let base = server.url_str("");
@@ -144,53 +130,50 @@ fn run_case(dir: &Path) -> Result<Option<String>, String> {
     let actual = RgbaImage::from_raw(result.width, result.height, result.pixels)
         .ok_or_else(|| format!("{name}: pixel buffer size mismatch"))?;
 
-    let expected_path = dir.join("expected.png");
-    if env_flag("BASEMAPPER_BLESS") {
-        actual.save(&expected_path).unwrap();
-        return Ok(Some(format!("{name}: blessed {}", expected_path.display())));
-    }
-    let expected = image::open(&expected_path)
+    let reference_path = dir.join("reference-maplibre-gl.png");
+    let reference = image::open(&reference_path)
         .map_err(|e| {
-            format!("{name}: cannot read {} ({e}); run with BASEMAPPER_BLESS=1", expected_path.display())
+            format!(
+                "{name}: cannot read {} ({e}); render it with tools/reference-render",
+                reference_path.display()
+            )
         })?
         .to_rgba8();
-    if expected.dimensions() != actual.dimensions() {
+    if reference.dimensions() != actual.dimensions() {
         return Err(format!(
-            "{name}: size {:?} != expected {:?}",
+            "{name}: size {:?} != reference {:?}",
             actual.dimensions(),
-            expected.dimensions()
+            reference.dimensions()
         ));
     }
 
-    // Informational: fidelity against the MapLibre GL JS reference (rendered by
-    // tools/reference-render). Not a pass/fail criterion yet.
-    let fidelity = match image::open(dir.join("reference-maplibre-gl.png")).map(|r| r.to_rgba8()) {
-        Ok(r) if r.dimensions() == actual.dimensions() => {
-            let d = compare(&actual, &r);
-            format!(" | vs MapLibre GL: mean diff {:.2}, bad pixels {:.1}%", d.mean, d.bad_frac * 100.0)
-        }
-        _ => String::new(),
-    };
+    let diff = compare(&actual, &reference);
+    let out = Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/golden-output").join(&name);
+    std::fs::create_dir_all(&out).unwrap();
+    actual.save(out.join("actual.png")).unwrap();
+    diff.image.save(out.join("diff.png")).unwrap();
 
-    let diff = compare(&actual, &expected);
     let max_mean = case["max_mean_diff"].as_f64().unwrap_or(DEFAULT_MAX_MEAN_DIFF);
     let max_bad = case["max_bad_pixel_frac"].as_f64().unwrap_or(DEFAULT_MAX_BAD_FRAC);
     let summary = format!(
-        "{name}: mean diff {:.3} (max {max_mean}), bad pixels {:.3}% (max {:.3}%)",
-        diff.mean,
+        "{name}: vs MapLibre GL: bad pixels {:.3}% (limit {:.3}%), mean diff {:.3} (limit {max_mean})",
         diff.bad_frac * 100.0,
-        max_bad * 100.0
-    ) + &fidelity;
-    if diff.mean > max_mean || diff.bad_frac > max_bad {
-        let out = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../target/golden-output")
-            .join(&name);
-        std::fs::create_dir_all(&out).unwrap();
-        actual.save(out.join("actual.png")).unwrap();
-        diff.image.save(out.join("diff.png")).unwrap();
+        max_bad * 100.0,
+        diff.mean,
+    );
+    if diff.mean > max_mean + 1e-9 || diff.bad_frac > max_bad + 1e-9 {
         return Err(format!("{summary} — see {}", out.display()));
     }
-    Ok(Some(summary))
+    let hint = if diff.bad_frac < max_bad * 0.9 || diff.mean < max_mean * 0.9 {
+        format!(
+            "  [ratchet: tighten to max_bad_pixel_frac {:.5}, max_mean_diff {:.3}]",
+            diff.bad_frac + 0.00005,
+            diff.mean + 0.005
+        )
+    } else {
+        String::new()
+    };
+    Ok(summary + &hint)
 }
 
 #[test]
@@ -206,8 +189,7 @@ fn golden_images() {
     let mut failures = Vec::new();
     for dir in &cases {
         match run_case(dir) {
-            Ok(Some(msg)) => println!("ok   {msg}"),
-            Ok(None) => println!("skip {} (BASEMAPPER_NO_GPU)", dir.display()),
+            Ok(msg) => println!("ok   {msg}"),
             Err(msg) => failures.push(msg),
         }
     }

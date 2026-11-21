@@ -66,6 +66,10 @@ async function renderCase(browser, name) {
     'http://fixture.local',
   );
   const style = filterLayers(JSON.parse(styleText), kase.layers);
+  // Diagnostic: NO_SYMBOLS=1 renders without symbol (label/icon) layers to
+  // reference-maplibre-gl-nosymbols.png, isolating geometry differences.
+  const noSymbols = process.env.NO_SYMBOLS === '1';
+  if (noSymbols) style.layers = style.layers.filter((l) => l.type !== 'symbol');
   const { center, zoom } = camera(kase.bbox, kase.width, kase.height);
 
   const page = await browser.newPage({
@@ -111,7 +115,9 @@ async function renderCase(browser, name) {
           interactive: false,
           attributionControl: false,
           fadeDuration: 0,
-          canvasContextAttributes: { preserveDrawingBuffer: true, antialias: true },
+          // MapLibre defaults (no MSAA); preserveDrawingBuffer only so the
+          // canvas can be read back.
+          canvasContextAttributes: { preserveDrawingBuffer: true },
         });
         map.on('error', (e) => console.error(String(e.error?.message ?? e.error)));
         map.once('idle', () => {
@@ -128,7 +134,7 @@ async function renderCase(browser, name) {
   );
   await page.close();
 
-  const out = join(dir, 'reference-maplibre-gl.png');
+  const out = join(dir, noSymbols ? 'reference-maplibre-gl-nosymbols.png' : 'reference-maplibre-gl.png');
   writeFileSync(out, Buffer.from(dataUrl.split(',')[1], 'base64'));
   console.log(`ok   ${name}: zoom ${zoom.toFixed(3)}, ${missing} tile requests outside fixture -> ${out}`);
 }

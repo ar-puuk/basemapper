@@ -15,5 +15,7 @@
   "source_style": "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services/LiteBase/VectorTileServer/resources/styles/root.json",
   "width": 800,
   "zoom": 14,
-  "fixture_from": "ugrc_litebase_slc"
+  "fixture_from": "ugrc_litebase_slc",
+  "max_bad_pixel_frac": 0.00535,
+  "max_mean_diff": 0.3
 }

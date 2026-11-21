@@ -3,6 +3,7 @@ pub mod error;
 pub mod renderer;
 pub mod style;
 pub mod tile_fetcher;
+pub mod vector;
 
 pub use bbox::{compute_zoom, RenderRequest, RenderResult, SpatialBounds};
 pub use error::BasemapError;
@@ -132,7 +133,49 @@ async fn render_single_bbox(
         crs_epsg: 3857,
     };
 
-    // Vector tiles: render via maplibre-rs.
+    // Vector tiles: in-house CPU renderer (default) or the legacy maplibre-rs
+    // engine (BASEMAPPER_VECTOR_ENGINE=maplibre) while it is being retired.
+    let legacy_engine = std::env::var("BASEMAPPER_VECTOR_ENGINE").as_deref() == Ok("maplibre");
+    if matches!(tile_source, TileSource::MapboxVectorTile { .. }) && !legacy_engine {
+        // MapLibre convention: style evaluated at the true scale zoom; vector
+        // tiles (512 px) fetched at floor(scale zoom), clamped to the source
+        // maxzoom. An explicit request zoom is on the 256 px raster grid, which
+        // is one level above the equivalent 512 px tile zoom.
+        let sz = vector::render::scale_zoom(bbox, width);
+        let tz = match request.zoom {
+            Some(z) => z.saturating_sub(1),
+            None => vector::render::tile_zoom(sz, None),
+        };
+        let tz = tile_source.maxzoom().map_or(tz, |m| tz.min(m));
+        let coords = tile_fetcher::build_tile_coords(bbox, tz);
+        let urls = tile_fetcher::build_tile_urls(tile_source, &coords);
+        let tiles = tile_fetcher::fetch_all_tiles(
+            client,
+            urls,
+            tile_source,
+            request.tile_timeout_ms,
+            request.tile_concurrency,
+            request.fail_on_tile_error,
+        )
+        .await?;
+        let style_val: serde_json::Value = serde_json::from_str(style_json)
+            .map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
+        let out = vector::render::render(&style_val, &tiles, bbox, width, height)
+            .map_err(BasemapError::RenderError)?;
+        if !out.skipped_layer_types.is_empty() {
+            log::warn!(
+                "vector renderer does not draw these layer types yet: {}",
+                out.skipped_layer_types.join(", ")
+            );
+        }
+        return Ok(RenderResult {
+            bounds,
+            zoom_used: tz.saturating_add(1),
+            width,
+            height,
+            pixels: out.pixels,
+        });
+    }
     if let TileSource::MapboxVectorTile { ref url_template, .. } = tile_source {
         let pixels = renderer::render_vector_tiles(
             client,
