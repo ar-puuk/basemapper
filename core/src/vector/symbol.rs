@@ -267,7 +267,7 @@ pub fn required_glyph_ranges<'a>(
         if layer["type"] != "symbol" || layer["layout"].get("text-field").is_none() || !layer_visible(layer, zoom) {
             continue;
         }
-        let Some(sl) = layer["source-layer"].as_str() else { continue };
+        let sl = super::mvt::source_layer(layer);
         for t in tiles.clone() {
             let Some(l) = t.layers.get(sl) else { continue };
             for f in &l.features {
@@ -1567,7 +1567,7 @@ fn line_instances(
     let placement_s = super::expr::layout_enum(layout, "symbol-placement", tile_zoom_of(st)).unwrap_or_else(|| "point".into());
     let placement = placement_s.as_str();
     let mut out = Vec::new();
-    let Some(src) = layer["source-layer"].as_str().and_then(|sl| st.tile.layers.get(sl)) else { return out };
+    let Some(src) = st.tile.layers.get(super::mvt::source_layer(layer)) else { return out };
     let scale = EXTENT / src.extent as f64;
     let tile_zoom = st.coord.0 as f64 + st.overscaling.log2();
     let tile_pixel_ratio = EXTENT / (512.0 * st.overscaling);
@@ -1772,7 +1772,7 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
             continue;
         }
         let placement = super::expr::layout_enum(layout, "symbol-placement", zoom.floor()).unwrap_or_else(|| "point".into());
-        let Some(sl) = layer["source-layer"].as_str() else { continue };
+        let sl = super::mvt::source_layer(layer);
         let paint = &layer["paint"];
         let sort_key_j = layout.get("symbol-sort-key");
         let sort_by_key = super::expr::layout_enum(layout, "symbol-z-order", zoom.floor()).as_deref() != Some("viewport-y")

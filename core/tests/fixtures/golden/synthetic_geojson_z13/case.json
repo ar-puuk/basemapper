@@ -1,0 +1,20 @@
+{
+  "note": "Synthetic GeoJSON source (URL data): polygon with hole, multipolygon, 1500-vertex line, points, geometry collection; data-driven paint, id filter, line offset, dashes, point and line labels; over CARTO Positron z13.",
+  "tiles_from": "carto_positron_z13",
+  "fonts_from": "carto_positron_z4",
+  "bbox": [
+    -12459251.85141426,
+    4963454.111439306,
+    -12451608.14858574,
+    4969186.888560694
+  ],
+  "width": 800,
+  "height": 600,
+  "zoom": 14,
+  "attribution": "Synthetic GeoJSON; \u00a9 OpenStreetMap contributors, \u00a9 CARTO",
+  "svg": true,
+  "max_bad_pixel_frac": 0.00014,
+  "max_mean_diff": 0.084,
+  "max_bad_pixel_frac_svg": 0.00461,
+  "max_mean_diff_svg": 0.859
+}

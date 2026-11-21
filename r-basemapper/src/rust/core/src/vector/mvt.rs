@@ -10,55 +10,64 @@ use std::collections::HashMap;
 // ── Protobuf schema (vector_tile.proto, MVT 2.1) ─────────────────────────────
 
 #[derive(Clone, PartialEq, Message)]
-struct PbTile {
+pub(crate) struct PbTile {
     #[prost(message, repeated, tag = "3")]
-    layers: Vec<PbLayer>,
+    pub(crate) layers: Vec<PbLayer>,
 }
 
 #[derive(Clone, PartialEq, Message)]
-struct PbLayer {
+pub(crate) struct PbLayer {
     #[prost(uint32, required, tag = "15")]
-    version: u32,
+    pub(crate) version: u32,
     #[prost(string, required, tag = "1")]
-    name: String,
+    pub(crate) name: String,
     #[prost(message, repeated, tag = "2")]
-    features: Vec<PbFeature>,
+    pub(crate) features: Vec<PbFeature>,
     #[prost(string, repeated, tag = "3")]
-    keys: Vec<String>,
+    pub(crate) keys: Vec<String>,
     #[prost(message, repeated, tag = "4")]
-    values: Vec<PbValue>,
+    pub(crate) values: Vec<PbValue>,
     #[prost(uint32, optional, tag = "5")]
-    extent: Option<u32>,
+    pub(crate) extent: Option<u32>,
 }
 
 #[derive(Clone, PartialEq, Message)]
-struct PbFeature {
+pub(crate) struct PbFeature {
     #[prost(uint64, optional, tag = "1")]
-    id: Option<u64>,
+    pub(crate) id: Option<u64>,
     #[prost(uint32, repeated, tag = "2")]
-    tags: Vec<u32>,
+    pub(crate) tags: Vec<u32>,
     #[prost(int32, optional, tag = "3")]
-    r#type: Option<i32>,
+    pub(crate) r#type: Option<i32>,
     #[prost(uint32, repeated, tag = "4")]
-    geometry: Vec<u32>,
+    pub(crate) geometry: Vec<u32>,
 }
 
 #[derive(Clone, PartialEq, Message)]
-struct PbValue {
+pub(crate) struct PbValue {
     #[prost(string, optional, tag = "1")]
-    string_value: Option<String>,
+    pub(crate) string_value: Option<String>,
     #[prost(float, optional, tag = "2")]
-    float_value: Option<f32>,
+    pub(crate) float_value: Option<f32>,
     #[prost(double, optional, tag = "3")]
-    double_value: Option<f64>,
+    pub(crate) double_value: Option<f64>,
     #[prost(int64, optional, tag = "4")]
-    int_value: Option<i64>,
+    pub(crate) int_value: Option<i64>,
     #[prost(uint64, optional, tag = "5")]
-    uint_value: Option<u64>,
+    pub(crate) uint_value: Option<u64>,
     #[prost(sint64, optional, tag = "6")]
-    sint_value: Option<i64>,
+    pub(crate) sint_value: Option<i64>,
     #[prost(bool, optional, tag = "7")]
-    bool_value: Option<bool>,
+    pub(crate) bool_value: Option<bool>,
+}
+
+/// Layer name of GeoJSON source tiles (MapLibre's GeoJSONWrapper).
+pub const GEOJSON_LAYER: &str = "_geojsonTileLayer";
+
+/// The tile layer a style layer reads: its `source-layer`, or the GeoJSON
+/// tile layer when it has none (`layer.sourceLayer || '_geojsonTileLayer'`).
+pub fn source_layer(layer: &serde_json::Value) -> &str {
+    layer["source-layer"].as_str().unwrap_or(GEOJSON_LAYER)
 }
 
 // ── Decoded model ────────────────────────────────────────────────────────────

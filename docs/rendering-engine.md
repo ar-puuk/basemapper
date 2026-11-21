@@ -83,10 +83,20 @@ measuring against MapLibre and investigating the difference.
 ### Not supported yet
 
 `line-pattern`, `line-gradient`, `fill-extrusion-pattern`, `heatmap`,
-`hillshade` layers, GeoJSON sources, PMTiles sources inside vector styles,
-vertical
-text, and right-to-left scripts. Unsupported layer types are skipped with a
-warning.
+`hillshade` layers, GeoJSON clustering, PMTiles sources inside vector styles,
+vertical text, and right-to-left scripts. Unsupported layer types are skipped
+with a warning.
+
+### GeoJSON sources
+
+`geojson` sources, with inline `data` or a URL, are tiled in memory by a port
+of geojson-vt with MapLibre's options (`buffer`, `tolerance`, `maxzoom`, extent
+8192): projection, Douglas-Peucker importance, antimeridian wrapping, clipping
+to the tile plus buffer, simplification, ring rewinding and rounding. Tiles
+are encoded as vector tiles with the layer `_geojsonTileLayer`, which style
+layers without a `source-layer` read, so filters, expressions and numeric
+feature ids behave as with vector tiles. `cluster: true` is ignored with a
+warning (features are drawn unclustered).
 
 ### Styles with several sources
 

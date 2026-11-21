@@ -265,7 +265,7 @@ pub fn render(
 /// Features of `layer`'s source-layer in `pt` that pass the layer filter,
 /// with the scale from the layer's extent to MapLibre's 8192 extent.
 fn features<'a>(layer: &'a Json, pt: &'a PlacedTile, zoom: f64) -> impl Iterator<Item = (&'a Feature, f64)> + 'a {
-    let src = layer["source-layer"].as_str().and_then(|sl| pt.tile.layers.get(sl));
+    let src = pt.tile.layers.get(mvt::source_layer(layer));
     let scale = src.map_or(1.0, |l| EXTENT / l.extent as f64);
     let feats = src.map(|l| l.features.as_slice()).unwrap_or(&[]);
     feats.iter().filter_map(move |f| {
@@ -1404,6 +1404,7 @@ fn svg_fill(
     }
 }
 
+
 /// A MapLibre dasharray as an SVG one: (even-length pattern, phase).
 /// MapLibre's line atlas joins an odd array's last dash onto its first
 /// (getDashRanges starts the first dash at -last), so [1, 2, 3] is a dash
@@ -1575,22 +1576,13 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
             let mut dash_attr = String::new();
             if let Some((pattern, phase)) = dash.as_deref().and_then(even_dash_pattern) {
                 // MapLibre dash lengths are multiples of the line width at
-                // floor(zoom); round caps are drawn inside the dash in MapLibre
-                // but extend it in SVG, so shorten dashes by one width.
+                // floor(zoom). Round caps are used as-is: compared against
+                // MapLibre, untrimmed SVG round dashes match best.
                 // The pattern is laid out in pixels at the tile's integer zoom
                 // (tileRatio), so it stretches with the fractional zoom.
                 let fw = floor_width.num(&fctx, lw) * pt.unit_px * EXTENT / (TILE_PX * pt.overscaling);
-                let round = cap == "round";
-                let vals: Vec<String> = pattern
-                    .iter()
-                    .enumerate()
-                    .map(|(k, &v)| {
-                        let base = v * fw;
-                        let adj = if round { if k % 2 == 0 { (base - lw).max(0.01) } else { base + lw } } else { base };
-                        svg::num(adj)
-                    })
-                    .collect();
-                let offset = phase * fw - if round { lw / 2.0 } else { 0.0 };
+                let vals: Vec<String> = pattern.iter().map(|&v| svg::num(v * fw)).collect();
+                let offset = phase * fw;
                 dash_attr = format!(r#" stroke-dasharray="{}""#, vals.join(" "));
                 if offset != 0.0 {
                     dash_attr += &format!(r#" stroke-dashoffset="{}""#, svg::num(offset));

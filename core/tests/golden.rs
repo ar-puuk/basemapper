@@ -83,6 +83,9 @@ fn serve_fixture(server: &Server, dir: &Path, tiles_dir: &Path, fonts_dir: &Path
     if dir.join("sprites").is_dir() {
         walk(server, dir, &dir.join("sprites"));
     }
+    if dir.join("geojson").is_dir() {
+        walk(server, dir, &dir.join("geojson"));
+    }
 }
 
 struct Diff {

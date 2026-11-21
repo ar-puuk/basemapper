@@ -346,6 +346,7 @@ async fn extract_tile_source_from_style(
         .get("sources")
         .and_then(|s| s.as_object())
         .ok_or_else(|| BasemapError::StyleParseError("missing \"sources\" object".into()))?;
+    static GEOJSON_ONLY: Lazy<serde_json::Value> = Lazy::new(|| serde_json::json!({"type": "vector", "tiles": [""], "maxzoom": 22}));
 
     // Prefer vector sources over raster; prevents multi-source styles from
     // routing through the raster pipeline when a vector source is present.
@@ -368,6 +369,12 @@ async fn extract_tile_source_from_style(
                 } else {
                     Some((t, s))
                 }
+            })
+            .or_else(|| {
+                // GeoJSON-only (or source-less) styles render through the
+                // vector path, which reads every source the layers use.
+                (sources.is_empty() || sources.values().any(|s| s["type"] == "geojson"))
+                    .then(|| ("vector", &*GEOJSON_ONLY))
             })
             .ok_or_else(|| {
                 BasemapError::StyleParseError("no raster or vector tile source found".into())
@@ -706,6 +713,41 @@ async fn fetch_vector_inputs(
     for id in used {
         let src = &style_val["sources"][&id];
         let kind = src["type"].as_str().unwrap_or("");
+        if kind == "geojson" {
+            if src["cluster"].as_bool() == Some(true) {
+                log::warn!("source {id}: GeoJSON clustering is not supported yet; drawing unclustered features");
+            }
+            let data = match &src["data"] {
+                serde_json::Value::String(url) => {
+                    let url = resolve_url(url, style_base_url_of(request));
+                    match client.get(&url).send().await {
+                        Ok(r) if r.status().is_success() => r.json::<serde_json::Value>().await.unwrap_or_default(),
+                        Ok(r) => {
+                            log::warn!("source {id}: GeoJSON {url}: HTTP {}", r.status());
+                            continue;
+                        }
+                        Err(e) => {
+                            log::warn!("source {id}: GeoJSON {url}: {e}");
+                            continue;
+                        }
+                    }
+                }
+                other => other.clone(),
+            };
+            let opts = vector::geojson::GeoJsonOptions::from_source(src);
+            let index = vector::geojson::GeoJsonIndex::new(&data, opts);
+            let tz = match vector_tz(Some(opts.max_zoom), 0) {
+                Some(z) => z,
+                None => continue,
+            };
+            let tiles: Vec<_> = vector::render::covering_tiles(bbox, tz)
+                .into_iter()
+                .map(|(c, wrap)| (c, wrap, index.tile(c.z, c.x, c.y)))
+                .collect();
+            all_vector.extend(tiles.iter().map(|(c, _, b)| (*c, b.clone())));
+            sources.vector.insert(id, tiles);
+            continue;
+        }
         if kind != "vector" && kind != "raster" {
             if !kind.is_empty() {
                 log::warn!("source {id}: type {kind} is not supported yet");

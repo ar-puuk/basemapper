@@ -66,7 +66,7 @@ against the no-labels reference.
 | `esri_world_basemap_z8` | ESRI World Basemap over the Great Salt Lake: `fill-pattern` (marsh, intermittent lakes), also scored as SVG |
 | `openfreemap_liberty_z16` | OpenFreeMap Liberty downtown Salt Lake City: 3D buildings (`fill-extrusion`, perspective and lighting), pedestrian-area patterns, `step` symbol placement; also scored as SVG |
 | `maplibre_demotiles_z3` | MapLibre demotiles over North America: `line-blur` (also in SVG), legacy function `text-field` with `{token}` stops |
-| `synthetic_*` | Hand-written styles over existing fixture tiles for features no captured style uses; `synthetic_icon_text_fit`: icon-text-fit both/width/height with a generated nine-slice sprite; `synthetic_variable_anchor`: text-variable-anchor (radial / text-offset), text-variable-anchor-offset, text-justify auto |
+| `synthetic_*` | Hand-written styles over existing fixture tiles for features no captured style uses; `synthetic_icon_text_fit`: icon-text-fit both/width/height with a generated nine-slice sprite; `synthetic_variable_anchor`: text-variable-anchor (radial / text-offset), text-variable-anchor-offset, text-justify auto; `synthetic_geojson_z13` / `_z6`: GeoJSON sources (URL and inline data: polygons with holes, multipolygons, a long simplified line, points, labels, dashes, line offset) |
 | `osm_raster_slc` | OpenStreetMap raster tiles |
 
 The test always writes `actual.png` and `diff.png` (bad pixels in red) to

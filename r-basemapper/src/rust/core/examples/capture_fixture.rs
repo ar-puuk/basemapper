@@ -139,7 +139,7 @@ fn main() {
         use basemapper_core::vector::expr::{eval_filter, Ctx};
         let Ok(t) = basemapper_core::vector::mvt::decode(bytes) else { return };
         for l in &symbol_layers {
-            let Some(src) = l["source-layer"].as_str().and_then(|sl| t.layers.get(sl)) else { continue };
+            let Some(src) = t.layers.get(basemapper_core::vector::mvt::source_layer(l)) else { continue };
             for f in &src.features {
                 let ctx = Ctx { zoom: gl_zoom, feature: Some(f) };
                 if l.get("filter").map_or(false, |flt| !eval_filter(flt, &ctx)) {
@@ -170,11 +170,25 @@ fn main() {
             }
         }
         let mut new_sources = serde_json::Map::new();
+        // GeoJSON data URLs: downloaded into geojson/<id>.json.
+        for (id, s) in &sources {
+            if s["type"] == "geojson" {
+                let mut s = s.clone();
+                if let Some(url) = s["data"].as_str() {
+                    let u = style_url.join(url).unwrap();
+                    let bytes = get(&client, u.as_str());
+                    std::fs::create_dir_all(out.join("geojson")).unwrap();
+                    std::fs::write(out.join("geojson").join(format!("{id}.json")), bytes).unwrap();
+                    s["data"] = json!(format!("{{{{BASE}}}}/geojson/{id}.json"));
+                }
+                new_sources.insert(id.clone(), s);
+            }
+        }
         // Every source stays in the style (layers reference them); tiles are
         // stored only for sources of layers visible at this view. Unused
         // tile sources point at the fixture too, with no tiles behind them.
         for (id, s) in &sources {
-            if used.contains(id) {
+            if used.contains(id) || s["type"] == "geojson" {
                 continue;
             }
             let mut s = s.clone();
@@ -189,6 +203,9 @@ fn main() {
         for id in used {
             let Some(s) = sources.get(&id) else { continue };
             let kind = s["type"].as_str().unwrap_or("").to_owned();
+            if kind == "geojson" {
+                continue; // handled above
+            }
             if kind != "vector" && kind != "raster" {
                 new_sources.insert(id.clone(), s.clone());
                 continue;
