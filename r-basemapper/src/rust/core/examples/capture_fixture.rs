@@ -136,7 +136,7 @@ fn main() {
         .cloned()
         .collect();
     let mut note_chars = |bytes: &[u8]| {
-        use basemapper_core::vector::expr::{eval_filter, eval_property, Ctx, Kind, Val};
+        use basemapper_core::vector::expr::{eval_filter, Ctx};
         let Ok(t) = basemapper_core::vector::mvt::decode(bytes) else { return };
         for l in &symbol_layers {
             let Some(src) = l["source-layer"].as_str().and_then(|sl| t.layers.get(sl)) else { continue };
@@ -145,30 +145,9 @@ fn main() {
                 if l.get("filter").map_or(false, |flt| !eval_filter(flt, &ctx)) {
                     continue;
                 }
-                let tf = &l["layout"]["text-field"];
-                let text = match tf {
-                    // Legacy "{token}" strings.
-                    Value::String(s) if s.contains('{') => {
-                        let mut out = String::new();
-                        let mut rest = s.as_str();
-                        while let Some(i) = rest.find('{') {
-                            out.push_str(&rest[..i]);
-                            let Some(j) = rest[i..].find('}') else { break };
-                            let key = &rest[i + 1..i + j];
-                            if let Some(basemapper_core::vector::mvt::Value::String(v)) = f.properties.get(key) {
-                                out.push_str(v);
-                            }
-                            rest = &rest[i + j + 1..];
-                        }
-                        out.push_str(rest);
-                        out
-                    }
-                    _ => match eval_property(tf, Kind::Enum, &ctx) {
-                        Val::Str(s) => s,
-                        Val::Num(n) => n.to_string(),
-                        _ => String::new(),
-                    },
-                };
+                // The label text as the renderer resolves it (tokens,
+                // legacy functions, expressions, text-transform).
+                let text = basemapper_core::vector::symbol::feature_text(l, f, gl_zoom).unwrap_or_default();
                 codepoints.extend(text.chars().map(|ch| ch as u32));
             }
         }

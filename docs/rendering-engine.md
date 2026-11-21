@@ -123,7 +123,12 @@ Enum layout properties (`symbol-placement`, rotation alignments,
 `symbol-z-order`, `line-cap`, `line-join`) may be expressions such as
 `["step", ["zoom"], "point", 11, "line"]`; they are evaluated at the tile
 zoom. Line-placed labels with `text-rotation-alignment: viewport` are drawn
-upright at their anchor, like point labels.
+upright at their anchor, like point labels. Legacy `{token}` strings are resolved in plain
+`text-field` strings and in the stop values of legacy functions.
+
+In SVG, `line-blur` is approximated by three nested strokes spread over the
+blur ramp with opacities stacking to the line's alpha (MapLibre demotiles
+coastline, golden case `maplibre_demotiles_z3`).
 
 The output is always Web Mercator: a style's `projection` (e.g. globe) is
 ignored, and references are rendered in Mercator too.

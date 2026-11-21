@@ -65,6 +65,7 @@ against the no-labels reference.
 | `versatiles_colorful_z8` | VersaTiles Colorful over Salt Lake City: two vector sources and a multi-sprite (`[{id, url}]`) style; its globe projection is ignored |
 | `esri_world_basemap_z8` | ESRI World Basemap over the Great Salt Lake: `fill-pattern` (marsh, intermittent lakes), also scored as SVG |
 | `openfreemap_liberty_z16` | OpenFreeMap Liberty downtown Salt Lake City: 3D buildings (`fill-extrusion`, perspective and lighting), pedestrian-area patterns, `step` symbol placement; also scored as SVG |
+| `maplibre_demotiles_z3` | MapLibre demotiles over North America: `line-blur` (also in SVG), legacy function `text-field` with `{token}` stops |
 | `osm_raster_slc` | OpenStreetMap raster tiles |
 
 The test always writes `actual.png` and `diff.png` (bad pixels in red) to
@@ -83,6 +84,7 @@ MapLibre zoom is an integer (`render.mjs` prints it). MapLibre picks tiles by
 | `carto_*` | © OpenStreetMap contributors, © CARTO (styles, glyphs, sprites); tiles from CARTO basemaps | Data ODbL; styles per CARTO basemap terms |
 | `openfreemap_*` | © OpenStreetMap contributors, © OpenMapTiles, Natural Earth; style, tiles, glyphs and sprites from OpenFreeMap | Data ODbL; OpenMapTiles schema CC-BY 4.0; Natural Earth public domain |
 | `esri_*` | Esri, HERE, Garmin, © OpenStreetMap contributors; ESRI World Basemap style, tiles, glyphs and sprites | Per Esri terms of use |
+| `maplibre_demotiles_*` | MapLibre demotiles (Natural Earth data) | Natural Earth public domain; style BSD-3-Clause (MapLibre) |
 | `versatiles_*` | © OpenStreetMap contributors; style, tiles, glyphs and sprites from VersaTiles | Data ODbL; styles per VersaTiles terms |
 
 A handful of tiles is stored here for offline testing only.

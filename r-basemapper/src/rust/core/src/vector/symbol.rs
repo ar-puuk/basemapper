@@ -191,24 +191,28 @@ pub fn feature_text(layer: &Json, f: &Feature, zoom: f64) -> Option<String> {
     let layout = &layer["layout"];
     let tf = layout.get("text-field")?;
     let ctx = Ctx { zoom, feature: Some(f) };
-    let text = match tf {
-        Json::String(s) => {
-            // Legacy "{token}" interpolation (getValueAndResolveTokens).
-            let mut out = String::new();
-            let mut rest = s.as_str();
-            while let Some(i) = rest.find('{') {
-                out.push_str(&rest[..i]);
-                let Some(j) = rest[i..].find('}') else {
-                    out.push_str(&rest[i..]);
-                    rest = "";
-                    break;
-                };
-                out.push_str(&prop_string(f, &rest[i + 1..i + j]));
-                rest = &rest[i + j + 1..];
-            }
-            out.push_str(rest);
-            out
+    // Legacy "{token}" interpolation (getValueAndResolveTokens / the
+    // style-spec's convertTokenString): plain strings and the stop values of
+    // legacy functions; not expressions.
+    let resolve_tokens = |s: &str| -> String {
+        let mut out = String::new();
+        let mut rest = s;
+        while let Some(i) = rest.find('{') {
+            out.push_str(&rest[..i]);
+            let Some(j) = rest[i..].find('}') else {
+                out.push_str(&rest[i..]);
+                rest = "";
+                break;
+            };
+            out.push_str(&prop_string(f, &rest[i + 1..i + j]));
+            rest = &rest[i + j + 1..];
         }
+        out.push_str(rest);
+        out
+    };
+    let text = match tf {
+        Json::String(s) => resolve_tokens(s),
+        Json::Object(_) => resolve_tokens(&val_text(eval_property(tf, Kind::Enum, &ctx))?),
         Json::Array(a) if a.first().and_then(|v| v.as_str()) == Some("format") => {
             let mut out = String::new();
             let mut i = 1;

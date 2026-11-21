@@ -1523,6 +1523,7 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
     let offset = Prop::new(p.get("line-offset"), Kind::Number, zoom);
     let translate = Prop::new(p.get("line-translate"), Kind::Array, zoom);
     let dasharray = Prop::new(p.get("line-dasharray"), Kind::Enum, zoom);
+    let blur = Prop::new(p.get("line-blur"), Kind::Number, zoom);
     let cap_s = super::expr::layout_enum(l, "line-cap", zoom.floor()).unwrap_or_else(|| "butt".into());
     let join_s = super::expr::layout_enum(l, "line-join", zoom.floor()).unwrap_or_else(|| "miter".into());
     let (cap, join) = (cap_s.as_str(), join_s.as_str());
@@ -1597,22 +1598,48 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
             // edge, so a line of width w < 1 covers (w + 1)^2 / 4 px, not w:
             // stroke at the width with that coverage.
             let stroke_w = if lw < 1.0 { (lw + 1.0).powi(2) / 4.0 } else { lw };
+            // line-blur widens the edge ramp to blur + 1 px (blur2), centred
+            // half the blur inside the edge: nested strokes whose edges spread
+            // over the blur (the rasteriser's 1 px antialiasing adds the
+            // rest), with opacities stacking to the line's alpha.
+            let b = blur.num(&ctx, 0.0).max(0.0);
+            let bands: Vec<(f64, f64)> = if b > 0.0 {
+                let n = 3;
+                let mut below = 0.0;
+                (1..=n)
+                    .map(|k| {
+                        let y = (k as f64 - 0.5) / n as f64;
+                        let half = (lw / 2.0 - b / 2.0 + b * (0.5 - y)).max(0.05);
+                        let target = a * k as f64 / n as f64;
+                        let layer = if below >= 1.0 { 0.0 } else { ((target - below) / (1.0 - below)).clamp(0.0, 1.0) };
+                        below = target;
+                        (2.0 * half, layer)
+                    })
+                    .collect()
+            } else {
+                vec![(stroke_w, a)]
+            };
             // One path per line: MapLibre blends each line on its own, so
             // translucent lines darken where they overlap.
-            let _ = write!(
-                g,
-                r#"<g fill="none" stroke="{hex}" stroke-opacity="{}" stroke-width="{}" stroke-linecap="{cap}" stroke-linejoin="{join}" stroke-miterlimit="{}"{dash_attr}>"#,
-                svg::alpha(a),
-                svg::num(stroke_w),
-                svg::num(miter)
-            );
-            for o in &offsets {
-                for r in &px {
-                    let line = offset_polyline(r, *o, closed, join, miter, round_limit);
-                    let _ = write!(g, r#"<path d="{}"/>"#, svg::path_data(std::slice::from_ref(&line), closed));
+            for (sw, op) in bands {
+                if op <= 0.0 {
+                    continue;
                 }
+                let _ = write!(
+                    g,
+                    r#"<g fill="none" stroke="{hex}" stroke-opacity="{}" stroke-width="{}" stroke-linecap="{cap}" stroke-linejoin="{join}" stroke-miterlimit="{}"{dash_attr}>"#,
+                    svg::alpha(op),
+                    svg::num(sw),
+                    svg::num(miter)
+                );
+                for o in &offsets {
+                    for r in &px {
+                        let line = offset_polyline(r, *o, closed, join, miter, round_limit);
+                        let _ = write!(g, r#"<path d="{}"/>"#, svg::path_data(std::slice::from_ref(&line), closed));
+                    }
+                }
+                g.push_str("</g>");
             }
-            g.push_str("</g>");
         }
         if !g.is_empty() {
             let _ = write!(out, r#"<g clip-path="url(#{prefix}t{i})">{g}</g>"#);
