@@ -393,6 +393,20 @@ fn interpolate_stops(stops: &[(f64, Val)], x: f64, ftype: &str, base: f64) -> Va
 
 // ── Expressions ──────────────────────────────────────────────────────────────
 
+/// An enum layout property (plain string or expression, e.g.
+/// ["step", ["zoom"], "point", 11, "line"]) evaluated at `zoom` (bucket
+/// layout properties use the tile zoom).
+pub fn layout_enum(layout: &Json, key: &str, zoom: f64) -> Option<String> {
+    match layout.get(key)? {
+        Json::String(s) => Some(s.clone()),
+        Json::Null => None,
+        j => match eval_property(j, Kind::Enum, &Ctx { zoom, feature: None }) {
+            Val::Str(s) => Some(s),
+            _ => None,
+        },
+    }
+}
+
 /// MapLibre's `typeof` names.
 fn type_name(v: &Val) -> String {
     match v {

@@ -82,7 +82,7 @@ measuring against MapLibre and investigating the difference.
 
 ### Not supported yet
 
-`line-pattern`, `line-gradient`, `fill-extrusion`, `heatmap`,
+`line-pattern`, `line-gradient`, `fill-extrusion-pattern`, `heatmap`,
 `hillshade` layers, GeoJSON sources, PMTiles sources inside vector styles,
 variable label anchors (`text-variable-anchor`), `icon-text-fit`, vertical
 text, and right-to-left scripts. Unsupported layer types are skipped with a
@@ -108,6 +108,22 @@ up, sampled linearly with wrap-around; pattern fills use the translucent pass
 with a patterned antialiasing outline. In SVG each image becomes a
 world-aligned `<pattern>`. Golden case: ESRI World Basemap at zoom 8 (marsh
 and intermittent-lake patterns, 0.15%).
+
+`fill-extrusion` follows draw_fill_extrusion.ts at pitch 0: MapLibre's
+perspective camera (cameraToCenterDistance = 1.5 view heights above the
+centre, so tall buildings lean outward from the centre), heights converted at
+the centre latitude, fill_extrusion.vertex.glsl's per-vertex lighting
+(style `light`, default from 210° at 30°, intensity 0.5; vertical gradient on
+walls) interpolated perspective-correctly, back-face culling and a depth
+buffer; translucent layers draw only the nearest surface per pixel. In SVG,
+faces are polygons sorted far to near in a group carrying the layer opacity.
+Golden case: OpenFreeMap Liberty at zoom 16 (0.49%).
+
+Enum layout properties (`symbol-placement`, rotation alignments,
+`symbol-z-order`, `line-cap`, `line-join`) may be expressions such as
+`["step", ["zoom"], "point", 11, "line"]`; they are evaluated at the tile
+zoom. Line-placed labels with `text-rotation-alignment: viewport` are drawn
+upright at their anchor, like point labels.
 
 The output is always Web Mercator: a style's `projection` (e.g. globe) is
 ignored, and references are rendered in Mercator too.

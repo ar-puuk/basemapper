@@ -233,6 +233,10 @@ pub fn render(
             "fill" => draw_fill_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio, assets),
             "line" => draw_line_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
             "circle" => draw_circle_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
+            "fill-extrusion" => {
+                let view = ExtrusionView::new(style, bbox, width, height, ratio, zoom);
+                draw_fill_extrusion_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), &view);
+            }
             "raster" => {
                 if let Some(rt) = layer["source"].as_str().and_then(|s| sources.raster.get(s)) {
                     draw_raster_layer(&mut fb, layer, zoom, rt, bbox, ratio);
@@ -600,12 +604,13 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
     // line-dasharray is not interpolatable: legacy functions default to
     // "interval" (Kind::Enum), unlike interpolatable arrays such as offsets.
     let dasharray = Prop::new(p.get("line-dasharray"), Kind::Enum, zoom);
-    let cap = match l["line-cap"].as_str() {
+    let tz = zoom.floor();
+    let cap = match super::expr::layout_enum(l, "line-cap", tz).as_deref() {
         Some("round") => Cap::Round,
         Some("square") => Cap::Square,
         _ => Cap::Butt,
     };
-    let join = match l["line-join"].as_str() {
+    let join = match super::expr::layout_enum(l, "line-join", tz).as_deref() {
         Some("round") => Join::Round,
         Some("bevel") => Join::Bevel,
         _ => Join::Miter,
@@ -710,6 +715,325 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
             }
         }
     }
+}
+
+// ── Fill extrusion ───────────────────────────────────────────────────────────
+
+/// MapLibre's camera for 3D layers at pitch 0: a perspective camera
+/// cameraToCenterDistance = 0.5 / tan(fov / 2) * height (fov 36.87°, so 1.5
+/// heights) above the view centre. A point at height Z (px) projects to
+/// centre + offset * d / (d - Z). Heights convert from metres with
+/// mercatorZfromAltitude at the centre latitude (Earth radius 6371008.8 m).
+struct ExtrusionView {
+    /// Projection centre in device px.
+    cx: f64,
+    cy: f64,
+    /// Camera distance in CSS px.
+    d: f64,
+    /// CSS px per metre of height.
+    px_per_m: f64,
+    /// Light (style "light", viewport anchor, pitch/bearing 0).
+    light_pos: [f64; 3],
+    light_color: [f64; 3],
+    light_intensity: f64,
+}
+
+impl ExtrusionView {
+    fn new(style: &Json, bbox: [f64; 4], width: u32, height: u32, ratio: f64, zoom: f64) -> Self {
+        let world = TILE_PX * 2f64.powf(zoom);
+        let lat = (2.0 * (((bbox[1] + bbox[3]) / 2.0) / (EARTH_CIRC / (2.0 * std::f64::consts::PI))).exp().atan()
+            - std::f64::consts::FRAC_PI_2)
+            .to_degrees();
+        let maplibre_circ = 2.0 * std::f64::consts::PI * 6_371_008.8;
+        let fov: f64 = 0.643_501_108_793_284_4;
+        let light = &style["light"];
+        let ctx = Ctx { zoom, feature: None };
+        let pos = light.get("position").map(|j| eval_property(j, Kind::Array, &ctx)).and_then(|v| v.as_num_array());
+        let pos = pos.filter(|p| p.len() == 3).unwrap_or_else(|| vec![1.15, 210.0, 30.0]);
+        // sphericalToCartesian
+        let az = (pos[1] + 90.0).to_radians();
+        let polar = pos[2].to_radians();
+        let light_pos = [pos[0] * az.cos() * polar.sin(), pos[0] * az.sin() * polar.sin(), pos[0] * polar.cos()];
+        let color = light
+            .get("color")
+            .map(|j| eval_property(j, Kind::Color, &ctx))
+            .and_then(|v| v.as_color())
+            .unwrap_or(Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 });
+        let intensity = light.get("intensity").map(|j| eval_property(j, Kind::Number, &ctx)).and_then(|v| v.as_num()).unwrap_or(0.5);
+        ExtrusionView {
+            cx: width as f64 * ratio / 2.0,
+            cy: height as f64 * ratio / 2.0,
+            d: 0.5 / (fov / 2.0).tan() * height as f64,
+            px_per_m: world / (maplibre_circ * lat.to_radians().cos()),
+            light_pos,
+            light_color: [color.r as f64, color.g as f64, color.b as f64],
+            light_intensity: intensity,
+        }
+    }
+
+    /// Screen position (device px) and depth key 1 / (d - Z) of a map point
+    /// (device px) at `h` metres.
+    fn project(&self, p: (f64, f64), h: f64) -> (f64, f64, f64) {
+        let z = h * self.px_per_m;
+        let s = self.d / (self.d - z);
+        (self.cx + (p.0 - self.cx) * s, self.cy + (p.1 - self.cy) * s, 1.0 / (self.d - z))
+    }
+
+    /// fill_extrusion.vertex.glsl lighting for one vertex: premultiplied
+    /// colour (before opacity).
+    #[allow(clippy::too_many_arguments)]
+    fn shade(&self, color: [f64; 4], normal: (f64, f64, f64), t: f64, base: f64, height: f64, vertical_gradient: bool) -> [f64; 3] {
+        let i = self.light_intensity;
+        let colorvalue = color[0] * 0.2126 + color[1] * 0.7152 + color[2] * 0.0722;
+        let c = [color[0] + 0.03, color[1] + 0.03, color[2] + 0.03];
+        let lp = self.light_pos;
+        let mut directional = (normal.0 * lp[0] + normal.1 * lp[1] + normal.2 * lp[2]).clamp(0.0, 1.0);
+        let hi = (1.0 - colorvalue + i).max(1.0);
+        directional = (1.0 - i) * (1.0 - directional) + hi * directional;
+        if normal.1 != 0.0 {
+            let vg = if vertical_gradient { 1.0 } else { 0.0 };
+            let lo = 0.7 * i + 0.98 * (1.0 - i);
+            directional *= (1.0 - vg) + vg * ((t + base) * (height / 150.0).sqrt()).clamp(lo, 1.0);
+        }
+        let mut out = [0.0; 3];
+        for k in 0..3 {
+            let lc = self.light_color[k];
+            out[k] = (c[k] * directional * lc).clamp(0.3 * (1.0 - lc), 1.0);
+        }
+        out
+    }
+}
+
+/// FillExtrusionBucket's isEntirelyOutside: every point beyond one tile edge.
+fn ring_entirely_outside(ring: &[(f64, f64)]) -> bool {
+    let e = EXTENT;
+    ring.iter().all(|p| p.0 < 0.0) || ring.iter().all(|p| p.0 > e) || ring.iter().all(|p| p.1 < 0.0) || ring.iter().all(|p| p.1 > e)
+}
+
+/// fill-extrusion at pitch 0 (draw_fill_extrusion.ts): per polygon, side
+/// walls (skipping edges along the tile boundary) then the top face, with
+/// per-vertex lighting interpolated perspective-correctly and a depth test.
+/// Translucent layers draw only the closest surface per pixel (a depth
+/// pre-pass, then colour where the depth matches, once per pixel).
+fn draw_fill_extrusion_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile], view: &ExtrusionView) {
+    let p = &layer["paint"];
+    let color = Prop::new(p.get("fill-extrusion-color"), Kind::Color, zoom);
+    let height = Prop::new(p.get("fill-extrusion-height"), Kind::Number, zoom);
+    let base = Prop::new(p.get("fill-extrusion-base"), Kind::Number, zoom);
+    let opacity = Prop::new(p.get("fill-extrusion-opacity"), Kind::Number, zoom).num(&Ctx { zoom, feature: None }, 1.0);
+    let vertical_gradient = p["fill-extrusion-vertical-gradient"].as_bool().unwrap_or(true);
+    if p.get("fill-extrusion-pattern").is_some() {
+        log::warn!("fill-extrusion-pattern is not supported yet (layer {})", layer["id"]);
+    }
+    if opacity <= 0.0 {
+        return;
+    }
+    let (w, h) = (fb.w, fb.h);
+    let full = Clip { x0: 0.0, y0: 0.0, x1: w as f64, y1: h as f64 };
+
+    // Triangles in screen space: vertices (x, y, [r/w, g/w, b/w, 1/w]).
+    let mut tris: Vec<[Vert<4>; 3]> = Vec::new();
+    // Top faces: one planar polygon each (constant depth, colour).
+    let mut tops: Vec<(Rings, f64, [f64; 3])> = Vec::new();
+    // Draw order: MapLibre's bucket order (per polygon: walls, then top).
+    enum Piece {
+        Tris(usize, usize),
+        Top(usize),
+    }
+    let mut order: Vec<Piece> = Vec::new();
+    for pt in placed {
+        for (f, scale) in features(layer, pt, zoom) {
+            let Geometry::Polygons(polys) = &f.geometry else { continue };
+            let ctx = Ctx { zoom, feature: Some(f) };
+            let c = color.color(&ctx, Color::BLACK);
+            let col = [c.r as f64, c.g as f64, c.b as f64, c.a as f64];
+            let hgt = height.num(&ctx, 0.0).max(0.0);
+            let bse = base.num(&ctx, 0.0).max(0.0);
+            for poly in polys {
+                let rings: Vec<Vec<(f64, f64)>> = poly.iter().map(|r| r.iter().map(|&q| to_extent(q, scale)).collect()).collect();
+                if rings.first().map_or(true, |r| ring_entirely_outside(r)) {
+                    continue;
+                }
+                let to_px = |q: (f64, f64)| (pt.ox + q.0 * pt.unit_px, pt.oy + q.1 * pt.unit_px);
+                let first = tris.len();
+                for ring in &rings {
+                    if ring_entirely_outside(ring) {
+                        continue;
+                    }
+                    for e in ring.windows(2) {
+                        // FillExtrusionBucket: p1 is the current point, p2 the previous.
+                        let (p1, p2) = (e[1], e[0]);
+                        if (p1.0 == p2.0 && (p1.0 < 0.0 || p1.0 > EXTENT)) || (p1.1 == p2.1 && (p1.1 < 0.0 || p1.1 > EXTENT)) {
+                            continue; // isBoundaryEdge
+                        }
+                        let (dx, dy) = (p1.0 - p2.0, p1.1 - p2.1);
+                        let len = (dx * dx + dy * dy).sqrt();
+                        if len == 0.0 {
+                            continue;
+                        }
+                        // perp of (p1 - p2), unit; encoded y is exact, x carries the top flag.
+                        let n = (-dy / len, dx / len, 0.0);
+                        let ny = (n.1 * 16384.0).trunc() / 16384.0;
+                        let vert = |q: (f64, f64), t: f64| -> Vert<4> {
+                            let (x, y, iw) = view.project(to_px(q), if t > 0.0 { hgt } else { bse });
+                            let s = view.shade(col, (n.0, ny, n.2), t, bse, hgt, vertical_gradient);
+                            Vert { x, y, v: [s[0] * iw, s[1] * iw, s[2] * iw, iw] }
+                        };
+                        let v = [vert(p1, 0.0), vert(p1, 1.0), vert(p2, 0.0), vert(p2, 1.0)];
+                        tris.push([v[0], v[2], v[1]]);
+                        tris.push([v[1], v[2], v[3]]);
+                    }
+                }
+                order.push(Piece::Tris(first, tris.len()));
+                let (_, _, iw) = view.project((0.0, 0.0), hgt);
+                let top: Rings = rings
+                    .iter()
+                    .map(|r| r.iter().map(|&q| { let (x, y, _) = view.project(to_px(q), hgt); (x, y) }).collect())
+                    .collect();
+                tops.push((top, iw, view.shade(col, (0.0, 0.0, 1.0), 1.0, bse, hgt, vertical_gradient)));
+                order.push(Piece::Top(tops.len() - 1));
+            }
+        }
+    }
+
+    let mut depth = vec![0.0f64; w * h];
+    let mut drawn = vec![false; w * h];
+    let translucent = opacity < 1.0;
+    let passes: &[bool] = if translucent { &[true, false] } else { &[false] };
+    for &depth_only in passes {
+        for piece in &order {
+            let mut frag = |x: usize, y: usize, iw: f64, rgb: [f64; 3], fb: &mut Framebuffer| {
+                let k = y * w + x;
+                if depth_only {
+                    if iw > depth[k] {
+                        depth[k] = iw;
+                    }
+                    return;
+                }
+                if translucent {
+                    if iw < depth[k] || drawn[k] {
+                        return;
+                    }
+                    drawn[k] = true;
+                } else {
+                    if iw < depth[k] {
+                        return;
+                    }
+                    depth[k] = iw;
+                }
+                let a = opacity;
+                fb.blend(x, y, [(rgb[0] * a) as f32, (rgb[1] * a) as f32, (rgb[2] * a) as f32, a as f32]);
+            };
+            match piece {
+                Piece::Tris(a, b) => {
+                    for t in &tris[*a..*b] {
+                        // CullFaceMode.backCCW: GL's clip space is y-up, so a
+                        // front (CCW) face winds the other way on screen.
+                        let cross = (t[1].x - t[0].x) * (t[2].y - t[0].y) - (t[1].y - t[0].y) * (t[2].x - t[0].x);
+                        if cross > 0.0 {
+                            continue;
+                        }
+                        raster_triangle(w, h, *t, &full, |x, y, v| {
+                            let iw = v[3];
+                            if iw > 0.0 {
+                                frag(x, y, iw, [v[0] / iw, v[1] / iw, v[2] / iw], fb);
+                            }
+                        });
+                    }
+                }
+                Piece::Top(i) => {
+                    let (rings, iw, rgb) = &tops[*i];
+                    raster_polygon(w, h, rings, &full, |x, y| frag(x, y, *iw, *rgb, fb));
+                }
+            }
+        }
+    }
+}
+
+/// fill-extrusion as SVG: every visible face (walls facing the camera, tops)
+/// as a polygon, sorted far to near (painter's algorithm), walls shaded with
+/// their mean vertex colour. The layer opacity goes on the group, so only
+/// the nearest surface shows through it, as MapLibre draws translucent
+/// extrusions.
+fn svg_fill_extrusion(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], view: &ExtrusionView) {
+    use std::fmt::Write as _;
+    let p = &layer["paint"];
+    let color = Prop::new(p.get("fill-extrusion-color"), Kind::Color, zoom);
+    let height = Prop::new(p.get("fill-extrusion-height"), Kind::Number, zoom);
+    let base = Prop::new(p.get("fill-extrusion-base"), Kind::Number, zoom);
+    let opacity = Prop::new(p.get("fill-extrusion-opacity"), Kind::Number, zoom).num(&Ctx { zoom, feature: None }, 1.0);
+    let vertical_gradient = p["fill-extrusion-vertical-gradient"].as_bool().unwrap_or(true);
+    if opacity <= 0.0 {
+        return;
+    }
+    // (depth key, path data, colour)
+    let mut faces: Vec<(f64, String, [f64; 3])> = Vec::new();
+    for pt in placed {
+        for (f, scale) in features(layer, pt, zoom) {
+            let Geometry::Polygons(polys) = &f.geometry else { continue };
+            let ctx = Ctx { zoom, feature: Some(f) };
+            let c = color.color(&ctx, Color::BLACK);
+            let col = [c.r as f64, c.g as f64, c.b as f64, c.a as f64];
+            let hgt = height.num(&ctx, 0.0).max(0.0);
+            let bse = base.num(&ctx, 0.0).max(0.0);
+            for poly in polys {
+                let rings: Vec<Vec<(f64, f64)>> = poly.iter().map(|r| r.iter().map(|&q| to_extent(q, scale)).collect()).collect();
+                if rings.first().map_or(true, |r| ring_entirely_outside(r)) {
+                    continue;
+                }
+                let to_px = |q: (f64, f64)| (pt.ox + q.0 * pt.unit_px, pt.oy + q.1 * pt.unit_px);
+                for ring in &rings {
+                    if ring_entirely_outside(ring) {
+                        continue;
+                    }
+                    for e in ring.windows(2) {
+                        let (p1, p2) = (e[1], e[0]);
+                        if (p1.0 == p2.0 && (p1.0 < 0.0 || p1.0 > EXTENT)) || (p1.1 == p2.1 && (p1.1 < 0.0 || p1.1 > EXTENT)) {
+                            continue;
+                        }
+                        let (dx, dy) = (p1.0 - p2.0, p1.1 - p2.1);
+                        let len = (dx * dx + dy * dy).sqrt();
+                        if len == 0.0 {
+                            continue;
+                        }
+                        let n = (-dy / len, ((dx / len) * 16384.0).trunc() / 16384.0, 0.0);
+                        let a = view.project(to_px(p1), bse);
+                        let b = view.project(to_px(p1), hgt);
+                        let c2 = view.project(to_px(p2), bse);
+                        let d2 = view.project(to_px(p2), hgt);
+                        // Back-face culling, as for the PNG (triangle a, c2, b).
+                        let cross = (c2.0 - a.0) * (b.1 - a.1) - (c2.1 - a.1) * (b.0 - a.0);
+                        if cross > 0.0 {
+                            continue;
+                        }
+                        let s0 = view.shade(col, n, 0.0, bse, hgt, vertical_gradient);
+                        let s1 = view.shade(col, n, 1.0, bse, hgt, vertical_gradient);
+                        let rgb = [(s0[0] + s1[0]) / 2.0, (s0[1] + s1[1]) / 2.0, (s0[2] + s1[2]) / 2.0];
+                        let quad = vec![(a.0, a.1), (c2.0, c2.1), (d2.0, d2.1), (b.0, b.1)];
+                        faces.push(((a.2 + b.2 + c2.2 + d2.2) / 4.0, svg::path_data(&[quad], true), rgb));
+                    }
+                }
+                let top: Vec<Vec<(f64, f64)>> = rings
+                    .iter()
+                    .map(|r| r.iter().map(|&q| { let (x, y, _) = view.project(to_px(q), hgt); (x, y) }).collect())
+                    .collect();
+                let (_, _, iw) = view.project((0.0, 0.0), hgt);
+                faces.push((iw + 1e-12, svg::path_data(&top, true), view.shade(col, (0.0, 0.0, 1.0), 1.0, bse, hgt, vertical_gradient)));
+            }
+        }
+    }
+    faces.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    let _ = write!(out, r#"<g opacity="{}" fill-rule="evenodd">"#, svg::alpha(opacity.min(1.0)));
+    for (_, d, rgb) in faces {
+        let hex = format!(
+            "#{:02x}{:02x}{:02x}",
+            (rgb[0].clamp(0.0, 1.0) * 255.0).round() as u8,
+            (rgb[1].clamp(0.0, 1.0) * 255.0).round() as u8,
+            (rgb[2].clamp(0.0, 1.0) * 255.0).round() as u8
+        );
+        let _ = write!(out, r#"<path d="{d}" fill="{hex}"/>"#);
+    }
+    out.push_str("</g>");
 }
 
 // ── Raster ───────────────────────────────────────────────────────────────────
@@ -917,6 +1241,10 @@ pub fn render_svg(
             "fill" => svg_fill(&mut out, &mut defs, layer, zoom, layer_tiles(&placed, layer), &layer_clip(layer), assets, &mut pattern_ids),
             "line" => svg_line(&mut out, layer, zoom, layer_tiles(&placed, layer), &layer_clip(layer)),
             "circle" => svg_circle(&mut out, layer, zoom, layer_tiles(&placed, layer)),
+            "fill-extrusion" => {
+                let view = ExtrusionView::new(style, bbox, width, height, 1.0, zoom);
+                svg_fill_extrusion(&mut out, layer, zoom, layer_tiles(&placed, layer), &view);
+            }
             "raster" => {
                 // Raster tiles stay raster: the composited view, embedded.
                 if let Some(rt) = layer["source"].as_str().and_then(|s| sources.raster.get(s)) {
@@ -1195,8 +1523,9 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
     let offset = Prop::new(p.get("line-offset"), Kind::Number, zoom);
     let translate = Prop::new(p.get("line-translate"), Kind::Array, zoom);
     let dasharray = Prop::new(p.get("line-dasharray"), Kind::Enum, zoom);
-    let cap = l["line-cap"].as_str().unwrap_or("butt");
-    let join = l["line-join"].as_str().unwrap_or("miter");
+    let cap_s = super::expr::layout_enum(l, "line-cap", zoom.floor()).unwrap_or_else(|| "butt".into());
+    let join_s = super::expr::layout_enum(l, "line-join", zoom.floor()).unwrap_or_else(|| "miter".into());
+    let (cap, join) = (cap_s.as_str(), join_s.as_str());
     let miter = l["line-miter-limit"].as_f64().unwrap_or(2.0);
     let round_limit = l["line-round-limit"].as_f64().unwrap_or(1.05);
     let dash = match &dasharray {

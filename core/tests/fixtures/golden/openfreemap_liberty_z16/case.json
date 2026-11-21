@@ -13,8 +13,9 @@
   "tiles_from": null,
   "width": 800,
   "zoom": 17,
-  "svg": false,
-  "max_bad_pixel_frac": 0.085,
-  "max_mean_diff": 9.681,
-  "note": "fill-extrusion (3D buildings) not supported yet: the limit tracks that gap."
+  "svg": true,
+  "max_bad_pixel_frac": 0.00499,
+  "max_mean_diff": 0.332,
+  "max_bad_pixel_frac_svg": 0.02592,
+  "max_mean_diff_svg": 1.629
 }

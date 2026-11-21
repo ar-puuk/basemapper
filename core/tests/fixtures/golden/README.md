@@ -64,7 +64,7 @@ against the no-labels reference.
 | `openfreemap_liberty_z5` | OpenFreeMap Liberty over Utah: a raster source (Natural Earth relief) and a vector source in one style (`--all-sources`) |
 | `versatiles_colorful_z8` | VersaTiles Colorful over Salt Lake City: two vector sources and a multi-sprite (`[{id, url}]`) style; its globe projection is ignored |
 | `esri_world_basemap_z8` | ESRI World Basemap over the Great Salt Lake: `fill-pattern` (marsh, intermittent lakes), also scored as SVG |
-| `openfreemap_liberty_z16` | OpenFreeMap Liberty downtown Salt Lake City: pedestrian-area patterns and 3D buildings (`fill-extrusion`, not supported yet: its limit tracks that) |
+| `openfreemap_liberty_z16` | OpenFreeMap Liberty downtown Salt Lake City: 3D buildings (`fill-extrusion`, perspective and lighting), pedestrian-area patterns, `step` symbol placement; also scored as SVG |
 | `osm_raster_slc` | OpenStreetMap raster tiles |
 
 The test always writes `actual.png` and `diff.png` (bad pixels in red) to

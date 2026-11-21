@@ -1356,6 +1356,11 @@ fn build_line_text(
     ))
 }
 
+/// MapLibre's bucket zoom for a symbol tile (its overscaled z).
+fn tile_zoom_of(st: &SymbolTile) -> f64 {
+    st.coord.0 as f64 + st.overscaling.log2()
+}
+
 /// Symbol instances of a line- or line-center-placed layer in one tile.
 #[allow(clippy::too_many_arguments)]
 fn line_instances(
@@ -1370,7 +1375,8 @@ fn line_instances(
 ) -> Vec<Instance> {
     let layout = &layer["layout"];
     let paint = &layer["paint"];
-    let placement = layout["symbol-placement"].as_str().unwrap_or("point");
+    let placement_s = super::expr::layout_enum(layout, "symbol-placement", tile_zoom_of(st)).unwrap_or_else(|| "point".into());
+    let placement = placement_s.as_str();
     let mut out = Vec::new();
     let Some(src) = layer["source-layer"].as_str().and_then(|sl| st.tile.layers.get(sl)) else { return out };
     let scale = EXTENT / src.extent as f64;
@@ -1414,8 +1420,8 @@ fn line_instances(
     }
 
     // symbol-placement line/line-center resolve rotation-alignment 'auto' to 'map'.
-    let text_rotate_to_line = layout["text-rotation-alignment"] != "viewport";
-    let icon_along = layout["icon-rotation-alignment"] != "viewport";
+    let text_rotate_to_line = super::expr::layout_enum(layout, "text-rotation-alignment", tile_zoom).as_deref() != Some("viewport");
+    let icon_along = super::expr::layout_enum(layout, "icon-rotation-alignment", tile_zoom).as_deref() != Some("viewport");
     let mut compare_text: HashMap<String, Vec<(f64, f64)>> = HashMap::new();
 
     for (key, lf) in keyed {
@@ -1571,11 +1577,12 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
         if !has_text_field && !has_icon_image {
             continue;
         }
-        let placement = layout["symbol-placement"].as_str().unwrap_or("point").to_owned();
+        let placement = super::expr::layout_enum(layout, "symbol-placement", zoom.floor()).unwrap_or_else(|| "point".into());
         let Some(sl) = layer["source-layer"].as_str() else { continue };
         let paint = &layer["paint"];
         let sort_key_j = layout.get("symbol-sort-key");
-        let sort_by_key = layout["symbol-z-order"] != "viewport-y" && sort_key_j.map_or(false, is_data_driven);
+        let sort_by_key = super::expr::layout_enum(layout, "symbol-z-order", zoom.floor()).as_deref() != Some("viewport-y")
+            && sort_key_j.map_or(false, is_data_driven);
         let overlap = |kind: &str| {
             layout[format!("{kind}-overlap")] == "always"
                 || (layout.get(format!("{kind}-overlap")).is_none() && layout[format!("{kind}-allow-overlap")] == true)
