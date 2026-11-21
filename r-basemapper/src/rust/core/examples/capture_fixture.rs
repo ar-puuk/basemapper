@@ -16,7 +16,8 @@
 //!
 //! Output goes to `core/tests/fixtures/golden/<name>/`.
 
-use basemapper_core::tile_fetcher::{build_tile_coords, expand_url};
+use basemapper_core::tile_fetcher::expand_url;
+use basemapper_core::vector::render::covering_tiles;
 use clap::Parser;
 use reqwest::Url;
 use serde_json::{json, Value};
@@ -113,7 +114,12 @@ fn main() {
     zooms.dedup();
     let mut coords = Vec::new();
     for z in zooms {
-        coords.extend(build_tile_coords(bbox, z));
+        // Including tiles of wrapped world copies (canonical coordinates).
+        for (c, _) in covering_tiles(bbox, z) {
+            if !coords.contains(&c) {
+                coords.push(c);
+            }
+        }
     }
     let mut codepoints = std::collections::BTreeSet::new();
     // Characters of the label text each symbol layer would show (its

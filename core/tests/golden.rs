@@ -154,7 +154,9 @@ fn render_fixture(dir: &Path, case: &Value) -> Result<RgbaImage, String> {
         width,
         height,
         style_input: StyleInput::InlineJson(style),
-        zoom: case["zoom"].as_u64().map(|z| z as u8),
+        // Automatic zoom, as users get by default (case.json "zoom" records
+        // the capture zoom only).
+        zoom: None,
         tile_timeout_ms: 10_000,
         max_tiles: 256,
         tile_concurrency: 8,
@@ -323,10 +325,35 @@ fn golden_images() {
     cases.sort();
     assert!(!cases.is_empty(), "no golden cases found");
 
+    // Cases are independent (each has its own mock server), so run them on a
+    // pool of threads; results are reported in case order. BASEMAPPER_GOLDEN_JOBS
+    // overrides the thread count.
+    let jobs = std::env::var("BASEMAPPER_GOLDEN_JOBS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or_else(|| std::thread::available_parallelism().map_or(4, |n| n.get()))
+        .max(1);
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let results: std::sync::Mutex<Vec<(usize, Result<String, String>, Vec<Value>)>> = Default::default();
+    std::thread::scope(|scope| {
+        for _ in 0..jobs.min(cases.len()) {
+            scope.spawn(|| loop {
+                let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let Some(dir) = cases.get(i) else { break };
+                let mut entries = Vec::new();
+                let r = run_case(dir, &mut entries);
+                results.lock().unwrap().push((i, r, entries));
+            });
+        }
+    });
+    let mut results = results.into_inner().unwrap();
+    results.sort_by_key(|r| r.0);
+
     let mut failures = Vec::new();
     let mut manifest = Vec::new();
-    for dir in &cases {
-        match run_case(dir, &mut manifest) {
+    for (_, r, entries) in results {
+        manifest.extend(entries);
+        match r {
             Ok(msg) => println!("ok   {msg}"),
             Err(msg) => failures.push(msg),
         }

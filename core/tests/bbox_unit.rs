@@ -104,9 +104,28 @@ fn zero_width_bbox_still_rejected() {
 
 #[test]
 fn out_of_bounds_bbox_rejected() {
+    // y beyond the Web Mercator extent.
     let mut req = base_request();
-    req.bbox[2] = 21_000_000.0; // > EARTH_HALF
+    req.bbox[3] = 21_000_000.0;
     assert!(matches!(req.validate(), Err(BasemapError::InvalidBbox(_))));
+    // x beyond one extra world width.
+    let mut req = base_request();
+    req.bbox[2] = 61_000_000.0;
+    assert!(matches!(req.validate(), Err(BasemapError::InvalidBbox(_))));
+    // Spanning more than one world.
+    let mut req = base_request();
+    req.bbox[0] = -30_000_000.0;
+    req.bbox[2] = 30_000_000.0;
+    assert!(matches!(req.validate(), Err(BasemapError::InvalidBbox(_))));
+}
+
+#[test]
+fn bbox_past_antimeridian_accepted() {
+    // A view whose west edge shows the wrapped world copy (MapLibre draws it).
+    let mut req = base_request();
+    req.bbox[0] = -21_000_000.0;
+    req.bbox[2] = -15_000_000.0;
+    assert!(req.validate().is_ok());
 }
 
 #[test]

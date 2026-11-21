@@ -838,6 +838,8 @@ pub fn feature_icon(layer: &Json, f: &Feature, zoom: f64) -> Option<String> {
 /// A tile placed on the canvas, as the renderer sees it.
 pub struct SymbolTile<'a> {
     pub coord: (u8, u32, u32),
+    /// World copy (OverscaledTileID.wrap); placement orders by it first.
+    pub wrap: i32,
     pub tile: &'a super::mvt::Tile,
     pub ox: f64,
     pub oy: f64,
@@ -1472,7 +1474,7 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
     tile_order.sort_by(|&a, &b| {
         let (za, xa, ya) = tiles[a].coord;
         let (zb, xb, yb) = tiles[b].coord;
-        zb.cmp(&za).then(xa.cmp(&xb)).then(ya.cmp(&yb))
+        zb.cmp(&za).then(tiles[a].wrap.cmp(&tiles[b].wrap)).then(xa.cmp(&xb)).then(ya.cmp(&yb))
     });
 
     // Collision grid (brute force; same results as GridIndex).

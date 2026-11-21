@@ -73,7 +73,7 @@ async fn render_async(request: RenderRequest) -> Result<RenderResult, BasemapErr
     // Compute zoom for the full bbox — handles anti-meridian via compute_zoom.
     let zoom = {
         let raw = request.zoom.unwrap_or_else(|| {
-            let mut z = bbox::compute_zoom(request.bbox, request.width);
+            let mut z = bbox::raster_tile_zoom(request.bbox, request.width, raster_tile_size(&style_val));
             while z > 0 && bbox::tile_count(request.bbox, z) > request.max_tiles {
                 z -= 1;
             }
@@ -92,9 +92,23 @@ async fn render_async(request: RenderRequest) -> Result<RenderResult, BasemapErr
     }
 
     let [xmin, _ymin, xmax, _ymax] = request.bbox;
+    let half = 20_037_508.342_789_244;
+    let wraps = xmin < xmax && (xmin < -half || xmax > half);
+    let is_vector = matches!(tile_source, TileSource::MapboxVectorTile { .. });
     if xmin > xmax {
         render_antimeridian_split(&request, &client, &style_json, &tile_source, transparent, zoom)
             .await
+    } else if wraps && !is_vector {
+        // Raster sources: express a view past ±180° as an anti-meridian bbox.
+        // (Vector sources draw the wrapped world copy directly.)
+        let mut req = request.clone();
+        if req.bbox[0] < -half {
+            req.bbox[0] += 2.0 * half;
+        }
+        if req.bbox[2] > half {
+            req.bbox[2] -= 2.0 * half;
+        }
+        render_antimeridian_split(&req, &client, &style_json, &tile_source, transparent, zoom).await
     } else {
         render_single_bbox(
             &request,
@@ -145,7 +159,12 @@ async fn render_single_bbox(
             None => vector::render::tile_zoom(sz, None),
         };
         let tz = tile_source.maxzoom().map_or(tz, |m| tz.min(m));
-        let coords = tile_fetcher::build_tile_coords(bbox, tz);
+        // Tiles covering the view, including wrapped world copies; each
+        // canonical tile is fetched once.
+        let covering = vector::render::covering_tiles(bbox, tz);
+        let mut coords: Vec<tile_fetcher::TileCoord> = covering.iter().map(|c| c.0).collect();
+        coords.sort_by_key(|c| (c.z, c.x, c.y));
+        coords.dedup();
         let urls = tile_fetcher::build_tile_urls(tile_source, &coords);
         let tiles = tile_fetcher::fetch_all_tiles(
             client,
@@ -162,7 +181,13 @@ async fn render_single_bbox(
             glyphs: fetch_glyphs(client, &style_val, style_base_url_of(request), &tiles, sz).await,
             sprite: fetch_sprite(client, &style_val, style_base_url_of(request)).await,
         };
-        let out = vector::render::render(&style_val, &tiles, &assets, bbox, width, height)
+        let by_coord: std::collections::HashMap<(u8, u32, u32), &tile_fetcher::TileData> =
+            tiles.iter().map(|(c, d)| ((c.z, c.x, c.y), d)).collect();
+        let placed: Vec<(tile_fetcher::TileCoord, i32, tile_fetcher::TileData)> = covering
+            .iter()
+            .filter_map(|(c, wrap)| by_coord.get(&(c.z, c.x, c.y)).map(|d| (*c, *wrap, (*d).clone())))
+            .collect();
+        let out = vector::render::render(&style_val, &placed, &assets, bbox, width, height)
             .map_err(BasemapError::RenderError)?;
         if !out.skipped_layer_types.is_empty() {
             log::warn!(
@@ -453,6 +478,15 @@ fn resolve_url(url: &str, base: Option<&str>) -> String {
         }
     }
     url.to_owned()
+}
+
+/// `tileSize` of the style's first raster source (MapLibre's default: 512).
+fn raster_tile_size(style: &serde_json::Value) -> f64 {
+    style["sources"]
+        .as_object()
+        .and_then(|s| s.values().find(|v| v["type"] == "raster"))
+        .and_then(|v| v["tileSize"].as_f64())
+        .unwrap_or(512.0)
 }
 
 fn style_base_url_of(request: &RenderRequest) -> Option<&str> {

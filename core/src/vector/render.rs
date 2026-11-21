@@ -35,6 +35,25 @@ pub fn scale_zoom(bbox: [f64; 4], width: u32) -> f64 {
     }
 }
 
+/// Tiles covering `bbox` at tile zoom `z`, as (canonical tile, wrap). Columns
+/// past ±180° belong to a wrapped world copy: wrap -1 is the copy to the
+/// west, +1 to the east (MapLibre's renderWorldCopies).
+pub fn covering_tiles(bbox: [f64; 4], z: u8) -> Vec<(TileCoord, i32)> {
+    let n = 1i64 << z;
+    let col = |x: f64| ((x + EARTH_HALF) / EARTH_CIRC * n as f64).floor() as i64;
+    let row = |y: f64| (((EARTH_HALF - y) / EARTH_CIRC * n as f64).floor() as i64).clamp(0, n - 1);
+    let (x0, x1) = (col(bbox[0]), col(bbox[2]));
+    let (y0, y1) = (row(bbox[3]), row(bbox[1]));
+    let mut out = Vec::new();
+    for x in x0..=x1 {
+        for y in y0..=y1 {
+            let c = TileCoord { z, x: x.rem_euclid(n) as u32, y: y as u32 };
+            out.push((c, x.div_euclid(n) as i32));
+        }
+    }
+    out
+}
+
 /// Tile zoom MapLibre would request for a vector source at this view.
 pub fn tile_zoom(scale_zoom: f64, source_maxzoom: Option<u8>) -> u8 {
     let z = scale_zoom.floor().clamp(0.0, 22.0) as u8;
@@ -43,6 +62,8 @@ pub fn tile_zoom(scale_zoom: f64, source_maxzoom: Option<u8>) -> u8 {
 
 struct PlacedTile {
     coord: TileCoord,
+    /// World copy: -1 west, 0 the primary world, +1 east.
+    wrap: i32,
     tile: Tile,
     /// Canvas position of the tile's top-left corner, in px.
     ox: f64,
@@ -61,9 +82,10 @@ pub struct RenderOutput {
 
 /// Render `tiles` (raw MVT bytes) with `style` over `bbox` at `width × height`.
 /// `assets` holds glyphs and sprite images for symbol layers (may be empty).
+/// Each tile carries its world-copy `wrap` (see [`covering_tiles`]).
 pub fn render(
     style: &Json,
-    tiles: &[(TileCoord, Vec<u8>)],
+    tiles: &[(TileCoord, i32, Vec<u8>)],
     assets: &SymbolAssets,
     bbox: [f64; 4],
     width: u32,
@@ -81,7 +103,7 @@ pub fn render(
     let mut fb = Framebuffer::new(w, h);
 
     let mut placed = Vec::with_capacity(tiles.len());
-    for (c, bytes) in tiles {
+    for (c, wrap, bytes) in tiles {
         let tile = match mvt::decode(bytes) {
             Ok(t) => t,
             Err(e) => {
@@ -90,10 +112,11 @@ pub fn render(
             }
         };
         let tile_px = world_px / 2f64.powi(c.z as i32);
-        let ox = c.x as f64 * tile_px - view_x0;
+        let ox = (c.x as f64 + (*wrap as f64) * 2f64.powi(c.z as i32)) * tile_px - view_x0;
         let oy = c.y as f64 * tile_px - view_y0;
         placed.push(PlacedTile {
             coord: *c,
+            wrap: *wrap,
             tile,
             ox,
             oy,
@@ -108,6 +131,7 @@ pub fn render(
         .iter()
         .map(|p| SymbolTile {
             coord: (p.coord.z, p.coord.x, p.coord.y),
+            wrap: p.wrap,
             tile: &p.tile,
             ox: p.ox,
             oy: p.oy,
@@ -357,7 +381,9 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
     let offset = Prop::new(p.get("line-offset"), Kind::Number, zoom);
     let blur = Prop::new(p.get("line-blur"), Kind::Number, zoom);
     let translate = Prop::new(p.get("line-translate"), Kind::Array, zoom);
-    let dasharray = Prop::new(p.get("line-dasharray"), Kind::Array, zoom);
+    // line-dasharray is not interpolatable: legacy functions default to
+    // "interval" (Kind::Enum), unlike interpolatable arrays such as offsets.
+    let dasharray = Prop::new(p.get("line-dasharray"), Kind::Enum, zoom);
     let cap = match l["line-cap"].as_str() {
         Some("round") => Cap::Round,
         Some("square") => Cap::Square,
@@ -381,7 +407,6 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
         _ => None,
     };
     let from_scale = if zoom > zoom.floor() { 2.0 } else { 0.5 };
-    let tile_ratio = TILE_PX / EXTENT;
 
     let (w, h) = (fb.w, fb.h);
     for pt in placed {
@@ -417,6 +442,9 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
                 let width_b = d.width;
                 let width_a = d.width * from_scale;
                 let sdfgamma = ATLAS_W as f64 / (width_a.min(width_b) * 256.0) / 2.0;
+                // lineSDFUniformValues: tileRatio = 1 / pixelsToTileUnits(tile, 1,
+                // tileZoom); an overscaled tile is 512 * overscaling px wide.
+                let tile_ratio = TILE_PX * pt.overscaling / EXTENT;
                 (d, tile_ratio / width_b / floorwidth, sdfgamma / floorwidth)
             });
 

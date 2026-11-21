@@ -52,11 +52,20 @@ impl RenderRequest {
                 "[{xmin}, {ymin}, {xmax}, {ymax}]: ymin ({ymin}) must be < ymax ({ymax})"
             )));
         }
-        // Coordinates must be within the Web Mercator valid extent.
-        if xmin < -EARTH_HALF || xmax > EARTH_HALF || ymin < -EARTH_HALF || ymax > EARTH_HALF {
+        // y must be within the Web Mercator extent. x may extend up to one
+        // world width beyond ±180° (a view showing a wrapped world copy, as
+        // MapLibre draws it), as long as the bbox spans at most one world.
+        if ymin < -EARTH_HALF || ymax > EARTH_HALF {
             return Err(BasemapError::InvalidBbox(format!(
-                "[{xmin}, {ymin}, {xmax}, {ymax}]: coordinates must be within \
+                "[{xmin}, {ymin}, {xmax}, {ymax}]: y must be within \
                  ±{EARTH_HALF:.0} (Web Mercator bounds)"
+            )));
+        }
+        let x_limit = EARTH_HALF + 2.0 * EARTH_HALF;
+        if xmin < -x_limit || xmax > x_limit || (xmin < xmax && xmax - xmin > 2.0 * EARTH_HALF) {
+            return Err(BasemapError::InvalidBbox(format!(
+                "[{xmin}, {ymin}, {xmax}, {ymax}]: x must be within ±{x_limit:.0} \
+                 and span at most one world width"
             )));
         }
         // xmin > xmax is the anti-meridian case — accepted and handled by render().
@@ -96,6 +105,20 @@ fn validate_layers(layers: &[String]) -> Result<(), BasemapError> {
 ///
 /// Handles anti-meridian bboxes (xmin > xmax) by computing the wrapped width:
 /// `(EARTH_HALF − xmin) + (xmax + EARTH_HALF)`.
+/// Raster tile zoom as MapLibre picks it for a raster source with tiles of
+/// `tile_size` px: `round(zoom + log2(512 / tile_size))` (its `roundZoom`),
+/// i.e. the rounded zoom at which one tile spans `tile_size` canvas px.
+pub fn raster_tile_zoom(bbox: [f64; 4], width_px: u32, tile_size: f64) -> u8 {
+    let bbox_width_m = if bbox[0] <= bbox[2] {
+        bbox[2] - bbox[0]
+    } else {
+        (EARTH_HALF - bbox[0]) + (bbox[2] + EARTH_HALF)
+    };
+    let mpp = bbox_width_m / width_px as f64;
+    let zoom = (EARTH_CIRC / (tile_size * mpp)).log2().round() as i32;
+    zoom.clamp(0, 22) as u8
+}
+
 pub fn compute_zoom(bbox: [f64; 4], width_px: u32) -> u8 {
     let bbox_width_m = if bbox[0] <= bbox[2] {
         bbox[2] - bbox[0]

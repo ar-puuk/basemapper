@@ -44,11 +44,11 @@ against the no-labels reference.
 
 | Case | What it covers |
 |---|---|
-| `carto_{positron,dark_matter,voyager}_z{4,7,10,13,16}` | CARTO GL styles at five MapLibre zooms over Salt Lake City; z16 overzooms the source (maxzoom 15). Positron holds each zoom's tiles (`tiles_from`); all share the glyphs in `carto_positron_z4` (`fonts_from`) |
+| `carto_{positron,dark_matter,voyager}_z{1..22}` | CARTO GL styles at every MapLibre zoom from 1 to 22 over Salt Lake City; z16+ overzooms the source (maxzoom 15), z1-z2 show a wrapped world copy at the west edge. Positron holds each zoom's tiles (`tiles_from`); all share the glyphs in `carto_positron_z4` (`fonts_from`) |
 | `ugrc_litebase_slc`, `ugrc_filtered_slc` | UGRC Lite Base (ESRI VectorTileServer style), full and layer-filtered (transparent) |
 | `ugrc_hillshade_slc`, `ugrc_litelabels_slc` | UGRC Vector Hillshade and Lite Labels services |
 | `ugrc_full_slc` | `stack` of Hillshade, Lite Base and Lite Labels (bottom to top): the full UGRC Lite basemap. Lite Base has no background; the hillshade beneath supplies it |
-| `ugrc_{hillshade,litebase,litelabels,full}_z{4,7,10,16}` | The three UGRC services and their full stack at MapLibre zooms 4, 7, 10 and 16 (the `_slc` cases are zoom 13). Glyphs shared with the `_slc` cases via `fonts_from` |
+| `ugrc_{hillshade,litebase,litelabels,full}_z{1..22}` | The three UGRC services and their full stack at every MapLibre zoom from 1 to 22 except 13 (the `_slc` cases are zoom 13). Glyphs shared with the `_slc` cases via `fonts_from` |
 | `osm_raster_slc` | OpenStreetMap raster tiles |
 
 The test always writes `actual.png` and `diff.png` (bad pixels in red) to

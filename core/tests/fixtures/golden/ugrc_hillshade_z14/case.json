@@ -1,0 +1,18 @@
+{
+  "attribution": "Utah Geospatial Resource Center (UGRC), State of Utah",
+  "bbox": [
+    -12457340.92570713,
+    4964887.305719653,
+    -12453519.07429287,
+    4967753.694280347
+  ],
+  "fonts_from": null,
+  "height": 600,
+  "layers": null,
+  "source_style": "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services/VectorHillshade/VectorTileServer/resources/styles/root.json",
+  "tiles_from": null,
+  "width": 800,
+  "zoom": 15,
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.007
+}

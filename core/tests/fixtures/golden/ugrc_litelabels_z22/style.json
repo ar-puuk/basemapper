@@ -1,0 +1,2396 @@
+{
+  "glyphs": "{{BASE}}/fonts/{fontstack}/{range}.pbf",
+  "layers": [
+    {
+      "id": "Labels/Counties/1",
+      "layout": {},
+      "paint": {
+        "fill-color": "rgba(215,252,237,0)"
+      },
+      "source": "esri",
+      "source-layer": "Counties",
+      "type": "fill"
+    },
+    {
+      "id": "Labels/AddressPoints",
+      "layout": {},
+      "maxzoom": 19,
+      "minzoom": 17,
+      "paint": {
+        "circle-color": "rgba(138,52,29,0)",
+        "circle-radius": 0.666667,
+        "circle-stroke-color": "rgba(0,0,0,0)",
+        "circle-stroke-width": 0
+      },
+      "source": "esri",
+      "source-layer": "AddressPoints",
+      "type": "circle"
+    },
+    {
+      "id": "Labels/AnnoPoints",
+      "layout": {},
+      "paint": {
+        "circle-color": "rgba(140,41,112,0)",
+        "circle-radius": 0.666667,
+        "circle-stroke-color": "rgba(0,0,0,0)",
+        "circle-stroke-width": 0
+      },
+      "source": "esri",
+      "source-layer": "AnnoPoints",
+      "type": "circle"
+    },
+    {
+      "id": "Labels/muni_pts",
+      "layout": {},
+      "paint": {
+        "circle-color": "rgba(39,36,133,0)",
+        "circle-radius": 0.666667,
+        "circle-stroke-color": "rgba(0,0,0,0)",
+        "circle-stroke-width": 0
+      },
+      "source": "esri",
+      "source-layer": "muni_pts",
+      "type": "circle"
+    },
+    {
+      "id": "Labels/CitiesTownsLocations_VT",
+      "layout": {},
+      "paint": {
+        "circle-color": "rgba(156,78,50,0)",
+        "circle-radius": 0.666667,
+        "circle-stroke-color": "rgba(0,0,0,0)",
+        "circle-stroke-width": 0
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "circle"
+    },
+    {
+      "filter": [
+        "all",
+        [
+          "==",
+          "_label_class",
+          2
+        ],
+        [
+          "==",
+          "$type",
+          "Point"
+        ]
+      ],
+      "id": "Labels/Roads - Interstates and Ramps - white version/label/State Highways",
+      "layout": {
+        "icon-image": "Labels/Roads - Interstates and Ramps - white version/State Highways",
+        "icon-keep-upright": true,
+        "text-field": "{_name}",
+        "text-font": [
+          "Arial Bold"
+        ],
+        "text-size": 8.33333
+      },
+      "minzoom": 11,
+      "paint": {
+        "text-color": "#666461"
+      },
+      "source": "esri",
+      "source-layer": "Roads - Interstates and Ramps - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        4
+      ],
+      "id": "Labels/Roads - Interstates and Ramps - white version/label/Major Rds & Highways - 36k",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 1000,
+        "text-field": "{_name}",
+        "text-font": [
+          "Helvetica Bold"
+        ],
+        "text-optional": true,
+        "text-size": 12.6667
+      },
+      "maxzoom": 14,
+      "minzoom": 13,
+      "paint": {
+        "text-color": "#595757",
+        "text-halo-color": "rgba(217,206,206,0.55)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "Roads - Interstates and Ramps - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "all",
+        [
+          "==",
+          "_label_class",
+          0
+        ],
+        [
+          "==",
+          "$type",
+          "Point"
+        ]
+      ],
+      "id": "Labels/Roads - Interstates and Ramps - white version/label/Interstates",
+      "layout": {
+        "icon-image": "Labels/Roads - Interstates and Ramps - white version/Interstates",
+        "icon-keep-upright": true,
+        "text-allow-overlap": true,
+        "text-field": "{_name}",
+        "text-font": [
+          "Arial Bold"
+        ],
+        "text-size": 8.33333
+      },
+      "minzoom": 7,
+      "paint": {
+        "text-color": "#737270"
+      },
+      "source": "esri",
+      "source-layer": "Roads - Interstates and Ramps - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "all",
+        [
+          "==",
+          "_label_class",
+          1
+        ],
+        [
+          "==",
+          "$type",
+          "Point"
+        ]
+      ],
+      "id": "Labels/Roads - Interstates and Ramps - white version/label/US Highways",
+      "layout": {
+        "icon-image": "Labels/Roads - Interstates and Ramps - white version/US Highways",
+        "icon-keep-upright": true,
+        "text-field": "{_name}",
+        "text-font": [
+          "Arial Bold"
+        ],
+        "text-size": 8.66667
+      },
+      "minzoom": 7,
+      "paint": {
+        "text-color": "#666461"
+      },
+      "source": "esri",
+      "source-layer": "Roads - Interstates and Ramps - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        3
+      ],
+      "id": "Labels/Roads - Interstates and Ramps - white version/label/Major Rds & Highways - 72k",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 1000,
+        "text-field": "{_name}",
+        "text-font": [
+          "Helvetica Bold"
+        ],
+        "text-optional": true,
+        "text-size": 11.3333
+      },
+      "maxzoom": 13,
+      "minzoom": 12,
+      "paint": {
+        "text-color": "#595757",
+        "text-halo-color": "rgba(204,194,194,0.6)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "Roads - Interstates and Ramps - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        5
+      ],
+      "id": "Labels/Roads - Interstates and Ramps - white version/label/Major Rds & Highways - 18k",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 1000,
+        "text-field": "{_name}",
+        "text-font": [
+          "Helvetica Bold"
+        ],
+        "text-optional": true,
+        "text-size": 14.6667
+      },
+      "maxzoom": 15,
+      "minzoom": 14,
+      "paint": {
+        "text-color": "#595757",
+        "text-halo-color": "rgba(217,206,206,0.55)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "Roads - Interstates and Ramps - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        6
+      ],
+      "id": "Labels/Roads - Interstates and Ramps - white version/label/Minor Rds - 18k",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 1000,
+        "text-field": "{_name}",
+        "text-font": [
+          "Helvetica Bold"
+        ],
+        "text-letter-spacing": 0.1,
+        "text-optional": true,
+        "text-size": 12
+      },
+      "maxzoom": 15,
+      "minzoom": 14,
+      "paint": {
+        "text-color": "#595757",
+        "text-halo-color": "rgba(217,206,206,0.55)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "Roads - Interstates and Ramps - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        7
+      ],
+      "id": "Labels/Roads - Interstates and Ramps - white version/label/Major Rds & Highways - 9k",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 480,
+        "text-field": "{_name}",
+        "text-font": [
+          "Helvetica Bold"
+        ],
+        "text-optional": true,
+        "text-size": 15.3333
+      },
+      "maxzoom": 16,
+      "minzoom": 15,
+      "paint": {
+        "text-color": "#595757",
+        "text-halo-color": "rgba(217,206,206,0.55)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "Roads - Interstates and Ramps - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        8
+      ],
+      "id": "Labels/Roads - Interstates and Ramps - white version/label/Minor Rds - 9k",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 1000,
+        "text-field": "{_name}",
+        "text-font": [
+          "Helvetica Bold"
+        ],
+        "text-optional": true,
+        "text-size": 12
+      },
+      "maxzoom": 16,
+      "minzoom": 15,
+      "paint": {
+        "text-color": "#595757",
+        "text-halo-color": "rgba(217,206,206,0.55)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "Roads - Interstates and Ramps - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        9
+      ],
+      "id": "Labels/Roads - Interstates and Ramps - white version/label/Major Rds & Highways - 4k down",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 1000,
+        "text-field": "{_name}",
+        "text-font": [
+          "Helvetica Bold"
+        ],
+        "text-optional": true,
+        "text-size": 16
+      },
+      "minzoom": 16,
+      "paint": {
+        "text-color": "#595757",
+        "text-halo-color": "rgba(217,206,206,0.55)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "Roads - Interstates and Ramps - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        10
+      ],
+      "id": "Labels/Roads - Interstates and Ramps - white version/label/Minor Rds - 4k down",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 1000,
+        "text-field": "{_name}",
+        "text-font": [
+          "Helvetica Bold"
+        ],
+        "text-optional": true,
+        "text-size": 13.3333
+      },
+      "minzoom": 16,
+      "paint": {
+        "text-color": "#595757",
+        "text-halo-color": "rgba(217,206,206,0.55)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "Roads - Interstates and Ramps - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "all",
+        [
+          "==",
+          "_label_class",
+          11
+        ],
+        [
+          "==",
+          "$type",
+          "Point"
+        ]
+      ],
+      "id": "Labels/Roads - Interstates and Ramps - white version/label/State Highways - 2.3m-2.8k",
+      "layout": {
+        "icon-image": "Labels/Roads - Interstates and Ramps - white version/State Highways - 2.3m-2.8k",
+        "icon-keep-upright": true,
+        "text-field": "{_name}",
+        "text-font": [
+          "Arial Bold"
+        ],
+        "text-size": 8.33333
+      },
+      "maxzoom": 10,
+      "minzoom": 7,
+      "paint": {
+        "text-color": "#666461"
+      },
+      "source": "esri",
+      "source-layer": "Roads - Interstates and Ramps - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        1
+      ],
+      "id": "Labels/Counties/label/Counties - 577k",
+      "layout": {
+        "text-field": "{_name}",
+        "text-font": [
+          "Poller One Regular"
+        ],
+        "text-letter-spacing": 0.5,
+        "text-optional": true,
+        "text-size": 24
+      },
+      "maxzoom": 10,
+      "minzoom": 9,
+      "paint": {
+        "text-color": "#FAF8F5",
+        "text-halo-color": "#8C8885",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "Counties/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        2
+      ],
+      "id": "Labels/Counties/label/Counties - 288k",
+      "layout": {
+        "text-field": "{_name}",
+        "text-font": [
+          "Poller One Regular"
+        ],
+        "text-letter-spacing": 0.75,
+        "text-optional": true,
+        "text-size": 26.6667
+      },
+      "maxzoom": 11,
+      "minzoom": 10,
+      "paint": {
+        "text-color": "#FAF8F5",
+        "text-halo-color": "#8C8885",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "Counties/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        3
+      ],
+      "id": "Labels/Counties/label/Counties - 72k down",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 1000,
+        "text-field": "{_name}",
+        "text-font": [
+          "Poller One Regular"
+        ],
+        "text-letter-spacing": 0.5,
+        "text-optional": true,
+        "text-size": 10.6667
+      },
+      "maxzoom": 18,
+      "minzoom": 12,
+      "paint": {
+        "text-color": "#F2F1ED",
+        "text-halo-color": "#8C8885",
+        "text-halo-width": 1
+      },
+      "source": "esri",
+      "source-layer": "Counties/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "all",
+        [
+          "==",
+          "_label_class",
+          1
+        ],
+        [
+          "==",
+          "$type",
+          "Point"
+        ]
+      ],
+      "id": "Labels/Roads - white version/label/US Highways",
+      "layout": {
+        "icon-image": "Labels/Roads - white version/US Highways",
+        "icon-keep-upright": true,
+        "text-field": "{_name}",
+        "text-font": [
+          "Arial Bold"
+        ],
+        "text-size": 8.66667
+      },
+      "minzoom": 9,
+      "paint": {
+        "text-color": "#737270"
+      },
+      "source": "esri",
+      "source-layer": "Roads - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "all",
+        [
+          "==",
+          "_label_class",
+          0
+        ],
+        [
+          "==",
+          "$type",
+          "Point"
+        ]
+      ],
+      "id": "Labels/Roads - white version/label/Interstates",
+      "layout": {
+        "icon-image": "Labels/Roads - white version/Interstates",
+        "icon-keep-upright": true,
+        "text-allow-overlap": true,
+        "text-field": "{_name}",
+        "text-font": [
+          "Arial Bold"
+        ],
+        "text-size": 8.66667
+      },
+      "minzoom": 8,
+      "paint": {
+        "text-color": "#F5EFDC"
+      },
+      "source": "esri",
+      "source-layer": "Roads - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        3
+      ],
+      "id": "Labels/Roads - white version/label/Major Rds & Highways - 72k",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 1000,
+        "text-field": "{_name}",
+        "text-font": [
+          "Segoe UI Semibold"
+        ],
+        "text-optional": true,
+        "text-size": 12
+      },
+      "maxzoom": 13,
+      "minzoom": 12,
+      "paint": {
+        "text-color": "#8C8989",
+        "text-halo-color": "rgba(230,230,230,0.6)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "Roads - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        2
+      ],
+      "id": "Labels/Roads - white version/label/State Highways",
+      "layout": {
+        "icon-image": "Labels/Roads - white version/State Highways",
+        "icon-keep-upright": true,
+        "icon-rotation-alignment": "viewport",
+        "symbol-placement": "line",
+        "symbol-spacing": 576,
+        "text-field": "{_name}",
+        "text-font": [
+          "Arial Bold"
+        ],
+        "text-rotation-alignment": "viewport",
+        "text-size": {
+          "stops": [
+            [
+              0,
+              8.33333
+            ],
+            [
+              20,
+              8.33333
+            ]
+          ]
+        }
+      },
+      "maxzoom": 15,
+      "minzoom": 11,
+      "paint": {
+        "text-color": "#737270"
+      },
+      "source": "esri",
+      "source-layer": "Roads - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        10
+      ],
+      "id": "Labels/Roads - white version/label/Minor Rds - 4k down",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 1000,
+        "text-field": "{_name}",
+        "text-font": [
+          "Segoe UI Semibold"
+        ],
+        "text-optional": true,
+        "text-size": 15.3333
+      },
+      "minzoom": 16,
+      "paint": {
+        "text-color": "#8C8989"
+      },
+      "source": "esri",
+      "source-layer": "Roads - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        9
+      ],
+      "id": "Labels/Roads - white version/label/Major Rds & Highways - 4k down",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 1000,
+        "text-field": "{_name}",
+        "text-font": [
+          "Segoe UI Semibold"
+        ],
+        "text-optional": true,
+        "text-size": 18.6667
+      },
+      "minzoom": 16,
+      "paint": {
+        "text-color": "#8C8989"
+      },
+      "source": "esri",
+      "source-layer": "Roads - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        8
+      ],
+      "id": "Labels/Roads - white version/label/Minor Rds - 9k",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 1000,
+        "text-field": "{_name}",
+        "text-font": [
+          "Segoe UI Semibold"
+        ],
+        "text-optional": true,
+        "text-size": 14
+      },
+      "maxzoom": 16,
+      "minzoom": 15,
+      "paint": {
+        "text-color": "#8C8989",
+        "text-halo-color": "rgba(242,230,230,0.6)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "Roads - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        7
+      ],
+      "id": "Labels/Roads - white version/label/Major Rds & Highways - 9k",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 480,
+        "text-field": "{_name}",
+        "text-font": [
+          "Segoe UI Semibold"
+        ],
+        "text-optional": true,
+        "text-size": 16.6667
+      },
+      "maxzoom": 16,
+      "minzoom": 15,
+      "paint": {
+        "text-color": "#8C8989",
+        "text-halo-color": "rgba(242,230,230,0.6)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "Roads - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        6
+      ],
+      "id": "Labels/Roads - white version/label/Minor Rds - 18k",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 1000,
+        "text-field": "{_name}",
+        "text-font": [
+          "Segoe UI Semibold"
+        ],
+        "text-letter-spacing": 0.1,
+        "text-optional": true,
+        "text-size": 12
+      },
+      "maxzoom": 15,
+      "minzoom": 14,
+      "paint": {
+        "text-color": "#8C8989",
+        "text-halo-color": "rgba(242,237,237,0.6)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "Roads - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        5
+      ],
+      "id": "Labels/Roads - white version/label/Major Rds & Highways - 18k",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 1000,
+        "text-field": "{_name}",
+        "text-font": [
+          "Segoe UI Semibold"
+        ],
+        "text-optional": true,
+        "text-size": 15.3333
+      },
+      "maxzoom": 15,
+      "minzoom": 14,
+      "paint": {
+        "text-color": "#8C8989",
+        "text-halo-color": "rgba(242,237,237,0.6)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "Roads - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        4
+      ],
+      "id": "Labels/Roads - white version/label/Major Rds & Highways - 36k",
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 1000,
+        "text-field": "{_name}",
+        "text-font": [
+          "Segoe UI Semibold"
+        ],
+        "text-optional": true,
+        "text-size": 13.3333
+      },
+      "maxzoom": 14,
+      "minzoom": 13,
+      "paint": {
+        "text-color": "#8C8989",
+        "text-halo-color": "rgba(242,230,230,0.6)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "Roads - white version/label",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class23",
+        23
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/lower left - place",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "top-right",
+        "text-field": "{_name23}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "right",
+        "text-offset": [
+          -0.20164,
+          -0.09836
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              12,
+              17.3333
+            ],
+            [
+              19,
+              17.3333
+            ]
+          ]
+        }
+      },
+      "maxzoom": 19,
+      "minzoom": 12,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class22",
+        22
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/middle left - place",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "right",
+        "text-field": "{_name22}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "right",
+        "text-offset": [
+          -0.269231,
+          0
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              12,
+              17.3333
+            ],
+            [
+              19,
+              17.3333
+            ]
+          ]
+        }
+      },
+      "maxzoom": 19,
+      "minzoom": 12,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class21",
+        21
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/upper left - place",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "bottom-right",
+        "text-field": "{_name21}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "right",
+        "text-offset": [
+          -0.20164,
+          0.09836
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              12,
+              17.3333
+            ],
+            [
+              19,
+              17.3333
+            ]
+          ]
+        }
+      },
+      "maxzoom": 19,
+      "minzoom": 12,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class20",
+        20
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/lower right - place",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "top-left",
+        "text-field": "{_name20}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "left",
+        "text-offset": [
+          0.20164,
+          -0.09836
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              12,
+              17.3333
+            ],
+            [
+              19,
+              17.3333
+            ]
+          ]
+        }
+      },
+      "maxzoom": 19,
+      "minzoom": 12,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class19",
+        19
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/middle right - place",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "left",
+        "text-field": "{_name19}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "left",
+        "text-offset": [
+          0.269231,
+          0
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              12,
+              17.3333
+            ],
+            [
+              19,
+              17.3333
+            ]
+          ]
+        }
+      },
+      "maxzoom": 19,
+      "minzoom": 12,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class18",
+        18
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/upper right - place",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "bottom-left",
+        "text-field": "{_name18}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "left",
+        "text-offset": [
+          0.20164,
+          0.09836
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              12,
+              17.3333
+            ],
+            [
+              19,
+              17.3333
+            ]
+          ]
+        }
+      },
+      "maxzoom": 19,
+      "minzoom": 12,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class17",
+        17
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/lower left - minor",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "top-right",
+        "text-field": "{_name17}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "right",
+        "text-offset": [
+          -0.291258,
+          -0.00874218
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              9,
+              10.6667
+            ],
+            [
+              10,
+              12
+            ],
+            [
+              11,
+              13.3333
+            ],
+            [
+              12,
+              14.6667
+            ],
+            [
+              13,
+              9.33333
+            ],
+            [
+              14,
+              9.33333
+            ],
+            [
+              20,
+              9.33333
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 9,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class16",
+        16
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/lower left - medium",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "top-right",
+        "text-field": "{_name16}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "right",
+        "text-offset": [
+          -0.291258,
+          -0.00874218
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              9,
+              12.6667
+            ],
+            [
+              10,
+              14
+            ],
+            [
+              11,
+              16
+            ],
+            [
+              12,
+              12
+            ],
+            [
+              20,
+              12
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 9,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class15",
+        15
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/lower left - major",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "top-right",
+        "text-field": "{_name15}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "right",
+        "text-offset": [
+          -0.374474,
+          0.0744743
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              6,
+              10.6667
+            ],
+            [
+              7,
+              11.3333
+            ],
+            [
+              8,
+              13.3333
+            ],
+            [
+              9,
+              14.6667
+            ],
+            [
+              10,
+              16
+            ],
+            [
+              11,
+              17.3333
+            ],
+            [
+              12,
+              17.3333
+            ],
+            [
+              20,
+              10.6667
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 7,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class14",
+        14
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/middle left - minor",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "right",
+        "text-field": "{_name14}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "right",
+        "text-offset": [
+          -0.388889,
+          0
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              9,
+              10.6667
+            ],
+            [
+              10,
+              12
+            ],
+            [
+              11,
+              13.3333
+            ],
+            [
+              12,
+              14.6667
+            ],
+            [
+              13,
+              9.33333
+            ],
+            [
+              16,
+              9.33333
+            ],
+            [
+              20,
+              9.33333
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 9,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class13",
+        13
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/middle left - medium",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "right",
+        "text-field": "{_name13}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "right",
+        "text-offset": [
+          -0.4375,
+          0
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              9,
+              12.6667
+            ],
+            [
+              10,
+              14
+            ],
+            [
+              11,
+              16
+            ],
+            [
+              12,
+              12
+            ],
+            [
+              13,
+              12
+            ],
+            [
+              14,
+              12
+            ],
+            [
+              20,
+              12
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 9,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class12",
+        12
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/middle left - major",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "right",
+        "text-field": "{_name12}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "right",
+        "text-offset": [
+          -0.5,
+          0
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              6,
+              10.6667
+            ],
+            [
+              7,
+              11.3333
+            ],
+            [
+              8,
+              13.3333
+            ],
+            [
+              9,
+              14.6667
+            ],
+            [
+              10,
+              16
+            ],
+            [
+              11,
+              17.3333
+            ],
+            [
+              12,
+              17.3333
+            ],
+            [
+              20,
+              10.6667
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 7,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class11",
+        11
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/upper left - minor",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "bottom-right",
+        "text-field": "{_name11}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "right",
+        "text-offset": [
+          -0.291258,
+          0.00874218
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              9,
+              10.6667
+            ],
+            [
+              10,
+              12
+            ],
+            [
+              11,
+              13.3333
+            ],
+            [
+              12,
+              14.6667
+            ],
+            [
+              15,
+              9.33333
+            ],
+            [
+              20,
+              9.33333
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 9,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class10",
+        10
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/upper left - medium",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "bottom-right",
+        "text-field": "{_name10}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "right",
+        "text-offset": [
+          -0.327665,
+          -0.027665
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              9,
+              12.6667
+            ],
+            [
+              10,
+              14
+            ],
+            [
+              11,
+              16
+            ],
+            [
+              12,
+              12
+            ],
+            [
+              13,
+              12
+            ],
+            [
+              14,
+              12
+            ],
+            [
+              15,
+              12
+            ],
+            [
+              20,
+              12
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 9,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class9",
+        9
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/upper left - major",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "bottom-right",
+        "text-field": "{_name9}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "right",
+        "text-offset": [
+          -0.218443,
+          0.0815566
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              6,
+              10.6667
+            ],
+            [
+              7,
+              11.3333
+            ],
+            [
+              8,
+              13.3333
+            ],
+            [
+              9,
+              14.6667
+            ],
+            [
+              10,
+              16
+            ],
+            [
+              11,
+              17.3333
+            ],
+            [
+              12,
+              17.3333
+            ],
+            [
+              20,
+              10.6667
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 7,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class8",
+        8
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/lower right - minor",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "top-left",
+        "text-field": "{_name8}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "left",
+        "text-offset": [
+          0.291258,
+          -0.00874218
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              9,
+              10.6667
+            ],
+            [
+              10,
+              12
+            ],
+            [
+              11,
+              13.3333
+            ],
+            [
+              12,
+              16
+            ],
+            [
+              20,
+              16
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 9,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class7",
+        7
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/lower right - medium",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "top-left",
+        "text-field": "{_name7}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "left",
+        "text-offset": [
+          0.291258,
+          -0.00874218
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              9,
+              12.6667
+            ],
+            [
+              10,
+              14
+            ],
+            [
+              11,
+              16
+            ],
+            [
+              12,
+              12
+            ],
+            [
+              13,
+              12
+            ],
+            [
+              14,
+              12
+            ],
+            [
+              20,
+              12
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 9,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class6",
+        6
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/lower right - major",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "top-left",
+        "text-field": "{_name6}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "left",
+        "text-offset": [
+          0.20164,
+          -0.09836
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              6,
+              10.6667
+            ],
+            [
+              7,
+              11.3333
+            ],
+            [
+              8,
+              13.3333
+            ],
+            [
+              9,
+              14.6667
+            ],
+            [
+              10,
+              16
+            ],
+            [
+              11,
+              17.3333
+            ],
+            [
+              12,
+              16
+            ],
+            [
+              13,
+              17.3333
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 7,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class5",
+        5
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/middle right - minor",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "left",
+        "text-field": "{_name5}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "left",
+        "text-offset": [
+          0.388889,
+          0
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              9,
+              10.6667
+            ],
+            [
+              10,
+              12
+            ],
+            [
+              11,
+              13.3333
+            ],
+            [
+              12,
+              16
+            ],
+            [
+              13,
+              17.3333
+            ],
+            [
+              20,
+              10.6667
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 9,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class4",
+        4
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/middle right - medium",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "left",
+        "text-field": "{_name4}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "left",
+        "text-offset": [
+          0.388889,
+          0
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              8,
+              10.6667
+            ],
+            [
+              9,
+              12.6667
+            ],
+            [
+              10,
+              14
+            ],
+            [
+              11,
+              16
+            ],
+            [
+              12,
+              14.6667
+            ],
+            [
+              13,
+              16
+            ],
+            [
+              14,
+              17.3333
+            ],
+            [
+              20,
+              12
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 9,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class3",
+        3
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/middle right - major",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "left",
+        "text-field": "{_name3}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "left",
+        "text-offset": [
+          0.388889,
+          0
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              6,
+              10.6667
+            ],
+            [
+              7,
+              11.3333
+            ],
+            [
+              8,
+              13.3333
+            ],
+            [
+              9,
+              14.6667
+            ],
+            [
+              10,
+              16
+            ],
+            [
+              11,
+              17.3333
+            ],
+            [
+              12,
+              16
+            ],
+            [
+              13,
+              17.3333
+            ],
+            [
+              20,
+              12
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 7,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class2",
+        2
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/upper right - minor",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "bottom-left",
+        "text-field": "{_name2}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "left",
+        "text-offset": [
+          0.238302,
+          0.0616982
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              9,
+              10.6667
+            ],
+            [
+              10,
+              12
+            ],
+            [
+              11,
+              13.3333
+            ],
+            [
+              12,
+              14.6667
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 9,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class1",
+        1
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/upper right - medium",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "bottom-left",
+        "text-field": "{_name1}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "left",
+        "text-offset": [
+          0.291258,
+          0.00874218
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              9,
+              12.6667
+            ],
+            [
+              10,
+              14
+            ],
+            [
+              11,
+              16
+            ],
+            [
+              12,
+              12
+            ],
+            [
+              13,
+              12
+            ],
+            [
+              14,
+              12
+            ],
+            [
+              20,
+              12
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 9,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        0
+      ],
+      "id": "Labels/CitiesTownsLocations_VT/label/upper right - major",
+      "layout": {
+        "text-allow-overlap": true,
+        "text-anchor": "bottom-left",
+        "text-field": "{_name}",
+        "text-font": [
+          "Yu Gothic Bold"
+        ],
+        "text-justify": "left",
+        "text-offset": [
+          0.308391,
+          -0.00839063
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              6,
+              10.6667
+            ],
+            [
+              7,
+              11.3333
+            ],
+            [
+              8,
+              13.3333
+            ],
+            [
+              9,
+              14.6667
+            ],
+            [
+              10,
+              16
+            ],
+            [
+              11,
+              17.3333
+            ]
+          ]
+        }
+      },
+      "maxzoom": 12,
+      "minzoom": 6,
+      "paint": {
+        "text-color": "#807D79",
+        "text-halo-color": "rgba(230,228,225,0.5)",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "CitiesTownsLocations_VT",
+      "type": "symbol"
+    },
+    {
+      "id": "Labels/AddressPoints/label/Class 1",
+      "layout": {
+        "text-anchor": "center",
+        "text-field": "{_name}",
+        "text-font": [
+          "Segoe UI Semibold"
+        ],
+        "text-optional": true,
+        "text-size": {
+          "stops": [
+            [
+              0,
+              9.33333
+            ],
+            [
+              20,
+              9.33333
+            ]
+          ]
+        }
+      },
+      "maxzoom": 19,
+      "minzoom": 17,
+      "paint": {
+        "text-color": "#807D7D"
+      },
+      "source": "esri",
+      "source-layer": "AddressPoints",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class1",
+        1
+      ],
+      "id": "Labels/AnnoPoints/label/Counties 288k",
+      "layout": {
+        "text-anchor": "bottom-left",
+        "text-field": "{_name1}",
+        "text-font": [
+          "Poller One Regular"
+        ],
+        "text-justify": "left",
+        "text-letter-spacing": 0.75,
+        "text-offset": [
+          0.0603553,
+          0.239645
+        ],
+        "text-optional": true,
+        "text-size": 26.6667
+      },
+      "maxzoom": 11,
+      "minzoom": 10,
+      "paint": {
+        "text-color": "#FAF8F5",
+        "text-halo-color": "#8C8885",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "AnnoPoints",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        0
+      ],
+      "id": "Labels/AnnoPoints/label/Class 1",
+      "layout": {
+        "text-anchor": "center",
+        "text-field": "{_name}",
+        "text-font": [
+          "Poller One Regular"
+        ],
+        "text-letter-spacing": 0.5,
+        "text-optional": true,
+        "text-size": 24
+      },
+      "maxzoom": 10,
+      "minzoom": 9,
+      "paint": {
+        "text-color": "#FAF8F5",
+        "text-halo-color": "#8C8885",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "AnnoPoints",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class1",
+        1
+      ],
+      "id": "Labels/muni_pts/label/Class 2",
+      "layout": {
+        "text-anchor": "center",
+        "text-field": "{_name1}",
+        "text-font": [
+          "Arial Black"
+        ],
+        "text-letter-spacing": 0.3,
+        "text-optional": true,
+        "text-size": 24
+      },
+      "maxzoom": 14,
+      "minzoom": 13,
+      "paint": {
+        "text-color": "#F2EEE6",
+        "text-halo-color": "#807E7C",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "muni_pts",
+      "type": "symbol"
+    },
+    {
+      "filter": [
+        "==",
+        "_label_class",
+        0
+      ],
+      "id": "Labels/muni_pts/label/Class 1",
+      "layout": {
+        "text-anchor": "center",
+        "text-field": "{_name}",
+        "text-font": [
+          "Arial Black"
+        ],
+        "text-letter-spacing": 0.3,
+        "text-optional": true,
+        "text-size": 20
+      },
+      "maxzoom": 13,
+      "minzoom": 12,
+      "paint": {
+        "text-color": "#F2EEE6",
+        "text-halo-color": "#807E7C",
+        "text-halo-width": 1.33333
+      },
+      "source": "esri",
+      "source-layer": "muni_pts",
+      "type": "symbol"
+    }
+  ],
+  "sources": {
+    "esri": {
+      "maxzoom": 19,
+      "tiles": [
+        "{{BASE}}/tiles/{z}/{x}/{y}"
+      ],
+      "type": "vector"
+    }
+  },
+  "sprite": "{{BASE}}/sprites/sprite",
+  "version": 8
+}
