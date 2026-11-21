@@ -141,9 +141,13 @@ async function renderCase(browser, name) {
   console.log(`ok   ${name}: zoom ${zoom.toFixed(3)}, ${missing} requests outside fixture -> ${out}`);
 }
 
-const names = process.argv.slice(2).length
+// Stack cases (case.json "stack") have no style of their own: the golden test
+// composites their members' references.
+const isStack = (d) => Boolean(JSON.parse(readFileSync(join(goldenRoot, d, 'case.json'), 'utf8')).stack);
+const names = (process.argv.slice(2).length
   ? process.argv.slice(2)
-  : readdirSync(goldenRoot).filter((d) => existsSync(join(goldenRoot, d, 'case.json')));
+  : readdirSync(goldenRoot).filter((d) => existsSync(join(goldenRoot, d, 'case.json')))
+).filter((d) => !isStack(d));
 
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 try {

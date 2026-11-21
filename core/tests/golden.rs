@@ -112,13 +112,9 @@ fn compare(actual: &RgbaImage, expected: &RgbaImage) -> Diff {
     Diff { mean: total as f64 / (n * 4.0), bad_frac: bad as f64 / n, image }
 }
 
-/// Render one case; returns an error message on mismatch. Appends the
-/// case's paths and scores to `manifest` for the `check/` viewer.
-fn run_case(dir: &Path, manifest: &mut Vec<Value>) -> Result<String, String> {
+/// Render one fixture case (style + tiles served locally) with basemapper.
+fn render_fixture(dir: &Path, case: &Value) -> Result<RgbaImage, String> {
     let name = dir.file_name().unwrap().to_string_lossy().into_owned();
-    let case: Value =
-        serde_json::from_str(&std::fs::read_to_string(dir.join("case.json")).unwrap()).unwrap();
-
     let fixture_dir = match case["fixture_from"].as_str() {
         Some(other) => golden_root().join(other),
         None => dir.to_path_buf(),
@@ -167,18 +163,82 @@ fn run_case(dir: &Path, manifest: &mut Vec<Value>) -> Result<String, String> {
         fail_on_tile_error: true,
     };
     let result = render(request).map_err(|e| format!("{name}: render failed: {e}"))?;
-    let actual = RgbaImage::from_raw(result.width, result.height, result.pixels)
-        .ok_or_else(|| format!("{name}: pixel buffer size mismatch"))?;
+    RgbaImage::from_raw(result.width, result.height, result.pixels)
+        .ok_or_else(|| format!("{name}: pixel buffer size mismatch"))
 
-    let reference_path = dir.join("reference-maplibre-gl.png");
-    let reference = image::open(&reference_path)
-        .map_err(|e| {
-            format!(
-                "{name}: cannot read {} ({e}); render it with tools/reference-render",
-                reference_path.display()
-            )
-        })?
-        .to_rgba8();
+}
+
+/// Straight-alpha source-over: `src` composited on top of `dst`. Used for
+/// both sides of stacked cases, so the comparison is like for like.
+fn over(dst: &RgbaImage, src: &RgbaImage) -> RgbaImage {
+    let mut out = dst.clone();
+    for (o, s) in out.pixels_mut().zip(src.pixels()) {
+        let sa = s[3] as f64 / 255.0;
+        let da = o[3] as f64 / 255.0;
+        let a = sa + da * (1.0 - sa);
+        if a <= 0.0 {
+            *o = Rgba([0, 0, 0, 0]);
+            continue;
+        }
+        let mut px = [0u8; 4];
+        for i in 0..3 {
+            let c = (s[i] as f64 / 255.0 * sa + o[i] as f64 / 255.0 * da * (1.0 - sa)) / a;
+            px[i] = (c * 255.0).round().clamp(0.0, 255.0) as u8;
+        }
+        px[3] = (a * 255.0).round() as u8;
+        *o = Rgba(px);
+    }
+    out
+}
+
+fn load_reference(dir: &Path) -> Result<RgbaImage, String> {
+    let path = dir.join("reference-maplibre-gl.png");
+    image::open(&path)
+        .map(|i| i.to_rgba8())
+        .map_err(|e| format!("cannot read {} ({e}); render it with tools/reference-render", path.display()))
+}
+
+/// Render one case; returns an error message on mismatch. Appends the
+/// case's paths and scores to `manifest` for the `check/` viewer.
+fn run_case(dir: &Path, manifest: &mut Vec<Value>) -> Result<String, String> {
+    let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+    let case: Value =
+        serde_json::from_str(&std::fs::read_to_string(dir.join("case.json")).unwrap()).unwrap();
+
+    let bbox: Vec<f64> =
+        case["bbox"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let width = case["width"].as_u64().unwrap() as u32;
+    let out = Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/golden-output").join(&name);
+    std::fs::create_dir_all(&out).unwrap();
+
+    // A "stack" case composites other cases bottom-to-top, on both sides
+    // (e.g. UGRC Lite Base + Hillshade + Lite Labels, as UGRC's maps layer them).
+    let stack: Option<Vec<String>> = case["stack"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect());
+    let (actual, reference, reference_url) = match &stack {
+        Some(members) => {
+            let (mut ours, mut theirs): (Option<RgbaImage>, Option<RgbaImage>) = (None, None);
+            for m in members {
+                let mdir = golden_root().join(m);
+                let mcase: Value =
+                    serde_json::from_str(&std::fs::read_to_string(mdir.join("case.json")).unwrap()).unwrap();
+                let a = render_fixture(&mdir, &mcase)?;
+                let r = load_reference(&mdir).map_err(|e| format!("{name}: {e}"))?;
+                ours = Some(match ours { None => a, Some(acc) => over(&acc, &a) });
+                theirs = Some(match theirs { None => r, Some(acc) => over(&acc, &r) });
+            }
+            let theirs = theirs.ok_or_else(|| format!("{name}: empty stack"))?;
+            theirs.save(out.join("reference.png")).unwrap();
+            (ours.unwrap(), theirs, format!("../target/golden-output/{name}/reference.png"))
+        }
+        None => (
+            render_fixture(dir, &case)?,
+            load_reference(dir).map_err(|e| format!("{name}: {e}"))?,
+            format!("../core/tests/fixtures/golden/{name}/reference-maplibre-gl.png"),
+        ),
+    };
+    let height = actual.height();
     if reference.dimensions() != actual.dimensions() {
         return Err(format!(
             "{name}: size {:?} != reference {:?}",
@@ -188,8 +248,6 @@ fn run_case(dir: &Path, manifest: &mut Vec<Value>) -> Result<String, String> {
     }
 
     let diff = compare(&actual, &reference);
-    let out = Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/golden-output").join(&name);
-    std::fs::create_dir_all(&out).unwrap();
     actual.save(out.join("actual.png")).unwrap();
     diff.image.save(out.join("diff.png")).unwrap();
 
@@ -221,7 +279,7 @@ fn run_case(dir: &Path, manifest: &mut Vec<Value>) -> Result<String, String> {
         "width": width,
         "height": height,
         "ours": format!("../target/golden-output/{name}/actual.png"),
-        "maplibre": format!("../core/tests/fixtures/golden/{name}/reference-maplibre-gl.png"),
+        "maplibre": reference_url,
         "diff": format!("../target/golden-output/{name}/diff.png"),
         "maplibre_nosymbols": nosym_path.exists()
             .then(|| format!("../core/tests/fixtures/golden/{name}/reference-maplibre-gl-nosymbols.png")),
