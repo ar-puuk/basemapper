@@ -17,5 +17,5 @@
   "max_mean_diff": 0.39,
   "svg": true,
   "max_bad_pixel_frac_svg": 0.00645,
-  "max_mean_diff_svg": 1.858
+  "max_mean_diff_svg": 1.855
 }

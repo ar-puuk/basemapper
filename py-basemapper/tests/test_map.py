@@ -80,6 +80,7 @@ def test_map_render_svg_is_a_vector_document(tmp_path):
         # Editable text (fonts by name only: no downloads in tests).
         svg = m.render_svg(str(out), embed_fonts="none")
         paths = m.render_svg(text="paths")
+        bitmap = m.render_svg(text="bitmap")
     finally:
         server.shutdown()
     assert svg.startswith("<svg") and svg.endswith("</svg>")
@@ -92,8 +93,10 @@ def test_map_render_svg_is_a_vector_document(tmp_path):
     # Traced outlines: no text elements, more paths.
     assert "<text" not in paths
     assert paths.count("<path") > svg.count("<path")
+    # Bitmap glyphs: the style's SDF glyphs as images, thresholded by filters.
+    assert "<text" not in bitmap and "<filter" in bitmap and "feComponentTransfer" in bitmap
     with pytest.raises(Exception):
-        m.render_svg(text="bitmap")
+        m.render_svg(text="raster")
 
 
 def test_add_basemap_renders_natively_at_savefig_dpi():

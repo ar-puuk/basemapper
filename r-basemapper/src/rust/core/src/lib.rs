@@ -839,7 +839,7 @@ pub fn render_svg_stack_with(requests: Vec<RenderRequest>, options: &SvgOptions)
         let mut defs = String::new();
         let mut body = String::new();
         for (k, (style_val, sources, assets)) in inputs.iter().enumerate() {
-            let parts = vector::render::render_svg(style_val, sources, assets, bbox, width, height, &format!("s{k}_"), fonts.as_ref())
+            let parts = vector::render::render_svg(style_val, sources, assets, bbox, width, height, &format!("s{k}_"), options.text, fonts.as_ref())
                 .map_err(BasemapError::RenderError)?;
             if !parts.skipped_layer_types.is_empty() {
                 log::warn!("SVG output does not draw these layer types yet: {}", parts.skipped_layer_types.join(", "));

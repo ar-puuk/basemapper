@@ -1192,6 +1192,7 @@ pub fn render_svg(
     width: u32,
     height: u32,
     id_prefix: &str,
+    text_mode: super::fonts::SvgText,
     fonts: Option<&super::fonts::SvgFonts>,
 ) -> Result<SvgParts, String> {
     use std::fmt::Write as _;
@@ -1261,7 +1262,7 @@ pub fn render_svg(
                     }
                 }
             }
-            "symbol" => symbol::svg_layer(&mut out, &mut defs, layer, layer_idx, &placement, assets, width as usize, height as usize, id_prefix, fonts),
+            "symbol" => symbol::svg_layer(&mut out, &mut defs, layer, layer_idx, &placement, assets, width as usize, height as usize, id_prefix, text_mode, fonts),
             other => {
                 if !skipped.iter().any(|x| x == other) {
                     skipped.push(other.to_owned());

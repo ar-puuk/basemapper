@@ -265,8 +265,9 @@ fn svg_options(py: Python<'_>, text: &str, embed_fonts: &str, font_dirs: Option<
     let mut opts = SvgOptions::default();
     opts.text = match text {
         "editable" => SvgText::Editable,
+        "bitmap" => SvgText::Bitmap,
         "paths" => SvgText::Paths,
-        _ => return Err(validation_error(py, "text must be 'editable' or 'paths'")),
+        _ => return Err(validation_error(py, "text must be 'editable', 'bitmap' or 'paths'")),
     };
     opts.embed_fonts = match embed_fonts {
         "subset" => FontEmbed::Subset,

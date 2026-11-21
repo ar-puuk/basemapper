@@ -202,8 +202,9 @@ fn render_svg_raw(
     let mut opts = SvgOptions::default();
     opts.text = match text {
         "editable" => SvgText::Editable,
+        "bitmap" => SvgText::Bitmap,
         "paths" => SvgText::Paths,
-        _ => return Err(extendr_api::Error::Other("text must be 'editable' or 'paths'".into())),
+        _ => return Err(extendr_api::Error::Other("text must be 'editable', 'bitmap' or 'paths'".into())),
     };
     opts.embed_fonts = match embed_fonts {
         "subset" => FontEmbed::Subset,

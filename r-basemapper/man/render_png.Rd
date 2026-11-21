@@ -12,7 +12,7 @@ render_png(m, file = NULL)
 render_svg(
   m,
   file = NULL,
-  text = c("editable", "paths"),
+  text = c("editable", "bitmap", "paths"),
   embed_fonts = c("subset", "full", "none"),
   font_dirs = NULL
 )
@@ -28,9 +28,11 @@ render_raster(m)
 
 \item{text}{For \code{render_svg()}: \code{"editable"} writes labels as \verb{<text>}
 elements (editable, selectable) at MapLibre's glyph positions, halos as
-strokes, with the style's fonts embedded; \code{"paths"} writes glyph outlines
-traced from the style's glyphs (not editable, identical everywhere,
-closest to MapLibre's pixels).}
+strokes, with the style's fonts embedded, and falls back to \code{"bitmap"}
+for labels whose font file is not available; \code{"bitmap"} draws every
+label from the style's own glyph bitmaps, thresholded by SVG filters as
+MapLibre's shader does (MapLibre's look at any zoom, not editable);
+\code{"paths"} writes glyph outlines traced from those bitmaps (plain paths).}
 
 \item{embed_fonts}{For \code{render_svg()}: \code{"subset"} (only the glyphs used),
 \code{"full"} (whole fonts, for retyping labels) or \code{"none"} (fonts by name

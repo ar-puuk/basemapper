@@ -30,7 +30,7 @@ struct Args {
     output: PathBuf,
     #[arg(long, help = "Also write a PNG of the same view")]
     png: Option<PathBuf>,
-    #[arg(long, default_value = "editable", help = "Label text: editable (<text> with embedded fonts) or paths (traced outlines)")]
+    #[arg(long, default_value = "editable", help = "Label text: editable (<text>, embedded fonts; bitmap fallback), bitmap (glyph bitmaps + filters) or paths (traced outlines)")]
     text: String,
     #[arg(long, default_value = "subset", help = "Embedded fonts: subset, full or none")]
     embed_fonts: String,
@@ -66,7 +66,11 @@ fn main() {
     };
 
     let mut opts = SvgOptions::default();
-    opts.text = if args.text == "paths" { SvgText::Paths } else { SvgText::Editable };
+    opts.text = match args.text.as_str() {
+        "paths" => SvgText::Paths,
+        "bitmap" => SvgText::Bitmap,
+        _ => SvgText::Editable,
+    };
     opts.embed_fonts = match args.embed_fonts.as_str() {
         "full" => FontEmbed::Full,
         "none" => FontEmbed::None,

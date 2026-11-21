@@ -2108,7 +2108,7 @@ fn variable_anchor_offsets(layout: &Json, ctx: &Ctx) -> Option<Vec<(String, (f64
         for pair in items.chunks(2) {
             let (Some(Val::Str(a)), Some(o)) = (pair.first(), pair.get(1)) else { continue };
             let o = o.as_num_array().unwrap_or_default();
-            let (mut x, mut y) = (o.first().copied().unwrap_or(0.0) * ONE_EM, o.get(1).copied().unwrap_or(0.0) * ONE_EM);
+            let (x, mut y) = (o.first().copied().unwrap_or(0.0) * ONE_EM, o.get(1).copied().unwrap_or(0.0) * ONE_EM);
             if a.starts_with("top") {
                 y -= 7.0;
             } else if a.starts_with("bottom") {
@@ -2470,6 +2470,140 @@ fn svg_sdf_quad(
 const SDF_BANDS: usize = 2;
 const BAND_SPREAD: f64 = 0.85;
 
+/// SVG glyphs drawn from MapLibre's SDF bitmaps: each glyph's distance field
+/// embedded once as an image (in its alpha channel), drawn through a filter
+/// whose transfer tables are symbol_sdf.fragment.glsl's edge functions
+/// (fill smoothstep, halo ring), so the viewer interpolates the field and
+/// thresholds it at screen resolution, as the shader does.
+#[derive(Default)]
+struct SdfBitmaps {
+    /// Prefix making ids unique in the document (style and layer).
+    tag: String,
+    images: HashMap<(String, u32), String>,
+    filters: HashMap<String, String>,
+}
+
+impl SdfBitmaps {
+    #[allow(clippy::too_many_arguments)]
+    fn glyph(
+        &mut self,
+        out: &mut String,
+        defs: &mut String,
+        prefix: &str,
+        stack: &str,
+        cp: u32,
+        g: &Glyph,
+        q: [(f64, f64); 4],
+        font_scale: f64,
+        s: &SdfStyle,
+        is_halo: bool,
+        is_plain: bool,
+    ) {
+        use super::svg;
+        use std::fmt::Write as _;
+        if g.rect_w == 0 || g.rect_h == 0 {
+            return;
+        }
+        let draw_halo = is_halo && s.halo_width > 0.0 && s.halo.a > 0.0;
+        let fill = if is_plain { svg::paint(s.fill, s.opacity) } else { None };
+        let halo = if draw_halo { svg::paint(s.halo, s.opacity) } else { None };
+        if fill.is_none() && halo.is_none() {
+            return;
+        }
+        let n = self.images.len();
+        let img = self
+            .images
+            .entry((stack.to_owned(), cp))
+            .or_insert_with(|| {
+                let id = format!("{prefix}{}sdf{n}", self.tag);
+                let mut rgba = Vec::with_capacity(g.rect_w * g.rect_h * 4);
+                // Field in the colour channels, opaque: alpha marks the glyph
+                // quad, so the filter can clip to it (MapLibre draws nothing
+                // outside the quad, even where a wide halo's ramp is non-zero
+                // at field value 0).
+                for &v in &g.cell {
+                    rgba.extend_from_slice(&[v, v, v, 255]);
+                }
+                let _ = write!(
+                    defs,
+                    r#"<image id="{id}" width="{}" height="{}" href="{}"/>"#,
+                    g.rect_w,
+                    g.rect_h,
+                    svg::png_data_uri(g.rect_w as u32, g.rect_h as u32, &rgba)
+                );
+                id
+            })
+            .clone();
+        // Transfer tables over the field value 0..1 (dpr 1 EDGE_GAMMA).
+        let inner_edge = (256.0 - 64.0) / 256.0;
+        let gamma = EDGE_GAMMA / font_scale;
+        let gamma_halo = (s.halo_blur * 1.19 / SDF_PX + EDGE_GAMMA) / font_scale;
+        let halo_edge = (6.0 - s.halo_width / font_scale) / SDF_PX;
+        let table = |f: &dyn Fn(f64) -> f64| -> String {
+            (0..=128).map(|i| svg::alpha(f(i as f64 / 128.0).clamp(0.0, 1.0))).collect::<Vec<_>>().join(" ")
+        };
+        let fill_t = fill.as_ref().map(|_| table(&|d| smoothstep(inner_edge - gamma, inner_edge + gamma, d)));
+        let halo_t = halo.as_ref().map(|_| {
+            table(&|d| {
+                let ih = inner_edge + gamma_halo;
+                let ah = smoothstep(ih - gamma_halo, ih + gamma_halo, d);
+                smoothstep(halo_edge - gamma_halo, halo_edge + gamma_halo, d).min(1.0 - ah)
+            })
+        });
+        let key = format!("{:?}|{:?}|{:?}|{:?}", fill, halo, fill_t.as_ref().map(|t| t.len()), (svg::num(font_scale * 1000.0), svg::num(s.halo_width * 100.0), svg::num(s.halo_blur * 100.0)));
+        let m = self.filters.len();
+        let filter = self
+            .filters
+            .entry(key)
+            .or_insert_with(|| {
+                let id = format!("{prefix}{}sdff{m}", self.tag);
+                let mut body = String::from(r#"<feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 1 0 0 0 0" result="sdf"/>"#);
+                if let (Some((hex, a)), Some(t)) = (&halo, &halo_t) {
+                    let _ = write!(
+                        body,
+                        r#"<feComponentTransfer in="sdf" result="ha"><feFuncA type="table" tableValues="{t}"/></feComponentTransfer><feFlood flood-color="{hex}" flood-opacity="{}"/><feComposite in2="ha" operator="in" result="h"/>"#,
+                        svg::alpha(*a)
+                    );
+                }
+                if let (Some((hex, a)), Some(t)) = (&fill, &fill_t) {
+                    let _ = write!(
+                        body,
+                        r#"<feComponentTransfer in="sdf" result="fa"><feFuncA type="table" tableValues="{t}"/></feComponentTransfer><feFlood flood-color="{hex}" flood-opacity="{}"/><feComposite in2="fa" operator="in" result="f"/>"#,
+                        svg::alpha(*a)
+                    );
+                }
+                let mut merge = String::new();
+                if halo.is_some() {
+                    merge.push_str(r#"<feMergeNode in="h"/>"#);
+                }
+                if fill.is_some() {
+                    merge.push_str(r#"<feMergeNode in="f"/>"#);
+                }
+                let _ = write!(
+                    defs,
+                    r#"<filter id="{id}" color-interpolation-filters="sRGB">{body}<feMerge result="m">{merge}</feMerge><feComposite in="m" in2="SourceAlpha" operator="in"/></filter>"#
+                );
+                id
+            })
+            .clone();
+        // Cell (u, v) -> screen, as for icons.
+        let (tl, tr, bl) = (q[0], q[1], q[2]);
+        let (cw, ch) = (g.rect_w as f64, g.rect_h as f64);
+        let (a_, b_) = ((tr.0 - tl.0) / cw, (tr.1 - tl.1) / cw);
+        let (c_, d_) = ((bl.0 - tl.0) / ch, (bl.1 - tl.1) / ch);
+        let _ = write!(
+            out,
+            r##"<g filter="url(#{filter})"><use href="#{img}" transform="matrix({} {} {} {} {} {})"/></g>"##,
+            a_,
+            b_,
+            c_,
+            d_,
+            svg::num(tl.0),
+            svg::num(tl.1)
+        );
+    }
+}
+
 /// Write one symbol layer as SVG in draw_layer's order: icons, then text,
 /// each per tile with the shader's halo passes. Glyphs and SDF icons are
 /// outlines traced from their SDFs at the shader's thresholds, one path per
@@ -2486,11 +2620,14 @@ pub fn svg_layer(
     w: usize,
     h: usize,
     prefix: &str,
+    text_mode: super::fonts::SvgText,
     fonts: Option<&super::fonts::SvgFonts>,
 ) {
+    use super::fonts::SvgText;
     use super::svg;
     use std::fmt::Write as _;
     let Some(labels) = placement.labels.get(&layer_idx) else { return };
+    let mut bitmaps = SdfBitmaps { tag: format!("L{layer_idx}"), ..Default::default() };
     let paint = &layer["paint"];
     let layout = &layer["layout"];
     let mut cache: HashMap<(String, u32, i64), Vec<Vec<(f64, f64)>>> = HashMap::new();
@@ -2587,7 +2724,7 @@ pub fn svg_layer(
     // Text as editable <text>: one element per label, each glyph at its
     // MapLibre position (and rotation along lines), the halo as a stroke
     // painted beneath the fill.
-    if let Some(fonts) = fonts {
+    if let (SvgText::Editable, Some(fonts)) = (text_mode, fonts) {
         let rb = GLYPH_PBF_BORDER + ATLAS_PADDING as f64;
         let mut shifts: HashMap<String, f64> = HashMap::new();
         for group in tile_groups() {
@@ -2599,6 +2736,16 @@ pub fn svg_layer(
                 let Some(gmap) = assets.glyphs.stacks.get(&t.fontstack) else { continue };
                 let fs = t.size / 24.0;
                 let Some(pos) = along_positions(t.along.as_ref(), (l.anchor_px.0 + t.shift.0, l.anchor_px.1 + t.shift.1), t.quads.len(), w, h) else { continue };
+                // No exact font for this label: MapLibre's own glyph bitmaps.
+                let label_text: String = t.quads.iter().filter_map(|q| char::from_u32(q.codepoint)).collect();
+                if !fonts.covers(&t.fontstack, &label_text) {
+                    for (qi, q) in t.quads.iter().enumerate() {
+                        let Some(g) = gmap.get(&q.codepoint) else { continue };
+                        let sq = quad_screen(&q.corners, pos[qi].0, pos[qi].1, fs);
+                        bitmaps.glyph(out, defs, prefix, &t.fontstack, q.codepoint, g, sq, fs, &t.style, true, true);
+                    }
+                    continue;
+                }
                 let shift = *shifts.entry(t.fontstack.clone()).or_insert_with(|| {
                     let tops: Vec<(u32, f64)> = gmap.iter().filter(|(_, g)| g.height > 0.0).map(|(cp, g)| (*cp, g.top)).collect();
                     fonts.baseline_shift(&t.fontstack, &tops)
@@ -2657,6 +2804,30 @@ pub fn svg_layer(
                     ys.join(" "),
                     svg::xml_escape(&text)
                 );
+            }
+        }
+        out.push_str("</g>");
+        return;
+    }
+
+    if text_mode == SvgText::Bitmap {
+        let text_passes = halo_passes(paint, layout, "text");
+        for group in tile_groups() {
+            for &(is_halo, is_plain) in text_passes {
+                for l in group {
+                    let Some(t) = &l.text else { continue };
+                    if t.style.opacity < 0.1 {
+                        continue;
+                    }
+                    let Some(gmap) = assets.glyphs.stacks.get(&t.fontstack) else { continue };
+                    let fs = t.size / 24.0;
+                    let Some(pos) = along_positions(t.along.as_ref(), (l.anchor_px.0 + t.shift.0, l.anchor_px.1 + t.shift.1), t.quads.len(), w, h) else { continue };
+                    for (qi, q) in t.quads.iter().enumerate() {
+                        let Some(g) = gmap.get(&q.codepoint) else { continue };
+                        let sq = quad_screen(&q.corners, pos[qi].0, pos[qi].1, fs);
+                        bitmaps.glyph(out, defs, prefix, &t.fontstack, q.codepoint, g, sq, fs, &t.style, is_halo, is_plain);
+                    }
+                }
             }
         }
         out.push_str("</g>");

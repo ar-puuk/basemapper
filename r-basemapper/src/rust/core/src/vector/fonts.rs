@@ -21,8 +21,13 @@ pub enum SvgText {
     /// [`FontEmbed`]; glyph positions are MapLibre's layout.
     #[default]
     Editable,
-    /// Glyph outlines traced from the style's SDF glyphs: not editable, but
-    /// identical everywhere and closest to MapLibre's pixels.
+    /// Every label drawn from the style's SDF glyph bitmaps (embedded images
+    /// thresholded by SVG filters as MapLibre's shader does): MapLibre's
+    /// glyphs and edges at any zoom, not editable. Editable mode falls back
+    /// to this for labels whose font file is not available.
+    Bitmap,
+    /// Glyph outlines traced from the style's SDF glyphs: not editable,
+    /// plain paths (no filters).
     Paths,
 }
 
@@ -147,6 +152,8 @@ pub struct SvgFonts {
     /// Faces whose file has not been looked up yet (fallbacks are fetched
     /// only when a character needs them).
     pending: Mutex<Vec<bool>>,
+    /// embed_fonts = None: text references fonts by name, never falls back.
+    by_name: bool,
 }
 
 impl SvgFonts {
@@ -168,6 +175,19 @@ impl SvgFonts {
             super::svg::xml_escape(&fams.join(", ")),
             if it { r#" font-style="italic""# } else { "" }
         )
+    }
+
+    /// Whether `text` can be written as `<text>` with an exact font: the
+    /// stack's first font was found and has every (non-space) character
+    /// (always, when fonts are referenced by name only).
+    pub fn covers(&self, stack: &str, text: &str) -> bool {
+        if self.by_name {
+            return true;
+        }
+        let Some(&first) = self.stacks.get(stack).and_then(|idx| idx.first()) else { return false };
+        let Some(data) = &self.faces[first].data else { return false };
+        let Ok(face) = ttf_parser::Face::parse(data, 0) else { return false };
+        text.chars().all(|c| c.is_whitespace() || face.glyph_index(c).is_some())
     }
 
     /// Vertical shift (24 px glyph units, y down) from MapLibre's glyph line
@@ -298,7 +318,7 @@ static FOUND: Lazy<Mutex<HashMap<(String, u16, bool), Option<Arc<Vec<u8>>>>>> = 
 
 /// Resolve the fonts of the given font stacks.
 pub async fn resolve(client: &reqwest::Client, stacks: &[String], opts: &SvgOptions) -> SvgFonts {
-    let mut fonts = SvgFonts::default();
+    let mut fonts = SvgFonts { by_name: opts.embed_fonts == FontEmbed::None, ..Default::default() };
     let mut key_index: HashMap<(String, u16, bool), usize> = HashMap::new();
     let mut pending: Vec<bool> = Vec::new();
     for stack in stacks {

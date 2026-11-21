@@ -203,16 +203,21 @@ placement as the PNG:
   or whole), found in user folders (`font_dirs`, `BASEMAPPER_FONT_DIRS`), a
   local cache, or Google Fonts for open families; fallback fonts of a stack
   are only fetched when a character needs them, and fonts that cannot be
-  found (e.g. proprietary Arial) are referenced by name. The vertical offset
+  found (e.g. proprietary Arial) fall back to bitmap glyphs (below). The vertical offset
   between MapLibre's glyph metrics and the font baseline is measured per font
   from the glyphs themselves. Browsers use the embedded fonts; most editors
   use installed fonts of the same name, and the text stays editable. With
-  `text = "paths"`, labels are instead glyph outlines traced (marching
+  `text = "bitmap"` (and for labels without an exact font), each glyph is the
+  style's own SDF bitmap embedded once as an image and drawn through an SVG
+  filter whose transfer tables are the shader's edge functions (fill
+  smoothstep, halo ring), clipped to the glyph quad: viewers interpolate the
+  field and threshold it at screen resolution, so edges stay smooth at any
+  zoom and match MapLibre's glyphs exactly (the golden tests score this
+  mode). With `text = "paths"`, labels are instead glyph outlines traced (marching
   squares, consistently wound, `nonzero` fill) from the style's SDF glyphs at
   the shader's thresholds, one set of paths per glyph in MapLibre's draw
   order, with the soft edge approximated by two nested outlines: not
-  editable, but identical everywhere and closest to MapLibre's pixels (the
-  golden tests score this mode). SDF icons are traced the same way; other
+  editable, plain paths without filters. SDF icons are traced the same way; other
   icons are embedded sprite images.
 - **Opacity** is written as `fill-opacity` / `stroke-opacity` / `opacity`
   (colour alpha times the style opacity, 4 decimals).

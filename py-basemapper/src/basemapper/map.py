@@ -226,9 +226,12 @@ class Map:
             path: Output file, or None.
             text: ``"editable"``: labels are ``<text>`` elements (editable,
                 selectable) at MapLibre's glyph positions, halos as strokes,
-                with the style's fonts embedded. ``"paths"``: glyph outlines
-                traced from the style's glyphs (not editable, identical
-                everywhere, closest to MapLibre's pixels).
+                with the style's fonts embedded; labels whose font file is not
+                available fall back to ``"bitmap"``. ``"bitmap"``: every label
+                drawn from the style's own glyph bitmaps, thresholded by SVG
+                filters as MapLibre's shader does (MapLibre's look at any
+                zoom; not editable). ``"paths"``: glyph outlines traced from
+                those bitmaps (plain paths, no filters).
             embed_fonts: ``"subset"`` (only the glyphs used), ``"full"``
                 (whole fonts, for retyping labels) or ``"none"`` (fonts by
                 name only). Fonts come from ``font_dirs``, the

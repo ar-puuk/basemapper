@@ -170,9 +170,14 @@ fn render_fixture(dir: &Path, case: &Value, svg: bool) -> Result<(RgbaImage, Opt
     };
     let svg_doc = if svg {
         {
-            // Traced glyph outlines: offline (no font downloads) and what the
-            // pixel comparison measures (resvg ignores @font-face).
-            let opts = SvgOptions { text: SvgText::Paths, ..SvgOptions::default() };
+            // Labels from the style's glyph bitmaps (the fallback of editable
+            // text; offline). BASEMAPPER_GOLDEN_SVG_TEXT=paths scores traced
+            // outlines instead.
+            let text = match std::env::var("BASEMAPPER_GOLDEN_SVG_TEXT").as_deref() {
+                Ok("paths") => SvgText::Paths,
+                _ => SvgText::Bitmap,
+            };
+            let opts = SvgOptions { text, ..SvgOptions::default() };
             Some(render_svg_with(request.clone(), &opts).map_err(|e| format!("{name}: SVG render failed: {e}"))?)
         }
     } else {

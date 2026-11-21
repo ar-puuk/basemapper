@@ -59,7 +59,9 @@ test_that("render_png / render_array / render_raster / render_svg (live tiles)",
   expect_match(svg, "@font-face", fixed = TRUE)      # open fonts embedded (subset)
   paths <- render_svg(m, text = "paths")
   expect_false(grepl("<text", paths, fixed = TRUE))  # traced outlines
-  expect_error(render_svg(m, text = "bitmap"))
+  bitmap <- render_svg(m, text = "bitmap")
+  expect_match(bitmap, "feComponentTransfer", fixed = TRUE)   # glyph bitmaps + filters
+  expect_error(render_svg(m, text = "raster"))
 
   # Two styles stacked: the top (opaque) one wins.
   dark <- "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
