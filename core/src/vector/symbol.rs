@@ -19,11 +19,16 @@
 //!   draw_symbol.ts, SDF icons through the text shader; text/icon placement
 //!   combined through text-optional / icon-optional.
 //!
-//! Not yet: line placement, variable anchors, icon-text-fit, vertical text.
+//! - Line placement (`symbol_line.rs`): merged, clipped lines; anchors by
+//!   spacing and max angle; collision circles; glyphs placed along the
+//!   projected line with keep-upright flipping.
+//!
+//! Not yet: variable anchors, icon-text-fit, vertical text.
 
 use super::expr::{eval_filter, eval_property, is_data_driven, Color, Ctx, Kind, Val};
 use super::gl::{raster_triangle, smoothstep, Clip, Framebuffer, Vert, EXTENT};
 use super::mvt::{Feature, Geometry, Value};
+use super::symbol_line::{self as line, ProjectedLine};
 use prost::Message;
 use serde_json::Value as Json;
 use std::collections::{HashMap, HashSet};
@@ -857,6 +862,22 @@ struct TextPart {
     fontstack: String,
     size: f64,
     style: SdfStyle,
+    along: Option<AlongLine>,
+}
+
+/// Geometry for a symbol drawn along a line (updateLineLabels).
+#[derive(Clone)]
+struct AlongLine {
+    /// The symbol's line in screen px (label plane).
+    line_px: Vec<(f64, f64)>,
+    segment: usize,
+    /// Per-quad glyph offsets along the line, in glyph units.
+    glyph_offsets: Vec<f64>,
+    line_offset: (f64, f64),
+    keep_upright: bool,
+    rotate_to_line: bool,
+    /// Font scale used for placement along the line (size / 24).
+    placement_scale: f64,
 }
 
 #[derive(Clone)]
@@ -868,6 +889,7 @@ struct IconPart {
     sdf: bool,
     linear: bool,
     style: SdfStyle,
+    along: Option<AlongLine>,
 }
 
 /// A symbol that survived placement, ready to draw.
@@ -887,8 +909,120 @@ struct Instance {
     tile_idx: usize,
     sort_key: f64,
     text_box: Option<[f64; 4]>,
+    /// Line labels collide with runtime circles along their projected path.
+    text_line: Option<TextCircles>,
     icon_box: Option<[f64; 4]>,
     label: Label,
+}
+
+struct TextCircles {
+    radius: f64,
+    /// Projected path from the first to the last glyph; None if they don't fit.
+    path: Option<Vec<(f64, f64)>>,
+}
+
+/// An entry in the collision index.
+enum Item {
+    Box([f64; 4]),
+    Circle(f64, f64, f64),
+}
+
+fn circle_rect(cx: f64, cy: f64, r: f64, b: &[f64; 4]) -> bool {
+    let hw = (b[2] - b[0]) / 2.0;
+    let dx = (cx - (b[0] + hw)).abs();
+    if dx > hw + r {
+        return false;
+    }
+    let hh = (b[3] - b[1]) / 2.0;
+    let dy = (cy - (b[1] + hh)).abs();
+    if dy > hh + r {
+        return false;
+    }
+    if dx <= hw || dy <= hh {
+        return true;
+    }
+    let (ex, ey) = (dx - hw, dy - hh);
+    ex * ex + ey * ey <= r * r
+}
+
+/// GridIndex.hitTest for a box (with its whole-grid shortcut).
+fn hit_box(items: &[Item], b: &[f64; 4], gw: f64, gh: f64) -> bool {
+    if b[2] < 0.0 || b[0] > gw || b[3] < 0.0 || b[1] > gh {
+        return false;
+    }
+    if b[0] <= 0.0 && b[1] <= 0.0 && gw <= b[2] && gh <= b[3] {
+        return !items.is_empty();
+    }
+    items.iter().any(|it| match it {
+        Item::Box(o) => b[0] <= o[2] && b[1] <= o[3] && b[2] >= o[0] && b[3] >= o[1],
+        Item::Circle(x, y, r) => circle_rect(*x, *y, *r, b),
+    })
+}
+
+/// GridIndex.hitTestCircle.
+fn hit_circle(items: &[Item], x: f64, y: f64, r: f64, gw: f64, gh: f64) -> bool {
+    if x + r < 0.0 || x - r > gw || y + r < 0.0 || y - r > gh {
+        return false;
+    }
+    items.iter().any(|it| match it {
+        Item::Box(o) => circle_rect(x, y, r, o),
+        Item::Circle(x2, y2, r2) => {
+            let (dx, dy) = (x2 - x, y2 - y);
+            (r + r2) * (r + r2) > dx * dx + dy * dy
+        }
+    })
+}
+
+/// placeCollisionCircles: returns (circles, collision detected).
+fn place_circles(
+    items: &[Item],
+    path: &[(f64, f64)],
+    radius: f64,
+    width: f64,
+    height: f64,
+    always: bool,
+) -> (Vec<(f64, f64, f64)>, bool) {
+    let (gw, gh) = (width + 2.0 * VIEWPORT_PADDING, height + 2.0 * VIEWPORT_PADDING);
+    let (minx, miny, maxx, maxy) = (-VIEWPORT_PADDING, -VIEWPORT_PADDING, width + VIEWPORT_PADDING, height + VIEWPORT_PADDING);
+    let mut circles = Vec::new();
+    let mut in_grid = false;
+    if path.is_empty() {
+        return (circles, false);
+    }
+    let (mut lo_x, mut lo_y, mut hi_x, mut hi_y) = (path[0].0, path[0].1, path[0].0, path[0].1);
+    for p in path {
+        lo_x = lo_x.min(p.0);
+        lo_y = lo_y.min(p.1);
+        hi_x = hi_x.max(p.0);
+        hi_y = hi_y.max(p.1);
+    }
+    let segments: Vec<Vec<(f64, f64)>> = if lo_x >= minx && hi_x <= maxx && lo_y >= miny && hi_y <= maxy {
+        vec![path.to_vec()]
+    } else if hi_x < minx || lo_x > maxx || hi_y < miny || lo_y > maxy {
+        Vec::new()
+    } else {
+        line::clip_line(&[path.to_vec()], minx, miny, maxx, maxy)
+    };
+    let circle_dist = radius * 2.5;
+    for seg in segments {
+        let interp = line::PathInterpolator::new(seg, radius * 0.25);
+        let n = if interp.length <= 0.5 * radius { 1 } else { (interp.padded_length / circle_dist).ceil() as usize + 1 };
+        for i in 0..n {
+            let t = i as f64 / (n.max(2) - 1) as f64;
+            let p = interp.lerp(t);
+            let (cx, cy) = (p.0 + VIEWPORT_PADDING, p.1 + VIEWPORT_PADDING);
+            circles.push((cx, cy, radius));
+            let (x1, y1, x2, y2) = (cx - radius, cy - radius, cx + radius, cy + radius);
+            in_grid |= x2 >= 0.0 && x1 < gw && y2 >= 0.0 && y1 < gh;
+            if !always && hit_circle(items, cx, cy, radius, gw, gh) {
+                return (Vec::new(), true);
+            }
+        }
+    }
+    if !in_grid {
+        circles.clear();
+    }
+    (circles, false)
 }
 
 fn num(layout: &Json, key: &str, ctx: &Ctx, default: f64) -> f64 {
@@ -1022,7 +1156,13 @@ fn build_text(
         rotate,
     );
     Some((
-        TextPart { quads, fontstack: stack, size: num(layout, "text-size", &ctx, 16.0), style: sdf_style(paint, "text", &ctx) },
+        TextPart {
+            quads,
+            fontstack: stack,
+            size: num(layout, "text-size", &ctx, 16.0),
+            style: sdf_style(paint, "text", &ctx),
+            along: None,
+        },
         b,
     ))
 }
@@ -1077,13 +1217,254 @@ fn build_icon(
             sdf: img.sdf,
             linear: false,
             style: sdf_style(paint, "icon", &ctx),
+            along: None,
         },
         b,
         needs_linear,
     ))
 }
 
-/// Run MapLibre's placement for every visible point-placed symbol layer.
+/// Shaping for a line label: centred, no line breaks; quads with along-line
+/// glyph offsets (getGlyphQuads with alongLine = true).
+fn build_line_text(
+    layer: &Json,
+    f: &Feature,
+    text: &str,
+    assets: &SymbolAssets,
+    zoom: f64,
+    tile_zoom: f64,
+) -> Option<(TextPart, Vec<f64>, f64, f64, (f64, f64))> {
+    let layout = &layer["layout"];
+    let paint = &layer["paint"];
+    let ctx = Ctx { zoom, feature: Some(f) };
+    let lctx = Ctx { zoom: tile_zoom, feature: Some(f) };
+    let next_ctx = Ctx { zoom: tile_zoom + 1.0, feature: Some(f) };
+    let stack = feature_fontstack(layer, Some(f), tile_zoom);
+    let gmap = assets.glyphs.stacks.get(&stack)?;
+    let spacing = num(layout, "text-letter-spacing", &lctx, 0.0) * ONE_EM;
+    let anchor = string(layout, "text-anchor", &lctx, "center");
+    let line_height = num(layout, "text-line-height", &lctx, 1.2) * ONE_EM;
+    let o = num_pair(layout, "text-offset", &lctx);
+    let text_offset = (o.0 * ONE_EM, o.1 * ONE_EM);
+    let shaping = shape_text(text, gmap, f64::INFINITY, line_height, &anchor, "center", spacing, text_offset)?;
+    let rect_buffer = GLYPH_PBF_BORDER + ATLAS_PADDING as f64;
+    let mut quads = Vec::new();
+    let mut offsets = Vec::new();
+    for l in &shaping.lines {
+        for pg in l {
+            let g = &gmap[&pg.codepoint];
+            let half = g.advance / 2.0;
+            let x1 = (g.left - rect_buffer) - half;
+            let y1 = (-g.top - rect_buffer) + pg.y;
+            let (x2, y2) = (x1 + g.rect_w as f64, y1 + g.rect_h as f64);
+            let mut corners = [(x1, y1), (x2, y1), (x1, y2), (x2, y2)];
+            for c in &mut corners {
+                *c = (js_round(c.0 * 32.0) / 32.0, js_round(c.1 * 32.0) / 32.0);
+            }
+            quads.push(GlyphQuad { corners, codepoint: pg.codepoint });
+            offsets.push(pg.x + half);
+        }
+    }
+    if quads.is_empty() {
+        return None;
+    }
+    let height = shaping.bottom - shaping.top;
+    let layout_size = num(layout, "text-size", &next_ctx, 16.0);
+    let diameter = if height > 0.0 { height.max(10.0) * layout_size / ONE_EM } else { -1.0 };
+    Some((
+        TextPart {
+            quads,
+            fontstack: stack,
+            size: num(layout, "text-size", &ctx, 16.0),
+            style: sdf_style(paint, "text", &ctx),
+            along: None,
+        },
+        offsets,
+        shaping.right - shaping.left,
+        diameter,
+        text_offset,
+    ))
+}
+
+/// Symbol instances of a line- or line-center-placed layer in one tile.
+#[allow(clippy::too_many_arguments)]
+fn line_instances(
+    layer: &Json,
+    st: &SymbolTile,
+    ti: usize,
+    assets: &SymbolAssets,
+    zoom: f64,
+    sort_key_j: Option<&Json>,
+    sort_by_key: bool,
+    icons_need_linear: &mut bool,
+) -> Vec<Instance> {
+    let layout = &layer["layout"];
+    let paint = &layer["paint"];
+    let placement = layout["symbol-placement"].as_str().unwrap_or("point");
+    let mut out = Vec::new();
+    let Some(src) = layer["source-layer"].as_str().and_then(|sl| st.tile.layers.get(sl)) else { return out };
+    let scale = EXTENT / src.extent as f64;
+    let tile_zoom = st.coord.0 as f64 + st.overscaling.log2();
+    let tile_pixel_ratio = EXTENT / (512.0 * st.overscaling);
+    let text_pixel_ratio = 512.0 * st.overscaling / EXTENT;
+    let has_text_field = layout.get("text-field").is_some();
+    let has_icon_image = layout.get("icon-image").is_some();
+
+    let mut feats: Vec<line::LineFeature> = Vec::new();
+    for f in &src.features {
+        let ctx = Ctx { zoom: tile_zoom, feature: Some(f) };
+        if layer.get("filter").map_or(false, |flt| !eval_filter(flt, &ctx)) {
+            continue;
+        }
+        let geometry: Vec<Vec<(f64, f64)>> = match &f.geometry {
+            Geometry::Lines(ls) => ls.iter().map(|l| l.iter().map(|&p| to_extent(p, scale)).collect()).collect(),
+            Geometry::Polygons(ps) => ps.iter().flatten().map(|r| r.iter().map(|&p| to_extent(p, scale)).collect()).collect(),
+            Geometry::Points(_) => continue,
+        };
+        let text = if has_text_field { feature_text(layer, f, tile_zoom) } else { None };
+        feats.push(line::LineFeature { feature: f, text, geometry });
+    }
+    if placement == "line" {
+        feats = line::merge_lines(feats);
+    }
+    let mut keyed: Vec<(f64, line::LineFeature)> = feats
+        .into_iter()
+        .map(|lf| {
+            let key = if sort_by_key {
+                let ctx = Ctx { zoom: tile_zoom, feature: Some(lf.feature) };
+                sort_key_j.map(|j| eval_property(j, Kind::Number, &ctx)).and_then(|v| v.as_num()).unwrap_or(0.0)
+            } else {
+                0.0
+            };
+            (key, lf)
+        })
+        .collect();
+    if sort_by_key {
+        keyed.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    }
+
+    // symbol-placement line/line-center resolve rotation-alignment 'auto' to 'map'.
+    let text_rotate_to_line = layout["text-rotation-alignment"] != "viewport";
+    let icon_along = layout["icon-rotation-alignment"] != "viewport";
+    let mut compare_text: HashMap<String, Vec<(f64, f64)>> = HashMap::new();
+
+    for (key, lf) in keyed {
+        let f = lf.feature;
+        let ctx = Ctx { zoom, feature: Some(f) };
+        let lctx = Ctx { zoom: tile_zoom, feature: Some(f) };
+        let text = match (&lf.text, has_text_field) {
+            (Some(t), true) if !t.is_empty() => build_line_text(layer, f, t, assets, zoom, tile_zoom),
+            _ => None,
+        };
+        let icon = if has_icon_image { build_icon(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio) } else { None };
+        if icon.as_ref().map_or(false, |i| i.2) {
+            *icons_need_linear = true;
+        }
+        if text.is_none() && icon.is_none() {
+            continue;
+        }
+        // getShapedLabelLength: max of the text width and the shaped icon
+        // width (display size, before icon-size), in glyph units.
+        let text_w = text.as_ref().map_or(0.0, |t| t.2);
+        let icon_w = icon
+            .as_ref()
+            .and_then(|i| assets.sprite.images.get(&i.0.image))
+            .map_or(0.0, |img| img.w as f64 / img.pixel_ratio);
+        let label_len = text_w.max(icon_w);
+        let text_max_size = num(layout, "text-size", &Ctx { zoom: 18.0, feature: Some(f) }, 16.0);
+        let text_max_box_scale = tile_pixel_ratio * text_max_size / 24.0;
+        let min_distance = tile_pixel_ratio * num(layout, "symbol-spacing", &lctx, 250.0);
+        let max_angle = num(layout, "text-max-angle", &lctx, 45.0).to_radians();
+        let repeat_distance = min_distance / 2.0;
+        let ttr = num_pair(paint, "text-translate", &ctx);
+        let itr = num_pair(paint, "icon-translate", &ctx);
+
+        let lines: Vec<Vec<(f64, f64)>> = if placement == "line" {
+            line::clip_line(&lf.geometry, 0.0, 0.0, EXTENT, EXTENT)
+        } else {
+            lf.geometry.iter().filter(|l| l.len() > 1).cloned().collect()
+        };
+        for ln in &lines {
+            let anchors: Vec<line::Anchor> = if placement == "line" {
+                line::get_anchors(ln, min_distance, max_angle, text.is_some(), label_len, 24.0, text_max_box_scale, st.overscaling, EXTENT)
+            } else {
+                line::get_center_anchor(ln, max_angle, text.is_some(), label_len, 24.0, text_max_box_scale).into_iter().collect()
+            };
+            for a in anchors {
+                if placement == "line" {
+                    if let (Some(_), Some(t)) = (&text, &lf.text) {
+                        // anchorIsTooClose
+                        let list = compare_text.entry(t.clone()).or_default();
+                        if list.iter().rev().any(|o| ((a.x - o.0).powi(2) + (a.y - o.1).powi(2)).sqrt() < repeat_distance) {
+                            continue;
+                        }
+                        list.push((a.x, a.y));
+                    }
+                }
+                if a.x < 0.0 || a.x >= EXTENT || a.y < 0.0 || a.y >= EXTENT {
+                    continue;
+                }
+                let to_px = |p: (f64, f64), t: (f64, f64)| (st.ox + p.0 * st.unit_px + t.0, st.oy + p.1 * st.unit_px + t.1);
+                let anchor_px = to_px((a.x, a.y), (0.0, 0.0));
+                let mut text_line = None;
+                let text_part = text.as_ref().map(|(part, offsets, _, diameter, text_offset)| {
+                    let line_px: Vec<(f64, f64)> = ln.iter().map(|&p| to_px(p, ttr)).collect();
+                    let anchor_t = to_px((a.x, a.y), ttr);
+                    let font_scale = part.size / ONE_EM;
+                    let pl = ProjectedLine { line: &line_px, anchor: anchor_t, segment: a.segment };
+                    let path = line::collision_path(&pl, offsets, font_scale, *text_offset);
+                    if *diameter > 0.0 {
+                        let pad = num(layout, "text-padding", &lctx, 2.0);
+                        text_line = Some(TextCircles { radius: diameter * 0.5 + pad, path });
+                    }
+                    let mut p = part.clone();
+                    p.along = Some(AlongLine {
+                        line_px,
+                        segment: a.segment,
+                        glyph_offsets: offsets.clone(),
+                        line_offset: *text_offset,
+                        keep_upright: layout["text-keep-upright"] != false,
+                        rotate_to_line: text_rotate_to_line,
+                        placement_scale: font_scale,
+                    });
+                    p
+                });
+                let r = text_pixel_ratio;
+                let icon_box = icon.as_ref().map(|i| {
+                    let (cx, cy) = (anchor_px.0 + itr.0 + VIEWPORT_PADDING, anchor_px.1 + itr.1 + VIEWPORT_PADDING);
+                    [cx + i.1[0] * r, cy + i.1[1] * r, cx + i.1[2] * r, cy + i.1[3] * r]
+                });
+                let icon_part = icon.as_ref().map(|(part, _, _)| {
+                    let mut p = part.clone();
+                    if icon_along {
+                        let line_px: Vec<(f64, f64)> = ln.iter().map(|&q| to_px(q, itr)).collect();
+                        p.along = Some(AlongLine {
+                            line_px,
+                            segment: a.segment,
+                            glyph_offsets: vec![0.0],
+                            line_offset: num_pair(layout, "icon-offset", &lctx),
+                            keep_upright: layout["icon-keep-upright"] == true,
+                            rotate_to_line: text_rotate_to_line,
+                            placement_scale: p.size / ONE_EM,
+                        });
+                    }
+                    p
+                });
+                out.push(Instance {
+                    tile_idx: ti,
+                    sort_key: key,
+                    text_box: None,
+                    text_line,
+                    icon_box,
+                    label: Label { anchor_px, text: text_part, icon: icon_part, tile: ti },
+                });
+            }
+        }
+    }
+    out
+}
+
+/// Run MapLibre's placement for every visible symbol layer.
 pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f64, width: f64, height: f64) -> Placement {
     let layers = style["layers"].as_array().map(|v| v.as_slice()).unwrap_or(&[]);
     // Tile order for placement: by x, then y (OverscaledTileID.isLessThan).
@@ -1095,7 +1476,7 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
     });
 
     // Collision grid (brute force; same results as GridIndex).
-    let mut boxes: Vec<[f64; 4]> = Vec::new();
+    let mut items: Vec<Item> = Vec::new();
     let mut placed: HashMap<usize, Vec<Label>> = HashMap::new();
     let grid_w = width + 2.0 * VIEWPORT_PADDING;
     let grid_h = height + 2.0 * VIEWPORT_PADDING;
@@ -1110,9 +1491,7 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
         if !has_text_field && !has_icon_image {
             continue;
         }
-        if layout["symbol-placement"].as_str().unwrap_or("point") != "point" {
-            continue; // line placement: not yet
-        }
+        let placement = layout["symbol-placement"].as_str().unwrap_or("point").to_owned();
         let Some(sl) = layer["source-layer"].as_str() else { continue };
         let paint = &layer["paint"];
         let sort_key_j = layout.get("symbol-sort-key");
@@ -1137,6 +1516,12 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
         let mut instances: Vec<Instance> = Vec::new();
         for &ti in &tile_order {
             let st = &tiles[ti];
+            if placement != "point" {
+                instances.extend(line_instances(
+                    layer, st, ti, assets, zoom, sort_key_j, sort_by_key, &mut icons_need_linear,
+                ));
+                continue;
+            }
             let Some(src) = st.tile.layers.get(sl) else { continue };
             let scale = EXTENT / src.extent as f64;
             let tile_zoom = st.coord.0 as f64 + st.overscaling.log2();
@@ -1200,6 +1585,7 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
                     instances.push(Instance {
                         tile_idx: ti,
                         sort_key: key,
+                        text_line: None,
                         text_box: text.as_ref().map(|t| proj(t.1, ttr)),
                         icon_box: icon.as_ref().map(|i| proj(i.1, itr)),
                         label: Label {
@@ -1216,19 +1602,32 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
             instances.sort_by(|a, b| a.sort_key.partial_cmp(&b.sort_key).unwrap_or(std::cmp::Ordering::Equal));
         }
         let has_icon_data = instances.iter().any(|i| i.icon_box.is_some());
-        let has_text_data = instances.iter().any(|i| i.text_box.is_some());
+        let has_text_data = instances.iter().any(|i| i.text_box.is_some() || i.text_line.is_some());
         let always_show_text = text_always && (icon_always || !has_icon_data || icon_optional);
         let always_show_icon = icon_always && (text_always || !has_text_data || text_optional);
 
         let mut layer_labels: Vec<(f64, usize, Label)> = Vec::new();
         for mut inst in instances {
-            let placeable = |b: &[f64; 4], always: bool, boxes: &Vec<[f64; 4]>| {
+            let placeable = |b: &[f64; 4], always: bool, items: &Vec<Item>| {
                 let inside = b[2] >= 0.0 && b[0] < grid_w && b[3] >= 0.0 && b[1] < grid_h;
-                inside && (always || !boxes.iter().any(|o| b[0] <= o[2] && b[1] <= o[3] && b[2] >= o[0] && b[3] >= o[1]))
+                inside && (always || !hit_box(items, b, grid_w, grid_h))
             };
-            let mut place_text = inst.text_box.as_ref().map_or(false, |b| placeable(b, text_always, &boxes));
-            let mut place_icon = inst.icon_box.as_ref().map_or(false, |b| placeable(b, icon_always, &boxes));
-            let icon_without_text = text_optional || inst.text_box.is_none();
+            let mut circles: Vec<(f64, f64, f64)> = Vec::new();
+            let mut place_text = match (&inst.text_box, &inst.text_line) {
+                (Some(b), _) => placeable(b, text_always, &items),
+                (None, Some(tc)) => {
+                    let (c, collided) = match &tc.path {
+                        Some(path) => place_circles(&items, path, tc.radius, width, height, text_always),
+                        None => (Vec::new(), false),
+                    };
+                    circles = c;
+                    text_always || (!circles.is_empty() && !collided)
+                }
+                (None, None) => false,
+            };
+            let mut place_icon = inst.icon_box.as_ref().map_or(false, |b| placeable(b, icon_always, &items));
+            let has_text = inst.text_box.is_some() || inst.text_line.is_some();
+            let icon_without_text = text_optional || !has_text;
             let text_without_icon = icon_optional || inst.icon_box.is_none();
             if !icon_without_text && !text_without_icon {
                 let both = place_icon && place_text;
@@ -1240,12 +1639,17 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
                 place_icon = place_icon && place_text;
             }
             if place_text && !text_ignore {
-                boxes.push(inst.text_box.unwrap());
+                if let Some(b) = inst.text_box {
+                    items.push(Item::Box(b));
+                }
+                for &(x, y, r) in &circles {
+                    items.push(Item::Circle(x, y, r));
+                }
             }
             if place_icon && !icon_ignore {
-                boxes.push(inst.icon_box.unwrap());
+                items.push(Item::Box(inst.icon_box.unwrap()));
             }
-            let text_visible = place_text || (always_show_text && inst.text_box.is_some());
+            let text_visible = place_text || (always_show_text && has_text);
             let icon_visible = place_icon || (always_show_icon && inst.icon_box.is_some());
             if !text_visible {
                 inst.label.text = None;
@@ -1374,6 +1778,25 @@ fn blend_out(fb: &mut Framebuffer, x: usize, y: usize, out: [f64; 4]) {
     }
 }
 
+/// Per-quad screen origin and rotation: the anchor (angle 0) for point
+/// symbols, or glyphs placed along the projected line (updateLineLabels).
+/// None when the symbol is hidden.
+fn along_positions(along: Option<&AlongLine>, anchor: (f64, f64), n: usize, w: usize, h: usize) -> Option<Vec<((f64, f64), f64)>> {
+    let Some(al) = along else { return Some(vec![(anchor, 0.0); n]) };
+    // isVisible: anchor within the clip-space padding.
+    let (bx, by) = (256.0 / w as f64 * 2.0 + 1.0, 256.0 / h as f64 * 2.0 + 1.0);
+    let (cx, cy) = (anchor.0 / w as f64 * 2.0 - 1.0, 1.0 - anchor.1 / h as f64 * 2.0);
+    if cx < -bx || cx > bx || cy < -by || cy > by {
+        return None;
+    }
+    let pl = ProjectedLine { line: &al.line_px, anchor, segment: al.segment };
+    match line::place_glyphs_for_render(&pl, &al.glyph_offsets, al.placement_scale, al.line_offset, al.keep_upright, al.rotate_to_line) {
+        line::GlyphsPlacement::Hidden => None,
+        line::GlyphsPlacement::Placed(g) if g.len() == n => Some(g.into_iter().map(|p| (p.point, p.angle)).collect()),
+        line::GlyphsPlacement::Placed(_) => None,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn draw_text(
     fb: &mut Framebuffer,
@@ -1391,14 +1814,19 @@ fn draw_text(
     }
     let Some(gmap) = glyphs.stacks.get(&t.fontstack) else { return };
     let font_scale = t.size / 24.0;
-    for q in &t.quads {
+    let positions = match along_positions(t.along.as_ref(), anchor, t.quads.len(), w, h) {
+        Some(p) => p,
+        None => return,
+    };
+    for (qi, q) in t.quads.iter().enumerate() {
         let Some(g) = gmap.get(&q.codepoint) else { continue };
         let tex = [(0.0, 0.0), (g.rect_w as f64, 0.0), (0.0, g.rect_h as f64), (g.rect_w as f64, g.rect_h as f64)];
+        let (origin, angle) = positions[qi];
+        let (sa, ca) = (angle.sin(), angle.cos());
         let v: Vec<Vert<2>> = (0..4)
-            .map(|i| Vert {
-                x: anchor.0 + q.corners[i].0 * font_scale,
-                y: anchor.1 + q.corners[i].1 * font_scale,
-                v: [tex[i].0, tex[i].1],
+            .map(|i| {
+                let (ox, oy) = (q.corners[i].0 * font_scale, q.corners[i].1 * font_scale);
+                Vert { x: origin.0 + ca * ox - sa * oy, y: origin.1 + sa * ox + ca * oy, v: [tex[i].0, tex[i].1] }
             })
             .collect();
         for tri in [[0usize, 2, 1], [1, 2, 3]] {
@@ -1428,11 +1856,13 @@ fn draw_icon(
     let Some(img) = sprite.images.get(&ic.image) else { return };
     let (cw, ch) = ((img.w + 2) as f64, (img.h + 2) as f64);
     let tex = [(0.0, 0.0), (cw, 0.0), (0.0, ch), (cw, ch)];
+    let Some(positions) = along_positions(ic.along.as_ref(), anchor, 1, w, h) else { return };
+    let (origin, angle) = positions[0];
+    let (sa, ca) = (angle.sin(), angle.cos());
     let v: Vec<Vert<2>> = (0..4)
-        .map(|i| Vert {
-            x: anchor.0 + ic.corners[i].0 * ic.size,
-            y: anchor.1 + ic.corners[i].1 * ic.size,
-            v: [tex[i].0, tex[i].1],
+        .map(|i| {
+            let (ox, oy) = (ic.corners[i].0 * ic.size, ic.corners[i].1 * ic.size);
+            Vert { x: origin.0 + ca * ox - sa * oy, y: origin.1 + sa * ox + ca * oy, v: [tex[i].0, tex[i].1] }
         })
         .collect();
     for tri in [[0usize, 2, 1], [1, 2, 3]] {

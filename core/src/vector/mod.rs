@@ -7,3 +7,4 @@ pub mod gl;
 pub mod mvt;
 pub mod render;
 pub mod symbol;
+pub mod symbol_line;
