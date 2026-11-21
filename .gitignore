@@ -67,3 +67,6 @@ reference-maplibre-gl-nosymbols.png
 
 # Local golden-image comparison viewer (written by core/tests/golden.rs)
 check/
+
+# R graphics output from tests run without an open device
+Rplots.pdf
