@@ -393,6 +393,62 @@ fn interpolate_stops(stops: &[(f64, Val)], x: f64, ftype: &str, base: f64) -> Va
 
 // ── Expressions ──────────────────────────────────────────────────────────────
 
+/// MapLibre's `typeof` names.
+fn type_name(v: &Val) -> String {
+    match v {
+        Val::Null => "null".into(),
+        Val::Bool(_) => "boolean".into(),
+        Val::Num(_) => "number".into(),
+        Val::Str(_) => "string".into(),
+        Val::Color(_) => "color".into(),
+        Val::Array(items) => {
+            let first = items.first().map(type_name);
+            match first {
+                Some(t) if items.iter().all(|x| type_name(x) == t) => format!("array<{t}, {}>", items.len()),
+                _ => "array".into(),
+            }
+        }
+    }
+}
+
+/// A value as a JSON literal expression (for `let` substitution).
+fn val_to_literal(v: &Val) -> Json {
+    match v {
+        Val::Null => Json::Null,
+        Val::Bool(b) => Json::Bool(*b),
+        Val::Num(n) => serde_json::json!(n),
+        Val::Str(s) => Json::String(s.clone()),
+        Val::Color(c) => {
+            let al = c.a.max(1e-9);
+            Json::String(format!(
+                "rgba({},{},{},{})",
+                c.r / al * 255.0,
+                c.g / al * 255.0,
+                c.b / al * 255.0,
+                c.a
+            ))
+        }
+        Val::Array(items) => serde_json::json!(["literal", Json::Array(items.iter().map(val_to_literal).collect())]),
+    }
+}
+
+/// `body` with every ["var", name] replaced by `value` (inner `let`s that
+/// rebind `name` are left alone).
+fn substitute_var(body: &Json, name: &str, value: &Json) -> Json {
+    match body {
+        Json::Array(a) => {
+            if a.len() == 2 && a[0] == "var" && a[1] == name {
+                return value.clone();
+            }
+            if a.first().map_or(false, |f| f == "let") && a[1..a.len().saturating_sub(1)].chunks(2).any(|p| p[0] == name) {
+                return body.clone();
+            }
+            Json::Array(a.iter().map(|x| substitute_var(x, name, value)).collect())
+        }
+        _ => body.clone(),
+    }
+}
+
 fn arg(a: &[Json], i: usize, ctx: &Ctx) -> Val {
     a.get(i).map(|e| eval_expr(e, ctx)).unwrap_or(Val::Null)
 }
@@ -619,7 +675,112 @@ pub fn eval_expr(j: &Json, ctx: &Ctx) -> Val {
             // Type assertions: pass through the first argument.
             arg(a, if op == "array" && a.len() > 2 { a.len() - 1 } else { 1 }, ctx)
         }
-        "let" | "var" => Val::Null, // not yet supported
+        // ["let", name, value, ..., body]: bind by substituting the values
+        // (as literals) for ["var", name] in the body.
+        "let" if a.len() >= 2 && a.len() % 2 == 0 => {
+            let mut body = a[a.len() - 1].clone();
+            for pair in a[1..a.len() - 1].chunks(2) {
+                if let Some(name) = pair[0].as_str() {
+                    let v = val_to_literal(&eval_expr(&pair[1], ctx));
+                    body = substitute_var(&body, name, &v);
+                }
+            }
+            eval_expr(&body, ctx)
+        }
+        "let" | "var" => Val::Null, // unbound var
+        "typeof" => Val::Str(type_name(&arg(a, 1, ctx))),
+        "at" => match (arg(a, 1, ctx), arg(a, 2, ctx)) {
+            (Val::Num(i), Val::Array(v)) if i >= 0.0 => v.get(i as usize).cloned().unwrap_or(Val::Null),
+            _ => Val::Null,
+        },
+        "index-of" => {
+            let needle = arg(a, 1, ctx);
+            let from = a.get(3).map_or(0.0, |_| num(a, 3, ctx)).max(0.0) as usize;
+            match arg(a, 2, ctx) {
+                Val::Str(hay) => match &needle {
+                    Val::Str(n) => {
+                        let chars: Vec<char> = hay.chars().collect();
+                        let n: Vec<char> = n.chars().collect();
+                        let pos = (from..=chars.len().saturating_sub(n.len().max(1)))
+                            .find(|&i| chars.get(i..i + n.len()) == Some(&n[..]));
+                        Val::Num(pos.map_or(-1.0, |p| p as f64))
+                    }
+                    _ => Val::Num(-1.0),
+                },
+                Val::Array(v) => Val::Num(v.iter().skip(from).position(|x| x == &needle).map_or(-1.0, |p| (p + from) as f64)),
+                _ => Val::Num(-1.0),
+            }
+        }
+        "slice" => {
+            let start = num(a, 2, ctx);
+            let end = a.get(3).map(|_| num(a, 3, ctx));
+            let range = |len: usize| {
+                let norm = |i: f64| if i < 0.0 { (len as f64 + i).max(0.0) as usize } else { (i as usize).min(len) };
+                let (s0, e0) = (norm(start), end.map_or(len, norm));
+                (s0, e0.max(s0))
+            };
+            match arg(a, 1, ctx) {
+                Val::Str(st) => {
+                    let chars: Vec<char> = st.chars().collect();
+                    let (s0, e0) = range(chars.len());
+                    Val::Str(chars[s0..e0].iter().collect())
+                }
+                Val::Array(v) => {
+                    let (s0, e0) = range(v.len());
+                    Val::Array(v[s0..e0].to_vec())
+                }
+                _ => Val::Null,
+            }
+        }
+        "sin" => Val::Num(num(a, 1, ctx).sin()),
+        "cos" => Val::Num(num(a, 1, ctx).cos()),
+        "tan" => Val::Num(num(a, 1, ctx).tan()),
+        "asin" => Val::Num(num(a, 1, ctx).asin()),
+        "acos" => Val::Num(num(a, 1, ctx).acos()),
+        "atan" => Val::Num(num(a, 1, ctx).atan()),
+        "to-rgba" => match arg(a, 1, ctx).as_color() {
+            Some(c) => {
+                let al = c.a.max(1e-9);
+                let ch = |v: f32| Val::Num((v / al * 255.0) as f64);
+                Val::Array(vec![ch(c.r), ch(c.g), ch(c.b), Val::Num(c.a as f64)])
+            }
+            None => Val::Null,
+        },
+        "properties" => Val::Array(Vec::new()), // object values are not modelled
+        "feature-state" => Val::Null,             // no feature state in static renders
+        "image" => arg(a, 1, ctx),                // the image name
+        "format" => {
+            // Text sections concatenated (section options ignored here).
+            let mut out = String::new();
+            for e in &a[1..] {
+                if e.is_object() {
+                    continue;
+                }
+                out.push_str(&eval_expr(e, ctx).to_string_val());
+            }
+            Val::Str(out)
+        }
+        "number-format" => {
+            let n = num(a, 1, ctx);
+            let opts = a.get(2).cloned().unwrap_or(Json::Null);
+            let min = opts["min-fraction-digits"].as_u64();
+            let max = opts["max-fraction-digits"].as_u64();
+            let digits = max.or(min).unwrap_or(3) as usize;
+            let mut t = format!("{n:.digits$}");
+            if t.contains('.') {
+                let keep = min.unwrap_or(0) as usize;
+                while t.ends_with('0') && t.split('.').nth(1).map_or(0, |f| f.len()) > keep {
+                    t.pop();
+                }
+                if t.ends_with('.') {
+                    t.pop();
+                }
+            }
+            Val::Str(t)
+        }
+        "is-supported-script" => Val::Bool(true),
+        "resolved-locale" => Val::Str("en".into()),
+        "collator" => Val::Null,
         _ => {
             log::debug!("unsupported expression operator: {op}");
             Val::Null
@@ -772,5 +933,21 @@ mod tests {
         let e = json!(["interpolate", ["linear"], ["zoom"], 0, "rgba(255,0,0,0)", 2, "rgba(255,0,0,1)"]);
         let c = eval_property(&e, Kind::Color, &ctx).as_color().unwrap();
         assert!((c.a - 0.5).abs() < 1e-6 && (c.r - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn newer_expression_operators() {
+        let f = feat(&[("admin_level", Value::Number(4.0)), ("name", Value::String("Salt Lake".into()))], GeomType::LineString);
+        let ctx = Ctx { zoom: 5.0, feature: Some(&f) };
+        let e = |j: serde_json::Value| eval_expr(&j, &ctx);
+        assert_eq!(e(json!(["typeof", ["get", "admin_level"]])), Val::Str("number".into()));
+        assert_eq!(e(json!(["typeof", ["get", "missing"]])), Val::Str("null".into()));
+        assert!(eval_filter(&json!(["==", ["typeof", ["get", "admin_level"]], "number"]), &ctx));
+        assert_eq!(e(json!(["let", "x", 2, "y", 3, ["*", ["var", "x"], ["var", "y"]]])), Val::Num(6.0));
+        assert_eq!(e(json!(["slice", ["get", "name"], 0, 4])), Val::Str("Salt".into()));
+        assert_eq!(e(json!(["slice", ["get", "name"], -4])), Val::Str("Lake".into()));
+        assert_eq!(e(json!(["index-of", "Lake", ["get", "name"]])), Val::Num(5.0));
+        assert_eq!(e(json!(["at", 1, ["literal", [10, 20, 30]]])), Val::Num(20.0));
+        assert_eq!(e(json!(["number-format", 3.14159, {"max-fraction-digits": 2}])), Val::Str("3.14".into()));
     }
 }

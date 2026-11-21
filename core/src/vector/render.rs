@@ -84,6 +84,37 @@ pub fn device_px(css: u32, ratio: f64) -> u32 {
     ((css as f64 * ratio).round() as u32).max(1)
 }
 
+/// Raster tiles of one source at the zoom MapLibre covers the view with.
+pub struct RasterTiles {
+    pub zoom: u8,
+    pub tiles: Vec<(TileCoord, Vec<u8>)>,
+}
+
+/// Tiles for every tile source a style's layers use, keyed by source id.
+/// Vector tiles carry their world-copy wrap (see [`covering_tiles`]).
+#[derive(Default)]
+pub struct SourceTiles {
+    pub vector: std::collections::HashMap<String, Vec<(TileCoord, i32, Vec<u8>)>>,
+    pub raster: std::collections::HashMap<String, RasterTiles>,
+}
+
+impl SourceTiles {
+    /// One vector source (as styles with a single source have).
+    pub fn single_vector(id: &str, tiles: Vec<(TileCoord, i32, Vec<u8>)>) -> Self {
+        let mut s = SourceTiles::default();
+        s.vector.insert(id.to_owned(), tiles);
+        s
+    }
+}
+
+/// Placed vector tiles per source id.
+type Placed = std::collections::HashMap<String, Vec<PlacedTile>>;
+
+/// The placed tiles of `layer`'s source (empty when it has none).
+fn layer_tiles<'a>(placed: &'a Placed, layer: &Json) -> &'a [PlacedTile] {
+    layer["source"].as_str().and_then(|s| placed.get(s)).map_or(&[], |v| v.as_slice())
+}
+
 pub struct RenderOutput {
     /// Device pixel size of `pixels`.
     pub width: u32,
@@ -96,14 +127,24 @@ pub struct RenderOutput {
 /// Decode `tiles` and place them on a `width x height` view of `bbox` at
 /// MapLibre's scale zoom (centre point minus half the viewport). `width` and
 /// `height` are CSS pixels; tiles are placed in device pixels (`ratio`).
-fn prepare(
+fn prepare(sources: &SourceTiles, bbox: [f64; 4], width: u32, height: u32, ratio: f64) -> (f64, Placed) {
+    let zoom = scale_zoom(bbox, width);
+    let placed = sources
+        .vector
+        .iter()
+        .map(|(id, tiles)| (id.clone(), place_tiles(tiles, bbox, width, height, ratio, zoom)))
+        .collect();
+    (zoom, placed)
+}
+
+fn place_tiles(
     tiles: &[(TileCoord, i32, Vec<u8>)],
     bbox: [f64; 4],
     width: u32,
     height: u32,
     ratio: f64,
-) -> (f64, Vec<PlacedTile>) {
-    let zoom = scale_zoom(bbox, width);
+    zoom: f64,
+) -> Vec<PlacedTile> {
     let world_px = TILE_PX * 2f64.powf(zoom);
     let cx = ((bbox[0] + bbox[2]) / 2.0 + EARTH_HALF) / EARTH_CIRC * world_px;
     let cy = (EARTH_HALF - (bbox[1] + bbox[3]) / 2.0) / EARTH_CIRC * world_px;
@@ -133,13 +174,16 @@ fn prepare(
             ratio,
         });
     }
-    (zoom, placed)
+    placed
 }
 
-fn symbol_tiles(placed: &[PlacedTile]) -> Vec<SymbolTile<'_>> {
-    placed
-        .iter()
-        .map(|p| SymbolTile {
+fn symbol_tiles(placed: &Placed) -> Vec<SymbolTile<'_>> {
+    let mut ids: Vec<&String> = placed.keys().collect();
+    ids.sort();
+    ids.into_iter()
+        .flat_map(|id| placed[id].iter().map(move |p| (id, p)))
+        .map(|(id, p)| SymbolTile {
+            source: id.as_str(),
             coord: (p.coord.z, p.coord.x, p.coord.y),
             wrap: p.wrap,
             tile: &p.tile,
@@ -159,14 +203,14 @@ fn symbol_tiles(placed: &[PlacedTile]) -> Vec<SymbolTile<'_>> {
 #[allow(clippy::too_many_arguments)]
 pub fn render(
     style: &Json,
-    tiles: &[(TileCoord, i32, Vec<u8>)],
+    sources: &SourceTiles,
     assets: &SymbolAssets,
     bbox: [f64; 4],
     width: u32,
     height: u32,
     ratio: f64,
 ) -> Result<RenderOutput, String> {
-    let (zoom, placed) = prepare(tiles, bbox, width, height, ratio);
+    let (zoom, placed) = prepare(sources, bbox, width, height, ratio);
     let (dw, dh) = (device_px(width, ratio), device_px(height, ratio));
     let mut fb = Framebuffer::new(dw as usize, dh as usize);
 
@@ -186,9 +230,14 @@ pub fn render(
         }
         match ltype {
             "background" => draw_background(&mut fb, layer, zoom),
-            "fill" => draw_fill_layer(&mut fb, layer, zoom, &placed, ratio),
-            "line" => draw_line_layer(&mut fb, layer, zoom, &placed, ratio),
-            "circle" => draw_circle_layer(&mut fb, layer, zoom, &placed, ratio),
+            "fill" => draw_fill_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
+            "line" => draw_line_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
+            "circle" => draw_circle_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
+            "raster" => {
+                if let Some(rt) = layer["source"].as_str().and_then(|s| sources.raster.get(s)) {
+                    draw_raster_layer(&mut fb, layer, zoom, rt, bbox, ratio);
+                }
+            }
             "symbol" => symbol::draw_layer(
                 &mut fb,
                 layer,
@@ -542,6 +591,67 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
     }
 }
 
+// ── Raster ───────────────────────────────────────────────────────────────────
+
+/// raster.fragment.glsl uniforms: saturation, contrast and hue-rotate factors.
+fn raster_factors(saturation: f64, contrast: f64, hue_deg: f64) -> (f64, f64, [f64; 3]) {
+    let sat = if saturation > 0.0 { 1.0 - 1.0 / (1.001 - saturation) } else { -saturation };
+    let con = if contrast > 0.0 { 1.0 / (1.0 - contrast) } else { 1.0 + contrast };
+    let a = hue_deg.to_radians();
+    let (s, c) = (a.sin(), a.cos());
+    let spin = [(2.0 * c + 1.0) / 3.0, (-(3f64.sqrt()) * s - c + 1.0) / 3.0, (3f64.sqrt() * s - c + 1.0) / 3.0];
+    (sat, con, spin)
+}
+
+/// The view's raster tiles composited at device size (tiles snapped to the
+/// CSS pixel grid, linearly resampled, as for raster-only styles), as
+/// straight-alpha RGBA. None when nothing could be decoded.
+fn raster_image(rt: &RasterTiles, bbox: [f64; 4], w: usize, h: usize, ratio: f64) -> Option<image::RgbaImage> {
+    crate::renderer::composite_raster_tiles(&rt.tiles, bbox, rt.zoom, w as u32, h as u32, true, ratio)
+        .map_err(|e| log::warn!("raster layer: {e}"))
+        .ok()
+}
+
+/// A raster layer inside a vector style: raster.fragment.glsl per pixel
+/// (opacity, hue rotation, saturation, contrast, brightness range), blended
+/// premultiplied like every MapLibre layer.
+fn draw_raster_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, rt: &RasterTiles, bbox: [f64; 4], ratio: f64) {
+    let ctx = Ctx { zoom, feature: None };
+    let p = &layer["paint"];
+    let num = |k: &str, d: f64| Prop::new(p.get(k), Kind::Number, zoom).num(&ctx, d);
+    let opacity = num("raster-opacity", 1.0);
+    if opacity <= 0.0 {
+        return;
+    }
+    let (sat, con, spin) = raster_factors(num("raster-saturation", 0.0), num("raster-contrast", 0.0), num("raster-hue-rotate", 0.0));
+    let (lo, hi) = (num("raster-brightness-min", 0.0), num("raster-brightness-max", 1.0));
+    let identity = sat == 0.0 && con == 1.0 && spin == [1.0, 0.0, 0.0] && lo == 0.0 && hi == 1.0;
+    let Some(img) = raster_image(rt, bbox, fb.w, fb.h, ratio) else { return };
+    for (x, y, px) in img.enumerate_pixels() {
+        let a = px[3] as f64 / 255.0;
+        if a <= 0.0 {
+            continue;
+        }
+        let mut rgb = [px[0] as f64 / 255.0, px[1] as f64 / 255.0, px[2] as f64 / 255.0];
+        if !identity {
+            let r = rgb;
+            rgb = [
+                r[0] * spin[0] + r[1] * spin[1] + r[2] * spin[2],
+                r[0] * spin[2] + r[1] * spin[0] + r[2] * spin[1],
+                r[0] * spin[1] + r[1] * spin[2] + r[2] * spin[0],
+            ];
+            let avg = (r[0] + r[1] + r[2]) / 3.0;
+            for c in rgb.iter_mut() {
+                *c += (avg - *c) * sat;
+                *c = (*c - 0.5) * con + 0.5;
+                *c = lo + (hi - lo) * *c;
+            }
+        }
+        let a = a * opacity;
+        fb.blend(x as usize, y as usize, [(rgb[0] * a) as f32, (rgb[1] * a) as f32, (rgb[2] * a) as f32, a as f32]);
+    }
+}
+
 // ── Circle ───────────────────────────────────────────────────────────────────
 
 fn draw_circle_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile], dpr: f64) {
@@ -631,7 +741,7 @@ pub struct SvgParts {
 /// style's SDF glyphs at the shader's edge threshold.
 pub fn render_svg(
     style: &Json,
-    tiles: &[(TileCoord, i32, Vec<u8>)],
+    sources: &SourceTiles,
     assets: &SymbolAssets,
     bbox: [f64; 4],
     width: u32,
@@ -639,19 +749,30 @@ pub fn render_svg(
     id_prefix: &str,
 ) -> Result<SvgParts, String> {
     use std::fmt::Write as _;
-    let (zoom, placed) = prepare(tiles, bbox, width, height, 1.0);
+    let (zoom, placed) = prepare(sources, bbox, width, height, 1.0);
     let placement = symbol::place(style, &symbol_tiles(&placed), assets, zoom, width as f64, height as f64);
     let mut defs = String::new();
-    for (i, pt) in placed.iter().enumerate() {
-        let _ = write!(
-            defs,
-            r#"<clipPath id="{id_prefix}t{i}"><rect x="{}" y="{}" width="{}" height="{}" shape-rendering="crispEdges"/></clipPath>"#,
-            svg::num(pt.clip.x0),
-            svg::num(pt.clip.y0),
-            svg::num(pt.clip.x1 - pt.clip.x0),
-            svg::num(pt.clip.y1 - pt.clip.y0)
-        );
+    // Tile clip paths per source: "{prefix}{source number}t{tile index}".
+    let mut source_ids: Vec<&String> = placed.keys().collect();
+    source_ids.sort();
+    let clip_prefix: std::collections::HashMap<&str, String> =
+        source_ids.iter().enumerate().map(|(k, id)| (id.as_str(), format!("{id_prefix}{k}"))).collect();
+    for id in &source_ids {
+        let cp = &clip_prefix[id.as_str()];
+        for (i, pt) in placed[*id].iter().enumerate() {
+            let _ = write!(
+                defs,
+                r#"<clipPath id="{cp}t{i}"><rect x="{}" y="{}" width="{}" height="{}" shape-rendering="crispEdges"/></clipPath>"#,
+                svg::num(pt.clip.x0),
+                svg::num(pt.clip.y0),
+                svg::num(pt.clip.x1 - pt.clip.x0),
+                svg::num(pt.clip.y1 - pt.clip.y0)
+            );
+        }
     }
+    let layer_clip = |layer: &Json| -> String {
+        layer["source"].as_str().and_then(|s| clip_prefix.get(s)).cloned().unwrap_or_default()
+    };
     let mut body = String::new();
     let mut skipped: Vec<String> = Vec::new();
     for (layer_idx, layer) in style["layers"].as_array().map(|v| v.as_slice()).unwrap_or(&[]).iter().enumerate() {
@@ -671,9 +792,24 @@ pub fn render_svg(
                     let _ = write!(out, r#"<rect width="{width}" height="{height}" fill="{hex}" fill-opacity="{}"/>"#, svg::alpha(a));
                 }
             }
-            "fill" => svg_fill(&mut out, layer, zoom, &placed, id_prefix),
-            "line" => svg_line(&mut out, layer, zoom, &placed, id_prefix),
-            "circle" => svg_circle(&mut out, layer, zoom, &placed),
+            "fill" => svg_fill(&mut out, layer, zoom, layer_tiles(&placed, layer), &layer_clip(layer)),
+            "line" => svg_line(&mut out, layer, zoom, layer_tiles(&placed, layer), &layer_clip(layer)),
+            "circle" => svg_circle(&mut out, layer, zoom, layer_tiles(&placed, layer)),
+            "raster" => {
+                // Raster tiles stay raster: the composited view, embedded.
+                if let Some(rt) = layer["source"].as_str().and_then(|s| sources.raster.get(s)) {
+                    let ctx = Ctx { zoom, feature: None };
+                    let op = Prop::new(layer["paint"].get("raster-opacity"), Kind::Number, zoom).num(&ctx, 1.0);
+                    if let Some(img) = raster_image(rt, bbox, width as usize, height as usize, 1.0) {
+                        let _ = write!(
+                            out,
+                            r#"<image width="{width}" height="{height}" opacity="{}" href="{}"/>"#,
+                            svg::alpha(op.clamp(0.0, 1.0)),
+                            svg::png_data_uri(width, height, img.as_raw())
+                        );
+                    }
+                }
+            }
             "symbol" => symbol::svg_layer(&mut out, &mut defs, layer, layer_idx, &placement, assets, width as usize, height as usize, id_prefix),
             other => {
                 if !skipped.iter().any(|x| x == other) {

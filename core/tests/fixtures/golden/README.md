@@ -30,7 +30,17 @@ NO_SYMBOLS=1 node render.mjs <case>   # -> reference-maplibre-gl-nosymbols.png
 
 # Another style over the same tiles
 cargo run -p basemapper-core --example capture_fixture -- ... --tiles-from <case>
+
+# A style with several sources (raster + vector, two vector sources):
+# every source the layers use, saved to tiles/<source>/z/x/y
+cargo run -p basemapper-core --example capture_fixture -- ... --all-sources
 ```
+
+Case options in `case.json`: `pixel_ratio` (render at that devicePixelRatio),
+`svg: true` (also score the SVG output, limits `max_*_svg`), `stack`
+(composite other cases), `fixture_from` / `tiles_from` / `fonts_from`
+(reuse another case's files). References are rendered in Web Mercator even
+when a style asks for the globe projection.
 
 ## Visual comparison
 
@@ -49,6 +59,10 @@ against the no-labels reference.
 | `ugrc_hillshade_slc`, `ugrc_litelabels_slc` | UGRC Vector Hillshade and Lite Labels services |
 | `ugrc_full_slc` | `stack` of Hillshade, Lite Base and Lite Labels (bottom to top): the full UGRC Lite basemap. Lite Base has no background; the hillshade beneath supplies it |
 | `ugrc_{hillshade,litebase,litelabels,full}_z{1..22}` | The three UGRC services and their full stack at every MapLibre zoom from 1 to 22 except 13 (the `_slc` cases are zoom 13). Glyphs shared with the `_slc` cases via `fonts_from` |
+| `ugrc_{hillshade,litebase,litelabels,full}_z12_4` | Fractional MapLibre zoom 12.4 (native-resolution proof of concept); also scored as SVG (`svg: true`) |
+| `*_x2` | Pixel ratio 2 (MapLibre `pixelRatio: 2`, @2x sprites): the z12.4 UGRC cases, CARTO z7/z13/z14 and OSM raster, via `fixture_from` |
+| `openfreemap_liberty_z5` | OpenFreeMap Liberty over Utah: a raster source (Natural Earth relief) and a vector source in one style (`--all-sources`) |
+| `versatiles_colorful_z8` | VersaTiles Colorful over Salt Lake City: two vector sources and a multi-sprite (`[{id, url}]`) style; its globe projection is ignored |
 | `osm_raster_slc` | OpenStreetMap raster tiles |
 
 The test always writes `actual.png` and `diff.png` (bad pixels in red) to
@@ -65,5 +79,7 @@ MapLibre zoom is an integer (`render.mjs` prints it). MapLibre picks tiles by
 | `ugrc_*` | Utah Geospatial Resource Center (UGRC), State of Utah: Lite Base, Vector Hillshade and Lite Labels vector tiles | Public data from the State of Utah |
 | `osm_raster_slc` | © OpenStreetMap contributors, standard tile layer | Data ODbL; tiles CC BY-SA 2.0 |
 | `carto_*` | © OpenStreetMap contributors, © CARTO (styles, glyphs, sprites); tiles from CARTO basemaps | Data ODbL; styles per CARTO basemap terms |
+| `openfreemap_*` | © OpenStreetMap contributors, © OpenMapTiles, Natural Earth; style, tiles, glyphs and sprites from OpenFreeMap | Data ODbL; OpenMapTiles schema CC-BY 4.0; Natural Earth public domain |
+| `versatiles_*` | © OpenStreetMap contributors; style, tiles, glyphs and sprites from VersaTiles | Data ODbL; styles per VersaTiles terms |
 
 A handful of tiles is stored here for offline testing only.

@@ -66,6 +66,10 @@ async function renderCase(browser, name) {
     'http://fixture.local',
   );
   const style = filterLayers(JSON.parse(styleText), kase.layers);
+  // basemapper renders Web Mercator (EPSG:3857, the CRS its output is placed
+  // in), so references do too: a style's globe projection would curve the
+  // view below zoom ~12.
+  delete style.projection;
   // Diagnostic: NO_SYMBOLS=1 renders without symbol (label/icon) layers to
   // reference-maplibre-gl-nosymbols.png, isolating geometry differences.
   const noSymbols = process.env.NO_SYMBOLS === '1';

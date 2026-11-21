@@ -84,6 +84,37 @@ pub fn device_px(css: u32, ratio: f64) -> u32 {
     ((css as f64 * ratio).round() as u32).max(1)
 }
 
+/// Raster tiles of one source at the zoom MapLibre covers the view with.
+pub struct RasterTiles {
+    pub zoom: u8,
+    pub tiles: Vec<(TileCoord, Vec<u8>)>,
+}
+
+/// Tiles for every tile source a style's layers use, keyed by source id.
+/// Vector tiles carry their world-copy wrap (see [`covering_tiles`]).
+#[derive(Default)]
+pub struct SourceTiles {
+    pub vector: std::collections::HashMap<String, Vec<(TileCoord, i32, Vec<u8>)>>,
+    pub raster: std::collections::HashMap<String, RasterTiles>,
+}
+
+impl SourceTiles {
+    /// One vector source (as styles with a single source have).
+    pub fn single_vector(id: &str, tiles: Vec<(TileCoord, i32, Vec<u8>)>) -> Self {
+        let mut s = SourceTiles::default();
+        s.vector.insert(id.to_owned(), tiles);
+        s
+    }
+}
+
+/// Placed vector tiles per source id.
+type Placed = std::collections::HashMap<String, Vec<PlacedTile>>;
+
+/// The placed tiles of `layer`'s source (empty when it has none).
+fn layer_tiles<'a>(placed: &'a Placed, layer: &Json) -> &'a [PlacedTile] {
+    layer["source"].as_str().and_then(|s| placed.get(s)).map_or(&[], |v| v.as_slice())
+}
+
 pub struct RenderOutput {
     /// Device pixel size of `pixels`.
     pub width: u32,
@@ -96,14 +127,24 @@ pub struct RenderOutput {
 /// Decode `tiles` and place them on a `width x height` view of `bbox` at
 /// MapLibre's scale zoom (centre point minus half the viewport). `width` and
 /// `height` are CSS pixels; tiles are placed in device pixels (`ratio`).
-fn prepare(
+fn prepare(sources: &SourceTiles, bbox: [f64; 4], width: u32, height: u32, ratio: f64) -> (f64, Placed) {
+    let zoom = scale_zoom(bbox, width);
+    let placed = sources
+        .vector
+        .iter()
+        .map(|(id, tiles)| (id.clone(), place_tiles(tiles, bbox, width, height, ratio, zoom)))
+        .collect();
+    (zoom, placed)
+}
+
+fn place_tiles(
     tiles: &[(TileCoord, i32, Vec<u8>)],
     bbox: [f64; 4],
     width: u32,
     height: u32,
     ratio: f64,
-) -> (f64, Vec<PlacedTile>) {
-    let zoom = scale_zoom(bbox, width);
+    zoom: f64,
+) -> Vec<PlacedTile> {
     let world_px = TILE_PX * 2f64.powf(zoom);
     let cx = ((bbox[0] + bbox[2]) / 2.0 + EARTH_HALF) / EARTH_CIRC * world_px;
     let cy = (EARTH_HALF - (bbox[1] + bbox[3]) / 2.0) / EARTH_CIRC * world_px;
@@ -133,13 +174,16 @@ fn prepare(
             ratio,
         });
     }
-    (zoom, placed)
+    placed
 }
 
-fn symbol_tiles(placed: &[PlacedTile]) -> Vec<SymbolTile<'_>> {
-    placed
-        .iter()
-        .map(|p| SymbolTile {
+fn symbol_tiles(placed: &Placed) -> Vec<SymbolTile<'_>> {
+    let mut ids: Vec<&String> = placed.keys().collect();
+    ids.sort();
+    ids.into_iter()
+        .flat_map(|id| placed[id].iter().map(move |p| (id, p)))
+        .map(|(id, p)| SymbolTile {
+            source: id.as_str(),
             coord: (p.coord.z, p.coord.x, p.coord.y),
             wrap: p.wrap,
             tile: &p.tile,
@@ -159,14 +203,14 @@ fn symbol_tiles(placed: &[PlacedTile]) -> Vec<SymbolTile<'_>> {
 #[allow(clippy::too_many_arguments)]
 pub fn render(
     style: &Json,
-    tiles: &[(TileCoord, i32, Vec<u8>)],
+    sources: &SourceTiles,
     assets: &SymbolAssets,
     bbox: [f64; 4],
     width: u32,
     height: u32,
     ratio: f64,
 ) -> Result<RenderOutput, String> {
-    let (zoom, placed) = prepare(tiles, bbox, width, height, ratio);
+    let (zoom, placed) = prepare(sources, bbox, width, height, ratio);
     let (dw, dh) = (device_px(width, ratio), device_px(height, ratio));
     let mut fb = Framebuffer::new(dw as usize, dh as usize);
 
@@ -186,9 +230,14 @@ pub fn render(
         }
         match ltype {
             "background" => draw_background(&mut fb, layer, zoom),
-            "fill" => draw_fill_layer(&mut fb, layer, zoom, &placed, ratio),
-            "line" => draw_line_layer(&mut fb, layer, zoom, &placed, ratio),
-            "circle" => draw_circle_layer(&mut fb, layer, zoom, &placed, ratio),
+            "fill" => draw_fill_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
+            "line" => draw_line_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
+            "circle" => draw_circle_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
+            "raster" => {
+                if let Some(rt) = layer["source"].as_str().and_then(|s| sources.raster.get(s)) {
+                    draw_raster_layer(&mut fb, layer, zoom, rt, bbox, ratio);
+                }
+            }
             "symbol" => symbol::draw_layer(
                 &mut fb,
                 layer,
@@ -542,6 +591,67 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
     }
 }
 
+// ── Raster ───────────────────────────────────────────────────────────────────
+
+/// raster.fragment.glsl uniforms: saturation, contrast and hue-rotate factors.
+fn raster_factors(saturation: f64, contrast: f64, hue_deg: f64) -> (f64, f64, [f64; 3]) {
+    let sat = if saturation > 0.0 { 1.0 - 1.0 / (1.001 - saturation) } else { -saturation };
+    let con = if contrast > 0.0 { 1.0 / (1.0 - contrast) } else { 1.0 + contrast };
+    let a = hue_deg.to_radians();
+    let (s, c) = (a.sin(), a.cos());
+    let spin = [(2.0 * c + 1.0) / 3.0, (-(3f64.sqrt()) * s - c + 1.0) / 3.0, (3f64.sqrt() * s - c + 1.0) / 3.0];
+    (sat, con, spin)
+}
+
+/// The view's raster tiles composited at device size (tiles snapped to the
+/// CSS pixel grid, linearly resampled, as for raster-only styles), as
+/// straight-alpha RGBA. None when nothing could be decoded.
+fn raster_image(rt: &RasterTiles, bbox: [f64; 4], w: usize, h: usize, ratio: f64) -> Option<image::RgbaImage> {
+    crate::renderer::composite_raster_tiles(&rt.tiles, bbox, rt.zoom, w as u32, h as u32, true, ratio)
+        .map_err(|e| log::warn!("raster layer: {e}"))
+        .ok()
+}
+
+/// A raster layer inside a vector style: raster.fragment.glsl per pixel
+/// (opacity, hue rotation, saturation, contrast, brightness range), blended
+/// premultiplied like every MapLibre layer.
+fn draw_raster_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, rt: &RasterTiles, bbox: [f64; 4], ratio: f64) {
+    let ctx = Ctx { zoom, feature: None };
+    let p = &layer["paint"];
+    let num = |k: &str, d: f64| Prop::new(p.get(k), Kind::Number, zoom).num(&ctx, d);
+    let opacity = num("raster-opacity", 1.0);
+    if opacity <= 0.0 {
+        return;
+    }
+    let (sat, con, spin) = raster_factors(num("raster-saturation", 0.0), num("raster-contrast", 0.0), num("raster-hue-rotate", 0.0));
+    let (lo, hi) = (num("raster-brightness-min", 0.0), num("raster-brightness-max", 1.0));
+    let identity = sat == 0.0 && con == 1.0 && spin == [1.0, 0.0, 0.0] && lo == 0.0 && hi == 1.0;
+    let Some(img) = raster_image(rt, bbox, fb.w, fb.h, ratio) else { return };
+    for (x, y, px) in img.enumerate_pixels() {
+        let a = px[3] as f64 / 255.0;
+        if a <= 0.0 {
+            continue;
+        }
+        let mut rgb = [px[0] as f64 / 255.0, px[1] as f64 / 255.0, px[2] as f64 / 255.0];
+        if !identity {
+            let r = rgb;
+            rgb = [
+                r[0] * spin[0] + r[1] * spin[1] + r[2] * spin[2],
+                r[0] * spin[2] + r[1] * spin[0] + r[2] * spin[1],
+                r[0] * spin[1] + r[1] * spin[2] + r[2] * spin[0],
+            ];
+            let avg = (r[0] + r[1] + r[2]) / 3.0;
+            for c in rgb.iter_mut() {
+                *c += (avg - *c) * sat;
+                *c = (*c - 0.5) * con + 0.5;
+                *c = lo + (hi - lo) * *c;
+            }
+        }
+        let a = a * opacity;
+        fb.blend(x as usize, y as usize, [(rgb[0] * a) as f32, (rgb[1] * a) as f32, (rgb[2] * a) as f32, a as f32]);
+    }
+}
+
 // ── Circle ───────────────────────────────────────────────────────────────────
 
 fn draw_circle_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile], dpr: f64) {
@@ -631,7 +741,7 @@ pub struct SvgParts {
 /// style's SDF glyphs at the shader's edge threshold.
 pub fn render_svg(
     style: &Json,
-    tiles: &[(TileCoord, i32, Vec<u8>)],
+    sources: &SourceTiles,
     assets: &SymbolAssets,
     bbox: [f64; 4],
     width: u32,
@@ -639,19 +749,30 @@ pub fn render_svg(
     id_prefix: &str,
 ) -> Result<SvgParts, String> {
     use std::fmt::Write as _;
-    let (zoom, placed) = prepare(tiles, bbox, width, height, 1.0);
+    let (zoom, placed) = prepare(sources, bbox, width, height, 1.0);
     let placement = symbol::place(style, &symbol_tiles(&placed), assets, zoom, width as f64, height as f64);
     let mut defs = String::new();
-    for (i, pt) in placed.iter().enumerate() {
-        let _ = write!(
-            defs,
-            r#"<clipPath id="{id_prefix}t{i}"><rect x="{}" y="{}" width="{}" height="{}" shape-rendering="crispEdges"/></clipPath>"#,
-            svg::num(pt.clip.x0),
-            svg::num(pt.clip.y0),
-            svg::num(pt.clip.x1 - pt.clip.x0),
-            svg::num(pt.clip.y1 - pt.clip.y0)
-        );
+    // Tile clip paths per source: "{prefix}{source number}t{tile index}".
+    let mut source_ids: Vec<&String> = placed.keys().collect();
+    source_ids.sort();
+    let clip_prefix: std::collections::HashMap<&str, String> =
+        source_ids.iter().enumerate().map(|(k, id)| (id.as_str(), format!("{id_prefix}{k}"))).collect();
+    for id in &source_ids {
+        let cp = &clip_prefix[id.as_str()];
+        for (i, pt) in placed[*id].iter().enumerate() {
+            let _ = write!(
+                defs,
+                r#"<clipPath id="{cp}t{i}"><rect x="{}" y="{}" width="{}" height="{}" shape-rendering="crispEdges"/></clipPath>"#,
+                svg::num(pt.clip.x0),
+                svg::num(pt.clip.y0),
+                svg::num(pt.clip.x1 - pt.clip.x0),
+                svg::num(pt.clip.y1 - pt.clip.y0)
+            );
+        }
     }
+    let layer_clip = |layer: &Json| -> String {
+        layer["source"].as_str().and_then(|s| clip_prefix.get(s)).cloned().unwrap_or_default()
+    };
     let mut body = String::new();
     let mut skipped: Vec<String> = Vec::new();
     for (layer_idx, layer) in style["layers"].as_array().map(|v| v.as_slice()).unwrap_or(&[]).iter().enumerate() {
@@ -671,9 +792,24 @@ pub fn render_svg(
                     let _ = write!(out, r#"<rect width="{width}" height="{height}" fill="{hex}" fill-opacity="{}"/>"#, svg::alpha(a));
                 }
             }
-            "fill" => svg_fill(&mut out, layer, zoom, &placed, id_prefix),
-            "line" => svg_line(&mut out, layer, zoom, &placed, id_prefix),
-            "circle" => svg_circle(&mut out, layer, zoom, &placed),
+            "fill" => svg_fill(&mut out, layer, zoom, layer_tiles(&placed, layer), &layer_clip(layer)),
+            "line" => svg_line(&mut out, layer, zoom, layer_tiles(&placed, layer), &layer_clip(layer)),
+            "circle" => svg_circle(&mut out, layer, zoom, layer_tiles(&placed, layer)),
+            "raster" => {
+                // Raster tiles stay raster: the composited view, embedded.
+                if let Some(rt) = layer["source"].as_str().and_then(|s| sources.raster.get(s)) {
+                    let ctx = Ctx { zoom, feature: None };
+                    let op = Prop::new(layer["paint"].get("raster-opacity"), Kind::Number, zoom).num(&ctx, 1.0);
+                    if let Some(img) = raster_image(rt, bbox, width as usize, height as usize, 1.0) {
+                        let _ = write!(
+                            out,
+                            r#"<image width="{width}" height="{height}" opacity="{}" href="{}"/>"#,
+                            svg::alpha(op.clamp(0.0, 1.0)),
+                            svg::png_data_uri(width, height, img.as_raw())
+                        );
+                    }
+                }
+            }
             "symbol" => symbol::svg_layer(&mut out, &mut defs, layer, layer_idx, &placement, assets, width as usize, height as usize, id_prefix),
             other => {
                 if !skipped.iter().any(|x| x == other) {
@@ -754,11 +890,30 @@ fn svg_fill(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
     }
 }
 
+/// A MapLibre dasharray as an SVG one: (even-length pattern, phase).
+/// MapLibre's line atlas joins an odd array's last dash onto its first
+/// (getDashRanges starts the first dash at -last), so [1, 2, 3] is a dash
+/// of 4 and a gap of 2 entered 3 units into the dash; SVG would instead
+/// repeat it as 1 2 3 1 2 3. A single value is a solid line. None when no
+/// dashes show.
+fn even_dash_pattern(d: &[f64]) -> Option<(Vec<f64>, f64)> {
+    match d.len() {
+        0 | 1 => None,
+        n if n % 2 == 0 => Some((d.to_vec(), 0.0)),
+        n => {
+            let last = d[n - 1];
+            let mut p = vec![d[0] + last];
+            p.extend_from_slice(&d[1..n - 1]);
+            Some((p, last))
+        }
+    }
+}
+
 /// Offset a polyline perpendicular to its direction (positive = right of
 /// the direction in screen space), with mitred vertex normals.
 /// With `closed`, `pts` is a ring (no repeated end point) and the offset
 /// wraps around it.
-fn offset_polyline(pts: &[(f64, f64)], d: f64, closed: bool) -> Vec<(f64, f64)> {
+fn offset_polyline(pts: &[(f64, f64)], d: f64, closed: bool, join: &str, miter_limit: f64, round_limit: f64) -> Vec<(f64, f64)> {
     if pts.len() < 2 || d == 0.0 {
         return pts.to_vec();
     }
@@ -768,36 +923,80 @@ fn offset_polyline(pts: &[(f64, f64)], d: f64, closed: bool) -> Vec<(f64, f64)> 
         if len == 0.0 { (0.0, 0.0) } else { (-dy / len, dx / len) }
     };
     let n = pts.len();
-    (0..n)
-        .map(|i| {
-            let prev = if i > 0 {
-                normal(pts[i - 1], pts[i])
-            } else if closed {
-                normal(pts[n - 1], pts[0])
-            } else {
-                normal(pts[0], pts[1])
-            };
-            let next = if i + 1 < n {
-                normal(pts[i], pts[i + 1])
-            } else if closed {
-                normal(pts[n - 1], pts[0])
-            } else {
-                prev
-            };
-            let (mut mx, mut my) = (prev.0 + next.0, prev.1 + next.1);
-            let m = (mx * mx + my * my).sqrt();
-            if m < 1e-9 {
-                mx = next.0;
-                my = next.1;
-            } else {
-                mx /= m;
-                my /= m;
+    let mut out = Vec::with_capacity(n + 8);
+    for i in 0..n {
+        let p = pts[i];
+        let n1 = if i > 0 {
+            normal(pts[i - 1], p)
+        } else if closed {
+            normal(pts[n - 1], p)
+        } else {
+            normal(p, pts[1])
+        };
+        let n2 = if i + 1 < n {
+            normal(p, pts[i + 1])
+        } else if closed {
+            normal(p, pts[0])
+        } else {
+            n1
+        };
+        let (mut mx, mut my) = (n1.0 + n2.0, n1.1 + n2.1);
+        let m = (mx * mx + my * my).sqrt();
+        if m < 1e-9 {
+            mx = n2.0;
+            my = n2.1;
+        } else {
+            mx /= m;
+            my /= m;
+        }
+        let cos = (mx * n2.0 + my * n2.1).max(1e-6);
+        let miter_len = 1.0 / cos;
+        // The offset side is the outside of the turn when the next segment
+        // heads away from it (its direction is n2 rotated back by 90°).
+        let dir2 = (n2.1, -n2.0);
+        let outer = (dir2.0 * n1.0 + dir2.1 * n1.1) * d < -1e-9;
+        // MapLibre offsets each join vertex along its extrusion, so the offset
+        // path takes the join's shape on the outside of a turn (LineBucket:
+        // round joins below round_limit and miters within the limit stay
+        // mitred; otherwise round arcs or bevels).
+        let shape = if !outer {
+            "miter"
+        } else {
+            match join {
+                "round" if miter_len >= round_limit => "round",
+                "round" => "miter",
+                "bevel" => "bevel",
+                _ if miter_len > miter_limit => "bevel",
+                _ => "miter",
             }
-            let cos = mx * next.0 + my * next.1;
-            let k = if cos.abs() > 0.1 { d / cos } else { d };
-            (pts[i].0 + mx * k, pts[i].1 + my * k)
-        })
-        .collect()
+        };
+        match shape {
+            "round" => {
+                let a0 = n1.1.atan2(n1.0);
+                let mut sweep = n2.1.atan2(n2.0) - a0;
+                while sweep > std::f64::consts::PI {
+                    sweep -= 2.0 * std::f64::consts::PI;
+                }
+                while sweep < -std::f64::consts::PI {
+                    sweep += 2.0 * std::f64::consts::PI;
+                }
+                let steps = ((sweep.abs() / (std::f64::consts::PI / 12.0)).ceil() as usize).max(1);
+                for k in 0..=steps {
+                    let a = a0 + sweep * k as f64 / steps as f64;
+                    out.push((p.0 + a.cos() * d, p.1 + a.sin() * d));
+                }
+            }
+            "bevel" => {
+                out.push((p.0 + n1.0 * d, p.1 + n1.1 * d));
+                out.push((p.0 + n2.0 * d, p.1 + n2.1 * d));
+            }
+            _ => {
+                let k = if cos > 0.1 { d / cos } else { d };
+                out.push((p.0 + mx * k, p.1 + my * k));
+            }
+        }
+    }
+    out
 }
 
 fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], prefix: &str) {
@@ -815,6 +1014,7 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
     let cap = l["line-cap"].as_str().unwrap_or("butt");
     let join = l["line-join"].as_str().unwrap_or("miter");
     let miter = l["line-miter-limit"].as_f64().unwrap_or(2.0);
+    let round_limit = l["line-round-limit"].as_f64().unwrap_or(1.05);
     let dash = match &dasharray {
         Prop::Const(v) => v.as_num_array().filter(|d| d.len() >= 2 && d.iter().sum::<f64>() > 0.0),
         _ => None,
@@ -857,7 +1057,7 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
             let gw = gap.num(&ctx, 0.0);
             let offsets: Vec<f64> = if gw > 0.0 { vec![off - (gw / 2.0 + lw / 2.0), off + (gw / 2.0 + lw / 2.0)] } else { vec![off] };
             let mut dash_attr = String::new();
-            if let Some(d) = &dash {
+            if let Some((pattern, phase)) = dash.as_deref().and_then(even_dash_pattern) {
                 // MapLibre dash lengths are multiples of the line width at
                 // floor(zoom); round caps are drawn inside the dash in MapLibre
                 // but extend it in SVG, so shorten dashes by one width.
@@ -865,7 +1065,7 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
                 // (tileRatio), so it stretches with the fractional zoom.
                 let fw = floor_width.num(&fctx, lw) * pt.unit_px * EXTENT / (TILE_PX * pt.overscaling);
                 let round = cap == "round";
-                let vals: Vec<String> = d
+                let vals: Vec<String> = pattern
                     .iter()
                     .enumerate()
                     .map(|(k, &v)| {
@@ -874,20 +1074,28 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
                         svg::num(adj)
                     })
                     .collect();
+                let offset = phase * fw - if round { lw / 2.0 } else { 0.0 };
                 dash_attr = format!(r#" stroke-dasharray="{}""#, vals.join(" "));
+                if offset != 0.0 {
+                    dash_attr += &format!(r#" stroke-dashoffset="{}""#, svg::num(offset));
+                }
             }
+            // line.fragment.glsl ramps alpha over one pixel centred on each
+            // edge, so a line of width w < 1 covers (w + 1)^2 / 4 px, not w:
+            // stroke at the width with that coverage.
+            let stroke_w = if lw < 1.0 { (lw + 1.0).powi(2) / 4.0 } else { lw };
             // One path per line: MapLibre blends each line on its own, so
             // translucent lines darken where they overlap.
             let _ = write!(
                 g,
                 r#"<g fill="none" stroke="{hex}" stroke-opacity="{}" stroke-width="{}" stroke-linecap="{cap}" stroke-linejoin="{join}" stroke-miterlimit="{}"{dash_attr}>"#,
                 svg::alpha(a),
-                svg::num(lw),
+                svg::num(stroke_w),
                 svg::num(miter)
             );
             for o in &offsets {
                 for r in &px {
-                    let line = offset_polyline(r, *o, closed);
+                    let line = offset_polyline(r, *o, closed, join, miter, round_limit);
                     let _ = write!(g, r#"<path d="{}"/>"#, svg::path_data(std::slice::from_ref(&line), closed));
                 }
             }

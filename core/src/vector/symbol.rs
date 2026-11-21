@@ -844,6 +844,9 @@ pub fn feature_icon(layer: &Json, f: &Feature, zoom: f64) -> Option<String> {
 
 /// A tile placed on the canvas, as the renderer sees it.
 pub struct SymbolTile<'a> {
+    /// Style source id the tile belongs to; layers place features only from
+    /// their own source's tiles.
+    pub source: &'a str,
     pub coord: (u8, u32, u32),
     /// World copy (OverscaledTileID.wrap); placement orders by it first.
     pub wrap: i32,
@@ -1523,8 +1526,12 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
         let mut icons_need_linear = false;
 
         let mut instances: Vec<Instance> = Vec::new();
+        let layer_source = layer["source"].as_str().unwrap_or("");
         for &ti in &tile_order {
             let st = &tiles[ti];
+            if st.source != layer_source {
+                continue;
+            }
             if placement != "point" {
                 instances.extend(line_instances(
                     layer, st, ti, assets, zoom, sort_key_j, sort_by_key, &mut icons_need_linear,

@@ -83,9 +83,26 @@ measuring against MapLibre and investigating the difference.
 ### Not supported yet
 
 `fill-pattern`, `line-pattern`, `line-gradient`, `fill-extrusion`, `heatmap`,
-`hillshade` and `raster` layers inside vector styles, variable label anchors
-(`text-variable-anchor`), `icon-text-fit`, vertical text, and right-to-left
-scripts. Unsupported layer types are skipped with a warning.
+`hillshade` layers, GeoJSON sources, PMTiles sources inside vector styles,
+variable label anchors (`text-variable-anchor`), `icon-text-fit`, vertical
+text, and right-to-left scripts. Unsupported layer types are skipped with a
+warning.
+
+### Styles with several sources
+
+Every vector and raster source the layers use is fetched at the zoom MapLibre
+covers the view with (vector: `floor(zoom)` clamped to the source's range;
+raster: `round(zoom + log2(512 / tileSize))`), and each layer draws from its
+own source's tiles; symbol placement uses each layer's source. `raster`
+layers inside vector styles are composited like raster-only styles and
+blended with raster.fragment.glsl's opacity, hue rotation, saturation,
+contrast and brightness range. Multi-sprite styles (`"sprite": [{id, url}]`)
+load every sheet, with images of non-default sprites named `id:name`. Golden
+cases: OpenFreeMap Liberty at zoom 5 (raster relief + vector) and Versatiles
+Colorful at zoom 8 (two vector sources, multi-sprite).
+
+The output is always Web Mercator: a style's `projection` (e.g. globe) is
+ignored, and references are rendered in Mercator too.
 
 ## Pixel ratio
 
@@ -157,7 +174,10 @@ UGRC stack at zoom 12.4 0.23%), against 0-0.2% for the PNG. Chromium scores
 the UGRC stack SVG at 0.39%. The rest is mostly MapLibre blending
 translucent wide lines twice where their segments overlap at sharp corners,
 which SVG strokes do not do, and pixel-level differences between an
-antialiased SVG edge and MapLibre's aliased 1 px fill outline.
+antialiased SVG edge and MapLibre's aliased 1 px fill outline. Fields of
+sub-pixel polygons with a contrasting `fill-outline-color` (Liberty's parks
+at zoom 5: 6% of pixels) are the worst case: their aliased outline pixels
+cannot be reproduced by vector strokes.
 
 Export a view from a centre and a (fractional) MapLibre zoom with:
 
@@ -191,7 +211,8 @@ MapLibre GL JS's render of the same view.
 
 Coverage: CARTO Positron, Dark Matter and Voyager, and the UGRC Lite basemap
 (each service and the full stack), at MapLibre zooms 1 to 22 over Salt Lake
-City, the UGRC stack at fractional zoom 12.4, plus OSM raster tiles and a
+City, the UGRC stack at fractional zoom 12.4, pixel ratio 2, OpenFreeMap
+Liberty and Versatiles Colorful (multi-source), plus OSM raster tiles and a
 layer-filtered style.
 
 See `core/tests/fixtures/golden/README.md` for the fixture workflow.

@@ -45,6 +45,8 @@ struct Args {
     tiles_from: Option<String>,
     #[arg(long, help = "Store/reuse glyphs in another case's fonts/ directory (shared across styles with the same font stacks)")]
     fonts_from: Option<String>,
+    #[arg(long, help = "Capture every vector/raster source the layers use, to tiles/<source>/z/x/y (styles with several sources)")]
+    all_sources: bool,
 }
 
 fn get(client: &reqwest::blocking::Client, url: &str) -> Vec<u8> {
@@ -171,7 +173,77 @@ fn main() {
             }
         }
     };
-    if let Some(other) = &args.tiles_from {
+    if args.all_sources {
+        assert!(args.tiles_from.is_none(), "--all-sources cannot reuse another case's tiles");
+        use basemapper_core::tile_fetcher::{build_tile_coords, TileCoord};
+        use basemapper_core::vector::render::{scale_zoom, tile_zoom};
+        // The zooms MapLibre requests for each source at this view.
+        let gl = scale_zoom(bbox, args.width);
+        let mut used: Vec<String> = Vec::new();
+        for l in style["layers"].as_array().unwrap() {
+            if let Some(src) = l["source"].as_str() {
+                if !used.iter().any(|u| u == src) {
+                    used.push(src.to_owned());
+                }
+            }
+        }
+        let mut new_sources = serde_json::Map::new();
+        for id in used {
+            let Some(s) = sources.get(&id) else { continue };
+            let kind = s["type"].as_str().unwrap_or("").to_owned();
+            if kind != "vector" && kind != "raster" {
+                new_sources.insert(id.clone(), s.clone());
+                continue;
+            }
+            let (tpl, tj) = if let Some(t) = s["tiles"][0].as_str() {
+                (style_url.join(t).unwrap().to_string(), s.clone())
+            } else {
+                let tj_url = style_url.join(s["url"].as_str().expect("source has no tiles/url")).unwrap();
+                let tj: Value = serde_json::from_slice(&get(&client, tj_url.as_str())).unwrap();
+                let t = tj["tiles"][0].as_str().expect("TileJSON has no tiles").to_owned();
+                (tj_url.join(&t).unwrap().to_string(), tj)
+            };
+            let tpl = tpl.replace("%7B", "{").replace("%7D", "}");
+            let pick = |k: &str| s.get(k).filter(|v| !v.is_null()).or_else(|| tj.get(k).filter(|v| !v.is_null())).cloned();
+            let maxz = pick("maxzoom").and_then(|v| v.as_u64()).map(|m| m.min(22) as u8);
+            let minz = pick("minzoom").and_then(|v| v.as_u64()).unwrap_or(0) as u8;
+            let ts = pick("tileSize").and_then(|v| v.as_f64()).unwrap_or(512.0);
+            let mut coords: Vec<TileCoord> = if kind == "vector" {
+                let tz = tile_zoom(gl, maxz);
+                if tz < minz { Vec::new() } else { covering_tiles(bbox, tz).into_iter().map(|c| c.0).collect() }
+            } else {
+                let z = basemapper_core::bbox::raster_tile_zoom(bbox, args.width, ts);
+                let z = maxz.map_or(z, |m| z.min(m));
+                if z < minz { Vec::new() } else { build_tile_coords(bbox, z) }
+            };
+            coords.sort_by_key(|c| (c.z, c.x, c.y));
+            coords.dedup();
+            println!("source {id} ({kind}): {} tiles from {tpl}", coords.len());
+            for c in &coords {
+                let url = expand_url(&tpl, *c);
+                let resp = client.get(&url).send().unwrap_or_else(|e| panic!("GET {url}: {e}"));
+                if !resp.status().is_success() {
+                    println!("  tile {}/{}/{}: HTTP {} (left out)", c.z, c.x, c.y, resp.status());
+                    continue;
+                }
+                let bytes = resp.bytes().expect("read body").to_vec();
+                if kind == "vector" {
+                    note_chars(&bytes);
+                }
+                let dir = out.join("tiles").join(&id).join(c.z.to_string()).join(c.x.to_string());
+                std::fs::create_dir_all(&dir).unwrap();
+                std::fs::write(dir.join(c.y.to_string()), bytes).unwrap();
+            }
+            let mut ns = json!({ "type": kind, "tiles": [format!("{{{{BASE}}}}/tiles/{id}/{{z}}/{{x}}/{{y}}")] });
+            for k in ["minzoom", "maxzoom", "tileSize"] {
+                if let Some(v) = pick(k) {
+                    ns[k] = v;
+                }
+            }
+            new_sources.insert(id.clone(), ns);
+        }
+        style["sources"] = Value::Object(new_sources);
+    } else if let Some(other) = &args.tiles_from {
         let tdir = out.parent().unwrap().join(other).join("tiles");
         println!("reusing tiles from {}", tdir.display());
         for c in &coords {
@@ -202,14 +274,16 @@ fn main() {
         }
     }
 
-    let mut new_src = json!({ "type": src["type"], "tiles": ["{{BASE}}/tiles/{z}/{x}/{y}"] });
-    if !maxzoom.is_null() {
-        new_src["maxzoom"] = maxzoom;
+    if !args.all_sources {
+        let mut new_src = json!({ "type": src["type"], "tiles": ["{{BASE}}/tiles/{z}/{x}/{y}"] });
+        if !maxzoom.is_null() {
+            new_src["maxzoom"] = maxzoom;
+        }
+        if let Some(ts) = src.get("tileSize") {
+            new_src["tileSize"] = ts.clone();
+        }
+        style["sources"] = json!({ src_name: new_src });
     }
-    if let Some(ts) = src.get("tileSize") {
-        new_src["tileSize"] = ts.clone();
-    }
-    style["sources"] = json!({ src_name: new_src });
 
     // Glyphs: every font stack used by a symbol layer, for range 0-255 plus
     // every range containing a character found in the tiles.
@@ -275,6 +349,26 @@ fn main() {
             std::fs::write(out.join("sprites").join("sprite@2x.png"), p).unwrap();
         }
         style["sprite"] = json!("{{BASE}}/sprites/sprite");
+    } else if let Some(list) = style["sprite"].as_array().cloned() {
+        // Multi-sprite styles: [{id, url}], each saved as sprites/<id>.
+        std::fs::create_dir_all(out.join("sprites")).unwrap();
+        let mut new_list = Vec::new();
+        for e in list {
+            let (Some(id), Some(url)) = (e["id"].as_str(), e["url"].as_str()) else { continue };
+            let base = style_url.join(url).unwrap().to_string();
+            for suffix in ["", "@2x"] {
+                for ext in ["json", "png"] {
+                    match client.get(format!("{base}{suffix}.{ext}")).send() {
+                        Ok(r) if r.status().is_success() => {
+                            std::fs::write(out.join("sprites").join(format!("{id}{suffix}.{ext}")), r.bytes().unwrap()).unwrap()
+                        }
+                        _ => println!("  sprite {id}{suffix}.{ext}: not available"),
+                    }
+                }
+            }
+            new_list.push(json!({ "id": id, "url": format!("{{{{BASE}}}}/sprites/{id}") }));
+        }
+        style["sprite"] = Value::Array(new_list);
     }
     std::fs::write(out.join("style.json"), serde_json::to_string_pretty(&style).unwrap()).unwrap();
 

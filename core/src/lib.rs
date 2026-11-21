@@ -373,6 +373,28 @@ async fn extract_tile_source_from_style(
             })?
     };
 
+    resolve_source(source, src_type, client, auth_token, style_base_url).await.map(|r| r.source)
+}
+
+/// A style source resolved to its tile URL template (inline `tiles` or
+/// TileJSON), with the zoom range and tile size MapLibre uses for it.
+struct ResolvedSource {
+    source: TileSource,
+    minzoom: u8,
+    /// Raster tile size in px (MapLibre's default for raster sources: 512).
+    tile_size: f64,
+}
+
+async fn resolve_source(
+    source: &serde_json::Value,
+    src_type: &str,
+    client: &reqwest::Client,
+    auth_token: Option<&str>,
+    style_base_url: Option<&str>,
+) -> Result<ResolvedSource, BasemapError> {
+    let num = |v: &serde_json::Value, k: &str| v.get(k).and_then(|x| x.as_f64());
+    let mut minzoom = num(source, "minzoom");
+    let mut tile_size = num(source, "tileSize");
     // Resolve tile URL template and maxzoom.
     let (tiles, source_maxzoom): (String, Option<u8>) = if let Some(t) = source
         .get("tiles")
@@ -415,10 +437,13 @@ async fn extract_tile_source_from_style(
             .ok_or_else(|| {
                 BasemapError::StyleParseError("TileJSON missing \"tiles\" array".into())
             })?;
-        let mz = tilejson
+        let mz = source
             .get("maxzoom")
+            .or_else(|| tilejson.get("maxzoom"))
             .and_then(|v| v.as_u64())
             .map(|v| v.min(22) as u8);
+        minzoom = minzoom.or_else(|| num(&tilejson, "minzoom"));
+        tile_size = tile_size.or_else(|| num(&tilejson, "tileSize"));
         (resolve_url(tile_url_raw, Some(&tilejson_url)), mz)
     } else {
         return Err(BasemapError::StyleParseError(
@@ -426,25 +451,26 @@ async fn extract_tile_source_from_style(
         ));
     };
 
-    if tiles.starts_with("pmtiles://") {
-        return Ok(TileSource::PMTiles {
-            url: tiles.trim_start_matches("pmtiles://").to_owned(),
-            maxzoom: source_maxzoom,
-        });
-    }
-
-    match src_type {
-        "vector" => Ok(TileSource::MapboxVectorTile {
+    let source = if tiles.starts_with("pmtiles://") {
+        TileSource::PMTiles { url: tiles.trim_start_matches("pmtiles://").to_owned(), maxzoom: source_maxzoom }
+    } else if src_type == "vector" {
+        TileSource::MapboxVectorTile {
             url_template: tiles,
             api_key: auth_token.map(str::to_owned),
             maxzoom: source_maxzoom,
-        }),
-        _ => Ok(TileSource::XyzRaster {
+        }
+    } else {
+        TileSource::XyzRaster {
             url_template: tiles,
             auth_header: auth_token.map(|t| format!("Bearer {t}")),
             maxzoom: source_maxzoom,
-        }),
-    }
+        }
+    };
+    Ok(ResolvedSource {
+        source,
+        minzoom: minzoom.unwrap_or(0.0).clamp(0.0, 22.0) as u8,
+        tile_size: tile_size.unwrap_or(512.0),
+    })
 }
 
 /// Fetch tiles from a PMTiles archive over HTTP using range requests.
@@ -574,100 +600,160 @@ async fn fetch_glyphs(
 /// Fetch the style's 1x sprite (`<sprite>.json` + `<sprite>.png`). A missing
 /// or broken sprite only disables icons.
 /// The style's sprite; above pixel ratio 1 the `@2x` sheet (as MapLibre
-/// loads it), falling back to 1x.
+/// loads it), falling back to 1x. Multi-sprite styles (`[{id, url}, ...]`)
+/// load every sheet; images of sprites other than `default` are named
+/// `id:name`, as MapLibre addresses them.
 async fn fetch_sprite(
     client: &reqwest::Client,
     style: &serde_json::Value,
     style_base_url: Option<&str>,
     pixel_ratio: f64,
 ) -> vector::symbol::Sprite {
-    let Some(sprite) = style["sprite"].as_str() else { return Default::default() };
-    let base = resolve_url(sprite, style_base_url);
-    let get = |url: String| {
-        let client = client.clone();
-        async move {
-            let resp = client.get(&url).send().await.ok()?;
-            if !resp.status().is_success() {
-                log::warn!("sprite {url}: HTTP {}", resp.status());
-                return None;
+    let entries: Vec<(String, String)> = match &style["sprite"] {
+        serde_json::Value::String(u) => vec![("default".to_owned(), u.clone())],
+        serde_json::Value::Array(list) => list
+            .iter()
+            .filter_map(|e| Some((e["id"].as_str()?.to_owned(), e["url"].as_str()?.to_owned())))
+            .collect(),
+        _ => Vec::new(),
+    };
+    let mut sprite = vector::symbol::Sprite::default();
+    for (id, url) in entries {
+        let base = resolve_url(&url, style_base_url);
+        let get = |url: String| {
+            let client = client.clone();
+            async move {
+                let resp = client.get(&url).send().await.ok()?;
+                if !resp.status().is_success() {
+                    log::warn!("sprite {url}: HTTP {}", resp.status());
+                    return None;
+                }
+                resp.bytes().await.ok().map(|b| b.to_vec())
             }
-            resp.bytes().await.ok().map(|b| b.to_vec())
+        };
+        let mut fetched = None;
+        if pixel_ratio > 1.0 {
+            let (json, png) = tokio::join!(get(format!("{base}@2x.json")), get(format!("{base}@2x.png")));
+            if let (Some(j), Some(p)) = (json, png) {
+                fetched = Some((j, p));
+            }
         }
-    };
-    let mut fetched = None;
-    if pixel_ratio > 1.0 {
-        let (json, png) = tokio::join!(get(format!("{base}@2x.json")), get(format!("{base}@2x.png")));
-        if let (Some(j), Some(p)) = (json, png) {
-            fetched = Some((j, p));
+        if fetched.is_none() {
+            let (json, png) = tokio::join!(get(format!("{base}.json")), get(format!("{base}.png")));
+            if let (Some(j), Some(p)) = (json, png) {
+                fetched = Some((j, p));
+            }
+        }
+        let Some((j, p)) = fetched else { continue };
+        match vector::symbol::Sprite::from_json_png(&j, &p) {
+            Ok(sheet) => {
+                for (name, img) in sheet.images {
+                    let key = if id == "default" { name } else { format!("{id}:{name}") };
+                    sprite.images.insert(key, img);
+                }
+            }
+            Err(e) => log::warn!("{e}"),
         }
     }
-    if fetched.is_none() {
-        let (json, png) = tokio::join!(get(format!("{base}.json")), get(format!("{base}.png")));
-        if let (Some(j), Some(p)) = (json, png) {
-            fetched = Some((j, p));
-        }
-    }
-    let mut sprite = match fetched {
-        Some((j, p)) => vector::symbol::Sprite::from_json_png(&j, &p).unwrap_or_else(|e| {
-            log::warn!("{e}");
-            Default::default()
-        }),
-        None => Default::default(),
-    };
     sprite.device_pixel_ratio = pixel_ratio;
     sprite
 }
 
-/// Tiles (with world-copy wrap), glyphs and sprite for rendering a vector
-/// style over `bbox`, fetched as MapLibre would: style evaluated at the true
-/// scale zoom, 512 px tiles at floor(zoom) clamped to the source maxzoom.
-/// An explicit request zoom is on the 256 px raster grid, one level above the
-/// equivalent 512 px tile zoom.
+/// Tiles for every tile source the style's layers use, plus glyphs and
+/// sprite, fetched as MapLibre would: the style is evaluated at the true
+/// scale zoom; vector sources (512 px tiles) at floor(zoom), raster sources
+/// at round(zoom + log2(512 / tileSize)), each clamped to its zoom range.
+/// `primary` is the style's main vector source: its tile zoom is returned.
+/// An explicit request zoom is on the 256 px raster grid, one level above
+/// the equivalent 512 px vector tile zoom.
 #[allow(clippy::type_complexity)]
 async fn fetch_vector_inputs(
     request: &RenderRequest,
     client: &reqwest::Client,
     style_json: &str,
-    tile_source: &TileSource,
+    primary: &TileSource,
     bbox: [f64; 4],
     width: u32,
-) -> Result<
-    (serde_json::Value, Vec<(tile_fetcher::TileCoord, i32, tile_fetcher::TileData)>, vector::symbol::SymbolAssets, u8),
-    BasemapError,
-> {
-    let sz = vector::render::scale_zoom(bbox, width);
-    let tz = match request.zoom {
-        Some(z) => z.saturating_sub(1),
-        None => vector::render::tile_zoom(sz, None),
-    };
-    let tz = tile_source.maxzoom().map_or(tz, |m| tz.min(m));
-    let covering = vector::render::covering_tiles(bbox, tz);
-    let mut coords: Vec<tile_fetcher::TileCoord> = covering.iter().map(|c| c.0).collect();
-    coords.sort_by_key(|c| (c.z, c.x, c.y));
-    coords.dedup();
-    let urls = tile_fetcher::build_tile_urls(tile_source, &coords);
-    let tiles = tile_fetcher::fetch_all_tiles(
-        client,
-        urls,
-        tile_source,
-        request.tile_timeout_ms,
-        request.tile_concurrency,
-        request.fail_on_tile_error,
-    )
-    .await?;
+) -> Result<(serde_json::Value, vector::render::SourceTiles, vector::symbol::SymbolAssets, u8), BasemapError> {
     let style_val: serde_json::Value =
         serde_json::from_str(style_json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
+    let sz = vector::render::scale_zoom(bbox, width);
+    let vector_tz = |maxzoom: Option<u8>, minzoom: u8| -> Option<u8> {
+        let tz = match request.zoom {
+            Some(z) => z.saturating_sub(1),
+            None => vector::render::tile_zoom(sz, None),
+        };
+        let tz = maxzoom.map_or(tz, |m| tz.min(m));
+        (tz >= minzoom).then_some(tz)
+    };
+    let primary_tz = vector_tz(primary.maxzoom(), 0).unwrap_or(0);
+
+    // Sources used by layers, in style order.
+    let mut used: Vec<String> = Vec::new();
+    for l in style_val["layers"].as_array().map(|v| v.as_slice()).unwrap_or(&[]) {
+        if let Some(src) = l["source"].as_str() {
+            if !used.iter().any(|u| u == src) {
+                used.push(src.to_owned());
+            }
+        }
+    }
+    let mut sources = vector::render::SourceTiles::default();
+    let mut all_vector: Vec<(tile_fetcher::TileCoord, tile_fetcher::TileData)> = Vec::new();
+    for id in used {
+        let src = &style_val["sources"][&id];
+        let kind = src["type"].as_str().unwrap_or("");
+        if kind != "vector" && kind != "raster" {
+            if !kind.is_empty() {
+                log::warn!("source {id}: type {kind} is not supported yet");
+            }
+            continue;
+        }
+        let resolved = resolve_source(src, kind, client, request.auth_token.as_deref(), style_base_url_of(request)).await?;
+        if matches!(resolved.source, TileSource::PMTiles { .. }) {
+            log::warn!("source {id}: PMTiles inside vector styles is not supported yet");
+            continue;
+        }
+        let fetch = |coords: Vec<tile_fetcher::TileCoord>| {
+            let urls = tile_fetcher::build_tile_urls(&resolved.source, &coords);
+            tile_fetcher::fetch_all_tiles(
+                client,
+                urls,
+                &resolved.source,
+                request.tile_timeout_ms,
+                request.tile_concurrency,
+                request.fail_on_tile_error,
+            )
+        };
+        if kind == "vector" {
+            let Some(tz) = vector_tz(resolved.source.maxzoom(), resolved.minzoom) else { continue };
+            let covering = vector::render::covering_tiles(bbox, tz);
+            let mut coords: Vec<tile_fetcher::TileCoord> = covering.iter().map(|c| c.0).collect();
+            coords.sort_by_key(|c| (c.z, c.x, c.y));
+            coords.dedup();
+            let tiles = fetch(coords).await?;
+            let by_coord: std::collections::HashMap<(u8, u32, u32), &tile_fetcher::TileData> =
+                tiles.iter().map(|(c, d)| ((c.z, c.x, c.y), d)).collect();
+            let placed: Vec<_> = covering
+                .iter()
+                .filter_map(|(c, wrap)| by_coord.get(&(c.z, c.x, c.y)).map(|d| (*c, *wrap, (*d).clone())))
+                .collect();
+            all_vector.extend(tiles);
+            sources.vector.insert(id, placed);
+        } else {
+            let z = bbox::raster_tile_zoom(bbox, width, resolved.tile_size);
+            let z = resolved.source.maxzoom().map_or(z, |m| z.min(m));
+            if z < resolved.minzoom {
+                continue;
+            }
+            let tiles = fetch(tile_fetcher::build_tile_coords(bbox, z)).await?;
+            sources.raster.insert(id, vector::render::RasterTiles { zoom: z, tiles });
+        }
+    }
     let assets = vector::symbol::SymbolAssets {
-        glyphs: fetch_glyphs(client, &style_val, style_base_url_of(request), &tiles, sz).await,
+        glyphs: fetch_glyphs(client, &style_val, style_base_url_of(request), &all_vector, sz).await,
         sprite: fetch_sprite(client, &style_val, style_base_url_of(request), request.pixel_ratio).await,
     };
-    let by_coord: std::collections::HashMap<(u8, u32, u32), &tile_fetcher::TileData> =
-        tiles.iter().map(|(c, d)| ((c.z, c.x, c.y), d)).collect();
-    let placed = covering
-        .iter()
-        .filter_map(|(c, wrap)| by_coord.get(&(c.z, c.x, c.y)).map(|d| (*c, *wrap, (*d).clone())))
-        .collect();
-    Ok((style_val, placed, assets, tz))
+    Ok((style_val, sources, assets, primary_tz))
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
