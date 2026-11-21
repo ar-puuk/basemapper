@@ -235,6 +235,7 @@ pub fn render(
             "fill" => draw_fill_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio, assets),
             "line" => draw_line_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
             "circle" => draw_circle_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
+            "heatmap" => draw_heatmap_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
             "fill-extrusion" => {
                 let view = ExtrusionView::new(style, bbox, width, height, ratio, zoom);
                 draw_fill_extrusion_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), &view);
@@ -328,7 +329,7 @@ impl<'a> Prop<'a> {
         let c = self.get(ctx).and_then(|v| v.as_color()).unwrap_or(default);
         if matches!(self, Prop::Data(..)) {
             let q = |v: f32| (v * 255.0).floor().clamp(0.0, 255.0) / 255.0;
-            Color { r: q(c.r), g: q(c.g), b: q(c.b), a: q(c.a) }
+            Color::new(q(c.r), q(c.g), q(c.b), q(c.a))
         } else {
             c
         }
@@ -766,7 +767,7 @@ impl ExtrusionView {
             .get("color")
             .map(|j| eval_property(j, Kind::Color, &ctx))
             .and_then(|v| v.as_color())
-            .unwrap_or(Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 });
+            .unwrap_or(Color::new(1.0, 1.0, 1.0, 1.0));
         let intensity = light.get("intensity").map(|j| eval_property(j, Kind::Number, &ctx)).and_then(|v| v.as_num()).unwrap_or(0.5);
         ExtrusionView {
             cx: width as f64 * ratio / 2.0,
@@ -1105,6 +1106,101 @@ fn draw_raster_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, rt: &RasterT
     }
 }
 
+// ── Heatmap ──────────────────────────────────────────────────────────────────
+
+/// A heatmap layer (draw_heatmap.ts, flat map):
+/// 1. heatmap.vertex/fragment.glsl: every point (every vertex of the
+///    feature's geometry, inside its tile) adds a Gaussian kernel
+///    `weight · intensity · e^(-4.5 d² / r²) / √(2π)` over a square of half
+///    size `S · r` (where the kernel falls to 1/4080) to a half-float texture
+///    a quarter of the canvas size, blended additively;
+/// 2. heatmap_texture.fragment.glsl: the density texture sampled LINEAR at
+///    each canvas pixel, mapped through the 256-texel `heatmap-color` ramp
+///    and multiplied by `heatmap-opacity`.
+fn draw_heatmap_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile], dpr: f64) {
+    use super::heatmap::{color_ramp, default_heatmap_color, sample_ramp, to_f16};
+    const ZERO: f32 = 1.0 / 255.0 / 16.0;
+    const GAUSS_COEF: f32 = 0.398_942_3;
+    let p = &layer["paint"];
+    let ctx0 = Ctx { zoom, feature: None };
+    let opacity = Prop::new(p.get("heatmap-opacity"), Kind::Number, zoom).num(&ctx0, 1.0);
+    if opacity == 0.0 {
+        return;
+    }
+    let intensity = Prop::new(p.get("heatmap-intensity"), Kind::Number, zoom).num(&ctx0, 1.0) as f32;
+    let weight = Prop::new(p.get("heatmap-weight"), Kind::Number, zoom);
+    let radius = Prop::new(p.get("heatmap-radius"), Kind::Number, zoom);
+    let color_expr = p.get("heatmap-color").filter(|j| !j.is_null()).cloned().unwrap_or_else(default_heatmap_color);
+    let ramp = color_ramp(&color_expr, "heatmap-density", zoom);
+
+    // The kernel texture: painter.width / 4 × painter.height / 4 (truncated).
+    let (w4, h4) = (fb.w / 4, fb.h / 4);
+    if w4 == 0 || h4 == 0 {
+        return;
+    }
+    let (sx, sy) = (fb.w as f64 / w4 as f64, fb.h as f64 / h4 as f64);
+    let mut density = vec![0f32; w4 * h4];
+    for pt in placed.iter().rev() {
+        for (f, scale) in features(layer, pt, zoom) {
+            let ctx = Ctx { zoom, feature: Some(f) };
+            let w = weight.num(&ctx, 1.0) as f32;
+            let r = radius.num(&ctx, 30.0) * dpr;
+            let s = (-2.0 * (ZERO / w / intensity / GAUSS_COEF).ln()).sqrt() / 3.0;
+            if !s.is_finite() || r <= 0.0 {
+                continue;
+            }
+            let k = w * intensity * GAUSS_COEF;
+            let half = s as f64 * r;
+            let mut points: Vec<(f32, f32)> = Vec::new();
+            match &f.geometry {
+                Geometry::Points(ps) => points.extend(ps.iter().copied()),
+                Geometry::Lines(ls) => ls.iter().for_each(|l| points.extend(l.iter().copied())),
+                Geometry::Polygons(polys) => polys.iter().flatten().for_each(|r| points.extend(r.iter().copied())),
+            }
+            for q in points {
+                let (x, y) = to_extent(q, scale);
+                if x < 0.0 || x >= EXTENT || y < 0.0 || y >= EXTENT {
+                    continue;
+                }
+                let (cx, cy) = (pt.ox + x * pt.unit_px, pt.oy + y * pt.unit_px);
+                // Texels whose centres fall inside the quad.
+                let i0 = ((cx - half) / sx - 0.5).ceil().max(0.0) as usize;
+                let i1 = (((cx + half) / sx - 0.5).ceil().max(0.0) as usize).min(w4);
+                let j0 = ((cy - half) / sy - 0.5).ceil().max(0.0) as usize;
+                let j1 = (((cy + half) / sy - 0.5).ceil().max(0.0) as usize).min(h4);
+                for j in j0..j1 {
+                    let vy = (((j as f64 + 0.5) * sy - cy) / r) as f32;
+                    for i in i0..i1 {
+                        let vx = (((i as f64 + 0.5) * sx - cx) / r) as f32;
+                        let val = k * (-0.5 * 9.0 * (vx * vx + vy * vy)).exp();
+                        let d = &mut density[j * w4 + i];
+                        *d = to_f16(*d + val);
+                    }
+                }
+            }
+        }
+    }
+
+    // Colorize: LINEAR sampling of the density texture across the canvas.
+    let op = opacity as f32;
+    for py in 0..fb.h {
+        let t = ((py as f64 + 0.5) / fb.h as f64 * h4 as f64 - 0.5).clamp(0.0, (h4 - 1) as f64);
+        let (j0, fy) = (t.floor() as usize, (t - t.floor()) as f32);
+        let j1 = (j0 + 1).min(h4 - 1);
+        for px in 0..fb.w {
+            let s = ((px as f64 + 0.5) / fb.w as f64 * w4 as f64 - 0.5).clamp(0.0, (w4 - 1) as f64);
+            let (i0, fx) = (s.floor() as usize, (s - s.floor()) as f32);
+            let i1 = (i0 + 1).min(w4 - 1);
+            let d = |i: usize, j: usize| density[j * w4 + i];
+            let v = (d(i0, j0) * (1.0 - fx) + d(i1, j0) * fx) * (1.0 - fy) + (d(i0, j1) * (1.0 - fx) + d(i1, j1) * fx) * fy;
+            let c = sample_ramp(&ramp, v);
+            if c[3] > 0.0 || c[0] > 0.0 || c[1] > 0.0 || c[2] > 0.0 {
+                fb.blend(px, py, [c[0] * op, c[1] * op, c[2] * op, c[3] * op]);
+            }
+        }
+    }
+}
+
 // ── Circle ───────────────────────────────────────────────────────────────────
 
 fn draw_circle_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile], dpr: f64) {
@@ -1268,6 +1364,15 @@ pub fn render_svg(
                             svg::png_data_uri(width, height, img.as_raw())
                         );
                     }
+                }
+            }
+            "heatmap" => {
+                // The colored density stays raster: the layer drawn alone, embedded.
+                let mut lfb = Framebuffer::new(width as usize, height as usize);
+                draw_heatmap_layer(&mut lfb, layer, zoom, layer_tiles(&placed, layer), 1.0);
+                if lfb.px.iter().any(|p| p[3] > 0 || p[0] > 0 || p[1] > 0 || p[2] > 0) {
+                    let px = lfb.into_straight_rgba();
+                    let _ = write!(out, r#"<image width="{width}" height="{height}" href="{}"/>"#, svg::png_data_uri(width, height, &px));
                 }
             }
             "hillshade" => {

@@ -82,8 +82,7 @@ measuring against MapLibre and investigating the difference.
 
 ### Not supported yet
 
-`line-pattern`, `line-gradient`, `fill-extrusion-pattern` and `heatmap`
-layers, GeoJSON clustering, PMTiles sources inside vector styles, 3D terrain,
+`line-pattern`, `line-gradient` and `fill-extrusion-pattern` layers, GeoJSON clustering, PMTiles sources inside vector styles, 3D terrain,
 vertical text, and right-to-left scripts. Unsupported layer types are skipped
 with a warning.
 
@@ -102,6 +101,23 @@ sources and per-light colours are supported. MapLibre shares one slope
 texture per tile between all hillshade layers of a source, so the first
 layer's `resampling` applies to all of them; basemapper copies this. In SVG,
 a hillshade layer is embedded as an image.
+
+### Heatmap
+
+`heatmap` layers follow draw_heatmap.ts on a flat map. Every point (every
+vertex of a feature's geometry inside its tile) adds a Gaussian kernel,
+`weight · intensity · e^(-4.5 d² / r²) / √(2π)`, over a square where it
+falls to 1/4080. Kernels are summed additively into a half-float texture a
+quarter of the canvas size (truncated), rounding each sum to half precision.
+The texture is then sampled `LINEAR` at every canvas pixel and mapped through
+`heatmap-color`, rendered as a 256-texel ramp (`["heatmap-density"]` from 0
+to 1, stored unpremultiplied, premultiplied on upload), and multiplied by
+`heatmap-opacity`. In SVG, a heatmap layer is embedded as an image.
+
+Colour interpolation (`interpolate`, legacy functions) works on straight,
+unpremultiplied channels, as the style-spec `Color.interpolate` does.
+Fully transparent colours keep their RGB, so `rgba(0, 0, 255, 0)` fades
+through blue.
 
 ### GeoJSON sources
 

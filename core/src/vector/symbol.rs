@@ -1161,7 +1161,7 @@ fn color(paint: &Json, key: &str, ctx: &Ctx, default: Color) -> Color {
     // Data-driven colors are packed to 8 bits (packColor floors).
     if paint.get(key).map_or(false, is_data_driven) {
         let q = |v: f32| (v * 255.0).floor().clamp(0.0, 255.0) / 255.0;
-        Color { r: q(c.r), g: q(c.g), b: q(c.b), a: q(c.a) }
+        Color::new(q(c.r), q(c.g), q(c.b), q(c.a))
     } else {
         c
     }

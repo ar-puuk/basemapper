@@ -5,6 +5,7 @@
 pub mod expr;
 pub mod fonts;
 pub mod geojson;
+pub mod heatmap;
 pub mod hillshade;
 pub mod gl;
 pub mod mvt;

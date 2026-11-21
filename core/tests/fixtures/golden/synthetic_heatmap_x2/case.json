@@ -1,0 +1,16 @@
+{
+  "note": "Synthetic: heatmap at pixel ratio 2 with an odd canvas size (truncated quarter-size density texture), custom color ramp, opacity, data-driven radius.",
+  "bbox": [
+    -12489994.54062068,
+    4916143.718836019,
+    -12389911.651675966,
+    4990895.45474758
+  ],
+  "width": 403,
+  "height": 301,
+  "zoom": 8.3,
+  "attribution": "Synthetic points",
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.054,
+  "pixel_ratio": 2
+}

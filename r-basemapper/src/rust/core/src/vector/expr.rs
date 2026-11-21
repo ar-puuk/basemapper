@@ -17,31 +17,58 @@ pub struct Color {
     pub g: f32,
     pub b: f32,
     pub a: f32,
+    /// Straight RGB of a fully transparent parsed color: the style-spec keeps
+    /// it so that interpolating from e.g. `rgba(0, 0, 255, 0)` stays blue.
+    zero_rgb: [f32; 3],
 }
 
 impl Color {
-    pub const TRANSPARENT: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
-    pub const BLACK: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
+    pub const TRANSPARENT: Color = Color::new(0.0, 0.0, 0.0, 0.0);
+    pub const BLACK: Color = Color::new(0.0, 0.0, 0.0, 1.0);
+
+    /// A color from premultiplied channels.
+    pub const fn new(r: f32, g: f32, b: f32, a: f32) -> Color {
+        Color { r, g, b, a, zero_rgb: [0.0; 3] }
+    }
 
     pub fn parse(s: &str) -> Option<Color> {
         let c = csscolorparser::parse(s.trim()).ok()?;
         // Premultiply in double precision, as MapLibre's JS Color does,
         // before the float32 conversion a uniform upload performs.
         let a = c.a;
-        Some(Color { r: (c.r * a) as f32, g: (c.g * a) as f32, b: (c.b * a) as f32, a: a as f32 })
+        let mut out = Color::new((c.r * a) as f32, (c.g * a) as f32, (c.b * a) as f32, a as f32);
+        if a == 0.0 {
+            out.zero_rgb = [c.r as f32, c.g as f32, c.b as f32];
+        }
+        Some(out)
     }
 
     pub fn with_opacity(self, o: f32) -> Color {
-        Color { r: self.r * o, g: self.g * o, b: self.b * o, a: self.a * o }
+        Color::new(self.r * o, self.g * o, self.b * o, self.a * o)
     }
 
-    fn lerp(a: Color, b: Color, t: f32) -> Color {
-        Color {
-            r: a.r + (b.r - a.r) * t,
-            g: a.g + (b.g - a.g) * t,
-            b: a.b + (b.b - a.b) * t,
-            a: a.a + (b.a - a.a) * t,
+    /// Straight (unpremultiplied) RGB, as the style-spec `rgb` getter.
+    fn straight(self) -> [f64; 3] {
+        if self.a > 0.0 {
+            let a = self.a as f64;
+            [self.r as f64 / a, self.g as f64 / a, self.b as f64 / a]
+        } else {
+            self.zero_rgb.map(|v| v as f64)
         }
+    }
+
+    /// `Color.interpolate` in `rgb` space: straight channels and alpha are
+    /// interpolated, then premultiplied.
+    fn lerp(a: Color, b: Color, t: f32) -> Color {
+        let t = t as f64;
+        let (x, y) = (a.straight(), b.straight());
+        let rgb = [0, 1, 2].map(|i| x[i] + (y[i] - x[i]) * t);
+        let alpha = a.a as f64 + (b.a as f64 - a.a as f64) * t;
+        let mut out = Color::new((rgb[0] * alpha) as f32, (rgb[1] * alpha) as f32, (rgb[2] * alpha) as f32, alpha as f32);
+        if alpha == 0.0 {
+            out.zero_rgb = rgb.map(|v| v as f32);
+        }
+        out
     }
 }
 
@@ -670,12 +697,12 @@ pub fn eval_expr(j: &Json, ctx: &Ctx) -> Val {
             .unwrap_or(Val::Color(Color::BLACK)),
         "rgb" | "rgba" => {
             let alpha = if op == "rgba" { num(a, 4, ctx) as f32 } else { 1.0 };
-            Val::Color(Color {
-                r: num(a, 1, ctx) as f32 / 255.0 * alpha,
-                g: num(a, 2, ctx) as f32 / 255.0 * alpha,
-                b: num(a, 3, ctx) as f32 / 255.0 * alpha,
-                a: alpha,
-            })
+            Val::Color(Color::new(
+                num(a, 1, ctx) as f32 / 255.0 * alpha,
+                num(a, 2, ctx) as f32 / 255.0 * alpha,
+                num(a, 3, ctx) as f32 / 255.0 * alpha,
+                alpha,
+            ))
         }
         "concat" => Val::Str(a[1..].iter().map(|e| eval_expr(e, ctx).to_string_val()).collect()),
         "downcase" => Val::Str(arg(a, 1, ctx).to_string_val().to_lowercase()),
@@ -902,7 +929,7 @@ mod tests {
         let c = Color::parse("rgba(206,217,184,0.5)").unwrap();
         assert!((c.a - 0.5).abs() < 1e-6);
         assert!((c.r - 206.0 / 255.0 * 0.5).abs() < 1e-4);
-        assert_eq!(Color::parse("#fff").unwrap(), Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 });
+        assert_eq!(Color::parse("#fff").unwrap(), Color::new(1.0, 1.0, 1.0, 1.0));
     }
 
     #[test]
@@ -942,7 +969,18 @@ mod tests {
     }
 
     #[test]
-    fn color_interpolation_is_premultiplied() {
+    fn color_interpolation_is_straight_alpha() {
+        // Transparent blue to opaque royalblue: the straight color stays
+        // between blue and royalblue (not royalblue faded).
+        let ctx = Ctx { zoom: 0.5, feature: None };
+        let e = json!(["interpolate", ["linear"], ["zoom"], 0, "rgba(0, 0, 255, 0)", 1, "rgb(64, 104, 224)"]);
+        let c = eval_property(&e, Kind::Color, &ctx).as_color().unwrap();
+        assert!((c.a - 0.5).abs() < 1e-6);
+        assert!((c.r / c.a - 32.0 / 255.0).abs() < 1e-5 && (c.b / c.a - (255.0 + 224.0) / 2.0 / 255.0).abs() < 1e-5, "{c:?}");
+    }
+
+    #[test]
+    fn color_interpolation_of_same_hue_alpha() {
         let ctx = Ctx { zoom: 1.0, feature: None };
         let e = json!(["interpolate", ["linear"], ["zoom"], 0, "rgba(255,0,0,0)", 2, "rgba(255,0,0,1)"]);
         let c = eval_property(&e, Kind::Color, &ctx).as_color().unwrap();
