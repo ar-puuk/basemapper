@@ -645,7 +645,7 @@ pub fn render_svg(
     for (i, pt) in placed.iter().enumerate() {
         let _ = write!(
             defs,
-            r#"<clipPath id="{id_prefix}t{i}"><rect x="{}" y="{}" width="{}" height="{}"/></clipPath>"#,
+            r#"<clipPath id="{id_prefix}t{i}"><rect x="{}" y="{}" width="{}" height="{}" shape-rendering="crispEdges"/></clipPath>"#,
             svg::num(pt.clip.x0),
             svg::num(pt.clip.y0),
             svg::num(pt.clip.x1 - pt.clip.x0),
@@ -668,7 +668,7 @@ pub fn render_svg(
                 let c = Prop::new(p.get("background-color"), Kind::Color, zoom).color(&ctx, Color::BLACK);
                 let o = Prop::new(p.get("background-opacity"), Kind::Number, zoom).num(&ctx, 1.0);
                 if let Some((hex, a)) = svg::paint(c, o) {
-                    let _ = write!(out, r#"<rect width="{width}" height="{height}" fill="{hex}" fill-opacity="{}"/>"#, svg::num(a));
+                    let _ = write!(out, r#"<rect width="{width}" height="{height}" fill="{hex}" fill-opacity="{}"/>"#, svg::alpha(a));
                 }
             }
             "fill" => svg_fill(&mut out, layer, zoom, &placed, id_prefix),
@@ -688,6 +688,14 @@ pub fn render_svg(
     Ok(SvgParts { defs, body, skipped_layer_types: skipped })
 }
 
+/// Fills as draw_fill_layer draws them: interiors are sampled at pixel
+/// centres without antialiasing (`crispEdges`), one path per polygon (each
+/// polygon is triangulated and blended on its own), then the 1 px
+/// antialiasing outline in the fill colour (or `fill-outline-color`). For
+/// opaque layers MapLibre draws that outline only outside the fills, which is
+/// the same as drawing it beneath them. The outline is an aliased gl.LINES
+/// line (one pixel per column, alpha 1 - smoothstep(0, 1, d)), which covers
+/// about 0.81 px on average: hence a 0.8 px stroke.
 fn svg_fill(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], prefix: &str) {
     use std::fmt::Write as _;
     let p = &layer["paint"];
@@ -695,34 +703,62 @@ fn svg_fill(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
     let opacity = Prop::new(p.get("fill-opacity"), Kind::Number, zoom);
     let outline = Prop::new(p.get("fill-outline-color"), Kind::Color, zoom);
     let translate = Prop::new(p.get("fill-translate"), Kind::Array, zoom);
+    let antialias = p["fill-antialias"].as_bool().unwrap_or(true);
+    let opaque = matches!(&color, Prop::Const(v) if v.as_color().map_or(false, |c| c.a == 1.0))
+        && match &opacity {
+            Prop::Absent => true,
+            Prop::Const(v) => v.as_num() == Some(1.0),
+            Prop::Data(..) => false,
+        };
+    let outline_beneath = opaque && !outline.is_set();
+
+    let mut fills = String::new();
+    let mut outlines = String::new();
     for (i, pt) in placed.iter().enumerate() {
-        let mut g = String::new();
+        let (mut gf, mut go) = (String::new(), String::new());
         for (f, scale) in features(layer, pt, zoom) {
             let ctx = Ctx { zoom, feature: Some(f) };
             let op = opacity.num(&ctx, 1.0);
-            let rings: Vec<Vec<(f64, f64)>> = polys_px(pt, f, scale, translate.translate(&ctx)).into_iter().flatten().collect();
-            if rings.is_empty() {
+            let polys = polys_px(pt, f, scale, translate.translate(&ctx));
+            if polys.is_empty() {
                 continue;
             }
-            let d = svg::path_data(&rings, true);
             if let Some((hex, a)) = svg::paint(color.color(&ctx, Color::BLACK), op) {
-                let _ = write!(g, r#"<path d="{d}" fill="{hex}" fill-opacity="{}" fill-rule="evenodd"/>"#, svg::num(a));
+                for poly in &polys {
+                    let _ = write!(gf, r#"<path d="{}" fill="{hex}" fill-opacity="{}"/>"#, svg::path_data(poly, true), svg::alpha(a));
+                }
             }
-            if outline.is_set() {
-                if let Some((hex, a)) = svg::paint(outline.color(&ctx, Color::BLACK), op) {
-                    let _ = write!(g, r#"<path d="{d}" fill="none" stroke="{hex}" stroke-opacity="{}" stroke-width="1"/>"#, svg::num(a));
+            if antialias {
+                let oc = if outline.is_set() { outline.color(&ctx, Color::BLACK) } else { color.color(&ctx, Color::BLACK) };
+                if let Some((hex, a)) = svg::paint(oc, op) {
+                    let rings: Vec<Vec<(f64, f64)>> = polys.into_iter().flatten().collect();
+                    let _ = write!(go, r#"<path d="{}" stroke="{hex}" stroke-opacity="{}"/>"#, svg::path_data(&rings, true), svg::alpha(a));
                 }
             }
         }
-        if !g.is_empty() {
-            let _ = write!(out, r#"<g clip-path="url(#{prefix}t{i})">{g}</g>"#);
+        if !gf.is_empty() {
+            let _ = write!(fills, r#"<g clip-path="url(#{prefix}t{i})">{gf}</g>"#);
         }
+        if !go.is_empty() {
+            let _ = write!(outlines, r#"<g clip-path="url(#{prefix}t{i})">{go}</g>"#);
+        }
+    }
+    let fills = format!(r#"<g fill-rule="evenodd" shape-rendering="crispEdges">{fills}</g>"#);
+    let outlines = if outlines.is_empty() { outlines } else { format!(r#"<g fill="none" stroke-width="0.8">{outlines}</g>"#) };
+    if outline_beneath {
+        out.push_str(&outlines);
+        out.push_str(&fills);
+    } else {
+        out.push_str(&fills);
+        out.push_str(&outlines);
     }
 }
 
 /// Offset a polyline perpendicular to its direction (positive = right of
 /// the direction in screen space), with mitred vertex normals.
-fn offset_polyline(pts: &[(f64, f64)], d: f64) -> Vec<(f64, f64)> {
+/// With `closed`, `pts` is a ring (no repeated end point) and the offset
+/// wraps around it.
+fn offset_polyline(pts: &[(f64, f64)], d: f64, closed: bool) -> Vec<(f64, f64)> {
     if pts.len() < 2 || d == 0.0 {
         return pts.to_vec();
     }
@@ -734,8 +770,20 @@ fn offset_polyline(pts: &[(f64, f64)], d: f64) -> Vec<(f64, f64)> {
     let n = pts.len();
     (0..n)
         .map(|i| {
-            let prev = if i > 0 { normal(pts[i - 1], pts[i]) } else { normal(pts[0], pts[1]) };
-            let next = if i + 1 < n { normal(pts[i], pts[i + 1]) } else { prev };
+            let prev = if i > 0 {
+                normal(pts[i - 1], pts[i])
+            } else if closed {
+                normal(pts[n - 1], pts[0])
+            } else {
+                normal(pts[0], pts[1])
+            };
+            let next = if i + 1 < n {
+                normal(pts[i], pts[i + 1])
+            } else if closed {
+                normal(pts[n - 1], pts[0])
+            } else {
+                prev
+            };
             let (mut mx, mut my) = (prev.0 + next.0, prev.1 + next.1);
             let m = (mx * mx + my * my).sqrt();
             if m < 1e-9 {
@@ -776,9 +824,11 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
         for (f, scale) in features(layer, pt, zoom) {
             let ctx = Ctx { zoom, feature: Some(f) };
             let fctx = Ctx { zoom: zoom.floor(), feature: Some(f) };
-            let lines: Vec<&Vec<(f32, f32)>> = match &f.geometry {
-                Geometry::Lines(ls) => ls.iter().collect(),
-                Geometry::Polygons(ps) => ps.iter().flatten().collect(),
+            // Polygon rings are closed lines (LineBucket's isPolygon): their
+            // first vertex gets a join, not caps.
+            let (lines, closed): (Vec<&Vec<(f32, f32)>>, bool) = match &f.geometry {
+                Geometry::Lines(ls) => (ls.iter().collect(), false),
+                Geometry::Polygons(ps) => (ps.iter().flatten().collect(), true),
                 Geometry::Points(_) => continue,
             };
             let lw = width.num(&ctx, 1.0);
@@ -790,12 +840,17 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
             let px: Vec<Vec<(f64, f64)>> = lines
                 .iter()
                 .map(|ln| {
-                    ln.iter()
+                    let mut v: Vec<(f64, f64)> = ln
+                        .iter()
                         .map(|&q| {
                             let (x, y) = to_extent(q, scale);
                             (pt.ox + x * pt.unit_px + tx, pt.oy + y * pt.unit_px + ty)
                         })
-                        .collect()
+                        .collect();
+                    if closed && v.len() > 2 && v.first() == v.last() {
+                        v.pop();
+                    }
+                    v
                 })
                 .collect();
             let off = offset.num(&ctx, 0.0);
@@ -821,17 +876,22 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
                     .collect();
                 dash_attr = format!(r#" stroke-dasharray="{}""#, vals.join(" "));
             }
-            for o in offsets {
-                let rings: Vec<Vec<(f64, f64)>> = px.iter().map(|r| offset_polyline(r, o)).collect();
-                let d = svg::path_data(&rings, false);
-                let _ = write!(
-                    g,
-                    r#"<path d="{d}" fill="none" stroke="{hex}" stroke-opacity="{}" stroke-width="{}" stroke-linecap="{cap}" stroke-linejoin="{join}" stroke-miterlimit="{}"{dash_attr}/>"#,
-                    svg::num(a),
-                    svg::num(lw),
-                    svg::num(miter)
-                );
+            // One path per line: MapLibre blends each line on its own, so
+            // translucent lines darken where they overlap.
+            let _ = write!(
+                g,
+                r#"<g fill="none" stroke="{hex}" stroke-opacity="{}" stroke-width="{}" stroke-linecap="{cap}" stroke-linejoin="{join}" stroke-miterlimit="{}"{dash_attr}>"#,
+                svg::alpha(a),
+                svg::num(lw),
+                svg::num(miter)
+            );
+            for o in &offsets {
+                for r in &px {
+                    let line = offset_polyline(r, *o, closed);
+                    let _ = write!(g, r#"<path d="{}"/>"#, svg::path_data(std::slice::from_ref(&line), closed));
+                }
             }
+            g.push_str("</g>");
         }
         if !g.is_empty() {
             let _ = write!(out, r#"<g clip-path="url(#{prefix}t{i})">{g}</g>"#);
@@ -863,7 +923,7 @@ fn svg_circle(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile]) 
                 }
                 let (cx, cy) = (pt.ox + x * pt.unit_px + tx, pt.oy + y * pt.unit_px + ty);
                 if let Some((hex, a)) = svg::paint(color.color(&ctx, Color::BLACK), opacity.num(&ctx, 1.0)) {
-                    let _ = write!(out, r#"<circle cx="{}" cy="{}" r="{}" fill="{hex}" fill-opacity="{}"/>"#, svg::num(cx), svg::num(cy), svg::num(r), svg::num(a));
+                    let _ = write!(out, r#"<circle cx="{}" cy="{}" r="{}" fill="{hex}" fill-opacity="{}"/>"#, svg::num(cx), svg::num(cy), svg::num(r), svg::alpha(a));
                 }
                 if sw > 0.0 {
                     if let Some((hex, a)) = svg::paint(stroke_color.color(&ctx, Color::BLACK), stroke_opacity.num(&ctx, 1.0)) {
@@ -873,7 +933,7 @@ fn svg_circle(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile]) 
                             svg::num(cx),
                             svg::num(cy),
                             svg::num(r + sw / 2.0),
-                            svg::num(a),
+                            svg::alpha(a),
                             svg::num(sw)
                         );
                     }

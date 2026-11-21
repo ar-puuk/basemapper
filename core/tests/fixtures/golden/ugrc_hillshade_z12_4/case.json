@@ -16,6 +16,6 @@
   "max_bad_pixel_frac": 1e-05,
   "max_mean_diff": 0.01,
   "svg": true,
-  "max_bad_pixel_frac_svg": 0.00283,
-  "max_mean_diff_svg": 0.221
+  "max_bad_pixel_frac_svg": 5e-05,
+  "max_mean_diff_svg": 0.107
 }

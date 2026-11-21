@@ -16,6 +16,6 @@
   "max_mean_diff": 0.05,
   "fonts_from": "carto_positron_z4",
   "svg": true,
-  "max_bad_pixel_frac_svg": 0.00045,
-  "max_mean_diff_svg": 1.051
+  "max_bad_pixel_frac_svg": 0.00015,
+  "max_mean_diff_svg": 0.675
 }

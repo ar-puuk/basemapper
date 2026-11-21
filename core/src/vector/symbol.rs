@@ -1934,9 +1934,69 @@ fn quad_screen(corners: &[(f64, f64); 4], origin: (f64, f64), angle: f64, scale:
     })
 }
 
-/// Write one symbol layer as SVG: icons (all tiles) then text, like
-/// draw_layer. Text is drawn as glyph outlines traced from the SDF glyphs at
-/// the shader's thresholds: the halo (when set) beneath the fill.
+/// SDF outline paths for one quad, as the SDF shader would draw it: for the
+/// halo pass a ring (the halo contour minus the contour where the halo fades
+/// out inside the glyph), for the fill pass the glyph contour at the edge
+/// threshold. Rings wind consistently, so `nonzero` subtracts the inner ring.
+#[allow(clippy::too_many_arguments)]
+fn svg_sdf_quad(
+    out: &mut String,
+    cache: &mut HashMap<(String, u32, i64), Vec<Vec<(f64, f64)>>>,
+    key: (&str, u32),
+    w: usize,
+    h: usize,
+    value: &dyn Fn(usize, usize) -> f64,
+    map: &dyn Fn((f64, f64)) -> (f64, f64),
+    font_scale: f64,
+    s: &SdfStyle,
+    is_halo: bool,
+    is_plain: bool,
+) {
+    use super::svg;
+    use std::fmt::Write as _;
+    let mut rings_at = |thr: f64, reverse: bool| -> Vec<Vec<(f64, f64)>> {
+        let k = (key.0.to_owned(), key.1, (thr * 10_000.0).round() as i64);
+        let rings = cache.entry(k).or_insert_with(|| svg::trace_contours(w, h, value, thr));
+        rings
+            .iter()
+            .map(|r| {
+                let mut pts: Vec<(f64, f64)> = r.iter().map(|&p| map(p)).collect();
+                if reverse {
+                    pts.reverse();
+                }
+                pts
+            })
+            .collect()
+    };
+    // symbol_sdf.fragment.glsl thresholds (EDGE_GAMMA is the 1x value: the
+    // outline is resolution independent).
+    let inner_edge = (256.0 - 64.0) / 256.0;
+    if is_halo && s.halo_width > 0.0 && s.halo.a > 0.0 {
+        if let Some((hex, a)) = svg::paint(s.halo, s.opacity) {
+            let gamma_halo = (s.halo_blur * 1.19 / SDF_PX + EDGE_GAMMA) / font_scale;
+            let halo_edge = (6.0 - s.halo_width / font_scale) / SDF_PX;
+            let mut rings = rings_at(halo_edge, false);
+            rings.extend(rings_at(inner_edge + gamma_halo, true));
+            if !rings.is_empty() {
+                let _ = write!(out, r#"<path d="{}" fill="{hex}" fill-opacity="{}"/>"#, svg::path_data(&rings, true), svg::alpha(a));
+            }
+        }
+    }
+    if is_plain {
+        if let Some((hex, a)) = svg::paint(s.fill, s.opacity) {
+            let rings = rings_at(inner_edge, false);
+            if !rings.is_empty() {
+                let _ = write!(out, r#"<path d="{}" fill="{hex}" fill-opacity="{}"/>"#, svg::path_data(&rings, true), svg::alpha(a));
+            }
+        }
+    }
+}
+
+/// Write one symbol layer as SVG in draw_layer's order: icons, then text,
+/// each per tile with the shader's halo passes. Glyphs and SDF icons are
+/// outlines traced from their SDFs at the shader's thresholds, one path per
+/// quad (MapLibre blends each quad separately); other icons are embedded
+/// sprite images.
 #[allow(clippy::too_many_arguments)]
 pub fn svg_layer(
     out: &mut String,
@@ -1952,113 +2012,130 @@ pub fn svg_layer(
     use super::svg;
     use std::fmt::Write as _;
     let Some(labels) = placement.labels.get(&layer_idx) else { return };
-    let mut contour_cache: HashMap<(String, u32, i64), Vec<Vec<(f64, f64)>>> = HashMap::new();
+    let paint = &layer["paint"];
+    let layout = &layer["layout"];
+    let mut cache: HashMap<(String, u32, i64), Vec<Vec<(f64, f64)>>> = HashMap::new();
     let mut image_ids: HashMap<String, String> = HashMap::new();
-    let lid = svg::xml_escape(layer["id"].as_str().unwrap_or("")).replace(|c: char| !c.is_ascii_alphanumeric(), "_");
+    let lid = layer["id"].as_str().unwrap_or("").replace(|c: char| !c.is_ascii_alphanumeric(), "_");
+    out.push_str(r#"<g fill-rule="nonzero">"#);
+
+    let tile_groups = || {
+        let mut groups = Vec::new();
+        let mut start = 0;
+        while start < labels.len() {
+            let tile = labels[start].tile;
+            let end = labels[start..].iter().position(|l| l.tile != tile).map_or(labels.len(), |p| start + p);
+            groups.push(&labels[start..end]);
+            start = end;
+        }
+        groups
+    };
 
     // Icons.
-    for l in labels {
-        let Some(ic) = &l.icon else { continue };
-        if ic.style.opacity < 0.1 {
-            continue;
-        }
-        let Some(img) = assets.sprite.images.get(&ic.image) else { continue };
-        let Some(pos) = along_positions(ic.along.as_ref(), l.anchor_px, 1, w, h) else { continue };
-        let q = quad_screen(&ic.corners, pos[0].0, pos[0].1, ic.size);
-        let (cw, ch) = ((img.w + 2) as f64, (img.h + 2) as f64);
-        if img.sdf {
-            let key = (format!("icon:{}", ic.image), 0, 750);
-            let rings = contour_cache
-                .entry(key)
-                .or_insert_with(|| svg::trace_contours(img.w + 2, img.h + 2, |i, j| img.cell[(j * (img.w + 2) + i) * 4 + 3] as f64 / 255.0, 0.75))
-                .clone();
-            let map = cell_to_screen(q, cw, ch);
-            let screen: Vec<Vec<(f64, f64)>> = rings.iter().map(|r| r.iter().map(|&p| map(p)).collect()).collect();
-            if let Some((hex, a)) = svg::paint(ic.style.fill, ic.style.opacity) {
-                let _ = write!(out, r#"<path d="{}" fill="{hex}" fill-opacity="{}" fill-rule="evenodd"/>"#, svg::path_data(&screen, true), svg::num(a));
-            }
-        } else {
-            let n = image_ids.len();
-            let id = image_ids
-                .entry(ic.image.clone())
-                .or_insert_with(|| {
-                    let id = format!("{prefix}{lid}_img{n}");
-                    // Straight-alpha, unpadded copy of the sprite image.
-                    let mut rgba = Vec::with_capacity(img.w * img.h * 4);
-                    for row in 0..img.h {
-                        for col in 0..img.w {
-                            let o = ((row + 1) * (img.w + 2) + col + 1) * 4;
-                            let a = img.cell[o + 3] as u32;
-                            for k in 0..3 {
-                                let c = img.cell[o + k] as u32;
-                                rgba.push(if a == 0 { 0 } else { ((c * 255 + a / 2) / a).min(255) as u8 });
+    let icon_halo_passes = halo_passes(paint, layout, "icon");
+    for group in tile_groups() {
+        let sdf = group.iter().any(|l| l.icon.as_ref().map_or(false, |i| i.sdf));
+        let passes: &[(bool, bool)] = if sdf { icon_halo_passes } else { &[(false, true)] };
+        for &(is_halo, is_plain) in passes {
+            for l in group {
+                let Some(ic) = &l.icon else { continue };
+                if ic.style.opacity < 0.1 {
+                    continue;
+                }
+                let Some(img) = assets.sprite.images.get(&ic.image) else { continue };
+                let Some(pos) = along_positions(ic.along.as_ref(), l.anchor_px, 1, w, h) else { continue };
+                let q = quad_screen(&ic.corners, pos[0].0, pos[0].1, ic.size);
+                let (cw, ch) = (img.w + 2, img.h + 2);
+                if img.sdf {
+                    let map = cell_to_screen(q, cw as f64, ch as f64);
+                    let value = |i: usize, j: usize| img.cell[(j * cw + i) * 4 + 3] as f64 / 255.0;
+                    let key = format!("icon:{}", ic.image);
+                    svg_sdf_quad(out, &mut cache, (&key, 0), cw, ch, &value, &map, ic.size, &ic.style, is_halo, is_plain);
+                    continue;
+                }
+                let n = image_ids.len();
+                let id = image_ids
+                    .entry(ic.image.clone())
+                    .or_insert_with(|| {
+                        let id = format!("{prefix}{lid}_img{n}");
+                        // Straight-alpha, unpadded copy of the sprite image.
+                        let mut rgba = Vec::with_capacity(img.w * img.h * 4);
+                        for row in 0..img.h {
+                            for col in 0..img.w {
+                                let o = ((row + 1) * cw + col + 1) * 4;
+                                let a = img.cell[o + 3] as u32;
+                                for k in 0..3 {
+                                    let c = img.cell[o + k] as u32;
+                                    rgba.push(if a == 0 { 0 } else { ((c * 255 + a / 2) / a).min(255) as u8 });
+                                }
+                                rgba.push(a as u8);
                             }
-                            rgba.push(a as u8);
                         }
-                    }
-                    let _ = write!(
-                        defs,
-                        r#"<image id="{id}" width="{}" height="{}" href="{}"/>"#,
-                        img.w,
-                        img.h,
-                        svg::png_data_uri(img.w as u32, img.h as u32, &rgba)
-                    );
-                    id
-                })
-                .clone();
-            // matrix maps cell (u, v) to screen; the image sits at cell (1, 1).
-            let (tl, tr, bl) = (q[0], q[1], q[2]);
-            let (a_, b_) = ((tr.0 - tl.0) / cw, (tr.1 - tl.1) / cw);
-            let (c_, d_) = ((bl.0 - tl.0) / ch, (bl.1 - tl.1) / ch);
-            let render = if ic.linear { "" } else { r#" style="image-rendering:pixelated""# };
-            let _ = write!(
-                out,
-                r##"<use href="#{id}" x="1" y="1" opacity="{}" transform="matrix({} {} {} {} {} {})"{render}/>"##,
-                svg::num(ic.style.opacity.min(1.0)),
-                a_, b_, c_, d_, svg::num(tl.0), svg::num(tl.1)
-            );
+                        let _ = write!(
+                            defs,
+                            r#"<image id="{id}" width="{}" height="{}" href="{}"/>"#,
+                            img.w,
+                            img.h,
+                            svg::png_data_uri(img.w as u32, img.h as u32, &rgba)
+                        );
+                        id
+                    })
+                    .clone();
+                // matrix maps cell (u, v) to screen; the image sits at cell (1, 1).
+                let (tl, tr, bl) = (q[0], q[1], q[2]);
+                let (a_, b_) = ((tr.0 - tl.0) / cw as f64, (tr.1 - tl.1) / cw as f64);
+                let (c_, d_) = ((bl.0 - tl.0) / ch as f64, (bl.1 - tl.1) / ch as f64);
+                let render = if ic.linear { "" } else { r#" style="image-rendering:pixelated""# };
+                let _ = write!(
+                    out,
+                    r##"<use href="#{id}" x="1" y="1" opacity="{}" transform="matrix({} {} {} {} {} {})"{render}/>"##,
+                    svg::alpha(ic.style.opacity.min(1.0)),
+                    a_,
+                    b_,
+                    c_,
+                    d_,
+                    svg::num(tl.0),
+                    svg::num(tl.1)
+                );
+            }
         }
     }
 
-    // Text: halo outlines under fill outlines, per label.
-    for l in labels {
-        let Some(t) = &l.text else { continue };
-        if t.style.opacity < 0.1 {
-            continue;
-        }
-        let Some(gmap) = assets.glyphs.stacks.get(&t.fontstack) else { continue };
-        let fs = t.size / 24.0;
-        let Some(pos) = along_positions(t.along.as_ref(), l.anchor_px, t.quads.len(), w, h) else { continue };
-        let halo_t = (6.0 - t.style.halo_width / fs) / SDF_PX;
-        let has_halo = t.style.halo_width > 0.0 && t.style.halo.a > 0.0;
-        let (mut fill_rings, mut halo_rings) = (Vec::new(), Vec::new());
-        for (qi, q) in t.quads.iter().enumerate() {
-            let Some(g) = gmap.get(&q.codepoint) else { continue };
-            let sq = quad_screen(&q.corners, pos[qi].0, pos[qi].1, fs);
-            let map = cell_to_screen(sq, g.rect_w as f64, g.rect_h as f64);
-            let mut trace = |thr: f64, dst: &mut Vec<Vec<(f64, f64)>>| {
-                let key = (t.fontstack.clone(), q.codepoint, (thr * 1000.0).round() as i64);
-                let rings = contour_cache
-                    .entry(key)
-                    .or_insert_with(|| svg::trace_contours(g.rect_w, g.rect_h, |i, j| g.cell[j * g.rect_w + i] as f64 / 255.0, thr));
-                dst.extend(rings.iter().map(|r| r.iter().map(|&p| map(p)).collect::<Vec<_>>()));
-            };
-            trace(0.75, &mut fill_rings);
-            if has_halo {
-                trace(halo_t, &mut halo_rings);
-            }
-        }
-        if has_halo && !halo_rings.is_empty() {
-            if let Some((hex, a)) = svg::paint(t.style.halo, t.style.opacity) {
-                let _ = write!(out, r#"<path d="{}" fill="{hex}" fill-opacity="{}" fill-rule="evenodd"/>"#, svg::path_data(&halo_rings, true), svg::num(a));
-            }
-        }
-        if !fill_rings.is_empty() {
-            if let Some((hex, a)) = svg::paint(t.style.fill, t.style.opacity) {
-                let _ = write!(out, r#"<path d="{}" fill="{hex}" fill-opacity="{}" fill-rule="evenodd"/>"#, svg::path_data(&fill_rings, true), svg::num(a));
+    // Text.
+    let text_passes = halo_passes(paint, layout, "text");
+    for group in tile_groups() {
+        for &(is_halo, is_plain) in text_passes {
+            for l in group {
+                let Some(t) = &l.text else { continue };
+                if t.style.opacity < 0.1 {
+                    continue;
+                }
+                let Some(gmap) = assets.glyphs.stacks.get(&t.fontstack) else { continue };
+                let fs = t.size / 24.0;
+                let Some(pos) = along_positions(t.along.as_ref(), l.anchor_px, t.quads.len(), w, h) else { continue };
+                for (qi, q) in t.quads.iter().enumerate() {
+                    let Some(g) = gmap.get(&q.codepoint) else { continue };
+                    let sq = quad_screen(&q.corners, pos[qi].0, pos[qi].1, fs);
+                    let map = cell_to_screen(sq, g.rect_w as f64, g.rect_h as f64);
+                    let value = |i: usize, j: usize| g.cell[j * g.rect_w + i] as f64 / 255.0;
+                    svg_sdf_quad(
+                        out,
+                        &mut cache,
+                        (&t.fontstack, q.codepoint),
+                        g.rect_w,
+                        g.rect_h,
+                        &value,
+                        &map,
+                        fs,
+                        &t.style,
+                        is_halo,
+                        is_plain,
+                    );
+                }
             }
         }
     }
+    out.push_str("</g>");
 }
 
 #[cfg(test)]
