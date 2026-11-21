@@ -4,6 +4,12 @@ description: "Task list for Spatial Basemap Renderer implementation"
 
 # Tasks: Spatial Basemap Renderer
 
+> **Superseded 2026-11-20:** this task list records the original plan. The
+> `maplibre-rs` + `wgpu` engine (R1) was replaced by an in-house CPU port of
+> MapLibre GL JS; see [plan.md](plan.md) and
+> [docs/rendering-engine.md](../../docs/rendering-engine.md).
+
+
 **Input**: Design documents from `specs/001-spatial-basemap-renderer/`
 
 **Prerequisites**: plan.md âœ… | spec.md âœ… | research.md âœ… | data-model.md âœ… | contracts/ âœ…

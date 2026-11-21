@@ -1,0 +1,41 @@
+# basemapper (development version)
+
+First version, not yet released.
+
+## Rendering
+
+* Vector styles are drawn by an in-house CPU port of MapLibre GL JS's
+  renderer, tested pixel by pixel against MapLibre GL JS (168 reference
+  views: CARTO Positron, Dark Matter and Voyager and the UGRC basemap at
+  zooms 1-22, fractional zoom, pixel ratio 2, OSM raster tiles). No GPU,
+  browser or display is needed; the earlier maplibre-rs/wgpu engine is gone.
+* Basemaps render at any fractional zoom and pixel ratio (MapLibre's
+  devicePixelRatio): the same view and labels, drawn at the output
+  resolution.
+* Several styles can be stacked bottom to top, e.g. a basemap published as
+  separate hillshade, base and label services.
+* True vector SVG output: fills and lines as paths, labels as glyph
+  outlines (no fonts needed), icons embedded.
+* Views crossing the anti-meridian render MapLibre's world copies.
+
+## New functions
+
+* `basemap()` creates a map view from a centre and zoom or from bounds;
+  `set_view()`, `set_bounds()` and `basemap_bounds()` change and query it.
+* `render_png()`, `render_svg()`, `render_array()` and `render_raster()`
+  (a `terra` SpatRaster) render a view.
+* Style providers: `basemap_provider()` (named catalogue), `raster_provider()`,
+  `vector_provider()`, `esri_vector_provider()`, `esri_raster_provider()`,
+  `wms_provider()`, `wmts_provider()`, `pmtiles_provider()`; `list_layers()`
+  inspects a style.
+
+## Plot layers
+
+* `geom_basemap()` renders when the plot is drawn, for the panel's size at
+  the device's resolution: `ggsave(dpi = 300)` gets a basemap rendered at
+  300 dpi (PDF and SVG devices also use 300 dpi). The pixel ratio defaults to
+  dpi / 96 so lines and labels keep their physical size; `ratio =` overrides.
+* `tm_basemap()` (tmap v4) sizes its basemap from the map panel and device
+  resolution, so `tmap_save(dpi = 300)` gets a native basemap too; it gains
+  `ratio`.
+* Both accept a vector of styles to stack.

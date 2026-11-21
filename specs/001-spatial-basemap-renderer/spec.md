@@ -383,7 +383,7 @@ with no explicit bbox argument and no manual `ax` interaction.
 - **FR-022**: When `layers` contains a mix of plain and minus-prefixed entries, the library
   MUST return `BasemapError::InvalidLayerFilter` immediately — before any style fetching or
   tile downloading — with a message that identifies the conflicting entries.
-- **FR-023**: When `layers` is `Some(...)`, the wgpu render texture MUST be initialised with
+- **FR-023**: When `layers` is `Some(...)`, the render target MUST be initialised with
   a fully transparent clear color (`[0, 0, 0, 0]`) so that the caller can composite the
   filtered output over other plot elements without masking the underlying content.
 - **FR-024**: The `add_basemap()` Python function and `geom_basemap()` R function MUST each

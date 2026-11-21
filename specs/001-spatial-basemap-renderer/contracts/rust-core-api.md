@@ -145,9 +145,9 @@ pub enum BasemapError {
 ## Invariants
 
 1. `render()` is safe to call from multiple threads concurrently (each call has its
-   own wgpu device context and tokio runtime handle).
+   own render state; tile fetching shares the core's tokio runtime).
 2. `render()` never panics under valid inputs; panics are reserved for unrecoverable
-   internal state corruption (wgpu device loss).
+   internal bugs.
 3. The returned `pixels` vector is always exactly `width * height * 4` bytes long on
    success; no partial results are returned.
 4. The `bounds` in `RenderResult` may have slightly larger extents than the input
