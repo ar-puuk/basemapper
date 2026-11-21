@@ -1,4 +1,5 @@
 {
+  "glyphs": "{{BASE}}/fonts/{fontstack}/{range}.pbf",
   "layers": [
     {
       "id": "Base/WesternStates",
@@ -10655,10 +10656,11 @@
     "esri": {
       "maxzoom": 19,
       "tiles": [
-        "{{BASE}}/{z}/{x}/{y}"
+        "{{BASE}}/tiles/{z}/{x}/{y}"
       ],
       "type": "vector"
     }
   },
+  "sprite": "{{BASE}}/sprites/sprite",
   "version": 8
 }

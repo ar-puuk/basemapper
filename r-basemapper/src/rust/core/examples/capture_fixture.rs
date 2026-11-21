@@ -1,9 +1,12 @@
 //! Capture an offline golden-image fixture: a style plus exactly the tiles a
 //! render of `--bbox` at `--zoom` needs.
 //!
-//! The style's tile source is rewritten to `{{BASE}}/{z}/{x}/{y}` and its
-//! `sprite`/`glyphs` keys are removed, so `tests/golden.rs` can serve the
-//! fixture from a local mock server with no network access.
+//! The style's tile source is rewritten to `{{BASE}}/tiles/{z}/{x}/{y}`; its
+//! glyphs (every font stack used, every character range present in the
+//! tiles) and 1x sprite are downloaded to `fonts/` and `sprites/` and the
+//! style rewritten to `{{BASE}}/fonts/...` and `{{BASE}}/sprites/sprite`, so
+//! `tests/golden.rs` and `tools/reference-render` can serve the fixture with
+//! no network access.
 //!
 //! Usage:
 //!   cargo run -p basemapper-core --example capture_fixture -- \
@@ -37,6 +40,10 @@ struct Args {
     layers: Option<String>,
     #[arg(long, default_value = "OpenStreetMap contributors")]
     attribution: String,
+    #[arg(long, help = "Reuse the tiles of another case (same source and view); only style, glyphs and sprite are captured")]
+    tiles_from: Option<String>,
+    #[arg(long, help = "Store/reuse glyphs in another case's fonts/ directory (shared across styles with the same font stacks)")]
+    fonts_from: Option<String>,
 }
 
 fn get(client: &reqwest::blocking::Client, url: &str) -> Vec<u8> {
@@ -93,23 +100,95 @@ fn main() {
     let out = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/golden")
         .join(&args.name);
-    std::fs::create_dir_all(out.join("tiles")).unwrap();
+    std::fs::create_dir_all(&out).unwrap();
 
-    let mut coords = build_tile_coords(bbox, args.zoom);
-    // MapLibre GL treats vector sources as 512 px tiles, so a reference render
-    // of the same view (tools/reference-render) requests tiles one zoom lower.
+    // Tiles MapLibre requests: floor(zoom) for 512 px vector tiles (one level
+    // below the 256 px grid zoom basemapper uses), clamped to the source
+    // maxzoom (overzoom), plus basemapper's own zoom for its legacy path.
+    let maxz = maxzoom.as_u64().map(|m| m as u8).unwrap_or(22);
+    let mut zooms = vec![args.zoom.min(maxz)];
     if src["type"] == "vector" && args.zoom > 0 {
-        coords.extend(build_tile_coords(bbox, args.zoom - 1));
+        zooms.push((args.zoom - 1).min(maxz));
     }
-    println!("{} tiles from {template}", coords.len());
-    for c in &coords {
-        let bytes = get(&client, &expand_url(&template, *c));
-        let dir = out.join("tiles").join(c.z.to_string()).join(c.x.to_string());
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join(c.y.to_string()), bytes).unwrap();
+    zooms.dedup();
+    let mut coords = Vec::new();
+    for z in zooms {
+        coords.extend(build_tile_coords(bbox, z));
+    }
+    let mut codepoints = std::collections::BTreeSet::new();
+    // Characters of the label text each symbol layer would show (its
+    // text-field evaluated on features passing its filter, at MapLibre's
+    // zoom), so only the glyph ranges labels can actually request are kept.
+    let gl_zoom = args.zoom.saturating_sub(1) as f64;
+    let symbol_layers: Vec<Value> = style["layers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|l| l["type"] == "symbol" && l["layout"].get("text-field").is_some())
+        .cloned()
+        .collect();
+    let mut note_chars = |bytes: &[u8]| {
+        use basemapper_core::vector::expr::{eval_filter, eval_property, Ctx, Kind, Val};
+        let Ok(t) = basemapper_core::vector::mvt::decode(bytes) else { return };
+        for l in &symbol_layers {
+            let Some(src) = l["source-layer"].as_str().and_then(|sl| t.layers.get(sl)) else { continue };
+            for f in &src.features {
+                let ctx = Ctx { zoom: gl_zoom, feature: Some(f) };
+                if l.get("filter").map_or(false, |flt| !eval_filter(flt, &ctx)) {
+                    continue;
+                }
+                let tf = &l["layout"]["text-field"];
+                let text = match tf {
+                    // Legacy "{token}" strings.
+                    Value::String(s) if s.contains('{') => {
+                        let mut out = String::new();
+                        let mut rest = s.as_str();
+                        while let Some(i) = rest.find('{') {
+                            out.push_str(&rest[..i]);
+                            let Some(j) = rest[i..].find('}') else { break };
+                            let key = &rest[i + 1..i + j];
+                            if let Some(basemapper_core::vector::mvt::Value::String(v)) = f.properties.get(key) {
+                                out.push_str(v);
+                            }
+                            rest = &rest[i + j + 1..];
+                        }
+                        out.push_str(rest);
+                        out
+                    }
+                    _ => match eval_property(tf, Kind::Enum, &ctx) {
+                        Val::Str(s) => s,
+                        Val::Num(n) => n.to_string(),
+                        _ => String::new(),
+                    },
+                };
+                codepoints.extend(text.chars().map(|ch| ch as u32));
+            }
+        }
+    };
+    if let Some(other) = &args.tiles_from {
+        let tdir = out.parent().unwrap().join(other).join("tiles");
+        println!("reusing tiles from {}", tdir.display());
+        for c in &coords {
+            let p = tdir.join(c.z.to_string()).join(c.x.to_string()).join(c.y.to_string());
+            let bytes = std::fs::read(&p).unwrap_or_else(|e| panic!("{}: {e}", p.display()));
+            if src["type"] == "vector" {
+                note_chars(&bytes);
+            }
+        }
+    } else {
+        println!("{} tiles from {template}", coords.len());
+        for c in &coords {
+            let bytes = get(&client, &expand_url(&template, *c));
+            if src["type"] == "vector" {
+                note_chars(&bytes);
+            }
+            let dir = out.join("tiles").join(c.z.to_string()).join(c.x.to_string());
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join(c.y.to_string()), bytes).unwrap();
+        }
     }
 
-    let mut new_src = json!({ "type": src["type"], "tiles": ["{{BASE}}/{z}/{x}/{y}"] });
+    let mut new_src = json!({ "type": src["type"], "tiles": ["{{BASE}}/tiles/{z}/{x}/{y}"] });
     if !maxzoom.is_null() {
         new_src["maxzoom"] = maxzoom;
     }
@@ -117,15 +196,71 @@ fn main() {
         new_src["tileSize"] = ts.clone();
     }
     style["sources"] = json!({ src_name: new_src });
-    let obj = style.as_object_mut().unwrap();
-    obj.remove("sprite");
-    obj.remove("glyphs");
+
+    // Glyphs: every font stack used by a symbol layer, for range 0-255 plus
+    // every range containing a character found in the tiles.
+    if let Some(glyphs) = style["glyphs"].as_str().map(str::to_owned) {
+        let glyph_tpl = style_url.join(&glyphs).unwrap().to_string().replace("%7B", "{").replace("%7D", "}");
+        let mut stacks = std::collections::BTreeSet::new();
+        for l in style["layers"].as_array().unwrap() {
+            if l["type"] != "symbol" || l["layout"].get("text-field").is_none() {
+                continue;
+            }
+            let fonts = l["layout"]
+                .get("text-font")
+                .and_then(|f| f.as_array().cloned())
+                .unwrap_or_else(|| vec![json!("Open Sans Regular"), json!("Arial Unicode MS Regular")]);
+            stacks.insert(fonts.iter().filter_map(|f| f.as_str()).collect::<Vec<_>>().join(","));
+        }
+        let mut ranges: std::collections::BTreeSet<u32> = codepoints.iter().map(|c| c / 256).collect();
+        ranges.insert(0);
+        let fonts_root = match &args.fonts_from {
+            Some(other) => out.parent().unwrap().join(other),
+            None => out.clone(),
+        };
+        for stack in &stacks {
+            for r in &ranges {
+                let range = format!("{}-{}", r * 256, r * 256 + 255);
+                if fonts_root.join("fonts").join(stack).join(format!("{range}.pbf")).exists() {
+                    continue;
+                }
+                let url = glyph_tpl.replace("{fontstack}", stack).replace("{range}", &range);
+                match client.get(&url).send() {
+                    Ok(resp) if resp.status().is_success() => {
+                        let dir = fonts_root.join("fonts").join(stack);
+                        std::fs::create_dir_all(&dir).unwrap();
+                        std::fs::write(dir.join(format!("{range}.pbf")), resp.bytes().unwrap()).unwrap();
+                    }
+                    Ok(resp) => println!("  glyphs {stack} {range}: HTTP {}", resp.status()),
+                    Err(e) => println!("  glyphs {stack} {range}: {e}"),
+                }
+            }
+        }
+        println!("{} font stacks x {} glyph ranges", stacks.len(), ranges.len());
+        style["glyphs"] = json!("{{BASE}}/fonts/{fontstack}/{range}.pbf");
+    }
+
+    // Sprite: the 1x sheet (reference renders run at devicePixelRatio 1).
+    if let Some(sprite) = style["sprite"].as_str().map(str::to_owned) {
+        let base = style_url.join(&sprite).unwrap().to_string();
+        std::fs::create_dir_all(out.join("sprites")).unwrap();
+        for ext in ["json", "png"] {
+            let bytes = get(&client, &format!("{base}.{ext}"));
+            std::fs::write(out.join("sprites").join(format!("sprite.{ext}")), bytes).unwrap();
+        }
+        style["sprite"] = json!("{{BASE}}/sprites/sprite");
+    }
     std::fs::write(out.join("style.json"), serde_json::to_string_pretty(&style).unwrap()).unwrap();
 
     let layers: Option<Vec<String>> = args
         .layers
         .map(|l| l.split(',').map(|s| s.trim().to_owned()).collect());
-    let case = json!({
+    // Keep fidelity limits (and other extra keys) from an existing case.json.
+    let previous: Value = std::fs::read_to_string(out.join("case.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or(json!({}));
+    let mut case = json!({
         "source_style": args.style,
         "bbox": bbox,
         "width": args.width,
@@ -133,7 +268,14 @@ fn main() {
         "zoom": args.zoom,
         "layers": layers,
         "attribution": args.attribution,
+        "tiles_from": args.tiles_from,
+        "fonts_from": args.fonts_from,
     });
+    for k in ["max_bad_pixel_frac", "max_mean_diff"] {
+        if let Some(v) = previous.get(k) {
+            case[k] = v.clone();
+        }
+    }
     std::fs::write(out.join("case.json"), serde_json::to_string_pretty(&case).unwrap()).unwrap();
     println!("wrote {}", out.display());
 }

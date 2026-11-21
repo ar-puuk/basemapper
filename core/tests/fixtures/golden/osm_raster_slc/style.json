@@ -11,7 +11,7 @@
       "maxzoom": 19,
       "tileSize": 256,
       "tiles": [
-        "{{BASE}}/{z}/{x}/{y}"
+        "{{BASE}}/tiles/{z}/{x}/{y}"
       ],
       "type": "raster"
     }

@@ -4,11 +4,13 @@
 //! captured by `examples/capture_fixture.rs`:
 //!
 //! - `case.json`    bbox / width / height / zoom / optional layer filter
-//!                  (`fixture_from` reuses another case's style + tiles), and
+//!                  (`fixture_from` reuses another case's style + tiles;
+//!                  `tiles_from` / `fonts_from` reuse only its tiles / glyphs), and
 //!                  the case's fidelity limits `max_bad_pixel_frac` /
 //!                  `max_mean_diff`
-//! - `style.json`   style whose tile source points at `{{BASE}}/{z}/{x}/{y}`
-//! - `tiles/z/x/y`  raw tile bytes
+//! - `style.json`   style whose URLs point at `{{BASE}}/tiles|fonts|sprites/...`
+//! - `tiles/z/x/y`  raw tile bytes; `fonts/<fontstack>/<range>.pbf` glyphs and
+//!   `sprites/sprite.{json,png}` when the style uses them
 //! - `reference-maplibre-gl.png`  MapLibre GL JS render of the same view, from
 //!   `tools/reference-render`. This is the target.
 //!
@@ -19,7 +21,8 @@
 //! gain can't silently regress. The goal is 0.
 //!
 //! `actual.png` and `diff.png` (differing pixels in red) are always written to
-//! `target/golden-output/<case>/` for inspection.
+//! `target/golden-output/<case>/`, and `check/manifest.js` (repo root,
+//! gitignored) is refreshed for the `check/index.html` comparison viewer.
 
 use basemapper_core::{render, RenderRequest, StyleInput};
 use httptest::{matchers::request::method_path, responders::status_code, Expectation, Server};
@@ -37,28 +40,48 @@ fn golden_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/golden")
 }
 
-/// Serve every file under `tiles/` at `/{z}/{x}/{y}`.
-fn serve_tiles(server: &Server, tiles_dir: &Path) {
-    for z in std::fs::read_dir(tiles_dir).expect("tiles dir") {
-        let z = z.unwrap().path();
-        for x in std::fs::read_dir(&z).unwrap() {
-            let x = x.unwrap().path();
-            for y in std::fs::read_dir(&x).unwrap() {
-                let y = y.unwrap().path();
-                let url_path = format!(
-                    "/{}/{}/{}",
-                    z.file_name().unwrap().to_str().unwrap(),
-                    x.file_name().unwrap().to_str().unwrap(),
-                    y.file_name().unwrap().to_str().unwrap()
-                );
-                let bytes = std::fs::read(&y).unwrap();
-                server.expect(
-                    Expectation::matching(method_path("GET", url_path))
-                        .times(..)
-                        .respond_with(status_code(200).body(bytes)),
-                );
+/// Percent-encode a URL path segment the way HTTP clients send it.
+fn encode_segment(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b',' | b'!' | b'$' | b'&'
+            | b'\'' | b'(' | b')' | b'*' | b'+' | b';' | b'=' | b':' | b'@' => (b as char).to_string(),
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
+
+/// Serve the fixture's `tiles/`, `fonts/` and `sprites/` trees at the same
+/// relative paths (`/tiles/{z}/{x}/{y}`, `/fonts/{fontstack}/{range}.pbf`, ...).
+fn serve_fixture(server: &Server, dir: &Path, tiles_dir: &Path, fonts_dir: &Path) {
+    fn walk(server: &Server, root: &Path, dir: &Path) {
+        for e in std::fs::read_dir(dir).unwrap() {
+            let p = e.unwrap().path();
+            if p.is_dir() {
+                walk(server, root, &p);
+                continue;
             }
+            let rel = p.strip_prefix(root).unwrap();
+            let url_path: String = rel
+                .components()
+                .map(|c| format!("/{}", encode_segment(&c.as_os_str().to_string_lossy())))
+                .collect();
+            let bytes = std::fs::read(&p).unwrap();
+            server.expect(
+                Expectation::matching(method_path("GET", url_path))
+                    .times(..)
+                    .respond_with(status_code(200).body(bytes)),
+            );
         }
+    }
+    if tiles_dir.join("tiles").is_dir() {
+        walk(server, tiles_dir, &tiles_dir.join("tiles"));
+    }
+    if fonts_dir.join("fonts").is_dir() {
+        walk(server, fonts_dir, &fonts_dir.join("fonts"));
+    }
+    if dir.join("sprites").is_dir() {
+        walk(server, dir, &dir.join("sprites"));
     }
 }
 
@@ -89,8 +112,9 @@ fn compare(actual: &RgbaImage, expected: &RgbaImage) -> Diff {
     Diff { mean: total as f64 / (n * 4.0), bad_frac: bad as f64 / n, image }
 }
 
-/// Render one case; returns an error message on mismatch.
-fn run_case(dir: &Path) -> Result<String, String> {
+/// Render one case; returns an error message on mismatch. Appends the
+/// case's paths and scores to `manifest` for the `check/` viewer.
+fn run_case(dir: &Path, manifest: &mut Vec<Value>) -> Result<String, String> {
     let name = dir.file_name().unwrap().to_string_lossy().into_owned();
     let case: Value =
         serde_json::from_str(&std::fs::read_to_string(dir.join("case.json")).unwrap()).unwrap();
@@ -101,7 +125,15 @@ fn run_case(dir: &Path) -> Result<String, String> {
     };
     let style_template = std::fs::read_to_string(fixture_dir.join("style.json")).unwrap();
     let server = Server::run();
-    serve_tiles(&server, &fixture_dir.join("tiles"));
+    let tiles_dir = match case["tiles_from"].as_str() {
+        Some(other) => golden_root().join(other),
+        None => fixture_dir.clone(),
+    };
+    let fonts_dir = match case["fonts_from"].as_str() {
+        Some(other) => golden_root().join(other),
+        None => fixture_dir.clone(),
+    };
+    serve_fixture(&server, &fixture_dir, &tiles_dir, &fonts_dir);
     let base = server.url_str("");
     let style = style_template.replace("{{BASE}}", base.trim_end_matches('/'));
 
@@ -155,6 +187,43 @@ fn run_case(dir: &Path) -> Result<String, String> {
 
     let max_mean = case["max_mean_diff"].as_f64().unwrap_or(DEFAULT_MAX_MEAN_DIFF);
     let max_bad = case["max_bad_pixel_frac"].as_f64().unwrap_or(DEFAULT_MAX_BAD_FRAC);
+    let pass = diff.mean <= max_mean + 1e-9 && diff.bad_frac <= max_bad + 1e-9;
+
+    // Optional geometry-only score against the no-labels reference.
+    let nosym_path = dir.join("reference-maplibre-gl-nosymbols.png");
+    let geometry = image::open(&nosym_path)
+        .ok()
+        .map(|r| r.to_rgba8())
+        .filter(|r| r.dimensions() == actual.dimensions())
+        .map(|r| {
+            let d = compare(&actual, &r);
+            serde_json::json!({ "bad": d.bad_frac, "mean": d.mean })
+        });
+    let mpp = (bbox[2] - bbox[0]) / width as f64;
+    let gl_zoom = (40_075_016.685_578_49 / (512.0 * mpp)).log2();
+    let group = name
+        .rsplit_once("_z")
+        .filter(|(_, z)| z.chars().all(|c| c.is_ascii_digit()))
+        .map(|(g, _)| g.to_owned())
+        .unwrap_or_else(|| name.trim_end_matches("_slc").to_owned());
+    manifest.push(serde_json::json!({
+        "name": name,
+        "group": group,
+        "zoom": (gl_zoom * 1000.0).round() / 1000.0,
+        "width": width,
+        "height": height,
+        "ours": format!("../target/golden-output/{name}/actual.png"),
+        "maplibre": format!("../core/tests/fixtures/golden/{name}/reference-maplibre-gl.png"),
+        "diff": format!("../target/golden-output/{name}/diff.png"),
+        "maplibre_nosymbols": nosym_path.exists()
+            .then(|| format!("../core/tests/fixtures/golden/{name}/reference-maplibre-gl-nosymbols.png")),
+        "bad": diff.bad_frac,
+        "mean": diff.mean,
+        "max_bad": max_bad,
+        "max_mean": max_mean,
+        "pass": pass,
+        "geometry": geometry,
+    }));
     let summary = format!(
         "{name}: vs MapLibre GL: bad pixels {:.3}% (limit {:.3}%), mean diff {:.3} (limit {max_mean})",
         diff.bad_frac * 100.0,
@@ -187,11 +256,32 @@ fn golden_images() {
     assert!(!cases.is_empty(), "no golden cases found");
 
     let mut failures = Vec::new();
+    let mut manifest = Vec::new();
     for dir in &cases {
-        match run_case(dir) {
+        match run_case(dir, &mut manifest) {
             Ok(msg) => println!("ok   {msg}"),
             Err(msg) => failures.push(msg),
         }
     }
+    write_check_manifest(&manifest);
     assert!(failures.is_empty(), "golden mismatches:\n{}", failures.join("\n"));
+}
+
+/// Write `check/manifest.js` (repo root, gitignored) for `check/index.html`,
+/// the side-by-side / swipe viewer. A script rather than JSON so the page
+/// works when opened straight from disk (file://).
+fn write_check_manifest(cases: &[Value]) {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../check");
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let generated = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let body = serde_json::json!({ "generated": generated, "cases": cases });
+    let _ = std::fs::write(
+        dir.join("manifest.js"),
+        format!("window.GOLDEN = {};\n", serde_json::to_string_pretty(&body).unwrap()),
+    );
 }

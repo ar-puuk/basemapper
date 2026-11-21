@@ -64,3 +64,6 @@ Thumbs.db
 
 # Diagnostic MapLibre references (tools/reference-render NO_SYMBOLS=1)
 reference-maplibre-gl-nosymbols.png
+
+# Local golden-image comparison viewer (written by core/tests/golden.rs)
+check/

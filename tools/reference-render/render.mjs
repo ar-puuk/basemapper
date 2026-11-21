@@ -6,8 +6,8 @@
 //   node render.mjs              # all cases
 //   node render.mjs osm_raster_slc ugrc_litebase_slc
 //
-// Tiles are served from the fixture directory by intercepting requests to
-// http://fixture.local/{z}/{x}/{y}, so no network access is needed. The camera
+// The fixture directory (tiles/, fonts/, sprites/) is served by intercepting
+// requests to http://fixture.local/..., so no network access is needed. The camera
 // is derived from case.json so the output covers exactly the same EPSG:3857
 // bbox at the same pixel size as basemapper's render.
 
@@ -83,14 +83,16 @@ async function renderCase(browser, name) {
 
   let missing = 0;
   await page.route('http://fixture.local/**', (route) => {
-    const p = new URL(route.request().url()).pathname.split('/').filter(Boolean);
-    const file = join(fixtureDir, 'tiles', ...p);
-    if (process.env.DEBUG_TILES) console.error(`  request: ${p.join("/")} exists=${existsSync(file)}`);
+    const p = new URL(route.request().url()).pathname.split('/').filter(Boolean).map(decodeURIComponent);
+    const tilesDir = kase.tiles_from ? join(goldenRoot, kase.tiles_from) : fixtureDir;
+    const fontsDir = kase.fonts_from ? join(goldenRoot, kase.fonts_from) : fixtureDir;
+    const file = join(p[0] === 'tiles' ? tilesDir : p[0] === 'fonts' ? fontsDir : fixtureDir, ...p);
+    if (process.env.DEBUG_TILES) console.error(`  request: ${p.join('/')} exists=${existsSync(file)}`);
     if (existsSync(file)) {
       route.fulfill({ status: 200, body: readFileSync(file) });
     } else {
       missing++;
-      console.error(`  missing tile: ${p.join("/")}`);
+      console.error(`  missing: ${p.join('/')}`);
       route.fulfill({ status: 404, body: '' });
     }
   });
@@ -136,7 +138,7 @@ async function renderCase(browser, name) {
 
   const out = join(dir, noSymbols ? 'reference-maplibre-gl-nosymbols.png' : 'reference-maplibre-gl.png');
   writeFileSync(out, Buffer.from(dataUrl.split(',')[1], 'base64'));
-  console.log(`ok   ${name}: zoom ${zoom.toFixed(3)}, ${missing} tile requests outside fixture -> ${out}`);
+  console.log(`ok   ${name}: zoom ${zoom.toFixed(3)}, ${missing} requests outside fixture -> ${out}`);
 }
 
 const names = process.argv.slice(2).length
