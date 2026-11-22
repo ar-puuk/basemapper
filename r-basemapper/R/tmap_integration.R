@@ -13,6 +13,10 @@
 #'   `width * pixel_ratio` by `height * pixel_ratio` pixels with the same zoom
 #'   and label layout. Default: device dpi / 96 (300 dpi for PDF / SVG
 #'   devices), so `tmap_save(dpi = 300)` gets a basemap rendered at 300 dpi.
+#' @param attribution The credit line the basemap's providers ask for, as a
+#'   `tmap::tm_credits()` element in the bottom-right corner: `TRUE` (the
+#'   default) for the styles' own (see [get_attribution()]), `FALSE` for
+#'   none, or your own text.
 #' @param ... Reserved for future use.
 #'
 #' @return A composable tmap element (class `"tmap"`). Put it before `tm_shape()`
@@ -38,13 +42,14 @@ tm_basemap <- function(
     auth_token      = NULL,
     tile_timeout_ms = 10000L,
     max_tiles       = 256L,
+    attribution     = TRUE,
     width           = NULL,
     height          = NULL,
     ...
 ) {
   if (!requireNamespace("tmap", quietly = TRUE)) stop("Package 'tmap' is required.")
 
-  tmap::tm_element_list(
+  el <- tmap::tm_element_list(
     tmap::tm_element(
       args = list(
         style           = style,
@@ -70,6 +75,10 @@ tm_basemap <- function(
       subclass      = c("tm_basemap_rust", "tm_basemap", "tm_aux_layer")
     )
   )
+  credit <- attribution_text(attribution, style, auth_token)
+  if (!nzchar(credit)) return(el)
+  el + tmap::tm_credits(credit, size = 0.5, color = "grey20", bg = TRUE, bg.color = "white",
+                        bg.alpha = 0.7, position = tmap::tm_pos_in("right", "bottom"))
 }
 
 # Per-render cache — populated by tmapGridAuxPrepare, consumed by tmapGridAuxPlot.

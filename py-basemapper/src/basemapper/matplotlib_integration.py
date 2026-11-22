@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Union
 import numpy as np
 
 from matplotlib.image import AxesImage
+from matplotlib.text import Text
 
 from ._render import _features_arg, labels_arg
 from .bbox_utils import detect_crs_from_axes
@@ -24,6 +25,62 @@ def _output_dpi(figure: Any, renderer: Any) -> float:
         if d:
             return float(d)
     return float(getattr(renderer, "dpi", None) or figure.dpi)
+
+
+_ATTRIBUTION_CACHE: dict = {}
+
+
+def attribution_text(attribution: Union[bool, str, None], styles: Any, auth_token: Optional[str]) -> str:
+    """The text a plot layer's ``attribution`` asks for: True the styles' own
+    (cached per style set; empty when it cannot be read), False / None none,
+    a string as given."""
+    if attribution is None or attribution is False:
+        return ""
+    if isinstance(attribution, str):
+        return attribution
+    if attribution is not True:
+        raise ValueError(f"attribution must be True, False or a string, not {attribution!r}")
+    from ._basemap import _style_strings
+    from ._basemapper import attribution as _attribution
+
+    key = (tuple(_style_strings(styles)), auth_token)
+    if key not in _ATTRIBUTION_CACHE:
+        try:
+            _ATTRIBUTION_CACHE[key] = _attribution(list(key[0]), auth_token)
+        except Exception:
+            _ATTRIBUTION_CACHE[key] = ""
+    return _ATTRIBUTION_CACHE[key]
+
+
+class AttributionText(Text):
+    """The credit line in the bottom-right corner of the axes, over the
+    plot, rewrapped to the axes width whenever it is drawn."""
+
+    def __init__(self, ax: "matplotlib.axes.Axes", text: str, fontsize: float = 6.0) -> None:
+        super().__init__(
+            0.995, 0.005, text, transform=ax.transAxes, ha="right", va="bottom", fontsize=fontsize,
+            color="0.15", zorder=10, bbox=dict(boxstyle="square,pad=0.2", fc="white", ec="none", alpha=0.7),
+        )
+        self._full_text = text
+        self.set_gid("basemap_attribution")
+
+    def draw(self, renderer: Any) -> None:
+        import textwrap
+
+        ax = self.axes
+        width_pt = ax.get_window_extent(renderer).width * 72.0 / ax.figure.dpi
+        chars = max(20, int(width_pt / (self.get_fontsize() * 0.5)))
+        self.set_text(textwrap.fill(self._full_text, chars))
+        super().draw(renderer)
+
+
+def add_attribution(ax: "matplotlib.axes.Axes", text: str) -> Optional[AttributionText]:
+    """Add the credit line to ``ax`` (nothing for empty text)."""
+    if not text:
+        return None
+    artist = AttributionText(ax, text)
+    ax.add_artist(artist)
+    return artist
 
 
 class BasemapImage(AxesImage):
@@ -107,6 +164,7 @@ def add_basemap(
     auth_token: Optional[str] = None,
     tile_timeout_ms: int = 10_000,
     max_tiles: int = 256,
+    attribution: Union[bool, str] = True,
     crs: Optional[object] = None,
 ) -> "xr.DataArray":
     """Render a basemap beneath existing axes content.
@@ -126,7 +184,8 @@ def add_basemap(
             does for the view.
         alpha: Opacity of the basemap layer (0.0–1.0).
         layers: Optional layer filter. Plain IDs keep only those layers;
-            minus-prefixed IDs drop those layers.
+            minus-prefixed IDs drop those layers; ``*`` and ``?`` are
+            wildcards.
         labels: ``True`` keeps every layer, ``False`` drops the labels (text
             and icons), ``"only"`` keeps only the labels on a transparent
             background, to stack over another map. Catalogue raster
@@ -144,6 +203,10 @@ def add_basemap(
         auth_token: Optional access token for the tile service.
         tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
         max_tiles: Maximum tile downloads per style.
+        attribution: The credit line the basemap's providers ask for, drawn
+            small in the bottom-right corner over the plot: ``True`` (the
+            default) for the styles' own (see :func:`get_attribution`),
+            ``False`` for none, or your own text.
         crs: CRS of the axes data coordinates (anything ``pyproj.CRS``
             accepts, e.g. ``"EPSG:4326"``, ``gdf.crs``). Required for plain
             matplotlib axes and GeoDataFrame plots, whose axes carry no CRS;
@@ -179,6 +242,7 @@ def add_basemap(
         renderer = FigureCanvasAgg(fig).get_renderer()
     img.refresh(renderer)
     ax.add_image(img)
+    add_attribution(ax, attribution_text(attribution, style, auth_token))
 
     # Make the axes panel background transparent so the basemap (zorder 0)
     # shows through the axes patch (zorder 1).

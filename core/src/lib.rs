@@ -64,6 +64,9 @@ pub fn render_stack(requests: Vec<RenderRequest>) -> Result<RenderResult, Basema
     let mut acc: Option<RenderResult> = None;
     for q in requests {
         let top = render(q)?;
+        // A name warns only when it matches nothing in any style of the stack.
+        let top_warnings = top.warnings.clone();
+        let acc_warnings = acc.as_ref().map(|a| a.warnings.clone());
         acc = Some(match acc {
             None => top,
             Some(mut below) => {
@@ -75,6 +78,9 @@ pub fn render_stack(requests: Vec<RenderRequest>) -> Result<RenderResult, Basema
                 below
             }
         });
+        if let (Some(a), Some(prev)) = (acc.as_mut(), acc_warnings) {
+            a.warnings = prev.into_iter().filter(|w| top_warnings.contains(w)).collect();
+        }
     }
     Ok(acc.expect("at least one request"))
 }
@@ -114,29 +120,52 @@ pub fn tile_style(
     })
 }
 
-/// A style's layers in drawing order, as (id, type, feature) triples.
-/// `style` is a style URL or style JSON (the same strings `Basemap` takes);
-/// the ids are what the `layers` filter accepts, the features what the
-/// `features` filter accepts (see [`features`]).
+/// A style layer, as [`list_layers`] lists it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LayerInfo {
+    /// What the `layers` filter matches.
+    pub id: String,
+    /// The layer type (`symbol` layers are the labels).
+    pub kind: String,
+    /// The vector tile layer it draws, if any.
+    pub source_layer: Option<String>,
+    /// What the `features` filter matches (see [`features`]).
+    pub feature: String,
+}
+
+/// Filters to preview with [`list_layers`], as the renderers take them.
+#[derive(Debug, Clone, Default)]
+pub struct LayerFilter {
+    pub layers: Option<Vec<String>>,
+    pub labels: Labels,
+    pub features: Option<Vec<String>>,
+}
+
+/// A style's layers in drawing order; with a filter, the layers a render
+/// with that filter draws (none when it leaves nothing).
 ///
 /// `style` is anything [`render`] accepts: a style, or tile data (a tile
 /// URL, TileJSON, PMTiles archive or ArcGIS service) with its built style.
-pub fn list_layers(style: &str, auth_token: Option<&str>) -> Result<Vec<(String, String, String)>, BasemapError> {
+pub fn list_layers(style: &str, auth_token: Option<&str>, filter: &LayerFilter) -> Result<Vec<LayerInfo>, BasemapError> {
     let json = RUNTIME.block_on(async {
         let client = http_client(std::time::Duration::from_secs(30))?;
         StyleInput::detect(style).resolve(&client, auth_token).await
     })?;
-    let v: serde_json::Value = serde_json::from_str(&json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
+    if let Some(f) = &filter.features {
+        features::validate_features(f)?;
+    }
+    let (selection, _) = apply_filters(&json, filter.layers.as_deref(), filter.labels, filter.features.as_deref())?;
+    let v: serde_json::Value =
+        serde_json::from_str(&selection.style).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
     Ok(v["layers"]
         .as_array()
         .map(|ls| {
             ls.iter()
-                .map(|l| {
-                    (
-                        l["id"].as_str().unwrap_or("").to_owned(),
-                        l["type"].as_str().unwrap_or("").to_owned(),
-                        features::layer_feature(l).to_owned(),
-                    )
+                .map(|l| LayerInfo {
+                    id: l["id"].as_str().unwrap_or("").to_owned(),
+                    kind: l["type"].as_str().unwrap_or("").to_owned(),
+                    source_layer: l["source-layer"].as_str().map(str::to_owned),
+                    feature: features::layer_feature(l).to_owned(),
                 })
                 .collect()
         })
@@ -168,13 +197,39 @@ pub fn encode_png(pixels: &[u8], width: u32, height: u32) -> Result<Vec<u8>, Bas
 // Async rendering pipeline
 // ──────────────────────────────────────────────────────────────────────────────
 
-/// The style with the request's `layers`, `labels` and `features` filters applied.
-fn select_style_layers(raw_json: &str, request: &RenderRequest) -> Result<String, BasemapError> {
-    let json = match &request.layers {
-        Some(layers) => filter_style_layers(raw_json, layers)?,
-        None => raw_json.to_owned(),
+/// The style with `layers`, `labels` and `features` applied, and warnings
+/// for the names that matched no layer of it.
+fn apply_filters(
+    raw_json: &str,
+    layers: Option<&[String]>,
+    labels: Labels,
+    features: Option<&[String]>,
+) -> Result<(features::Selection, Vec<String>), BasemapError> {
+    let (json, unmatched_layers) = match layers {
+        Some(l) => style::filter_layers(raw_json, l)?,
+        None => (raw_json.to_owned(), Vec::new()),
     };
-    features::select_layers(&json, request.labels, request.features.as_deref().unwrap_or(&[]))
+    let selection = features::select(&json, labels, features.unwrap_or(&[]))?;
+    let mut warnings: Vec<String> =
+        unmatched_layers.iter().map(|l| format!("layers: {l:?} matches no layer")).collect();
+    warnings.extend(selection.unmatched.iter().map(|f| format!("features: {f:?} matches no layer")));
+    Ok((selection, warnings))
+}
+
+/// The style a request draws: its filters applied (an error when they leave
+/// nothing to draw), with warnings for names that matched no layer.
+fn select_style_layers(raw_json: &str, request: &RenderRequest) -> Result<(String, Vec<String>), BasemapError> {
+    let (selection, warnings) =
+        apply_filters(raw_json, request.layers.as_deref(), request.labels, request.features.as_deref())?;
+    // `layers` may leave nothing (as before); `labels` / `features` emptying a
+    // style that had layers is an error.
+    if selection.empty && !selection.present.is_empty() {
+        return Err(BasemapError::InvalidLayerFilter(format!(
+            "labels and features leave nothing of this style to draw; its features are {}",
+            selection.present.join(", ")
+        )));
+    }
+    Ok((selection.style, warnings))
 }
 
 async fn render_async(request: RenderRequest) -> Result<RenderResult, BasemapError> {
@@ -187,8 +242,14 @@ async fn render_async(request: RenderRequest) -> Result<RenderResult, BasemapErr
         .await?;
     style::validate_maplibre_style(&raw_json)?;
 
-    let style_json = select_style_layers(&raw_json, &request)?;
+    let (style_json, warnings) = select_style_layers(&raw_json, &request)?;
+    let mut result = render_style(request, client, style_json).await?;
+    result.warnings = warnings;
+    Ok(result)
+}
 
+/// Render a request with its resolved, filtered style.
+async fn render_style(request: RenderRequest, client: reqwest::Client, style_json: String) -> Result<RenderResult, BasemapError> {
     // Extract tile source (may fetch TileJSON).
     let style_val: serde_json::Value = serde_json::from_str(&style_json)
         .map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
@@ -305,6 +366,7 @@ async fn render_single_bbox(
         return Ok(RenderResult {
             bounds,
             zoom_used: tz.saturating_add(1),
+            warnings: Vec::new(),
             width: out.width,
             height: out.height,
             pixels: out.pixels,
@@ -324,6 +386,7 @@ async fn render_single_bbox(
         return Ok(RenderResult {
             bounds,
             zoom_used: zoom,
+            warnings: Vec::new(),
             width,
             height,
             pixels: canvas.into_raw(),
@@ -347,6 +410,7 @@ async fn render_single_bbox(
     Ok(RenderResult {
         bounds,
         zoom_used: zoom,
+        warnings: Vec::new(),
         width,
         height,
         pixels: canvas.into_raw(),
@@ -405,6 +469,7 @@ async fn render_antimeridian_split(
     Ok(RenderResult {
         bounds: SpatialBounds { xmin, ymin, xmax, ymax, crs_epsg: 3857 },
         zoom_used: zoom,
+        warnings: Vec::new(),
         width: west.width + east.width,
         height: rows as u32,
         pixels,
@@ -1002,7 +1067,7 @@ pub fn render_svg_stack_with(requests: Vec<RenderRequest>, options: &SvgOptions)
         for request in &requests {
             let raw_json = request.style_input.resolve(&client, request.auth_token.as_deref()).await?;
             style::validate_maplibre_style(&raw_json)?;
-            let style_json = select_style_layers(&raw_json, request)?;
+            let (style_json, _) = select_style_layers(&raw_json, request)?;
             let style_val: serde_json::Value =
                 serde_json::from_str(&style_json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
             let tile_source =

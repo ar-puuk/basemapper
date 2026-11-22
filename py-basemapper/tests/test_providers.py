@@ -69,7 +69,7 @@ def test_local_style_file_gets_absolute_urls(tmp_path):
     tile = json.loads(tile_style(str(path)))["sources"]["s"]["tiles"][0]
     assert tile.startswith("file://") and tile.endswith("/tiles/{z}/{x}/{y}.png")
     # The same file works anywhere a style does.
-    assert list_layers(str(path)) == [{"id": "r", "type": "raster", "feature": "other"}]
+    assert list_layers(str(path)) == [{"id": "r", "type": "raster", "source_layer": None, "feature": "other"}]
 
 
 def test_missing_style_is_a_clear_error():
@@ -146,7 +146,7 @@ def test_ogc_styles():
 
 def test_list_layers_reports_features():
     rows = list_layers("Esri.WorldImagery")
-    assert rows == [{"id": "raster", "type": "raster", "feature": "other"}]
+    assert rows == [{"id": "raster", "type": "raster", "source_layer": None, "feature": "other"}]
 
 
 def test_basemap_provider_labels_pick_raster_tiles():

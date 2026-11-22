@@ -20,7 +20,7 @@ every language.
 | `center`, `zoom` | View centre (longitude, latitude) and MapLibre zoom (0–22, fractional) | (0, 0), 0 |
 | `bounds`, `crs` | Bounds to fit instead of `center` / `zoom`, and their CRS | —, EPSG:4326 |
 | `pixel_ratio` | Device pixels per CSS pixel (MapLibre's `devicePixelRatio`); images are `width * pixel_ratio` by `height * pixel_ratio` | 1 (plot layers: output dpi / 96) |
-| `layers` | Layer filter: plain IDs keep, `-`-prefixed IDs drop | all layers |
+| `layers` | Layer filter: plain IDs keep, `-`-prefixed IDs drop; `*` and `?` are wildcards (`"-label_*"`) | all layers |
 | `labels` | `TRUE` all layers, `FALSE` without labels, `"only"` just the labels (transparent background) | `TRUE` |
 | `features` | Feature filter: plain names keep, `-`-prefixed names drop (background, water, landcover, parks, buildings, roads, rail, boundaries, places, poi, terrain, other) | all features |
 | `auth_token` | Access token for the tile service | none |
@@ -67,8 +67,14 @@ the input extent as attributes, Python a uint8 array.
 
 | R | Python |
 |---|---|
-| `geom_basemap(style, tile_zoom =, alpha =, layers =, labels =, features =, pixel_ratio =, auth_token =, tile_timeout_ms =, max_tiles =)` (ggplot2) | `geom_basemap(style, tile_zoom=, alpha=, layers=, labels=, features=, pixel_ratio=, auth_token=, tile_timeout_ms=, max_tiles=, crs=)` (plotnine) |
+| `geom_basemap(style, tile_zoom =, alpha =, layers =, labels =, features =, pixel_ratio =, auth_token =, tile_timeout_ms =, max_tiles =, attribution =)` (ggplot2) | `geom_basemap(style, tile_zoom=, alpha=, layers=, labels=, features=, pixel_ratio=, auth_token=, tile_timeout_ms=, max_tiles=, attribution=, crs=)` (plotnine) |
 | `tm_basemap(style, ..., width =, height =)` (tmap v4) | `add_basemap(ax, style, ..., crs=)` (matplotlib) |
+
+The plot layers draw the basemap's credit line (see `get_attribution()`)
+small in the bottom-right corner: `attribution = TRUE` by default, `FALSE`
+for none, or your own text. matplotlib and plotnine draw it over the plot,
+tmap as a `tm_credits()` element; in ggplot2 it is drawn with the basemap,
+so later layers can cover it.
 
 These layers render when the plot is drawn, for the panel's extent and at
 the output resolution. Python's `crs` gives the CRS of the plot's
@@ -96,7 +102,7 @@ overrides.
 | `tile_style(source, type =, tile_size =, scheme =, minzoom =, maxzoom =, attribution =, source_layers =, paint =, auth_token =)` | `tile_style(source, type=, tile_size=, scheme=, minzoom=, maxzoom=, attribution=, source_layers=, paint=, auth_token=)` | `basemapper_core::tile_style(source, &TileStyleOptions { .. }, auth_token)?`, which also returns the dropped paint keys |
 | `wms_style(url, layers, styles =, version =, format =, transparent =, extra_params =)` | `wms_style(url, layers, styles=, version=, format=, transparent=, extra_params=)` | `wms_style(...)` |
 | `wmts_style(url, layer, tilematrixset =, format =, style =, version =, extra_params =)` | `wmts_style(url, layer, tilematrixset=, format=, style=, version=, extra_params=)` | `wmts_style(...)` |
-| `list_layers(style, auth_token = NULL)`: data frame of `id`, `type`, `feature` | `list_layers(style, auth_token=None)`: list of `{"id", "type", "feature"}` | `basemapper_core::list_layers(style, auth_token)?`: `Vec<(id, type, feature)>` |
+| `list_layers(style, auth_token =, layers =, labels =, features =)`: data frame of `id`, `type`, `source_layer`, `feature` | `list_layers(style, auth_token=, layers=, labels=, features=)`: list of `{"id", "type", "source_layer", "feature"}` | `basemapper_core::list_layers(style, auth_token, &LayerFilter { .. })?`: `Vec<LayerInfo>` |
 
 Named basemaps come in a vector form (a MapLibre style), a raster form
 (tiles), or both; the vector form is the default and `type` picks the other.
@@ -119,6 +125,15 @@ catalogue basemaps with label-free or label-only tiles (CARTO, Esri's
 imagery, canvas, terrain and ocean basemaps, Stamen) switch to them, and
 asking for a split a raster basemap lacks is an error. Filters that leave a
 style with nothing to draw are an error that lists the style's features.
+
+`list_layers()` takes the same `layers`, `labels` and `features` and
+returns the layers a render with them draws, with each layer's
+`source_layer` and `feature`: check a filter, or a feature's mapping,
+before rendering. Names in `layers` or `features` that match no layer of
+any style warn (in a stack, a name only needs to match one style).
+Features are a convenience; `layers` (with wildcards) is the exact control.
+The classification of the catalogue's styles is pinned in
+`core/tests/feature_classes.rs`, with a live check for provider changes.
 
 | Rust | |
 |---|---|

@@ -132,3 +132,35 @@ def test_view_methods_match_r():
         assert callable(getattr(basemapper.Basemap, name))
     assert _params(basemapper.Basemap.render_png) == ["self", "path"]
     assert _params(basemapper.Basemap.render_svg)[:2] == ["self", "path"]
+
+
+def _credited_style(credit="<b>&copy; Test</b>"):
+    import json
+
+    return json.dumps({"version": 8, "sources": {"s": {"type": "raster", "tiles": ["http://127.0.0.1:9/{z}/{x}/{y}.png"],
+                       "attribution": credit}},
+                       "layers": [{"id": "bg", "type": "background", "paint": {"background-color": "#dddddd"}},
+                                  {"id": "r", "type": "raster", "source": "s"}]})
+
+
+def test_add_basemap_draws_attribution_unless_disabled():
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    from basemapper import add_basemap
+
+    def credits(**kw):
+        fig, ax = plt.subplots(figsize=(3, 2))
+        ax.set_xlim(-111.9, -111.8)
+        ax.set_ylim(40.7, 40.8)
+        add_basemap(ax, _credited_style(), crs="EPSG:4326", **kw)
+        fig.canvas.draw()
+        texts = [a.get_text() for a in ax.artists + ax.texts if a.get_gid() == "basemap_attribution"]
+        plt.close(fig)
+        return texts
+
+    assert credits() == ["\u00a9 Test"]
+    assert credits(attribution=False) == []
+    assert credits(attribution="Mine") == ["Mine"]

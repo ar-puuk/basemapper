@@ -217,6 +217,9 @@ pub struct RenderResult {
     pub width: u32,
     pub height: u32,
     pub zoom_used: u8,
+    /// Filter names (`layers`, `features`) that matched no layer: for a
+    /// stack, those that matched nothing in any of its styles.
+    pub warnings: Vec<String>,
 }
 
 /// EPSG:3857 bbox of a `width x height` CSS-pixel view centred on

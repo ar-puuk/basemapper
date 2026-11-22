@@ -184,9 +184,9 @@ class Basemap:
         )
 
     def _render_buffer(self) -> Tuple[bytes, int, int]:
-        from ._basemapper import render_raw
+        from ._render import render_call
 
-        return render_raw(
+        return render_call(
             list(self.get_bounds()), self.width, self.height, self.styles, self.pixel_ratio, **self._options()
         )
 
@@ -290,8 +290,8 @@ def basemap(
         crs: CRS of ``bounds`` (anything ``pyproj.CRS`` accepts).
         pixel_ratio: Device pixels per CSS pixel.
         layers: Optional layer filter applied to every style: plain IDs keep
-            only those layers, ``-`` prefixed IDs drop them (see
-            :func:`list_layers`).
+            only those layers, ``-`` prefixed IDs drop them; ``*`` and ``?``
+            are wildcards (``"-label_*"``). See :func:`list_layers`.
         labels: ``True`` keeps every layer, ``False`` drops the labels (text
             and icons), ``"only"`` keeps only the labels on a transparent
             background, to stack over another map. Catalogue raster

@@ -44,7 +44,9 @@ label services).}
 pick tiles as MapLibre does for the view.}
 
 \item{layers}{Optional layer filter applied to every style: plain IDs keep
-only those layers, minus-prefixed IDs drop them (see \code{\link[=list_layers]{list_layers()}}).}
+only those layers, minus-prefixed IDs drop them; \code{*} and \verb{?} are
+wildcards (\code{"-label_*"}). See \code{\link[=list_layers]{list_layers()}}. Names that match no
+layer of any style warn.}
 
 \item{labels}{\code{TRUE} keeps every layer, \code{FALSE} drops the labels (text and
 icons), \code{"only"} keeps only the labels on a transparent background, to
@@ -55,7 +57,8 @@ label-free or label-only tiles.}
 names keep those features, minus-prefixed names drop them, e.g.
 \code{c("water", "roads")} or \code{"-buildings"}. Features: background, water,
 landcover, parks, buildings, roads, rail, boundaries, places, poi,
-terrain, other (the \code{feature} column of \code{\link[=list_layers]{list_layers()}}).}
+terrain, other (the \code{feature} column of \code{\link[=list_layers]{list_layers()}}). Features no
+layer of any style belongs to warn.}
 
 \item{auth_token}{Optional access token for the tile service.}
 

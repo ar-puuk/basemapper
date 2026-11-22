@@ -2,7 +2,7 @@
 //! not say raster or vector), TileJSON, local PMTiles archives and style
 //! files, through `render`, `list_layers` and `tile_style`.
 
-use basemapper_core::{list_layers, render, tile_style, BasemapError, RenderRequest, StyleInput, TileKind, TileStyleOptions};
+use basemapper_core::{list_layers, LayerFilter, render, tile_style, BasemapError, RenderRequest, StyleInput, TileKind, TileStyleOptions};
 use httptest::{matchers::request::method_path, responders::status_code, Expectation, Server};
 use serde_json::Value;
 use std::io::Cursor;
@@ -90,7 +90,10 @@ fn vector_archive() -> PathBuf {
         w.add_tile(TileCoord::new(1, x, y).unwrap(), &mvt(1, x, y)).unwrap();
     }
     w.finalize().unwrap();
-    let path = temp_dir("pmtiles").join("area.pmtiles");
+    // One file per call: tests run in parallel.
+    static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path = temp_dir("pmtiles").join(format!("area-{n}.pmtiles"));
     std::fs::write(&path, buf).unwrap();
     path
 }
@@ -100,8 +103,8 @@ fn local_pmtiles_archive_lists_and_renders() {
     let path = vector_archive();
     let p = path.to_str().unwrap();
 
-    let layers = list_layers(p, None).unwrap();
-    assert!(layers.iter().any(|(id, t, _)| id == "water-fill" && t == "fill"));
+    let layers = list_layers(p, None, &LayerFilter::default()).unwrap();
+    assert!(layers.iter().any(|l| l.id == "water-fill" && l.kind == "fill"));
 
     let (s, _) = tile_style(p, &TileStyleOptions::default(), None).unwrap();
     let v = style_json(&s);
@@ -202,8 +205,8 @@ fn remote_pmtiles_reads_ranges_of_the_raw_file() {
         .respond_with(RangeFile(std::sync::Arc::new(bytes))),
     );
     let url = server.url_str("/area.pmtiles");
-    let layers = list_layers(&url, None).unwrap();
-    assert!(layers.iter().any(|(id, _, _)| id == "water-fill"));
+    let layers = list_layers(&url, None, &LayerFilter::default()).unwrap();
+    assert!(layers.iter().any(|l| l.id == "water-fill"));
     let r = render(RenderRequest::new([-WORLD, -WORLD, WORLD, WORLD], 1024, 1024, StyleInput::detect(&url))).unwrap();
     assert!(r.pixels.chunks(4).any(|px| px[3] > 0));
 }
@@ -211,11 +214,12 @@ fn remote_pmtiles_reads_ranges_of_the_raw_file() {
 #[test]
 fn catalogue_names_work_as_style() {
     // Raster-only entries resolve without the network.
-    let layers = list_layers("Esri.WorldImagery", None).unwrap();
-    assert_eq!(layers, vec![("raster".to_owned(), "raster".to_owned(), "other".to_owned())]);
-    assert_eq!(list_layers("esri.worldimagery", None).unwrap(), layers);
+    let layers = list_layers("Esri.WorldImagery", None, &LayerFilter::default()).unwrap();
+    assert_eq!(layers.len(), 1);
+    assert_eq!((layers[0].id.as_str(), layers[0].kind.as_str(), layers[0].feature.as_str()), ("raster", "raster", "other"));
+    assert_eq!(list_layers("esri.worldimagery", None, &LayerFilter::default()).unwrap(), layers);
     // A near miss is an error with the name it was probably meant to be.
-    let e = list_layers("Esri.WorldImagry", None).unwrap_err().to_string();
+    let e = list_layers("Esri.WorldImagry", None, &LayerFilter::default()).unwrap_err().to_string();
     assert!(e.contains("did you mean Esri.WorldImagery?"), "{e}");
 }
 
@@ -311,4 +315,49 @@ fn attribution_collects_every_source_as_plain_text() {
     assert_eq!(attribution(&[two("© OSM", "© OSM · ESA")], None).unwrap(), "© OSM · ESA");
     let none = r#"{"version": 8, "sources": {}, "layers": [{"id": "bg", "type": "background"}]}"#;
     assert_eq!(attribution(&[none.to_owned()], None).unwrap(), "");
+}
+
+fn background_style(id: &str) -> String {
+    serde_json::json!({"version": 8, "sources": {}, "layers": [
+        {"id": id, "type": "background", "paint": {"background-color": "#336699"}}]})
+    .to_string()
+}
+
+#[test]
+fn unmatched_filter_names_warn_only_when_no_style_has_them() {
+    use basemapper_core::render_stack;
+    let req = |style: &str| {
+        let mut r = RenderRequest::new([-WORLD, -WORLD, WORLD, WORLD], 16, 16, StyleInput::detect(style));
+        r.layers = Some(vec!["-bg-a".into()]);
+        r.features = Some(vec!["-water".into()]);
+        r
+    };
+    // Alone, the second style matches neither name.
+    let alone = render(req(&background_style("bg-b"))).unwrap();
+    assert_eq!(alone.warnings, [r#"layers: "-bg-a" matches no layer"#, r#"features: "water" matches no layer"#]);
+    // In a stack, "-bg-a" matches the first style: only "water" is unmatched everywhere.
+    let stack = render_stack(vec![req(&background_style("bg-a")), req(&background_style("bg-b"))]).unwrap();
+    assert_eq!(stack.warnings, [r#"features: "water" matches no layer"#]);
+}
+
+#[test]
+fn list_layers_previews_filters() {
+    let style = serde_json::json!({"version": 8, "sources": {"s": {"type": "vector", "tiles": ["https://t/{z}/{x}/{y}.pbf"]}},
+        "layers": [
+            {"id": "bg", "type": "background"},
+            {"id": "water", "type": "fill", "source": "s", "source-layer": "water"},
+            {"id": "road_major", "type": "line", "source": "s", "source-layer": "transportation"},
+            {"id": "road_name", "type": "symbol", "source": "s", "source-layer": "transportation_name"},
+        ]})
+    .to_string();
+    let ids = |f: LayerFilter| -> Vec<String> { list_layers(&style, None, &f).unwrap().into_iter().map(|l| l.id).collect() };
+    let all = list_layers(&style, None, &LayerFilter::default()).unwrap();
+    assert_eq!(all[1].source_layer.as_deref(), Some("water"));
+    assert_eq!(all[0].source_layer, None);
+    assert_eq!(ids(LayerFilter { layers: Some(vec!["road_*".into()]), ..Default::default() }), ["road_major", "road_name"]);
+    assert_eq!(ids(LayerFilter { labels: basemapper_core::Labels::Only, ..Default::default() }), ["road_name"]);
+    assert_eq!(ids(LayerFilter { features: Some(vec!["-roads".into()]), ..Default::default() }), ["bg", "water"]);
+    // A filter that leaves nothing previews as no layers, not an error.
+    assert!(ids(LayerFilter { labels: basemapper_core::Labels::Only, features: Some(vec!["water".into()]), ..Default::default() }).is_empty());
+    assert!(list_layers(&style, None, &LayerFilter { features: Some(vec!["highways".into()]), ..Default::default() }).is_err());
 }

@@ -84,6 +84,13 @@ Python. See `docs/api.md` in the repository.
 * `get_attribution()` returns the attribution text a view or style asks
   maps to show, for a caption: every source's attribution (from the style,
   its TileJSON or PMTiles metadata) as plain text, without duplicates.
+* Plot layers (`geom_basemap()`, `tm_basemap()`, `add_basemap()`) draw the
+  basemap's credit line in the bottom-right corner: `attribution = TRUE` by
+  default, `FALSE` to turn it off, or your own text.
+* `layers` takes `*` and `?` wildcards (`"-label_*"`). Names in `layers` or
+  `features` that match no layer of any style warn.
+* `list_layers()` shows each layer's `source_layer`, and takes `layers`,
+  `labels` and `features` to preview what a render draws.
 * ArcGIS vector styles whose source names the `VectorTileServer` without a
   trailing slash (Esri's item styles) load their tiles.
 

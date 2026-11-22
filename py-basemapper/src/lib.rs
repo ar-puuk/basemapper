@@ -121,13 +121,13 @@ fn render_raw(
     auth_token: Option<String>,
     fail_on_tile_error: bool,
     tile_concurrency: u32,
-) -> PyResult<(Py<PyBytes>, u32, u32)> {
+) -> PyResult<(Py<PyBytes>, u32, u32, Vec<String>)> {
     let reqs = stack_requests(
         py, &bbox_3857, width, height, &styles, pixel_ratio, tile_zoom, tile_timeout_ms, max_tiles, &layers,
         labels, &features, &auth_token, fail_on_tile_error, tile_concurrency,
     )?;
     match py.allow_threads(|| render_stack(reqs)) {
-        Ok(r) => Ok((PyBytes::new_bound(py, &r.pixels).unbind(), r.width, r.height)),
+        Ok(r) => Ok((PyBytes::new_bound(py, &r.pixels).unbind(), r.width, r.height, r.warnings)),
         Err(e) => Err(core_err_to_py(py, e)),
     }
 }
@@ -229,13 +229,24 @@ fn attribution(py: Python<'_>, styles: Vec<String>, auth_token: Option<String>) 
     py.allow_threads(|| basemapper_core::attribution(&styles, auth_token.as_deref())).map_err(|e| core_err_to_py(py, e))
 }
 
-/// A style's layers in drawing order as (id, type, feature) triples.
+/// A style's layers in drawing order as (id, type, source layer, feature),
+/// with the renderers' filters previewed.
 #[pyfunction]
-#[pyo3(signature = (style, auth_token=None))]
-fn list_layers(py: Python<'_>, style: &str, auth_token: Option<String>) -> PyResult<Vec<(String, String, String)>> {
+#[pyo3(signature = (style, auth_token=None, layers=None, labels="all", features=None))]
+#[allow(clippy::type_complexity)]
+fn list_layers(
+    py: Python<'_>,
+    style: &str,
+    auth_token: Option<String>,
+    layers: Option<Vec<String>>,
+    labels: &str,
+    features: Option<Vec<String>>,
+) -> PyResult<Vec<(String, String, Option<String>, String)>> {
+    let labels = basemapper_core::Labels::parse(labels).map_err(|e| core_err_to_py(py, e))?;
+    let filter = basemapper_core::LayerFilter { layers, labels, features };
     let style = style.to_owned();
-    match py.allow_threads(|| basemapper_core::list_layers(&style, auth_token.as_deref())) {
-        Ok(l) => Ok(l),
+    match py.allow_threads(|| basemapper_core::list_layers(&style, auth_token.as_deref(), &filter)) {
+        Ok(l) => Ok(l.into_iter().map(|l| (l.id, l.kind, l.source_layer, l.feature)).collect()),
         Err(e) => Err(core_err_to_py(py, e)),
     }
 }

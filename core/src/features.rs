@@ -199,12 +199,27 @@ pub fn validate_features(features: &[String]) -> Result<(), BasemapError> {
     parse_features(features).map(|_| ())
 }
 
+/// What [`select`] keeps of a style.
+#[derive(Debug, Clone)]
+pub struct Selection {
+    /// The style with the selected layers (or the switched raster tiles).
+    pub style: String,
+    /// Whether no layer is left.
+    pub empty: bool,
+    /// The features the style's layers belong to, before selection.
+    pub present: Vec<&'static str>,
+    /// Requested feature names no layer of the style belongs to.
+    pub unmatched: Vec<String>,
+}
+
 /// `style_json` with only the layers `labels` and `features` select. A
 /// catalogue raster basemap switches to its label-free or label-only tiles
-/// instead. An error when nothing would be left to draw.
-pub fn select_layers(style_json: &str, labels: Labels, features: &[String]) -> Result<String, BasemapError> {
+/// instead. A selection may leave no layer ([`select_layers`] makes that an
+/// error).
+pub fn select(style_json: &str, labels: Labels, features: &[String]) -> Result<Selection, BasemapError> {
+    let unchanged = |style: &str| Selection { style: style.to_owned(), empty: false, present: Vec::new(), unmatched: Vec::new() };
     if labels == Labels::All && features.is_empty() {
-        return Ok(style_json.to_owned());
+        return Ok(unchanged(style_json));
     }
     let (names, keep) = parse_features(features)?;
     let mut style: Value = serde_json::from_str(style_json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
@@ -213,12 +228,13 @@ pub fn select_layers(style_json: &str, labels: Labels, features: &[String]) -> R
         let name = variants["provider"].as_str().unwrap_or("this basemap");
         if !features.is_empty() {
             return Err(BasemapError::InvalidInput(format!(
-                "features select parts of vector styles; {name} is raster tiles (use its vector form or another                  basemap, or filter one style of a stack with basemap_provider(..., features =))"
+                "features select parts of vector styles; {name} is raster tiles (use its vector form or another \
+                 basemap, or filter one style of a stack with basemap_provider(..., features =))"
             )));
         }
         let tiles = match labels {
-            Labels::All => return Ok(style_json.to_owned()),
-            Labels::None if variants["has_labels"] == false => return Ok(style_json.to_owned()),
+            Labels::All => return Ok(unchanged(style_json)),
+            Labels::None if variants["has_labels"] == false => return Ok(unchanged(style_json)),
             Labels::None => variants.get("nolabels").ok_or_else(|| {
                 BasemapError::InvalidInput(format!(
                     "{name} raster tiles have their labels drawn in, with no label-free version; use its vector form or another basemap"
@@ -236,11 +252,12 @@ pub fn select_layers(style_json: &str, labels: Labels, features: &[String]) -> R
                 m.insert("basemapper:transparent".into(), Value::Bool(true));
             }
         }
-        return serde_json::to_string(&style).map_err(|e| BasemapError::StyleParseError(e.to_string()));
+        let style = serde_json::to_string(&style).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
+        return Ok(unchanged(&style));
     }
 
     let Some(layers) = style.get_mut("layers").and_then(Value::as_array_mut) else {
-        return Ok(style_json.to_owned());
+        return Ok(unchanged(style_json));
     };
     let mut present: Vec<&'static str> = Vec::new();
     for l in layers.iter() {
@@ -249,6 +266,7 @@ pub fn select_layers(style_json: &str, labels: Labels, features: &[String]) -> R
             present.push(f);
         }
     }
+    let unmatched = names.iter().filter(|n| !present.contains(n)).map(|n| n.to_string()).collect();
     layers.retain(|l| {
         let label_ok = match labels {
             Labels::All => true,
@@ -257,13 +275,22 @@ pub fn select_layers(style_json: &str, labels: Labels, features: &[String]) -> R
         };
         label_ok && (names.is_empty() || names.contains(&layer_feature(l)) == keep)
     });
-    if layers.is_empty() {
+    let empty = layers.is_empty();
+    let style = serde_json::to_string(&style).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
+    Ok(Selection { style, empty, present, unmatched })
+}
+
+/// As [`select`], with a selection that leaves nothing to draw an error that
+/// lists the style's features.
+pub fn select_layers(style_json: &str, labels: Labels, features: &[String]) -> Result<String, BasemapError> {
+    let s = select(style_json, labels, features)?;
+    if s.empty {
         return Err(BasemapError::InvalidLayerFilter(format!(
             "labels and features leave nothing of this style to draw; its features are {}",
-            present.join(", ")
+            s.present.join(", ")
         )));
     }
-    serde_json::to_string(&style).map_err(|e| BasemapError::StyleParseError(e.to_string()))
+    Ok(s.style)
 }
 
 #[cfg(test)]
@@ -349,6 +376,15 @@ mod tests {
         assert!(e.contains("features are background, water"), "{e}");
         let e = select_layers(&s, Labels::Only, &strs(&["water"])).unwrap_err().to_string();
         assert!(e.contains("its features are background, water, roads, places"), "{e}");
+    }
+
+    #[test]
+    fn unmatched_features_are_reported() {
+        let s = select(&style(), Labels::All, &strs(&["-parks", "-water"])).unwrap();
+        assert_eq!(s.unmatched, ["parks"]);
+        assert!(!s.empty);
+        let s = select(&style(), Labels::Only, &strs(&["water"])).unwrap();
+        assert!(s.empty && s.unmatched.is_empty());
     }
 
     #[test]

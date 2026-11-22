@@ -33,7 +33,8 @@ class geom_basemap(geom):
             does for the view.
         alpha: Opacity of the basemap layer (0.0–1.0).
         layers: Optional layer filter list — plain IDs keep only those layers;
-            minus-prefixed IDs drop those layers.
+            minus-prefixed IDs drop those layers; ``*`` and ``?`` are
+            wildcards.
         labels: ``True`` keeps every layer, ``False`` drops the labels (text
             and icons), ``"only"`` keeps only the labels on a transparent
             background, to stack over another map. Catalogue raster
@@ -48,6 +49,10 @@ class geom_basemap(geom):
         auth_token: Optional access token for the tile service.
         tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
         max_tiles: Maximum tile downloads per style.
+        attribution: The credit line the basemap's providers ask for, drawn
+            small in the bottom-right corner over the plot: ``True`` (the
+            default) for the styles' own (see :func:`get_attribution`),
+            ``False`` for none, or your own text.
         crs: CRS of the plot's x/y data (anything ``pyproj.CRS`` accepts).
             plotnine has no spatial coordinate system to read it from, so it
             defaults to ``"EPSG:4326"`` (longitude/latitude). Pass e.g.
@@ -83,6 +88,7 @@ class geom_basemap(geom):
         auth_token: Optional[str] = None,
         tile_timeout_ms: int = 10_000,
         max_tiles: int = 256,
+        attribution: Union[bool, str] = True,
         crs: object = "EPSG:4326",
         **kwargs: object,
     ) -> None:
@@ -96,6 +102,7 @@ class geom_basemap(geom):
         self.auth_token = auth_token
         self.tile_timeout_ms = tile_timeout_ms
         self.max_tiles = max_tiles
+        self.attribution = attribution
         self.crs = crs
         super().__init__(mapping=None, data=None, **kwargs)
 
@@ -107,7 +114,7 @@ class geom_basemap(geom):
         """
         import pyproj
 
-        from .matplotlib_integration import BasemapImage
+        from .matplotlib_integration import BasemapImage, add_attribution, attribution_text
 
         # Panel ranges: plotnine passes a panel_view (x/y scale views with a
         # .range); older code paths used a dict.
@@ -131,6 +138,7 @@ class geom_basemap(geom):
         )
         img.set_extent((x_range[0], x_range[1], y_range[0], y_range[1]))
         ax.add_image(img)
+        add_attribution(ax, attribution_text(self.attribution, self.style, self.auth_token))
 
         # Make the panel background transparent so the basemap shows through
         # (ax.patch at zorder=1 would otherwise cover basemap at zorder=0).

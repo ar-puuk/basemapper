@@ -15,6 +15,7 @@ geom_basemap(
   auth_token = NULL,
   tile_timeout_ms = 10000L,
   max_tiles = 256L,
+  attribution = TRUE,
   ...
 )
 }
@@ -30,7 +31,9 @@ pick tiles as MapLibre does for the view.}
 \item{alpha}{Opacity of the basemap layer (0--1).}
 
 \item{layers}{Optional layer filter applied to every style: plain IDs keep
-only those layers, minus-prefixed IDs drop them (see \code{\link[=list_layers]{list_layers()}}).}
+only those layers, minus-prefixed IDs drop them; \code{*} and \verb{?} are
+wildcards (\code{"-label_*"}). See \code{\link[=list_layers]{list_layers()}}. Names that match no
+layer of any style warn.}
 
 \item{labels}{\code{TRUE} keeps every layer, \code{FALSE} drops the labels (text and
 icons), \code{"only"} keeps only the labels on a transparent background, to
@@ -41,7 +44,8 @@ label-free or label-only tiles.}
 names keep those features, minus-prefixed names drop them, e.g.
 \code{c("water", "roads")} or \code{"-buildings"}. Features: background, water,
 landcover, parks, buildings, roads, rail, boundaries, places, poi,
-terrain, other (the \code{feature} column of \code{\link[=list_layers]{list_layers()}}).}
+terrain, other (the \code{feature} column of \code{\link[=list_layers]{list_layers()}}). Features no
+layer of any style belongs to warn.}
 
 \item{pixel_ratio}{Device pixels per CSS pixel (MapLibre's
 devicePixelRatio). Default: device dpi / 96, so lines and labels keep
@@ -53,6 +57,12 @@ smaller.}
 \item{tile_timeout_ms}{Per-tile HTTP timeout in milliseconds.}
 
 \item{max_tiles}{Maximum tiles fetched per style.}
+
+\item{attribution}{The credit line the basemap's providers ask for, drawn
+small in the bottom-right corner of each panel: \code{TRUE} (the default)
+for the styles' own (see \code{\link[=get_attribution]{get_attribution()}}), \code{FALSE} for none, or
+your own text. It is drawn with the basemap, so later layers can cover
+it.}
 
 \item{...}{Additional arguments passed to \code{ggplot2::layer()}.}
 }

@@ -144,6 +144,7 @@ The plot layers share these arguments (in Python too):
 | `auth_token` | `NULL` | Access token for the tile service |
 | `tile_timeout_ms` | `10000` | Per-tile HTTP timeout |
 | `max_tiles` | `256` | Cap on tiles fetched per style |
+| `attribution` | `TRUE` | The providers' credit line in the corner; `FALSE` or your own text |
 
 ## Step 5 — Labels, features and layers
 
@@ -155,7 +156,8 @@ boundaries, places, poi and terrain. `list_layers()` shows each layer's
 feature.
 
 ```r
-list_layers(positron)                       # id, type, feature
+list_layers(positron)                       # id, type, source_layer, feature
+list_layers(positron, labels = FALSE, features = c("water", "roads"))   # preview
 
 # Water and roads only, without their names
 render_png(basemap(positron, 800, 600, bounds = nc, labels = FALSE,
@@ -178,9 +180,11 @@ render_png(basemap(hybrid, 800, 600, bounds = nc), path = "nc-hybrid.png")
 relief <- c("Esri.WorldShadedRelief", basemap_provider("Esri.WorldShadedRelief", labels = "only"))
 ```
 
-For finer control, pass layer IDs to `layers` to keep only those layers,
-or prefix IDs with `"-"` to drop them. Keeping and dropping cannot be
-mixed.
+Features are a convenience, sorted from each layer's source layer (see
+the `source_layer` and `feature` columns of `list_layers()`). For exact
+control, pass layer IDs to `layers` to keep only those layers, or prefix
+IDs with `"-"` to drop them; `*` and `?` are wildcards. Keeping and
+dropping cannot be mixed. Names that match no layer warn.
 
 ```r
 # Without town and village labels
@@ -193,12 +197,14 @@ ggplot(nc) + geom_basemap(positron, layers = c("background", "water"))
 Tiles are cached on disk (`tile_cache()` shows where, moves the cache or
 clears it), for as long as the servers' caching headers allow.
 
-Basemap providers ask maps to credit them. `get_attribution()` collects the
-credit line of a view or style, for a caption:
+Basemap providers ask maps to credit them. The plot layers draw the credit
+line in the bottom-right corner (`attribution = FALSE` turns it off,
+`attribution = "..."` replaces it), and `get_attribution()` returns it, for
+a caption:
 
 ```r
 ggplot(nc) +
-  geom_basemap(positron) +
+  geom_basemap(positron, attribution = FALSE) +
   geom_sf(fill = NA) +
   labs(caption = get_attribution(positron))
 ```

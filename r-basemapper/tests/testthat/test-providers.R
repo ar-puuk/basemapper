@@ -134,7 +134,7 @@ test_that("wms_style and wmts_style build raster styles", {
 
 test_that("list_layers reports each layer's feature", {
   l <- list_layers("Esri.WorldImagery")
-  expect_named(l, c("id", "type", "feature"))
+  expect_named(l, c("id", "type", "source_layer", "feature"))
   expect_equal(l$feature, "other")
 })
 

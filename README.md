@@ -179,7 +179,8 @@ cities = pd.DataFrame({"lon": [-111.89, -111.98], "lat": [40.76, 40.66]})
 
 The plot layers (`geom_basemap`, `tm_basemap`, `add_basemap`) share the
 arguments `style`, `tile_zoom`, `alpha`, `layers`, `labels`, `features`,
-`pixel_ratio`, `auth_token`, `tile_timeout_ms` and `max_tiles`, and render at the output
+`pixel_ratio`, `auth_token`, `tile_timeout_ms`, `max_tiles` and
+`attribution` (the providers' credit line in the corner, on by default), and render at the output
 resolution (`ggsave(dpi = 300)`, `savefig(dpi=300)`).
 
 ---
@@ -259,21 +260,25 @@ basemap(["Esri.WorldImagery", basemap_provider("OpenFreeMap.Liberty", labels="on
 basemap("OpenFreeMap.Liberty", labels=False, features=["water", "roads"], bounds=gdf)
 ```
 
-`list_layers(style)` shows each layer's id, type and feature. For finer
-control, `layers` keeps or drops layers by id:
+`list_layers(style)` shows each layer's id, type, source layer and
+feature; given `layers`, `labels` or `features`, it previews what a render
+would draw. Names that match no layer warn. For exact control, `layers`
+keeps or drops layers by id, with `*` and `?` wildcards:
 
 ```r
 # R — keep only roads and labels
 render_basemap_raw(..., layers = c("roads", "labels"))
 
-# R — exclude a noisy layer
+# R — exclude a noisy layer, or a family of layers
 render_basemap_raw(..., layers = c("-poi"))
+render_basemap_raw(..., layers = "-label_*")
 ```
 
 ```python
 # Python — same API
 render_basemap_raw(..., layers=["roads", "labels"])
 render_basemap_raw(..., layers=["-poi"])
+render_basemap_raw(..., layers=["-label_*"])
 ```
 
 ---

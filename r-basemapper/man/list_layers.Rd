@@ -2,35 +2,50 @@
 % Please edit documentation in R/layer_utils.R
 \name{list_layers}
 \alias{list_layers}
-\title{List a style's layers}
+\title{List a style's layers, or preview a filter}
 \usage{
-list_layers(style, auth_token = NULL)
+list_layers(
+  style,
+  auth_token = NULL,
+  layers = NULL,
+  labels = TRUE,
+  features = NULL
+)
 }
 \arguments{
-\item{style}{A MapLibre GL style URL or JSON string.}
+\item{style}{A style (anything \code{\link[=basemap]{basemap()}} takes).}
 
 \item{auth_token}{Optional access token for the style URL.}
+
+\item{layers, labels, features}{Filters to preview, as the renderers take
+them (see \code{\link[=basemap]{basemap()}}).}
 }
 \value{
-A data frame with columns \code{id}, \code{type} and \code{feature}.
+A data frame with columns \code{id}, \code{type}, \code{source_layer} and
+\code{feature}.
 }
 \description{
-The layers of a style in drawing order, with their types and features:
-the IDs are what the \code{layers} filter of \code{\link[=basemap]{basemap()}} and the renderers
-accepts (plain IDs keep, minus-prefixed IDs drop), the features what
-\code{features} accepts; \code{symbol} layers are the labels \code{labels} keeps or
-drops. Python: \code{basemapper.list_layers()}.
+The layers of a style in drawing order: their \code{id} (what \code{layers}
+matches), \code{type} (\code{symbol} layers are the labels \code{labels} keeps or
+drops), \code{source_layer} (the vector tile layer drawn; \code{NA} for background
+and raster layers) and \code{feature} (what \code{features} matches). With
+\code{layers}, \code{labels} or \code{features}, the layers a render with those filters
+draws; no rows when they leave nothing. Python:
+\code{basemapper.list_layers()}.
 }
 \details{
-A layer's feature comes from its vector tile source layer, with tables
-for the OpenMapTiles (OpenFreeMap, Stadia, MapTiler), Protomaps (CARTO)
-and Shortbread (VersaTiles) schemas and keywords for others (Esri's
+A layer's feature comes from its source layer, with tables for the
+OpenMapTiles (OpenFreeMap, Stadia, MapTiler), Protomaps (CARTO) and
+Shortbread (VersaTiles) schemas and keywords for others (Esri's
 descriptive names, layer ids). The features are background, water,
 landcover, parks, buildings, roads, rail, boundaries, places, poi,
-terrain and other.
+terrain and other. They are a convenience: check them here, and use
+\code{layers} for exact control.
 }
 \examples{
 \dontrun{
 list_layers("OpenFreeMap.Positron")
+list_layers("OpenFreeMap.Positron", labels = "only")      # what would be drawn
+list_layers("OpenFreeMap.Positron", layers = "highway_*")
 }
 }

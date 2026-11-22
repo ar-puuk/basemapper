@@ -118,6 +118,7 @@ fn render_raw(
     let mut out: Robj = Raw::from_bytes(&r.pixels).into();
     out.set_attrib("width", r.width as i32)?;
     out.set_attrib("height", r.height as i32)?;
+    out.set_attrib("warnings", r.warnings)?;
     Ok(out)
 }
 
@@ -204,13 +205,27 @@ fn attribution_raw(styles: Vec<String>, auth_token: Nullable<String>) -> Result<
 /// A style's layer ids in drawing order, with their types and features as
 /// attributes `type` and `feature`.
 #[extendr]
-fn list_layers_raw(style: &str, auth_token: Nullable<String>) -> Result<Robj> {
-    let layers = basemapper_core::list_layers(style, opt(auth_token).as_deref()).map_err(err)?;
-    let ids: Vec<String> = layers.iter().map(|l| l.0.clone()).collect();
-    let types: Vec<String> = layers.iter().map(|l| l.1.clone()).collect();
-    let features: Vec<String> = layers.into_iter().map(|l| l.2).collect();
+fn list_layers_raw(
+    style: &str,
+    auth_token: Nullable<String>,
+    layers: Nullable<Vec<String>>,
+    labels: &str,
+    features: Nullable<Vec<String>>,
+) -> Result<Robj> {
+    let filter = basemapper_core::LayerFilter {
+        layers: opt(layers),
+        labels: basemapper_core::Labels::parse(labels).map_err(err)?,
+        features: opt(features),
+    };
+    let rows = basemapper_core::list_layers(style, opt(auth_token).as_deref(), &filter).map_err(err)?;
+    let ids: Vec<String> = rows.iter().map(|l| l.id.clone()).collect();
+    let types: Vec<String> = rows.iter().map(|l| l.kind.clone()).collect();
+    // "" for layers without a source layer (NA in R).
+    let source_layers: Vec<String> = rows.iter().map(|l| l.source_layer.clone().unwrap_or_default()).collect();
+    let features: Vec<String> = rows.into_iter().map(|l| l.feature).collect();
     let mut out: Robj = ids.into();
     out.set_attrib("type", types)?;
+    out.set_attrib("source_layer", source_layers)?;
     out.set_attrib("feature", features)?;
     Ok(out)
 }

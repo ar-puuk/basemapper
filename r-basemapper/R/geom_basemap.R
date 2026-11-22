@@ -14,7 +14,7 @@ GeomBasemap <- ggplot2::ggproto(
 
   draw_panel = function(data, panel_params, coord,
                         style, tile_zoom, alpha, layers, labels, features, pixel_ratio, auth_token,
-                        tile_timeout_ms, max_tiles) {
+                        tile_timeout_ms, max_tiles, attribution) {
     # Extract panel extent and reproject to EPSG:3857.
     x_range <- panel_params$x.range %||% panel_params$x_range
     y_range <- panel_params$y.range %||% panel_params$y_range
@@ -37,6 +37,7 @@ GeomBasemap <- ggplot2::ggproto(
       auth_token      = auth_token,
       tile_timeout_ms = tile_timeout_ms,
       max_tiles       = max_tiles,
+      attribution     = attribution,
       cl              = "BasemapGrob"
     )
   }
@@ -98,7 +99,8 @@ makeContent.BasemapGrob <- function(x) {
     gp            = grid::gpar(alpha = x$alpha)
   )
 
-  grid::setChildren(x, grid::gList(img))
+  credit <- attribution_grob(attribution_text(x$attribution, x$style, x$auth_token), w_in)
+  grid::setChildren(x, if (is.null(credit)) grid::gList(img) else grid::gList(img, credit))
 }
 
 #' Add a styled basemap layer to a ggplot2 spatial plot.
@@ -121,6 +123,11 @@ makeContent.BasemapGrob <- function(x) {
 #'   devicePixelRatio). Default: device dpi / 96, so lines and labels keep
 #'   their physical size at any resolution. Larger values draw map symbols
 #'   smaller.
+#' @param attribution The credit line the basemap's providers ask for, drawn
+#'   small in the bottom-right corner of each panel: `TRUE` (the default)
+#'   for the styles' own (see [get_attribution()]), `FALSE` for none, or
+#'   your own text. It is drawn with the basemap, so later layers can cover
+#'   it.
 #' @param ... Additional arguments passed to `ggplot2::layer()`.
 #'
 #' @return A ggplot2 layer object.
@@ -147,6 +154,7 @@ geom_basemap <- function(
     auth_token      = NULL,
     tile_timeout_ms = 10000L,
     max_tiles       = 256L,
+    attribution     = TRUE,
     ...
 ) {
   labels <- labels_arg(labels)
@@ -169,6 +177,7 @@ geom_basemap <- function(
       auth_token      = auth_token,
       tile_timeout_ms = tile_timeout_ms,
       max_tiles       = max_tiles,
+      attribution     = attribution,
       ...
     )
   )

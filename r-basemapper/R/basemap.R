@@ -25,7 +25,9 @@
 #' @param crs CRS of `bounds` (anything [sf::st_crs()] accepts).
 #' @param pixel_ratio Device pixels per CSS pixel.
 #' @param layers Optional layer filter applied to every style: plain IDs keep
-#'   only those layers, minus-prefixed IDs drop them (see [list_layers()]).
+#'   only those layers, minus-prefixed IDs drop them; `*` and `?` are
+#'   wildcards (`"-label_*"`). See [list_layers()]. Names that match no
+#'   layer of any style warn.
 #' @param labels `TRUE` keeps every layer, `FALSE` drops the labels (text and
 #'   icons), `"only"` keeps only the labels on a transparent background, to
 #'   stack over another map. Catalogue raster basemaps switch to their
@@ -34,7 +36,8 @@
 #'   names keep those features, minus-prefixed names drop them, e.g.
 #'   `c("water", "roads")` or `"-buildings"`. Features: background, water,
 #'   landcover, parks, buildings, roads, rail, boundaries, places, poi,
-#'   terrain, other (the `feature` column of [list_layers()]).
+#'   terrain, other (the `feature` column of [list_layers()]). Features no
+#'   layer of any style belongs to warn.
 #' @param auth_token Optional access token for the tile service.
 #' @param tile_timeout_ms Per-tile HTTP timeout in milliseconds.
 #' @param max_tiles Maximum tiles fetched per style.
@@ -370,6 +373,7 @@ render_styles_3857 <- function(bbox_3857, width, height, styles, pixel_ratio,
   )
   w <- attr(raw, "width")
   h <- attr(raw, "height")
+  for (note in attr(raw, "warnings")) warning(note, call. = FALSE)
   attributes(raw) <- NULL
   list(pixels = raw, width = w, height = h)
 }

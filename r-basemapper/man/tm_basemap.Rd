@@ -15,6 +15,7 @@ tm_basemap(
   auth_token = NULL,
   tile_timeout_ms = 10000L,
   max_tiles = 256L,
+  attribution = TRUE,
   width = NULL,
   height = NULL,
   ...
@@ -32,7 +33,9 @@ pick tiles as MapLibre does for the view.}
 \item{alpha}{Opacity of the basemap layer (0--1).}
 
 \item{layers}{Optional layer filter applied to every style: plain IDs keep
-only those layers, minus-prefixed IDs drop them (see \code{\link[=list_layers]{list_layers()}}).}
+only those layers, minus-prefixed IDs drop them; \code{*} and \verb{?} are
+wildcards (\code{"-label_*"}). See \code{\link[=list_layers]{list_layers()}}. Names that match no
+layer of any style warn.}
 
 \item{labels}{\code{TRUE} keeps every layer, \code{FALSE} drops the labels (text and
 icons), \code{"only"} keeps only the labels on a transparent background, to
@@ -43,7 +46,8 @@ label-free or label-only tiles.}
 names keep those features, minus-prefixed names drop them, e.g.
 \code{c("water", "roads")} or \code{"-buildings"}. Features: background, water,
 landcover, parks, buildings, roads, rail, boundaries, places, poi,
-terrain, other (the \code{feature} column of \code{\link[=list_layers]{list_layers()}}).}
+terrain, other (the \code{feature} column of \code{\link[=list_layers]{list_layers()}}). Features no
+layer of any style belongs to warn.}
 
 \item{pixel_ratio}{Device pixels per CSS pixel: the basemap raster is
 \code{width * pixel_ratio} by \code{height * pixel_ratio} pixels with the same zoom
@@ -55,6 +59,11 @@ devices), so \code{tmap_save(dpi = 300)} gets a basemap rendered at 300 dpi.}
 \item{tile_timeout_ms}{Per-tile HTTP timeout in milliseconds.}
 
 \item{max_tiles}{Maximum tiles fetched per style.}
+
+\item{attribution}{The credit line the basemap's providers ask for, as a
+\code{tmap::tm_credits()} element in the bottom-right corner: \code{TRUE} (the
+default) for the styles' own (see \code{\link[=get_attribution]{get_attribution()}}), \code{FALSE} for
+none, or your own text.}
 
 \item{width, height}{View size in CSS pixels (sets the zoom). By default
 the map panel's size is estimated from the device size, margins and

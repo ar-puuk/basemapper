@@ -19,13 +19,25 @@ def _render_buffer(
 ) -> Tuple[bytes, int, int]:
     """Render over bounds; returns ``(bytes, width, height)`` in device px."""
     from ._basemap import _bounds_to_3857, _check_pixel_ratio, _style_strings
-    from ._basemapper import render_raw
 
     _check_pixel_ratio(pixel_ratio)
-    return render_raw(
+    return render_call(
         _bounds_to_3857(bounds, crs), int(width), int(height), _style_strings(style), float(pixel_ratio),
         tile_zoom=tile_zoom, **options,
     )
+
+
+def render_call(*args: Any, **kwargs: Any) -> Tuple[bytes, int, int]:
+    """The core's render, with its filter warnings (names in ``layers`` or
+    ``features`` that matched no layer) issued as Python warnings."""
+    import warnings
+
+    from ._basemapper import render_raw
+
+    buf, w, h, notes = render_raw(*args, **kwargs)
+    for note in notes:
+        warnings.warn(note, UserWarning, stacklevel=3)
+    return buf, w, h
 
 
 def labels_arg(labels: Union[bool, str]) -> str:
@@ -87,7 +99,8 @@ def render_basemap_raw(
             (vector sources use one less, their tiles being 512 px), or
             ``None`` to pick tiles as MapLibre does for the view.
         layers: Optional layer filter: plain IDs keep only those layers,
-            ``-`` prefixed IDs drop them.
+            ``-`` prefixed IDs drop them; ``*`` and ``?`` are wildcards
+            (``"-label_*"``).
         labels: ``True`` keeps every layer, ``False`` drops the labels (text
             and icons), ``"only"`` keeps only the labels on a transparent
             background, to stack over another map. Catalogue raster

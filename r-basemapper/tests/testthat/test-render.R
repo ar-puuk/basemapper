@@ -36,3 +36,43 @@ test_that("geom_basemap returns a ggplot2 layer", {
   layer <- geom_basemap("https://demotiles.maplibre.org/style.json")
   expect_s3_class(layer, "LayerInstance")
 })
+
+# A style that renders offline (a background) and credits a source.
+credited_style <- function(credit = "<b>&copy; Test</b>") {
+  paste0('{"version":8,"sources":{"s":{"type":"raster","tiles":["http://127.0.0.1:9/{z}/{x}/{y}.png"],',
+         '"attribution":"', credit, '"}},"layers":[',
+         '{"id":"bg","type":"background","paint":{"background-color":"#dddddd"}},',
+         '{"id":"r","type":"raster","source":"s"}]}')
+}
+
+test_that("attribution_text resolves TRUE, FALSE and custom text", {
+  s <- credited_style()
+  expect_equal(basemapper:::attribution_text(TRUE, s), "\u00a9 Test")
+  expect_equal(basemapper:::attribution_text(FALSE, s), "")
+  expect_equal(basemapper:::attribution_text("Mine", s), "Mine")
+  expect_error(basemapper:::attribution_text(1, s), "attribution must be")
+})
+
+test_that("geom_basemap draws the attribution unless disabled", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("sf")
+  pts <- sf::st_sf(geometry = sf::st_sfc(sf::st_point(c(-111.9, 40.7)), sf::st_point(c(-111.8, 40.8)), crs = 4326))
+  draw <- function(...) {
+    p <- ggplot2::ggplot(pts) + geom_basemap(credited_style(), ...) + ggplot2::geom_sf() + ggplot2::coord_sf()
+    f <- tempfile(fileext = ".png")
+    grDevices::png(f, 300, 200)
+    on.exit({ grDevices::dev.off(); unlink(f) })
+    print(p)
+    grid::grid.force()
+    grid::grid.ls(print = FALSE)$name
+  }
+  expect_true(any(grepl("basemap_attribution", draw())))
+  expect_false(any(grepl("basemap_attribution", draw(attribution = FALSE))))
+})
+
+test_that("tm_basemap adds tm_credits unless disabled", {
+  skip_if_not_installed("tmap")
+  with_credit <- tm_basemap(credited_style())
+  without <- tm_basemap(credited_style(), attribution = FALSE)
+  expect_gt(length(with_credit), length(without))
+})
