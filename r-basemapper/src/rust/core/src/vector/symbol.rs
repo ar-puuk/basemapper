@@ -1272,18 +1272,23 @@ fn to_extent(p: (f32, f32), scale: f64) -> (f64, f64) {
     ((p.0 as f64 * scale + 0.5).floor(), (p.1 as f64 * scale + 0.5).floor())
 }
 
+/// A point collision box as CollisionFeature stores it: the envelope of the
+/// box rotated by `deg` (text-rotate / icon-rotate), in tile units about the
+/// anchor, kept in CollisionBoxArray's Int16 fields (truncated toward zero).
 fn rotated_envelope(b: [f64; 4], deg: f64) -> [f64; 4] {
-    if deg == 0.0 {
-        return b;
-    }
-    let (s, c) = (deg.to_radians().sin(), deg.to_radians().cos());
-    let pts = [(b[0], b[1]), (b[2], b[1]), (b[0], b[3]), (b[2], b[3])].map(|(x, y)| (c * x - s * y, s * x + c * y));
-    [
-        pts.iter().map(|p| p.0).fold(f64::INFINITY, f64::min),
-        pts.iter().map(|p| p.1).fold(f64::INFINITY, f64::min),
-        pts.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max),
-        pts.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max),
-    ]
+    let b = if deg == 0.0 {
+        b
+    } else {
+        let (s, c) = (deg.to_radians().sin(), deg.to_radians().cos());
+        let pts = [(b[0], b[1]), (b[2], b[1]), (b[0], b[3]), (b[2], b[3])].map(|(x, y)| (c * x - s * y, s * x + c * y));
+        [
+            pts.iter().map(|p| p.0).fold(f64::INFINITY, f64::min),
+            pts.iter().map(|p| p.1).fold(f64::INFINITY, f64::min),
+            pts.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max),
+            pts.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max),
+        ]
+    };
+    b.map(f64::trunc)
 }
 
 fn padding4(layout: &Json, key: &str, ctx: &Ctx, default: f64) -> [f64; 4] {
@@ -1653,7 +1658,8 @@ fn build_line_text(
     };
     let height = shaping.bottom - shaping.top;
     let layout_size = num(layout, "text-size", &next_ctx, 16.0);
-    let diameter = if height > 0.0 { height.max(10.0) * layout_size / ONE_EM } else { -1.0 };
+    // SymbolInstance.collisionCircleDiameter is a Float32.
+    let diameter = if height > 0.0 { (height.max(10.0) * layout_size / ONE_EM) as f32 as f64 } else { -1.0 };
     let mut point_box = None;
     if !along {
         let rotate = num(layout, "text-rotate", &lctx, 0.0);
@@ -2049,7 +2055,8 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
                     if let (Some(vo), Some(base)) = (&var_offsets, &text) {
                         let b = base.1;
                         let (w, h) = (b[2] - b[0], b[3] - b[1]);
-                        let box_scale = tile_pixel_ratio * (base.2).1;
+                        // SymbolInstance.textBoxScale is a Float32.
+                        let box_scale = (tile_pixel_ratio * (base.2).1) as f32 as f64;
                         let fit = super::expr::layout_enum(layout, "icon-text-fit", tile_zoom).is_some_and(|m| m != "none");
                         for (a, (ox, oy)) in vo {
                             let tj = string(layout, "text-justify", &lctx_f, "center");
