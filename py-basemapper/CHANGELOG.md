@@ -15,7 +15,7 @@ First version, not yet released.
   fonts by default, or traced glyph outlines (`render_svg(text="paths")`).
 - Tile URLs are requested as MapLibre requests them: all `tiles` templates
   (spread over subdomains), `scheme: "tms"`, and the `{quadkey}`, `{prefix}`,
-  `{ratio}` and `{bbox-epsg-3857}` tokens. `wms_provider()` uses
+  `{ratio}` and `{bbox-epsg-3857}` tokens. `wms_style()` uses
   `{bbox-epsg-3857}` and sends `SRS` for WMS 1.1.x.
 
 ### API
@@ -32,10 +32,13 @@ here. See `docs/api.md` in the repository.
 - `render_basemap_raw(bounds, width, height, style, crs=, pixel_ratio=,
   tile_zoom=, ...)` renders bounds in one call and returns a
   `(height, width, 4)` uint8 array; it accepts stacked styles.
-- Style providers, implemented in the Rust core: `basemap_provider()`,
-  `list_providers()`, `raster_provider()`, `vector_provider()`,
-  `esri_raster_provider()`, `esri_vector_provider()`, `wms_provider()`,
-  `wmts_provider()`, `pmtiles_provider()`.
+- `style` accepts tile data as well as styles, building the style for it: a
+  tile URL, TileJSON, PMTiles archive (URL or local file, raster or vector,
+  read from the archive), ArcGIS MapServer or VectorTileServer, or a local
+  style file. Vector data gets a default style drawing every source layer.
+- Styles, implemented in the Rust core: `basemap_provider()`,
+  `list_providers()`, `tile_style()` (a style for tile data, with
+  overrides), `wms_style()` and `wmts_style()`.
 - `list_layers(style)` returns `[{"id", "type"}, ...]` in drawing order.
 - `fail_on_tile_error` defaults to `False` everywhere; `tile_zoom` is the
   tile detail override; `requests` is no longer a dependency.

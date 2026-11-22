@@ -1,0 +1,209 @@
+//! Tile data accepted as `style`: tile URLs (probed when the extension does
+//! not say raster or vector), TileJSON, local PMTiles archives and style
+//! files, through `render`, `list_layers` and `tile_style`.
+
+use basemapper_core::{list_layers, render, tile_style, BasemapError, RenderRequest, StyleInput, TileKind, TileStyleOptions};
+use httptest::{matchers::request::method_path, responders::status_code, Expectation, Server};
+use serde_json::Value;
+use std::io::Cursor;
+use std::path::PathBuf;
+
+const WORLD: f64 = 20_037_508.342_789_244;
+const TILES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/golden/carto_positron_z1/tiles");
+
+fn mvt(z: u8, x: u32, y: u32) -> Vec<u8> {
+    std::fs::read(format!("{TILES}/{z}/{x}/{y}")).unwrap()
+}
+
+fn mvt_layer_names() -> Vec<String> {
+    let mut n: Vec<String> = basemapper_core::vector::mvt::decode(&mvt(1, 0, 0)).unwrap().layers.into_keys().collect();
+    n.sort();
+    n
+}
+
+fn png(rgb: [u8; 3]) -> Vec<u8> {
+    let img = image::RgbaImage::from_pixel(256, 256, image::Rgba([rgb[0], rgb[1], rgb[2], 255]));
+    let mut out = Cursor::new(Vec::new());
+    img.write_to(&mut out, image::ImageFormat::Png).unwrap();
+    out.into_inner()
+}
+
+fn serve(server: &Server, path: &str, body: Vec<u8>) {
+    server.expect(Expectation::matching(method_path("GET", path.to_owned())).times(1).respond_with(status_code(200).body(body)));
+}
+
+fn temp_dir(name: &str) -> PathBuf {
+    let d = std::env::temp_dir().join(format!("basemapper-{name}-{}", std::process::id()));
+    std::fs::create_dir_all(&d).unwrap();
+    d
+}
+
+fn style_json(s: &str) -> Value {
+    serde_json::from_str(s).unwrap()
+}
+
+#[test]
+fn raster_template_without_extension_is_probed_and_rendered() {
+    let server = Server::run();
+    serve(&server, "/t/0/0/0", png([10, 20, 30])); // the probe
+    for (x, y) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+        serve(&server, &format!("/t/1/{x}/{y}"), png([200, 100, 50]));
+    }
+    let tpl = server.url_str("/t/{z}/{x}/{y}");
+    let mut req = RenderRequest::new([-WORLD, -WORLD, WORLD, WORLD], 512, 512, StyleInput::detect(&tpl));
+    req.tile_zoom = Some(1);
+    req.fail_on_tile_error = true;
+    let r = render(req).unwrap();
+    assert_eq!(&r.pixels[..4], &[200, 100, 50, 255]);
+}
+
+#[test]
+fn vector_template_is_probed_for_its_source_layers() {
+    let server = Server::run();
+    serve(&server, "/v/0/0/0", mvt(1, 0, 0));
+    let (s, dropped) = tile_style(&server.url_str("/v/{z}/{x}/{y}"), &TileStyleOptions::default(), None).unwrap();
+    assert!(dropped.is_empty());
+    let v = style_json(&s);
+    assert_eq!(v["sources"]["tiles"]["type"], "vector");
+    let names = mvt_layer_names();
+    assert_eq!(names, ["boundaries", "earth", "landcover", "places", "water"]);
+    let ids: Vec<&str> = v["layers"].as_array().unwrap().iter().map(|l| l["id"].as_str().unwrap()).collect();
+    assert_eq!(ids.len(), names.len() * 3);
+    assert!(ids.contains(&"water-fill") && ids.contains(&"water-line"), "{ids:?}");
+}
+
+/// A vector PMTiles archive of the z1 fixture tiles, with `vector_layers`.
+fn vector_archive() -> PathBuf {
+    use pmtiles::{PmTilesWriter, TileCoord, TileType};
+    let meta = serde_json::json!({
+        "vector_layers": mvt_layer_names().iter().map(|n| serde_json::json!({"id": n})).collect::<Vec<_>>(),
+        "attribution": "© test",
+    });
+    let mut buf = Vec::new();
+    let mut w = PmTilesWriter::new(TileType::Mvt)
+        .min_zoom(1)
+        .max_zoom(1)
+        .metadata(&meta.to_string())
+        .create(Cursor::new(&mut buf))
+        .unwrap();
+    for (x, y) in [(0, 0), (0, 1), (1, 0), (1, 1)] {
+        w.add_tile(TileCoord::new(1, x, y).unwrap(), &mvt(1, x, y)).unwrap();
+    }
+    w.finalize().unwrap();
+    let path = temp_dir("pmtiles").join("area.pmtiles");
+    std::fs::write(&path, buf).unwrap();
+    path
+}
+
+#[test]
+fn local_pmtiles_archive_lists_and_renders() {
+    let path = vector_archive();
+    let p = path.to_str().unwrap();
+
+    let layers = list_layers(p, None).unwrap();
+    assert!(layers.iter().any(|(id, t)| id == "water-fill" && t == "fill"));
+
+    let (s, _) = tile_style(p, &TileStyleOptions::default(), None).unwrap();
+    let v = style_json(&s);
+    assert!(v["sources"]["tiles"]["url"].as_str().unwrap().starts_with("pmtiles://file://"));
+    assert_eq!(v["sources"]["tiles"]["attribution"], "© test");
+
+    // Asking for raster tiles from a vector archive is an error.
+    let raster = TileStyleOptions { kind: Some(TileKind::Raster), ..Default::default() };
+    assert!(matches!(tile_style(p, &raster, None), Err(BasemapError::InvalidInput(_))));
+
+    // Rendered from the file: the default style draws the fixture's features.
+    let req = RenderRequest::new([-WORLD, -WORLD, WORLD, WORLD], 1024, 1024, StyleInput::detect(p));
+    let r = render(req).unwrap();
+    let drawn = r.pixels.chunks(4).filter(|px| px[3] > 0).count();
+    assert!(drawn > r.pixels.len() / 4 / 10, "only {drawn} pixels drawn");
+}
+
+#[test]
+fn tilejson_becomes_a_source_url() {
+    let server = Server::run();
+    let tj = serde_json::json!({"tilejson": "3.0.0", "tiles": [server.url_str("/t/{z}/{x}/{y}.png")], "maxzoom": 9});
+    serve(&server, "/tiles.json", tj.to_string().into_bytes());
+    let url = server.url_str("/tiles.json");
+    let (s, _) = tile_style(&url, &TileStyleOptions::default(), None).unwrap();
+    let v = style_json(&s);
+    assert_eq!(v["sources"]["tiles"]["type"], "raster");
+    assert_eq!(v["sources"]["tiles"]["url"], url.as_str());
+    assert_eq!(v["layers"][0]["type"], "raster");
+}
+
+#[test]
+fn local_style_file_gets_absolute_urls() {
+    let dir = temp_dir("style");
+    let style = serde_json::json!({
+        "version": 8,
+        "sources": {"s": {"type": "raster", "tiles": ["tiles/{z}/{x}/{y}.png"]}},
+        "layers": [{"id": "r", "type": "raster", "source": "s"}],
+    });
+    let path = dir.join("style.json");
+    std::fs::write(&path, style.to_string()).unwrap();
+    let (s, _) = tile_style(path.to_str().unwrap(), &TileStyleOptions::default(), None).unwrap();
+    let tile = style_json(&s)["sources"]["s"]["tiles"][0].as_str().unwrap().to_owned();
+    assert!(tile.starts_with("file://") && tile.ends_with("/tiles/{z}/{x}/{y}.png"), "{tile}");
+}
+
+#[test]
+fn unknown_input_is_a_clear_error() {
+    let e = tile_style("no/such/style.json", &TileStyleOptions::default(), None).unwrap_err();
+    assert!(matches!(e, BasemapError::InvalidInput(ref m) if m.contains("not a style")), "{e}");
+}
+
+/// Serves a file with HTTP range requests (206 Partial Content).
+#[derive(Clone)]
+struct RangeFile(std::sync::Arc<Vec<u8>>);
+
+impl httptest::responders::Responder for RangeFile {
+    fn respond<'a>(
+        &mut self,
+        req: &'a http::Request<bytes::Bytes>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = http::Response<hyper::Body>> + Send + 'a>> {
+        let data = self.0.clone();
+        let range = req
+            .headers()
+            .get("range")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("bytes="))
+            .and_then(|v| v.split_once('-'))
+            .and_then(|(a, b)| Some((a.parse::<usize>().ok()?, b.parse::<usize>().ok()?)));
+        Box::pin(async move {
+            match range {
+                Some((a, b)) if a < data.len() => {
+                    let b = b.min(data.len() - 1);
+                    http::Response::builder()
+                        .status(206)
+                        .header("content-range", format!("bytes {a}-{b}/{}", data.len()))
+                        .body(hyper::Body::from(data[a..=b].to_vec()))
+                        .unwrap()
+                }
+                _ => http::Response::builder().status(416).body(hyper::Body::empty()).unwrap(),
+            }
+        })
+    }
+}
+
+#[test]
+fn remote_pmtiles_reads_ranges_of_the_raw_file() {
+    use httptest::matchers::{contains, request};
+    let bytes = std::fs::read(vector_archive()).unwrap();
+    let server = Server::run();
+    // Only range reads asking for the uncompressed file are answered: a
+    // server free to gzip would otherwise send ranges of the gzipped file.
+    server.expect(
+        Expectation::matching(httptest::all_of![
+            method_path("GET", "/area.pmtiles"),
+            request::headers(contains(("accept-encoding", "identity"))),
+        ])
+        .times(1..)
+        .respond_with(RangeFile(std::sync::Arc::new(bytes))),
+    );
+    let url = server.url_str("/area.pmtiles");
+    let layers = list_layers(&url, None).unwrap();
+    assert!(layers.iter().any(|(id, _)| id == "water-fill"));
+    let r = render(RenderRequest::new([-WORLD, -WORLD, WORLD, WORLD], 1024, 1024, StyleInput::detect(&url))).unwrap();
+    assert!(r.pixels.chunks(4).any(|px| px[3] > 0));
+}

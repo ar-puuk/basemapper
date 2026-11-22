@@ -35,7 +35,7 @@ test_that("tm_basemap render-phase integration works with valid sf shape", {
   skip_if_offline()
 
   nc    <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-  style <- raster_provider("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+  style <- "https://tile.openstreetmap.org/{z}/{x}/{y}.png"   # a tile URL works as a style
 
   map <- tm_basemap(style) + tmap::tm_shape(nc) + tmap::tm_sf()
   expect_no_error(tmap::tmap_grob(map))

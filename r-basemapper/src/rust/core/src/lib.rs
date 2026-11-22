@@ -5,6 +5,7 @@ pub mod providers;
 pub mod renderer;
 pub mod style;
 pub mod tile_fetcher;
+pub mod tile_style;
 pub mod vector;
 
 pub use basemap::{Basemap, Crs};
@@ -12,6 +13,7 @@ pub use bbox::{bbox_from_center, compute_zoom, fit_bounds, RenderRequest, Render
 pub use error::BasemapError;
 pub use style::{filter_style_layers, StyleInput};
 pub use tile_fetcher::{TileSource, TileUrls};
+pub use tile_style::{TileKind, TileStyleOptions};
 pub use vector::fonts::{FontEmbed, SvgOptions, SvgText};
 
 use once_cell::sync::Lazy;
@@ -75,9 +77,35 @@ fn composite_over(dst: &mut [u8], src: &[u8]) {
     }
 }
 
+/// A style for tile data, with overrides: a tile URL template, TileJSON,
+/// PMTiles archive (URL or path) or ArcGIS service, as raster tiles or a
+/// default vector style over its source layers (see the
+/// [`tile_style`](mod@tile_style) module). A style URL or file is returned as is (relative URLs made
+/// absolute). Detecting raster or vector may fetch a tile or the archive
+/// header. Returns the style JSON and the `paint` keys that matched no
+/// generated layer.
+pub fn tile_style(
+    input: &str,
+    options: &TileStyleOptions,
+    auth_token: Option<&str>,
+) -> Result<(String, Vec<String>), BasemapError> {
+    RUNTIME.block_on(async {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .use_rustls_tls()
+            .user_agent(concat!("basemapper/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .map_err(|e| BasemapError::RenderError(e.to_string()))?;
+        tile_style::tile_style(input, options, &client, auth_token).await
+    })
+}
+
 /// A style's layers in drawing order, as (id, type) pairs. `style` is a
 /// style URL or style JSON (the same strings `Basemap` takes); the ids are
 /// what the `layers` filter accepts.
+///
+/// `style` is anything [`render`] accepts: a style, or tile data (a tile
+/// URL, TileJSON, PMTiles archive or ArcGIS service) with its built style.
 pub fn list_layers(style: &str, auth_token: Option<&str>) -> Result<Vec<(String, String)>, BasemapError> {
     let json = RUNTIME.block_on(async {
         let client = reqwest::Client::builder()
@@ -577,11 +605,11 @@ async fn fetch_pmtiles_tiles(
 }
 
 /// Open a PMTiles archive over HTTP (header and root directory).
-async fn open_pmtiles(
+pub(crate) async fn open_pmtiles(
     url: &str,
     client: &reqwest::Client,
-) -> Result<pmtiles::AsyncPmTilesReader<tile_fetcher::ReqwestBackend>, BasemapError> {
-    let backend = tile_fetcher::ReqwestBackend::new(url.to_owned(), client.clone());
+) -> Result<pmtiles::AsyncPmTilesReader<tile_fetcher::ArchiveBackend>, BasemapError> {
+    let backend = tile_fetcher::ArchiveBackend::new(url.to_owned(), client.clone());
     pmtiles::AsyncPmTilesReader::try_from_source(backend)
         .await
         .map_err(|e| BasemapError::RenderError(format!("PMTiles open failed ({url}): {e}")))
@@ -591,7 +619,7 @@ async fn open_pmtiles(
 ///
 /// `reqwest::Url::join` percent-encodes `{` and `}` in tile template
 /// placeholders, so we decode them back after joining.
-fn resolve_url(url: &str, base: Option<&str>) -> String {
+pub(crate) fn resolve_url(url: &str, base: Option<&str>) -> String {
     if url.starts_with("http://") || url.starts_with("https://") {
         return url.to_owned();
     }

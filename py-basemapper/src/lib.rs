@@ -224,7 +224,7 @@ fn list_layers(py: Python<'_>, style: &str, auth_token: Option<String>) -> PyRes
     }
 }
 
-// ── Providers (basemapper_core::providers) ───────────────────────────────────
+// ── Styles (basemapper_core::providers, basemapper_core::tile_style) ────────
 
 #[pyfunction]
 #[pyo3(signature = (name, api_key=None))]
@@ -237,33 +237,47 @@ fn list_providers() -> Vec<&'static str> {
     providers::PROVIDER_NAMES.to_vec()
 }
 
+/// A style for tile data with overrides; returns (style, dropped paint keys).
+/// `paint_json` is a JSON object.
 #[pyfunction]
-fn raster_provider(url_template: &str, tile_size: u32) -> String {
-    providers::raster_provider(url_template, tile_size)
-}
-
-#[pyfunction]
-fn esri_raster_provider(url_template: &str, tile_size: u32) -> String {
-    providers::esri_raster_provider(url_template, tile_size)
-}
-
-#[pyfunction]
-fn esri_vector_provider(base_url: &str) -> String {
-    providers::esri_vector_provider(base_url)
-}
-
-/// Returns (style, dropped paint keys); `paint_json` is a JSON object.
-#[pyfunction]
-fn vector_provider(py: Python<'_>, url_template: &str, source_layer: &str, paint_json: &str) -> PyResult<(String, Vec<String>)> {
+#[pyo3(signature = (
+    input, kind=None, tile_size=None, scheme=None, minzoom=None, maxzoom=None,
+    attribution=None, source_layers=None, paint_json="{}", auth_token=None
+))]
+#[allow(clippy::too_many_arguments)]
+fn tile_style(
+    py: Python<'_>,
+    input: &str,
+    kind: Option<&str>,
+    tile_size: Option<u32>,
+    scheme: Option<String>,
+    minzoom: Option<u8>,
+    maxzoom: Option<u8>,
+    attribution: Option<String>,
+    source_layers: Option<Vec<String>>,
+    paint_json: &str,
+    auth_token: Option<String>,
+) -> PyResult<(String, Vec<String>)> {
     let paint: serde_json::Map<String, serde_json::Value> =
         serde_json::from_str(paint_json).map_err(|e| validation_error(py, &format!("paint must be a mapping: {e}")))?;
-    Ok(providers::vector_provider(url_template, source_layer, &paint))
+    let kind = match kind {
+        Some(k) => Some(basemapper_core::TileKind::parse(k).map_err(|e| core_err_to_py(py, e))?),
+        None => None,
+    };
+    let opts = basemapper_core::TileStyleOptions {
+        kind, tile_size, scheme, minzoom, maxzoom, attribution, source_layers, paint,
+    };
+    let input = input.to_owned();
+    match py.allow_threads(|| basemapper_core::tile_style(&input, &opts, auth_token.as_deref())) {
+        Ok(r) => Ok(r),
+        Err(e) => Err(core_err_to_py(py, e)),
+    }
 }
 
 #[pyfunction]
 #[pyo3(signature = (url, layers, styles, version, format, transparent, extra_params=None))]
 #[allow(clippy::too_many_arguments)]
-fn wms_provider(
+fn wms_style(
     url: &str,
     layers: &str,
     styles: &str,
@@ -272,13 +286,13 @@ fn wms_provider(
     transparent: bool,
     extra_params: Option<&str>,
 ) -> String {
-    providers::wms_provider(url, layers, styles, version, format, transparent, extra_params)
+    providers::wms_style(url, layers, styles, version, format, transparent, extra_params)
 }
 
 #[pyfunction]
 #[pyo3(signature = (url, layer, tilematrixset, format, style, version, extra_params=None))]
 #[allow(clippy::too_many_arguments)]
-fn wmts_provider(
+fn wmts_style(
     url: &str,
     layer: &str,
     tilematrixset: &str,
@@ -287,12 +301,7 @@ fn wmts_provider(
     version: &str,
     extra_params: Option<&str>,
 ) -> String {
-    providers::wmts_provider(url, layer, tilematrixset, format, style, version, extra_params)
-}
-
-#[pyfunction]
-fn pmtiles_provider(url: &str) -> String {
-    providers::pmtiles_provider(url)
+    providers::wmts_style(url, layer, tilematrixset, format, style, version, extra_params)
 }
 
 #[pymodule]
@@ -305,12 +314,8 @@ fn _basemapper(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(list_layers, m)?)?;
     m.add_function(wrap_pyfunction!(basemap_provider, m)?)?;
     m.add_function(wrap_pyfunction!(list_providers, m)?)?;
-    m.add_function(wrap_pyfunction!(raster_provider, m)?)?;
-    m.add_function(wrap_pyfunction!(esri_raster_provider, m)?)?;
-    m.add_function(wrap_pyfunction!(esri_vector_provider, m)?)?;
-    m.add_function(wrap_pyfunction!(vector_provider, m)?)?;
-    m.add_function(wrap_pyfunction!(wms_provider, m)?)?;
-    m.add_function(wrap_pyfunction!(wmts_provider, m)?)?;
-    m.add_function(wrap_pyfunction!(pmtiles_provider, m)?)?;
+    m.add_function(wrap_pyfunction!(tile_style, m)?)?;
+    m.add_function(wrap_pyfunction!(wms_style, m)?)?;
+    m.add_function(wrap_pyfunction!(wmts_style, m)?)?;
     Ok(())
 }

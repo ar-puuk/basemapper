@@ -72,60 +72,88 @@ pub struct TileCoord {
 
 pub type TileData = Vec<u8>;
 
-/// HTTP range-request backend for `pmtiles::AsyncPmTilesReader`.
-///
-/// Implements the pmtiles `AsyncBackend` trait using our workspace reqwest 0.12
-/// client, avoiding the reqwest 0.13 transitive pull from pmtiles' `http-async`
-/// feature.
-pub struct ReqwestBackend {
-    client: reqwest::Client,
-    url: String,
+/// Where a PMTiles archive is read from: HTTP range requests (with our
+/// reqwest 0.12 client, avoiding the reqwest 0.13 pulled in by pmtiles'
+/// `http-async` feature), or a local file (`file://` URL or a path).
+pub struct ArchiveBackend {
+    location: ArchiveLocation,
 }
 
-impl ReqwestBackend {
+enum ArchiveLocation {
+    Http { url: String, client: reqwest::Client },
+    File(std::path::PathBuf),
+}
+
+impl ArchiveBackend {
+    /// `url`: `http(s)://...`, `file://...` or a file path.
     pub fn new(url: String, client: reqwest::Client) -> Self {
-        Self { url, client }
+        let location = if url.starts_with("http://") || url.starts_with("https://") {
+            ArchiveLocation::Http { url, client }
+        } else {
+            ArchiveLocation::File(local_path(&url))
+        };
+        Self { location }
     }
 }
 
-impl pmtiles::AsyncBackend for ReqwestBackend {
+/// The file a `file://` URL or a path names.
+pub fn local_path(url: &str) -> std::path::PathBuf {
+    if url.starts_with("file://") {
+        if let Ok(p) = reqwest::Url::parse(url).map(|u| u.to_file_path()) {
+            if let Ok(p) = p {
+                return p;
+            }
+        }
+    }
+    std::path::PathBuf::from(url)
+}
+
+fn read_error(msg: String) -> pmtiles::PmtError {
+    pmtiles::PmtError::Reading(std::io::Error::other(msg))
+}
+
+impl pmtiles::AsyncBackend for ArchiveBackend {
     fn read(
         &self,
         offset: usize,
         length: usize,
-    ) -> impl std::future::Future<Output = pmtiles::PmtResult<pmtiles::BackendResponse>> + Send
-    {
-        let client = self.client.clone();
-        let url = self.url.clone();
+    ) -> impl std::future::Future<Output = pmtiles::PmtResult<pmtiles::BackendResponse>> + Send {
+        let location = match &self.location {
+            ArchiveLocation::Http { url, client } => Ok((url.clone(), client.clone())),
+            ArchiveLocation::File(path) => Err(path.clone()),
+        };
         async move {
-            let end = offset + length - 1;
-            let resp = client
-                .get(&url)
-                .header("Range", format!("bytes={offset}-{end}"))
-                .send()
-                .await
-                .map_err(|e| {
-                    pmtiles::PmtError::Reading(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        e.to_string(),
-                    ))
-                })?;
-
-            if !resp.status().is_success() {
-                return Err(pmtiles::PmtError::Reading(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("HTTP {} fetching PMTiles range from {url}", resp.status()),
-                )));
+            match location {
+                Ok((url, client)) => {
+                    let end = offset + length - 1;
+                    // Ranges of the file itself: a server free to compress
+                    // (GitHub Pages) would otherwise return a range of the
+                    // gzipped file, which is not the archive's bytes.
+                    let resp = client
+                        .get(&url)
+                        .header("Range", format!("bytes={offset}-{end}"))
+                        .header("Accept-Encoding", "identity")
+                        .send()
+                        .await
+                        .map_err(|e| read_error(e.to_string()))?;
+                    if !resp.status().is_success() {
+                        return Err(read_error(format!("HTTP {} fetching PMTiles range from {url}", resp.status())));
+                    }
+                    let bytes = resp.bytes().await.map_err(|e| read_error(e.to_string()))?;
+                    Ok(pmtiles::BackendResponse::new(bytes))
+                }
+                Err(path) => {
+                    use std::io::{Read, Seek, SeekFrom};
+                    let mut f = std::fs::File::open(&path)
+                        .map_err(|e| read_error(format!("{}: {e}", path.display())))?;
+                    f.seek(SeekFrom::Start(offset as u64)).map_err(|e| read_error(e.to_string()))?;
+                    // A range past the end (the header read asks for more
+                    // than a small archive holds) returns what there is.
+                    let mut buf = Vec::with_capacity(length);
+                    f.take(length as u64).read_to_end(&mut buf).map_err(|e| read_error(e.to_string()))?;
+                    Ok(pmtiles::BackendResponse::new(bytes::Bytes::from(buf)))
+                }
             }
-
-            let bytes = resp.bytes().await.map_err(|e| {
-                pmtiles::PmtError::Reading(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    e.to_string(),
-                ))
-            })?;
-
-            Ok(pmtiles::BackendResponse::new(bytes))
         }
     }
 }
@@ -134,7 +162,8 @@ impl pmtiles::AsyncBackend for ReqwestBackend {
 /// `CanonicalTileID.url()`: the template is picked by `(x + y) % n` (spreading
 /// tiles over subdomains), then `{prefix}`, `{z}`, `{x}`, `{y}` (flipped for
 /// `scheme: "tms"`), `{ratio}` (`@2x` above pixel ratio 1), `{quadkey}` and
-/// `{bbox-epsg-3857}` (for WMS) are replaced.
+/// `{bbox-epsg-3857}` (for WMS) are replaced. WMTS's `{TileMatrix}`,
+/// `{TileCol}` and `{TileRow}` work too (an extension: MapLibre has none).
 pub fn tile_url(templates: &[String], coord: TileCoord, pixel_ratio: f64, tms: bool) -> String {
     let Some(first) = templates.first() else { return String::new() };
     let template = templates
@@ -148,6 +177,14 @@ pub fn tile_url(templates: &[String], coord: TileCoord, pixel_ratio: f64, tms: b
         .replace("{x}", &coord.x.to_string())
         .replace("{y}", &y.to_string())
         .replace("{ratio}", if pixel_ratio > 1.0 { "@2x" } else { "" });
+    // WMTS ResourceURL templates (GoogleMapsCompatible matrix sets), so a
+    // template copied from GetCapabilities works as is.
+    if s.contains("{Tile") {
+        s = s
+            .replace("{TileMatrix}", &coord.z.to_string())
+            .replace("{TileCol}", &coord.x.to_string())
+            .replace("{TileRow}", &y.to_string());
+    }
     if s.contains("{quadkey}") {
         s = s.replace("{quadkey}", &quadkey(coord));
     }
@@ -354,6 +391,10 @@ mod url_tests {
         // Bing's documented example: tile (3, 5) at level 3 is "213".
         assert_eq!(t("https://t/{quadkey}.jpeg", c(3, 3, 5), 1.0, false), "https://t/213.jpeg");
         assert_eq!(t("https://t/{prefix}/{z}", c(5, 17, 30), 1.0, false), "https://t/1e/5");
+        assert_eq!(
+            t("https://t/{TileMatrix}/{TileRow}/{TileCol}.png", c(5, 3, 7), 1.0, false),
+            "https://t/5/7/3.png"
+        );
     }
 
     #[test]

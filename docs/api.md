@@ -74,15 +74,21 @@ from cartopy axes.
 
 ## Styles
 
+`style` takes a MapLibre style (URL, file or JSON), a named basemap, or tile
+data whose style is built for you: a tile URL template (`{z}/{x}/{y}`,
+`{quadkey}`, `{bbox-epsg-3857}`, WMTS `{TileMatrix}/{TileRow}/{TileCol}`), a
+TileJSON, a PMTiles archive (URL, local path or `pmtiles://`), or an ArcGIS
+`MapServer` / `VectorTileServer`. Raster or vector is detected from the
+archive header, the TileJSON, the URL's extension, or one fetched tile.
+Vector data gets a default style that draws every source layer over a
+transparent background. `tile_style()` builds the same style with
+overrides.
+
 | R | Python | Rust (`basemapper_core::providers`) |
 |---|---|---|
 | `basemap_provider(name, api_key = NULL)` | `basemap_provider(name, api_key=None)` | `basemap_provider(name, api_key)?` |
 | `list_providers()` | `list_providers()` | `PROVIDER_NAMES` |
-| `raster_provider(url_template, tile_size = 256)` | `raster_provider(url_template, tile_size=256)` | `raster_provider(url_template, tile_size)` |
-| `vector_provider(url_template, source_layer, paint = list())` | `vector_provider(url_template, source_layer, paint=None)` | `vector_provider(url_template, source_layer, &paint)`, which also returns the dropped keys |
-| `esri_raster_provider(url_template, tile_size = 256)` | `esri_raster_provider(url_template, tile_size=256)` | `esri_raster_provider(url_template, tile_size)` |
-| `esri_vector_provider(base_url)` | `esri_vector_provider(base_url)` | `esri_vector_provider(base_url)` |
-| `wms_provider(url, layers, styles =, version =, format =, transparent =, extra_params =)` | `wms_provider(url, layers, styles=, version=, format=, transparent=, extra_params=)` | `wms_provider(...)` |
-| `wmts_provider(url, layer, tilematrixset =, format =, style =, version =, extra_params =)` | `wmts_provider(url, layer, tilematrixset=, format=, style=, version=, extra_params=)` | `wmts_provider(...)` |
-| `pmtiles_provider(url)` | `pmtiles_provider(url)` | `pmtiles_provider(url)` |
+| `tile_style(source, type =, tile_size =, scheme =, minzoom =, maxzoom =, attribution =, source_layers =, paint =, auth_token =)` | `tile_style(source, type=, tile_size=, scheme=, minzoom=, maxzoom=, attribution=, source_layers=, paint=, auth_token=)` | `basemapper_core::tile_style(source, &TileStyleOptions { .. }, auth_token)?`, which also returns the dropped paint keys |
+| `wms_style(url, layers, styles =, version =, format =, transparent =, extra_params =)` | `wms_style(url, layers, styles=, version=, format=, transparent=, extra_params=)` | `wms_style(...)` |
+| `wmts_style(url, layer, tilematrixset =, format =, style =, version =, extra_params =)` | `wmts_style(url, layer, tilematrixset=, format=, style=, version=, extra_params=)` | `wmts_style(...)` |
 | `list_layers(style, auth_token = NULL)`: data frame of `id`, `type` | `list_layers(style, auth_token=None)`: list of `{"id", "type"}` | `basemapper_core::list_layers(style, auth_token)?`: `Vec<(id, type)>` |

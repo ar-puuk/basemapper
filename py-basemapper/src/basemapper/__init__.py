@@ -9,17 +9,7 @@ from ._basemap import Basemap, basemap
 from ._render import render_basemap_raw
 from .layer_utils import list_layers
 from .matplotlib_integration import add_basemap
-from .providers import (
-    basemap_provider,
-    esri_raster_provider,
-    esri_vector_provider,
-    list_providers,
-    pmtiles_provider,
-    raster_provider,
-    vector_provider,
-    wms_provider,
-    wmts_provider,
-)
+from .providers import basemap_provider, list_providers, tile_style, wms_style, wmts_style
 
 # plotnine integration is optional — base package usable without plotnine installed.
 try:
@@ -35,13 +25,9 @@ __all__ = [
     "list_layers",
     "basemap_provider",
     "list_providers",
-    "raster_provider",
-    "vector_provider",
-    "esri_raster_provider",
-    "esri_vector_provider",
-    "wms_provider",
-    "wmts_provider",
-    "pmtiles_provider",
+    "tile_style",
+    "wms_style",
+    "wmts_style",
     "add_basemap",
     *__all_plotnine__,
     "BasemapError",

@@ -67,10 +67,15 @@ reference:
       - tm_basemap
 
   - title: Styles
-    desc: Styles for named basemaps and common tile services.
+    desc: >
+      Named basemaps, styles for your own tile data, and OGC services. Tile
+      data (tile URLs, TileJSON, PMTiles, ArcGIS services) also works as
+      `style` directly.
     contents:
-      - providers
+      - basemap_provider
       - list_providers
+      - tile_style
+      - ogc_styles
 
   - title: Style layers
     desc: The layers of a style, for the `layers` filter.

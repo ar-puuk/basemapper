@@ -16,7 +16,8 @@ impl StyleInput {
         }
     }
 
-    /// Fetch (if URL) or parse (if inline JSON) and return the raw JSON string.
+    /// The style JSON: inline JSON as is; otherwise a style URL or file is
+    /// loaded, or a style is built for tile data (see [`crate::tile_style`]).
     pub async fn resolve(
         &self,
         client: &reqwest::Client,
@@ -24,28 +25,7 @@ impl StyleInput {
     ) -> Result<String, BasemapError> {
         match self {
             StyleInput::InlineJson(json) => Ok(json.clone()),
-            StyleInput::Url(url) => {
-                let mut req = client.get(url);
-                if let Some(token) = auth_token {
-                    req = req.header("Authorization", format!("Bearer {token}"));
-                }
-                let resp = req
-                        .send()
-                        .await
-                        .map_err(|_e| BasemapError::StyleFetchFailed {
-                            url: url.clone(),
-                            status: 0,
-                        })?;
-                if !resp.status().is_success() {
-                    return Err(BasemapError::StyleFetchFailed {
-                        url: url.clone(),
-                        status: resp.status().as_u16(),
-                    });
-                }
-                resp.text().await.map_err(|_| {
-                    BasemapError::StyleParseError("could not read style response body".into())
-                })
-            }
+            StyleInput::Url(url) => crate::tile_style::resolve_style_input(url, client, auth_token).await,
         }
     }
 }

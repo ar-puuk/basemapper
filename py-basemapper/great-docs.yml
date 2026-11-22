@@ -96,17 +96,16 @@ reference:
       - geom_basemap
 
   - title: Styles
-    desc: Styles for named basemaps and common tile services.
+    desc: >
+      Named basemaps, styles for your own tile data, and OGC services. Tile
+      data (tile URLs, TileJSON, PMTiles, ArcGIS services) also works as
+      `style` directly.
     contents:
       - basemap_provider
       - list_providers
-      - raster_provider
-      - vector_provider
-      - esri_raster_provider
-      - esri_vector_provider
-      - wms_provider
-      - wmts_provider
-      - pmtiles_provider
+      - tile_style
+      - wms_style
+      - wmts_style
 
   - title: Style layers
     desc: The layers of a style, for the `layers` filter.

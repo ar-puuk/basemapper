@@ -96,37 +96,15 @@ fn expand_url_no_bbox_placeholders_is_cheap() {
     assert!(!expanded.contains('{'), "no unresolved placeholders should remain");
 }
 
-// ─────────────────────────── PMTiles style detection ────────────────────────
-
 #[test]
-fn pmtiles_provider_style_json_is_valid_maplibre() {
-    // Simulates what pmtiles_provider() produces in R / Python.
-    let style = r#"{
-        "version": 8,
-        "sources": {
-            "pmtiles": {
-                "type": "raster",
-                "tiles": ["pmtiles://https://example.com/tiles.pmtiles"],
-                "tileSize": 256
-            }
-        },
-        "layers": [{"id": "pmtiles-layer", "type": "raster", "source": "pmtiles"}]
-    }"#;
-    assert!(
-        validate_maplibre_style(style).is_ok(),
-        "pmtiles provider style must pass MapLibre validation"
-    );
-}
-
-#[test]
-fn wms_provider_style_json_is_valid_maplibre() {
-    let style = basemapper_core::providers::wms_provider(
+fn wms_style_json_is_valid_maplibre() {
+    let style = basemapper_core::providers::wms_style(
         "https://wms.example.com/", "base", "", "1.3.0", "image/png", false, None,
     );
     assert!(style.contains("BBOX={bbox-epsg-3857}"));
     assert!(
         validate_maplibre_style(&style).is_ok(),
-        "WMS provider style must pass MapLibre validation"
+        "WMS style must pass MapLibre validation"
     );
 }
 

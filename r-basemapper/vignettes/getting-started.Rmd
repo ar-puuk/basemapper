@@ -31,9 +31,10 @@ remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
 
 ## Step 1 — Choose a style
 
-Every function takes a `style`: a MapLibre GL style URL or JSON string, or a
-vector of styles stacked bottom to top. `basemap_provider()` names 25 common
-basemaps; the other providers build styles for tile services:
+Every function takes a `style`: a MapLibre GL style (URL, file or JSON), a
+named basemap from `basemap_provider()`, or tile data, whose style is built
+for you: a tile URL, TileJSON, PMTiles archive (URL or local file) or ArcGIS
+service. A vector of styles is stacked bottom to top.
 
 ```r
 library(basemapper)
@@ -41,19 +42,18 @@ library(basemapper)
 list_providers()
 positron <- basemap_provider("Carto.Positron")
 
-# XYZ raster tiles
-osm <- raster_provider("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+# Tile data works as a style directly
+osm  <- "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+esri <- "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer"
+area <- "data/area.pmtiles"   # raster or vector, read from the archive
 
-# An ArcGIS vector tile service's published style
-esri <- esri_vector_provider(
-  "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer"
-)
+# tile_style() overrides what is detected, e.g. the paint of the default
+# vector style, or which source layers it draws
+mvt <- tile_style("https://example.com/tiles/{z}/{x}/{y}.mvt", source_layers = "land",
+                  paint = list("fill-color" = "#e8e0d8", "line-color" = "#aaaaaa"))
 
-# One layer of an MVT source, with paint overrides
-mvt <- vector_provider(
-  "https://example.com/tiles/{z}/{x}/{y}.mvt", source_layer = "land",
-  paint = list("fill-color" = "#e8e0d8", "line-color" = "#aaaaaa")
-)
+# OGC services
+relief <- wms_style("https://example.com/wms", layers = "relief")
 ```
 
 `list_layers()` lists a style's layers (id and type) in drawing order:

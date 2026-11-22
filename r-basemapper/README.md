@@ -70,9 +70,11 @@ get_bounds(set_view(m, zoom = 13), lonlat = TRUE)
 # One-shot render of bounds to a georeferenced [height, width, 4] array
 a <- render_basemap_raw(c(-122.5, 37.7, -122.4, 37.8), 400, 300, style)
 
-# Other sources
-style <- wms_provider("https://gis.example.com/wms", layers = "imagery")
-style <- pmtiles_provider("https://example.com/world.pmtiles")
+# Your own tile data works as a style: tile URLs, TileJSON, PMTiles
+# archives (URL or local file), ArcGIS services
+m <- basemap("data/area.pmtiles", 800, 600, bounds = c(-122.5, 37.7, -122.4, 37.8))
+style <- tile_style("https://example.com/{z}/{x}/{y}.png", maxzoom = 16)   # with overrides
+style <- wms_style("https://gis.example.com/wms", layers = "imagery")
 ```
 
 ## Get started

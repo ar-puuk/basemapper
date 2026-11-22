@@ -36,7 +36,7 @@ Python. See `docs/api.md` in the repository.
 * Views crossing the anti-meridian render MapLibre's world copies.
 * Tile URLs are requested as MapLibre requests them: all `tiles` templates
   (spread over subdomains), `scheme: "tms"`, and the `{quadkey}`, `{prefix}`,
-  `{ratio}` and `{bbox-epsg-3857}` tokens. `wms_provider()` uses
+  `{ratio}` and `{bbox-epsg-3857}` tokens. `wms_style()` uses
   `{bbox-epsg-3857}` and sends `SRS` for WMS 1.1.x.
 
 ## New functions
@@ -48,10 +48,13 @@ Python. See `docs/api.md` in the repository.
   (a `terra` SpatRaster) render a view.
 * `render_basemap_raw(bounds, width, height, style, ...)` renders bounds in
   one call; it accepts stacked styles and `pixel_ratio`.
-* Style providers: `basemap_provider()` (named catalogue), `raster_provider()`,
-  `vector_provider()`, `esri_vector_provider()`, `esri_raster_provider()`,
-  `wms_provider()`, `wmts_provider()`, `pmtiles_provider()`; `list_layers()`
-  inspects a style.
+* `style` accepts tile data as well as styles, building the style for it: a
+  tile URL, TileJSON, PMTiles archive (URL or local file, raster or vector,
+  read from the archive), ArcGIS MapServer or VectorTileServer, or a local
+  style file. Vector data gets a default style drawing every source layer.
+* Styles: `basemap_provider()` (named catalogue), `tile_style()` (a style for
+  tile data, with overrides), `wms_style()` and `wmts_style()`;
+  `list_layers()` inspects a style.
 
 ## Plot layers
 

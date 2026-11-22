@@ -58,7 +58,7 @@ pip install "git+https://github.com/ar-puuk/basemapper.git#subdirectory=py-basem
 
 ```python
 import basemapper
-from basemapper import basemap_provider, wms_provider, pmtiles_provider
+from basemapper import basemap_provider, tile_style, wms_style
 
 # 25 built-in providers (basemapper.list_providers()) — no tile URL needed
 style = basemap_provider("OpenFreeMap.liberty")
@@ -72,9 +72,11 @@ m.set_view(zoom=13).get_bounds(lonlat=True)
 # One-shot render of bounds to a (height, width, 4) uint8 array
 a = basemapper.render_basemap_raw([-122.5, 37.7, -122.4, 37.8], 400, 300, style)
 
-# Other sources
-style = wms_provider("https://gis.example.com/wms", layers="imagery")
-style = pmtiles_provider("https://example.com/world.pmtiles")
+# Your own tile data works as a style: tile URLs, TileJSON, PMTiles
+# archives (URL or local file), ArcGIS services
+m = basemapper.basemap("data/area.pmtiles", 800, 600, bounds=[-122.5, 37.7, -122.4, 37.8])
+style = tile_style("https://example.com/{z}/{x}/{y}.png", maxzoom=16)   # with overrides
+style = wms_style("https://gis.example.com/wms", layers="imagery")
 ```
 
 ## Get started

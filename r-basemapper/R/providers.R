@@ -1,59 +1,21 @@
-#' Styles for common tile services
+#' Named basemaps
 #'
-#' Each function returns a style for [basemap()] and the other renderers'
-#' `style` argument: a style URL (named GL styles, ArcGIS vector tile
-#' servers) or inline MapLibre GL style JSON. They are implemented once in
-#' the Rust core, so R and Python (`basemapper.raster_provider()`, ...) return
-#' the same style for the same call.
-#'
-#' * `basemap_provider()`: a named basemap; [list_providers()] lists them.
-#' * `raster_provider()`: an XYZ raster tile URL (`{z}`, `{x}`, `{y}`).
-#' * `vector_provider()`: an MVT tile URL drawn as a fill and a line layer
-#'   of `source_layer`.
-#' * `esri_raster_provider()` / `esri_vector_provider()`: ArcGIS MapServer
-#'   raster tiles / the published style of a VectorTileServer.
-#' * `wms_provider()` / `wmts_provider()`: OGC WMS GetMap / WMTS GetTile
-#'   endpoints as 256 px tiles in EPSG:3857.
-#' * `pmtiles_provider()`: a raster PMTiles archive served over HTTP.
+#' `basemap_provider()` returns the style of a named basemap, for
+#' [basemap()] and the other renderers' `style` argument: a style URL (vector
+#' GL styles) or inline style JSON (raster services). [list_providers()]
+#' lists the names. Implemented in the Rust core, so R and Python
+#' (`basemapper.basemap_provider()`) return the same style.
 #'
 #' @param name Provider name, e.g. `"OpenFreeMap.liberty"` or
 #'   `"Carto.Positron"`; see [list_providers()].
 #' @param api_key API key, required by MapTiler; optional for Stadia (lifts
 #'   rate limits); ignored by the others.
-#' @param url_template Tile URL with `{z}`, `{x}`, `{y}` placeholders (ArcGIS:
-#'   `.../MapServer/tile/{z}/{y}/{x}`).
-#' @param tile_size Tile size in pixels.
-#' @param source_layer Layer within each vector tile to draw (MapLibre's
-#'   `source-layer`), e.g. `"water"`.
-#' @param paint Named list of paint properties: `fill-color`,
-#'   `fill-opacity`, `fill-outline-color`, `line-color`, `line-width`,
-#'   `line-opacity`. Others are dropped with a warning; unset ones default
-#'   to a light grey style.
-#' @param base_url ArcGIS VectorTileServer URL.
-#' @param url Base service URL without query parameters (WMS / WMTS), or the
-#'   `.pmtiles` archive URL.
-#' @param layers WMS `LAYERS` parameter.
-#' @param styles WMS `STYLES` parameter.
-#' @param version Service version.
-#' @param format Image MIME type.
-#' @param transparent Request transparent WMS images.
-#' @param extra_params Additional query parameters appended verbatim, or
-#'   `NULL`.
-#' @param layer WMTS `LAYER` parameter.
-#' @param tilematrixset WMTS tile matrix set.
-#' @param style WMTS `STYLE` parameter.
 #' @return A style string (URL or JSON).
-#' @name providers
+#' @seealso [tile_style()] for your own tile data, [wms_style()] for OGC
+#'   services.
+#' @export
 #' @examples
 #' basemap_provider("OpenFreeMap.liberty")
-#' style <- raster_provider("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
-#' style <- vector_provider("https://example.com/tiles/{z}/{x}/{y}.mvt", "land",
-#'                          paint = list("fill-color" = "#e8e0d8"))
-#' style <- wms_provider("https://example.com/wms", layers = "relief")
-NULL
-
-#' @rdname providers
-#' @export
 basemap_provider <- function(name, api_key = NULL) {
   .Call("wrap__basemap_provider_raw", as.character(name)[1L],
         if (is.null(api_key)) NULL else as.character(api_key), PACKAGE = "basemapper")
@@ -72,61 +34,110 @@ list_providers <- function() {
   .Call("wrap__list_providers_raw", PACKAGE = "basemapper")
 }
 
-#' @rdname providers
+#' A style for tile data
+#'
+#' Builds a style for tile data, with overrides. `source` is anything you
+#' could pass as `style` directly; use this function to override what is
+#' detected, or to get the style JSON to edit:
+#'
+#' * a tile URL template (`{z}/{x}/{y}`, `{quadkey}`, `{bbox-epsg-3857}`,
+#'   WMTS `{TileMatrix}/{TileRow}/{TileCol}`);
+#' * a TileJSON URL or file;
+#' * a PMTiles archive: URL, local path or `pmtiles://` URL;
+#' * an ArcGIS `.../MapServer` (raster tiles) or `.../VectorTileServer` (its
+#'   published style);
+#' * a style URL or file (returned with relative URLs made absolute).
+#'
+#' Raster tiles get one raster layer. Vector tiles get a default style that
+#' draws every source layer (polygons as translucent fills, lines and
+#' outlines, points as circles, a colour per source layer) over a
+#' transparent background. The same function exists in Python
+#' (`basemapper.tile_style()`).
+#'
+#' @param source The tile data, as above.
+#' @param type `"raster"` or `"vector"`; detected when `NULL` (from the
+#'   archive header, the TileJSON, the URL's extension, or one fetched tile).
+#' @param tile_size Raster tile size in px (default 256 for tile URLs and
+#'   archives).
+#' @param scheme `"xyz"` or `"tms"` (rows counted from the south).
+#' @param minzoom,maxzoom Zoom range of the tiles (overzoomed beyond
+#'   `maxzoom`).
+#' @param attribution Attribution text for the source.
+#' @param source_layers Vector tiles: the source layers to draw (default
+#'   all).
+#' @param paint Vector tiles: a named list of paint properties for the
+#'   generated `fill-*`, `line-*` and `circle-*` layers, e.g.
+#'   `list("fill-color" = "#cccccc")`. Others are dropped with a warning.
+#' @param auth_token Optional access token for the tile service.
+#' @return The style JSON string.
 #' @export
-raster_provider <- function(url_template, tile_size = 256L) {
-  .Call("wrap__raster_provider_raw", as.character(url_template), as.integer(tile_size),
-        PACKAGE = "basemapper")
-}
-
-#' @rdname providers
-#' @export
-vector_provider <- function(url_template, source_layer, paint = list()) {
+#' @examples
+#' style <- tile_style("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+#'                     maxzoom = 19, attribution = "© OpenStreetMap contributors")
+#' style <- tile_style("https://example.com/tiles/{z}/{x}/{y}.mvt",
+#'                     source_layers = "land", paint = list("fill-color" = "#e8e0d8"))
+#' \dontrun{
+#' # Detected from the data; also usable directly as `style`
+#' tile_style("data/area.pmtiles")
+#' basemap("data/area.pmtiles", 800, 600, bounds = nc)
+#' }
+tile_style <- function(source, type = NULL, tile_size = NULL, scheme = NULL, minzoom = NULL,
+                       maxzoom = NULL, attribution = NULL, source_layers = NULL, paint = list(),
+                       auth_token = NULL) {
+  int_or_null <- function(x) if (is.null(x)) NULL else as.integer(x)
+  chr_or_null <- function(x) if (is.null(x)) NULL else as.character(x)
   paint_json <- if (length(paint) == 0L) "{}" else as.character(jsonlite::toJSON(paint, auto_unbox = TRUE))
-  s <- .Call("wrap__vector_provider_raw", as.character(url_template), as.character(source_layer),
-             paint_json, PACKAGE = "basemapper")
+  s <- .Call("wrap__tile_style_raw", as.character(source)[1L], chr_or_null(type), int_or_null(tile_size),
+             chr_or_null(scheme), int_or_null(minzoom), int_or_null(maxzoom), chr_or_null(attribution),
+             chr_or_null(source_layers), paint_json, chr_or_null(auth_token), PACKAGE = "basemapper")
   dropped <- attr(s, "dropped")
   if (length(dropped) > 0L) {
-    warning("vector_provider: unrecognised paint key(s) dropped: ", paste(dropped, collapse = ", "),
-            call. = FALSE)
+    warning("tile_style: paint key(s) that match no generated layer dropped: ",
+            paste(dropped, collapse = ", "), call. = FALSE)
   }
   attributes(s) <- NULL
   s
 }
 
-#' @rdname providers
-#' @export
-esri_raster_provider <- function(url_template, tile_size = 256L) {
-  .Call("wrap__esri_raster_provider_raw", as.character(url_template), as.integer(tile_size),
-        PACKAGE = "basemapper")
-}
+#' Styles for OGC services
+#'
+#' Styles for WMS GetMap and WMTS GetTile (KVP) endpoints, as 256 px tiles in
+#' EPSG:3857 (WMS through MapLibre's `{bbox-epsg-3857}` token). A RESTful
+#' WMTS template (`{TileMatrix}/{TileRow}/{TileCol}`) needs no builder: pass
+#' it as `style`. Python: `basemapper.wms_style()`, `basemapper.wmts_style()`.
+#'
+#' @param url Base service URL without query parameters.
+#' @param layers WMS `LAYERS` parameter.
+#' @param styles WMS `STYLES` parameter.
+#' @param version Service version (WMS 1.1.x sends `SRS`, 1.3.0 `CRS`).
+#' @param format Image MIME type.
+#' @param transparent Request transparent WMS images.
+#' @param extra_params Additional query parameters appended verbatim, or
+#'   `NULL`.
+#' @param layer WMTS `LAYER` parameter.
+#' @param tilematrixset WMTS tile matrix set (a Web Mercator one).
+#' @param style WMTS `STYLE` parameter.
+#' @return A style JSON string.
+#' @name ogc_styles
+#' @examples
+#' style <- wms_style("https://example.com/wms", layers = "relief")
+#' style <- wmts_style("https://example.com/wmts", layer = "imagery")
+NULL
 
-#' @rdname providers
+#' @rdname ogc_styles
 #' @export
-esri_vector_provider <- function(base_url) {
-  .Call("wrap__esri_vector_provider_raw", as.character(base_url), PACKAGE = "basemapper")
-}
-
-#' @rdname providers
-#' @export
-wms_provider <- function(url, layers, styles = "", version = "1.3.0", format = "image/png",
-                         transparent = FALSE, extra_params = NULL) {
-  .Call("wrap__wms_provider_raw", as.character(url), as.character(layers), as.character(styles),
+wms_style <- function(url, layers, styles = "", version = "1.3.0", format = "image/png",
+                      transparent = FALSE, extra_params = NULL) {
+  .Call("wrap__wms_style_raw", as.character(url), as.character(layers), as.character(styles),
         as.character(version), as.character(format), isTRUE(transparent),
         if (is.null(extra_params)) NULL else as.character(extra_params), PACKAGE = "basemapper")
 }
 
-#' @rdname providers
+#' @rdname ogc_styles
 #' @export
-wmts_provider <- function(url, layer, tilematrixset = "GoogleMapsCompatible", format = "image/png",
-                          style = "default", version = "1.0.0", extra_params = NULL) {
-  .Call("wrap__wmts_provider_raw", as.character(url), as.character(layer), as.character(tilematrixset),
+wmts_style <- function(url, layer, tilematrixset = "GoogleMapsCompatible", format = "image/png",
+                       style = "default", version = "1.0.0", extra_params = NULL) {
+  .Call("wrap__wmts_style_raw", as.character(url), as.character(layer), as.character(tilematrixset),
         as.character(format), as.character(style), as.character(version),
         if (is.null(extra_params)) NULL else as.character(extra_params), PACKAGE = "basemapper")
-}
-
-#' @rdname providers
-#' @export
-pmtiles_provider <- function(url) {
-  .Call("wrap__pmtiles_provider_raw", as.character(url), PACKAGE = "basemapper")
 }

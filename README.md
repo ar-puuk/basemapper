@@ -106,7 +106,9 @@ m.render_png(Some("slc.png".as_ref()))?;
 
 `width` / `height` are CSS pixels and set the view; images are
 `pixel_ratio` times larger with the same layout (MapLibre's
-devicePixelRatio). Fit an extent instead of a centre with `bounds =` (R: a
+devicePixelRatio). `style` also takes your own tile data, building its style for you: a tile
+URL, TileJSON, PMTiles archive (URL or local file) or ArcGIS service, e.g.
+`basemap("data/area.pmtiles", ...)`. Fit an extent instead of a centre with `bounds =` (R: a
 bbox or `sf` object; Python: a bbox or GeoDataFrame). Move the view with
 `set_view()` / `set_bounds()` and read it with `get_bounds()`,
 `get_center()`, `get_zoom()` and `get_size()`.
@@ -198,8 +200,8 @@ resolution (`ggsave(dpi = 300)`, `savefig(dpi=300)`).
 | matplotlib layer | — | `add_basemap()` | — |
 | tmap layer | `tm_basemap()` | — | — |
 | Named basemap (25 sources) | `basemap_provider()`, `list_providers()` | `basemap_provider()`, `list_providers()` | `providers::basemap_provider()`, `providers::PROVIDER_NAMES` |
-| XYZ raster / MVT / ESRI styles | `raster_provider()`, `vector_provider()`, `esri_raster_provider()`, `esri_vector_provider()` | same names | `providers::…`, same names |
-| OGC WMS / WMTS, PMTiles | `wms_provider()`, `wmts_provider()`, `pmtiles_provider()` | same names | `providers::…`, same names |
+| Your own tile data (tile URL, TileJSON, PMTiles, ArcGIS) | pass it as `style`; `tile_style()` for overrides | same | `tile_style()` |
+| OGC WMS / WMTS | `wms_style()`, `wmts_style()` | same names | `providers::wms_style()`, `providers::wmts_style()` |
 | Inspect style layers | `list_layers()` | `list_layers()` | `list_layers()` |
 
 ---

@@ -1,9 +1,9 @@
-"""Styles for common tile services.
+"""Styles: named basemaps, tile data and OGC services.
 
-Each function returns a style for :func:`basemap` and the other renderers'
-``style`` argument: a style URL (named GL styles, ArcGIS vector tile servers)
-or inline MapLibre GL style JSON. They are implemented once in the Rust core,
-so Python and R (``raster_provider()``, ...) return the same style for the
+Anything a style is built from — a tile URL, TileJSON, PMTiles archive or
+ArcGIS service — is also accepted as ``style`` directly; :func:`tile_style`
+builds that style with overrides. All of it is implemented once in the Rust
+core, so Python and R (``tile_style()``, ...) return the same style for the
 same call.
 """
 
@@ -39,46 +39,74 @@ def list_providers() -> List[str]:
     return list(_core.list_providers())
 
 
-def raster_provider(url_template: str, tile_size: int = 256) -> str:
-    """Style for an XYZ raster tile URL with ``{z}``, ``{x}``, ``{y}``
-    placeholders."""
-    return _core.raster_provider(url_template, int(tile_size))
+def tile_style(
+    source: str,
+    type: Optional[str] = None,
+    tile_size: Optional[int] = None,
+    scheme: Optional[str] = None,
+    minzoom: Optional[int] = None,
+    maxzoom: Optional[int] = None,
+    attribution: Optional[str] = None,
+    source_layers: Optional[List[str]] = None,
+    paint: Optional[Dict[str, object]] = None,
+    auth_token: Optional[str] = None,
+) -> str:
+    """A style for tile data, with overrides.
 
+    ``source`` is what you could pass as ``style`` directly; use this function
+    to override what is detected, or to get the style JSON to edit:
 
-def vector_provider(url_template: str, source_layer: str, paint: Optional[Dict[str, object]] = None) -> str:
-    """Style drawing one layer of an MVT tile URL as a fill and a line layer.
+    * a tile URL template (``{z}/{x}/{y}``, ``{quadkey}``,
+      ``{bbox-epsg-3857}``, WMTS ``{TileMatrix}/{TileRow}/{TileCol}``);
+    * a TileJSON URL or file;
+    * a PMTiles archive: URL, local path or ``pmtiles://`` URL;
+    * an ArcGIS ``.../MapServer`` (raster tiles) or ``.../VectorTileServer``
+      (its published style);
+    * a style URL or file (returned with relative URLs made absolute).
+
+    Raster tiles get one raster layer. Vector tiles get a default style
+    drawing every source layer (polygons as translucent fills, lines and
+    outlines, points as circles, a colour per source layer) over a
+    transparent background.
 
     Args:
-        url_template: MVT tile URL with ``{z}``, ``{x}``, ``{y}`` placeholders.
-        source_layer: Layer within each vector tile to draw (MapLibre's
-            ``source-layer``), e.g. ``"water"``.
-        paint: Paint properties: ``fill-color``, ``fill-opacity``,
-            ``fill-outline-color``, ``line-color``, ``line-width``,
-            ``line-opacity``. Others are dropped with a warning; unset ones
-            default to a light grey style.
+        source: The tile data, as above.
+        type: ``"raster"`` or ``"vector"``; detected when None (from the
+            archive header, the TileJSON, the URL's extension, or one fetched
+            tile).
+        tile_size: Raster tile size in px (default 256 for tile URLs and
+            archives).
+        scheme: ``"xyz"`` or ``"tms"`` (rows counted from the south).
+        minzoom: Minimum zoom of the tiles.
+        maxzoom: Maximum zoom of the tiles (overzoomed beyond).
+        attribution: Attribution text for the source.
+        source_layers: Vector tiles: the source layers to draw (default all).
+        paint: Vector tiles: paint properties for the generated ``fill-*``,
+            ``line-*`` and ``circle-*`` layers, e.g. ``{"fill-color": "#ccc"}``.
+            Others are dropped with a warning.
+        auth_token: Optional access token for the tile service.
+
+    Returns:
+        The style JSON.
+
+    Raises:
+        ValidationError: If the type cannot be detected or does not match the
+            data, or ``source`` is not found.
     """
-    style, dropped = _core.vector_provider(url_template, source_layer, json.dumps(paint or {}))
+    style, dropped = _core.tile_style(
+        str(source), type, tile_size, scheme, minzoom, maxzoom, attribution, source_layers,
+        json.dumps(paint or {}), auth_token,
+    )
     if dropped:
         warnings.warn(
-            f"vector_provider: unrecognised paint key(s) dropped: {', '.join(dropped)}",
+            f"tile_style: paint key(s) that match no generated layer dropped: {', '.join(dropped)}",
             UserWarning,
             stacklevel=2,
         )
     return style
 
 
-def esri_raster_provider(url_template: str, tile_size: int = 256) -> str:
-    """Style for ArcGIS MapServer raster tiles
-    (``.../MapServer/tile/{z}/{y}/{x}``)."""
-    return _core.esri_raster_provider(url_template, int(tile_size))
-
-
-def esri_vector_provider(base_url: str) -> str:
-    """The published style URL of an ArcGIS VectorTileServer."""
-    return _core.esri_vector_provider(base_url)
-
-
-def wms_provider(
+def wms_style(
     url: str,
     layers: str,
     styles: str = "",
@@ -93,15 +121,15 @@ def wms_provider(
         url: Base service URL without query parameters.
         layers: ``LAYERS`` parameter.
         styles: ``STYLES`` parameter.
-        version: Service version.
+        version: Service version (1.1.x sends ``SRS``, 1.3.0 ``CRS``).
         format: Image MIME type.
         transparent: Request transparent images.
         extra_params: Additional query parameters appended verbatim.
     """
-    return _core.wms_provider(url, layers, styles, version, format, bool(transparent), extra_params)
+    return _core.wms_style(url, layers, styles, version, format, bool(transparent), extra_params)
 
 
-def wmts_provider(
+def wmts_style(
     url: str,
     layer: str,
     tilematrixset: str = "GoogleMapsCompatible",
@@ -110,20 +138,17 @@ def wmts_provider(
     version: str = "1.0.0",
     extra_params: Optional[str] = None,
 ) -> str:
-    """Style for an OGC WMTS GetTile (KVP) endpoint.
+    """Style for an OGC WMTS GetTile (KVP) endpoint. A RESTful WMTS
+    template (``{TileMatrix}/{TileRow}/{TileCol}``) needs no builder: pass it
+    as ``style``.
 
     Args:
         url: Base service URL without query parameters.
         layer: ``LAYER`` parameter.
-        tilematrixset: Tile matrix set.
+        tilematrixset: Tile matrix set (a Web Mercator one).
         format: Image MIME type.
         style: ``STYLE`` parameter.
         version: Service version.
         extra_params: Additional query parameters appended verbatim.
     """
-    return _core.wmts_provider(url, layer, tilematrixset, format, style, version, extra_params)
-
-
-def pmtiles_provider(url: str) -> str:
-    """Style for a raster PMTiles archive served over HTTP."""
-    return _core.pmtiles_provider(url)
+    return _core.wmts_style(url, layer, tilematrixset, format, style, version, extra_params)

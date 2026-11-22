@@ -1,18 +1,13 @@
-//! Style providers: MapLibre GL styles for common tile services.
+//! Named basemaps and OGC service styles.
 //!
-//! The single implementation behind `basemap_provider()`, `raster_provider()`
-//! and friends in R and Python, so all three languages return the same style
-//! for the same call. Each function returns a style that `Basemap` and the
-//! renderers accept as `style`: a style URL (named GL styles, ArcGIS vector
-//! tile servers) or inline style JSON (raster, vector, WMS, WMTS and PMTiles
-//! sources).
+//! The single implementation behind `basemap_provider()`, `wms_style()` and
+//! `wmts_style()` in R and Python, so all three languages return the same
+//! style for the same call. Tile URLs, TileJSON, PMTiles archives and ArcGIS
+//! services need no builder: they are accepted as `style` directly, and
+//! [`crate::tile_style`] builds their style with overrides.
 
 use crate::BasemapError;
-use serde_json::{json, Map, Value};
-
-/// Paint properties `vector_provider()` accepts.
-const FILL_KEYS: [&str; 3] = ["fill-color", "fill-opacity", "fill-outline-color"];
-const LINE_KEYS: [&str; 3] = ["line-color", "line-width", "line-opacity"];
+use serde_json::json;
 
 /// Every name `basemap_provider()` accepts.
 pub const PROVIDER_NAMES: [&str; 25] = [
@@ -64,51 +59,24 @@ fn encode_query(s: &str) -> String {
 }
 
 /// An XYZ raster tile source (`{z}`, `{x}`, `{y}` placeholders).
-pub fn raster_provider(url_template: &str, tile_size: u32) -> String {
+fn raster_provider(url_template: &str, tile_size: u32) -> String {
     raster_style("raster-source", "raster-layer", url_template, tile_size)
 }
 
 /// An ArcGIS MapServer raster tile source (e.g. `.../MapServer/tile/{z}/{y}/{x}`).
-pub fn esri_raster_provider(url_template: &str, tile_size: u32) -> String {
+fn esri_raster_provider(url_template: &str, tile_size: u32) -> String {
     raster_style("esri-raster-source", "esri-raster-layer", url_template, tile_size)
 }
 
 /// The published style of an ArcGIS VectorTileServer (its `root.json` URL).
-pub fn esri_vector_provider(base_url: &str) -> String {
+fn esri_vector_provider(base_url: &str) -> String {
     format!("{}/resources/styles/root.json", base_url.trim_end_matches('/'))
-}
-
-/// An MVT vector tile source drawn as one fill and one line layer of
-/// `source_layer`. `paint` may set `fill-color`, `fill-opacity`,
-/// `fill-outline-color`, `line-color`, `line-width` and `line-opacity`;
-/// other keys are dropped and returned so callers can warn about them.
-pub fn vector_provider(url_template: &str, source_layer: &str, paint: &Map<String, Value>) -> (String, Vec<String>) {
-    let dropped: Vec<String> =
-        paint.keys().filter(|k| !FILL_KEYS.contains(&k.as_str()) && !LINE_KEYS.contains(&k.as_str())).cloned().collect();
-    let pick = |keys: &[&str]| -> Map<String, Value> {
-        keys.iter().filter_map(|k| paint.get(*k).map(|v| (k.to_string(), v.clone()))).collect()
-    };
-    let mut fill = pick(&FILL_KEYS);
-    let mut line = pick(&LINE_KEYS);
-    fill.entry("fill-color").or_insert(json!("#e8e0d8"));
-    fill.entry("fill-opacity").or_insert(json!(1));
-    line.entry("line-color").or_insert(json!("#aaaaaa"));
-    line.entry("line-width").or_insert(json!(1));
-    let style = json!({
-        "version": 8,
-        "sources": { "vector-source": { "type": "vector", "tiles": [url_template] } },
-        "layers": [
-            { "id": "vector-fill", "type": "fill", "source": "vector-source", "source-layer": source_layer, "paint": fill },
-            { "id": "vector-line", "type": "line", "source": "vector-source", "source-layer": source_layer, "paint": line },
-        ],
-    });
-    (style.to_string(), dropped)
 }
 
 /// A WMS GetMap endpoint as 256 px raster tiles in EPSG:3857, through
 /// MapLibre's `{bbox-epsg-3857}` token (filled in per tile). WMS 1.1.x names
 /// the projection `SRS`, 1.3.0 `CRS`.
-pub fn wms_provider(
+pub fn wms_style(
     url: &str,
     layers: &str,
     styles: &str,
@@ -134,7 +102,7 @@ pub fn wms_provider(
 }
 
 /// A WMTS GetTile (KVP) endpoint as 256 px raster tiles.
-pub fn wmts_provider(
+pub fn wmts_style(
     url: &str,
     layer: &str,
     tilematrixset: &str,
@@ -156,11 +124,6 @@ pub fn wmts_provider(
         tile_url.push_str(extra);
     }
     raster_style("wmts", "wmts-layer", &tile_url, 256)
-}
-
-/// A raster PMTiles archive served over HTTP (read with range requests).
-pub fn pmtiles_provider(url: &str) -> String {
-    raster_style("pmtiles", "pmtiles-layer", &format!("pmtiles://{url}"), 256)
 }
 
 /// A named basemap (see [`PROVIDER_NAMES`]): a style URL for GL styles, or
@@ -242,19 +205,14 @@ mod tests {
 
     #[test]
     fn provider_styles() {
-        let v: Value = serde_json::from_str(&raster_provider("https://t/{z}/{x}/{y}.png", 512)).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&raster_provider("https://t/{z}/{x}/{y}.png", 512)).unwrap();
         assert_eq!(v["sources"]["raster-source"]["tileSize"], 512);
-        let paint: Map<String, Value> = serde_json::from_str(r##"{"fill-color": "#123456", "bogus": 1}"##).unwrap();
-        let (s, dropped) = vector_provider("https://t/{z}/{x}/{y}.pbf", "water", &paint);
-        assert_eq!(dropped, vec!["bogus".to_owned()]);
-        let v: Value = serde_json::from_str(&s).unwrap();
-        assert_eq!(v["layers"][0]["paint"]["fill-color"], "#123456");
-        assert_eq!(v["layers"][1]["paint"]["line-width"], 1);
-        let wms = wms_provider("https://w", "a b", "", "1.3.0", "image/png", true, Some("X=1"));
+        let wms = wms_style("https://w", "a b", "", "1.3.0", "image/png", true, Some("X=1"));
         assert!(wms.contains("LAYERS=a%20b") && wms.contains("FORMAT=image%2Fpng") && wms.contains("TRANSPARENT=TRUE&X=1"));
         assert!(wms.contains("&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&"));
-        assert!(wms_provider("https://w", "a", "", "1.1.1", "image/png", false, None).contains("&SRS=EPSG:3857&"));
+        assert!(wms_style("https://w", "a", "", "1.1.1", "image/png", false, None).contains("&SRS=EPSG:3857&"));
+        let wmts = wmts_style("https://w", "lyr", "GoogleMapsCompatible", "image/png", "default", "1.0.0", None);
+        assert!(wmts.contains("LAYER=lyr") && wmts.contains("TILEMATRIX={z}&TILEROW={y}&TILECOL={x}"));
         assert_eq!(esri_vector_provider("https://e/VectorTileServer/"), "https://e/VectorTileServer/resources/styles/root.json");
-        assert!(pmtiles_provider("https://p/a.pmtiles").contains("pmtiles://https://p/a.pmtiles"));
     }
 }

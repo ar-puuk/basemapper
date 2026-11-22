@@ -197,7 +197,7 @@ fn list_layers_raw(style: &str, auth_token: Nullable<String>) -> Result<Robj> {
     Ok(out)
 }
 
-// ── Providers (basemapper_core::providers) ───────────────────────────────────
+// ── Styles (basemapper_core::providers, basemapper_core::tile_style) ────────
 
 #[extendr]
 fn basemap_provider_raw(name: &str, api_key: Nullable<String>) -> Result<String> {
@@ -209,27 +209,40 @@ fn list_providers_raw() -> Vec<String> {
     providers::PROVIDER_NAMES.iter().map(|s| s.to_string()).collect()
 }
 
+/// A style for tile data with overrides; the paint keys that matched no
+/// generated layer as attribute `dropped`. `paint_json` is a JSON object.
 #[extendr]
-fn raster_provider_raw(url_template: &str, tile_size: i32) -> String {
-    providers::raster_provider(url_template, tile_size as u32)
-}
-
-#[extendr]
-fn esri_raster_provider_raw(url_template: &str, tile_size: i32) -> String {
-    providers::esri_raster_provider(url_template, tile_size as u32)
-}
-
-#[extendr]
-fn esri_vector_provider_raw(base_url: &str) -> String {
-    providers::esri_vector_provider(base_url)
-}
-
-/// The style, with the dropped paint keys as attribute `dropped`.
-#[extendr]
-fn vector_provider_raw(url_template: &str, source_layer: &str, paint_json: &str) -> Result<Robj> {
+#[allow(clippy::too_many_arguments)]
+fn tile_style_raw(
+    input: &str,
+    kind: Nullable<String>,
+    tile_size: Nullable<i32>,
+    scheme: Nullable<String>,
+    minzoom: Nullable<i32>,
+    maxzoom: Nullable<i32>,
+    attribution: Nullable<String>,
+    source_layers: Nullable<Vec<String>>,
+    paint_json: &str,
+    auth_token: Nullable<String>,
+) -> Result<Robj> {
     let paint: serde_json::Map<String, serde_json::Value> =
         serde_json::from_str(paint_json).map_err(|e| err(format!("paint must be a named list: {e}")))?;
-    let (style, dropped) = providers::vector_provider(url_template, source_layer, &paint);
+    let kind = match opt(kind) {
+        Some(k) => Some(basemapper_core::TileKind::parse(&k).map_err(err)?),
+        None => None,
+    };
+    let zoom = |z: Nullable<i32>| opt(z).map(|z| z.clamp(0, 30) as u8);
+    let opts = basemapper_core::TileStyleOptions {
+        kind,
+        tile_size: opt(tile_size).map(|t| t.max(1) as u32),
+        scheme: opt(scheme),
+        minzoom: zoom(minzoom),
+        maxzoom: zoom(maxzoom),
+        attribution: opt(attribution),
+        source_layers: opt(source_layers),
+        paint,
+    };
+    let (style, dropped) = basemapper_core::tile_style(input, &opts, opt(auth_token).as_deref()).map_err(err)?;
     let mut out: Robj = style.into();
     out.set_attrib("dropped", dropped)?;
     Ok(out)
@@ -237,7 +250,7 @@ fn vector_provider_raw(url_template: &str, source_layer: &str, paint_json: &str)
 
 #[extendr]
 #[allow(clippy::too_many_arguments)]
-fn wms_provider_raw(
+fn wms_style_raw(
     url: &str,
     layers: &str,
     styles: &str,
@@ -246,12 +259,12 @@ fn wms_provider_raw(
     transparent: bool,
     extra_params: Nullable<String>,
 ) -> String {
-    providers::wms_provider(url, layers, styles, version, format, transparent, opt(extra_params).as_deref())
+    providers::wms_style(url, layers, styles, version, format, transparent, opt(extra_params).as_deref())
 }
 
 #[extendr]
 #[allow(clippy::too_many_arguments)]
-fn wmts_provider_raw(
+fn wmts_style_raw(
     url: &str,
     layer: &str,
     tilematrixset: &str,
@@ -260,12 +273,7 @@ fn wmts_provider_raw(
     version: &str,
     extra_params: Nullable<String>,
 ) -> String {
-    providers::wmts_provider(url, layer, tilematrixset, format, style, version, opt(extra_params).as_deref())
-}
-
-#[extendr]
-fn pmtiles_provider_raw(url: &str) -> String {
-    providers::pmtiles_provider(url)
+    providers::wmts_style(url, layer, tilematrixset, format, style, version, opt(extra_params).as_deref())
 }
 
 // Macro to generate R wrappers.
@@ -279,11 +287,7 @@ extendr_module! {
     fn list_layers_raw;
     fn basemap_provider_raw;
     fn list_providers_raw;
-    fn raster_provider_raw;
-    fn esri_raster_provider_raw;
-    fn esri_vector_provider_raw;
-    fn vector_provider_raw;
-    fn wms_provider_raw;
-    fn wmts_provider_raw;
-    fn pmtiles_provider_raw;
+    fn tile_style_raw;
+    fn wms_style_raw;
+    fn wmts_style_raw;
 }
