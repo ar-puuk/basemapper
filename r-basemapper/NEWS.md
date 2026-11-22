@@ -1,4 +1,4 @@
-# basemapper (development version)
+# basemapper 0.1.0
 
 First version, not yet released.
 

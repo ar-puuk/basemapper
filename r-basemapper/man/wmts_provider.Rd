@@ -2,10 +2,7 @@
 % Please edit documentation in R/providers.R
 \name{wmts_provider}
 \alias{wmts_provider}
-\title{WMTS provider style
-
-Build a MapLibre GL Style JSON string that uses a WMTS GetTile KVP endpoint
-as a raster tile source.}
+\title{WMTS provider style}
 \usage{
 wmts_provider(
   url,
@@ -36,8 +33,6 @@ wmts_provider(
 A JSON character string ready to pass to \code{render_basemap_raw()}.
 }
 \description{
-WMTS provider style
-
 Build a MapLibre GL Style JSON string that uses a WMTS GetTile KVP endpoint
 as a raster tile source.
 }

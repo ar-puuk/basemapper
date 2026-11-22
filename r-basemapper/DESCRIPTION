@@ -10,12 +10,15 @@ Description: Renders MapLibre GL styled basemaps (vector and raster tiles)
     vector SVG; several styles can be stacked. Integrates with ggplot2 via
     geom_basemap() and with tmap v4 via tm_basemap(), rendering at the
     output device's resolution.
-License: MIT
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-SystemRequirements: Cargo (Rust package manager)
+SystemRequirements: Cargo (Rust package manager), GNU make
+Depends:
+    R (>= 4.1.0)
 Imports:
     ggplot2 (>= 3.4),
+    grDevices,
     grid,
     sf (>= 1.0),
     jsonlite (>= 1.8),
@@ -25,6 +28,9 @@ Suggests:
     roxygen2 (>= 7.3),
     testthat (>= 3.0),
     rextendr (>= 0.3),
-    tmap (>= 4.0)
+    tmap (>= 4.0),
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.1.1

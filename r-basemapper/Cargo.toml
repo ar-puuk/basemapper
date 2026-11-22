@@ -31,4 +31,4 @@ path       = "src/rust/src/lib.rs"
 # this path dep with a version dep (e.g. basemapper-core = "0.1.0").
 # src/rust/core/ is a vendored snapshot synced from repo root core/ by Makevars.
 basemapper-core = { path = "src/rust/core" }
-extendr-api     = { version = "0.7", features = [] }
+extendr-api     = { version = "0.9", features = [] }

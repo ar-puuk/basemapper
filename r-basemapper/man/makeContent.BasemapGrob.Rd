@@ -6,8 +6,15 @@
 \usage{
 \method{makeContent}{BasemapGrob}(x)
 }
+\arguments{
+\item{x}{A \code{BasemapGrob} created by \code{\link[=geom_basemap]{geom_basemap()}}.}
+}
+\value{
+A gTree with the rendered basemap as its rasterGrob child.
+}
 \description{
 Called by grid at draw time (inside an active viewport). Renders the
 basemap for the panel's size at the device's resolution and returns a
 rasterGrob child.
 }
+\keyword{internal}

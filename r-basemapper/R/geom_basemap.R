@@ -62,6 +62,9 @@ device_dpi <- function() {
 #' basemap for the panel's size at the device's resolution and returns a
 #' rasterGrob child.
 #'
+#' @param x A `BasemapGrob` created by [geom_basemap()].
+#' @return A gTree with the rendered basemap as its rasterGrob child.
+#' @keywords internal
 #' @exportS3Method grid::makeContent
 makeContent.BasemapGrob <- function(x) {
   dpi   <- device_dpi()
@@ -81,7 +84,7 @@ makeContent.BasemapGrob <- function(x) {
   )
 
   img <- grid::rasterGrob(
-    as.raster(pixels_to_array(px) / 255),
+    grDevices::as.raster(pixels_to_array(px) / 255),
     x             = 0.5,
     y             = 0.5,
     width         = grid::unit(1, "npc"),

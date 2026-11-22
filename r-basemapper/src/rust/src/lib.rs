@@ -1,5 +1,6 @@
 use basemapper_core::{render, render_stack, render_svg_stack_with, FontEmbed, RenderRequest, StyleInput, SvgOptions, SvgText};
 use extendr_api::prelude::*;
+use extendr_api::Result;
 
 /// Render a basemap and return raw RGBA bytes.
 ///

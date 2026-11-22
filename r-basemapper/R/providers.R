@@ -247,7 +247,7 @@ basemap_provider <- function(name, api_key = NULL, ...) {
   )
 }
 
-#' @title WMS provider style
+#' WMS provider style
 #'
 #' Build a MapLibre GL Style JSON string that uses a WMS GetMap endpoint as a
 #' raster tile source.  The Rust tile engine substitutes \code{\{xmin\}},
@@ -280,7 +280,7 @@ wms_provider <- function(url, layers, styles = "", version = "1.3.0",
   raster_provider(tile_url, tile_size = 256L)
 }
 
-#' @title WMTS provider style
+#' WMTS provider style
 #'
 #' Build a MapLibre GL Style JSON string that uses a WMTS GetTile KVP endpoint
 #' as a raster tile source.
@@ -309,7 +309,7 @@ wmts_provider <- function(url, layer, tilematrixset = "GoogleMapsCompatible",
   raster_provider(tile_url, tile_size = 256L)
 }
 
-#' @title PMTiles provider style
+#' PMTiles provider style
 #'
 #' Build a MapLibre GL Style JSON string for a PMTiles raster archive served
 #' over HTTP.  The Rust core detects the \code{pmtiles://} scheme in the
