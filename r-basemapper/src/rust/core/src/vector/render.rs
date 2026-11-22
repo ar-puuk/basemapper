@@ -236,7 +236,6 @@ pub fn render(
             "fill" => draw_fill_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio, assets),
             "line" => draw_line_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio, assets),
             "circle" => draw_circle_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
-            "heatmap" => draw_heatmap_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), ratio),
             "fill-extrusion" => {
                 let view = ExtrusionView::new(style, bbox, width, height, ratio, zoom);
                 draw_fill_extrusion_layer(&mut fb, layer, zoom, layer_tiles(&placed, layer), &view, assets, &mut depth3d);
@@ -600,10 +599,6 @@ fn draw_fill_pattern_layer(
 
 // ── Line ─────────────────────────────────────────────────────────────────────
 
-/// A GeoJSON source's default maxzoom (the step-gradient texture grows at
-/// it, where tiles overzoom).
-const GEOJSON_MAX_ZOOM: u32 = 18;
-
 fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile], dpr: f64, assets: &SymbolAssets) {
     let p = &layer["paint"];
     // line-pattern replaces color and dashes (the linePattern program).
@@ -620,11 +615,6 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
     // line-dasharray is not interpolatable: legacy functions default to
     // "interval" (Kind::Enum), unlike interpolatable arrays such as offsets.
     let dasharray = Prop::new(p.get("line-dasharray"), Kind::Enum, zoom);
-    // line-gradient (the lineGradient program): a colour ramp over
-    // ["line-progress"], one texture row per tiled line, for lines with
-    // geojson-vt lineMetrics clips; replaces line-color.
-    let gradient = p.get("line-gradient").filter(|g| !g.is_null() && !pattern.is_set());
-    let step_gradient = gradient.map_or(false, |g| g.get(0).and_then(|v| v.as_str()) == Some("step"));
     let tz = zoom.floor();
     let cap = match super::expr::layout_enum(l, "line-cap", tz).as_deref() {
         Some("round") => Cap::Round,
@@ -651,46 +641,10 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
     let from_scale = if zoom > zoom.floor() { 2.0 } else { 0.5 };
 
     let (w, h) = (fb.w, fb.h);
-    let clip_of = |f: &Feature| -> Option<(f64, f64)> {
-        let num = |k: &str| match f.properties.get(k) {
-            Some(super::mvt::Value::Number(v)) => Some(*v),
-            _ => None,
-        };
-        Some((num(super::geojson::CLIP_START)?, num(super::geojson::CLIP_END)?))
-    };
     for pt in placed {
-        // updateGradientTexture: 256 texels, or for a step gradient enough
-        // to cover the bucket's longest line at 1024 px per tile (more at the
-        // source's max zoom, overzoomed up to the map's max zoom 22).
-        let ramp_n = if step_gradient {
-            let max_len = features(layer, pt, zoom)
-                .filter(|(f, _)| clip_of(f).is_some())
-                .filter_map(|(f, scale)| match &f.geometry {
-                    Geometry::Lines(ls) => ls
-                        .iter()
-                        .map(|l| {
-                            let q: Vec<(f64, f64)> = l.iter().map(|&q| to_extent(q, scale)).collect();
-                            q.windows(2).map(|w| ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt()).sum::<f64>()
-                        })
-                        .reduce(f64::max),
-                    _ => None,
-                })
-                .fold(0.0, f64::max);
-            let over = if pt.coord.z as u32 == GEOJSON_MAX_ZOOM { (1u64 << (22 - GEOJSON_MAX_ZOOM)) as f64 } else { 1.0 };
-            ((max_len / EXTENT * 1024.0 * over).max(1.0) as u64).next_power_of_two().clamp(256, 16384) as usize
-        } else {
-            256
-        };
         for (f, scale) in features(layer, pt, zoom) {
             let ctx = Ctx { zoom, feature: Some(f) };
             let fctx = Ctx { zoom: zoom.floor(), feature: Some(f) };
-            // Lines without clips have no gradient row: not drawn.
-            let clip = clip_of(f);
-            let ramp = match (gradient, clip) {
-                (Some(g), Some((s0, s1))) => Some(super::heatmap::color_ramp_range(g, "line-progress", zoom, ramp_n, s0, s1)),
-                (Some(_), None) => continue,
-                _ => None,
-            };
             let (lines, is_polygon): (Vec<&Vec<(f32, f32)>>, bool) = match &f.geometry {
                 Geometry::Lines(ls) => (ls.iter().collect(), false),
                 Geometry::Polygons(ps) => (ps.iter().flatten().collect(), true),
@@ -708,7 +662,7 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
                 None
             };
             let op = opacity.num(&ctx, 1.0);
-            let c = if image.is_some() || ramp.is_some() { [op as f32; 4] } else { rgba(color.color(&ctx, Color::BLACK), op) };
+            let c = if image.is_some() { [op as f32; 4] } else { rgba(color.color(&ctx, Color::BLACK), op) };
             if c[3] <= 0.0 {
                 continue;
             }
@@ -744,13 +698,7 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
             let dash_params = dash.as_ref().filter(|_| image.is_none()).map(|d| {
                 let width_b = d.width;
                 let width_a = d.width * from_scale;
-                // line_gradient_sdf.fragment.glsl takes the unscaled widths and
-                // no pixel ratio: (u_lineatlas_width / 256) / min(from.w, to.w).
-                let sdfgamma = if gradient.is_some() {
-                    ATLAS_W as f64 / 256.0 / width_b
-                } else {
-                    ATLAS_W as f64 / (width_a.min(width_b) * 256.0 * dpr) / 2.0
-                };
+                let sdfgamma = ATLAS_W as f64 / (width_a.min(width_b) * 256.0 * dpr) / 2.0;
                 // lineSDFUniformValues: tileRatio = 1 / pixelsToTileUnits(tile, 1,
                 // tileZoom); an overscaled tile is 512 * overscaling px wide.
                 let tile_ratio = TILE_PX * pt.overscaling / EXTENT;
@@ -758,14 +706,13 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
             });
 
             let mut b = LineBuilder::new(pt.overscaling);
-            b.set_clip(clip);
             for line in &lines {
                 let pts: Vec<(f64, f64)> = line.iter().map(|&q| to_extent(q, scale)).collect();
                 b.add_line(&pts, is_polygon, join, cap, miter_limit, round_limit);
             }
 
             // line.vertex.glsl, per vertex.
-            let verts: Vec<Vert<4>> = b
+            let verts: Vec<Vert<3>> = b
                 .verts
                 .iter()
                 .map(|v| {
@@ -778,7 +725,7 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
                     Vert {
                         x: pt.ox + v.x * pt.unit_px + offset2.0 + dist.0 + tx,
                         y: pt.oy + v.y * pt.unit_px + offset2.1 + dist.1 + ty,
-                        v: [if v.round { 1.0 } else { 0.0 }, ny, v.linesofar, v.uv_x],
+                        v: [if v.round { 1.0 } else { 0.0 }, ny, v.linesofar],
                     }
                 })
                 .collect();
@@ -800,15 +747,6 @@ fn draw_line_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[Plac
                             let s = img.sample_atlas_pattern((img.w as f64 + 2.0) * xb, (img.h as f64 + 2.0) * yb);
                             let m = alpha * op / 255.0;
                             fb.blend(x, y, [(s[0] * m) as f32, (s[1] * m) as f32, (s[2] * m) as f32, (s[3] * m) as f32]);
-                        } else if let Some(ramp) = &ramp {
-                            // line_gradient.fragment.glsl: texture(u_image, v_uv) * alpha * opacity.
-                            let s = if step_gradient {
-                                super::heatmap::sample_ramp_nearest(ramp, var[3] as f32)
-                            } else {
-                                super::heatmap::sample_ramp(ramp, var[3] as f32)
-                            };
-                            let m = (alpha * op) as f32;
-                            fb.blend(x, y, [s[0] * m, s[1] * m, s[2] * m, s[3] * m]);
                         } else {
                             fb.blend(x, y, scaled(c, alpha));
                         }
@@ -1320,101 +1258,6 @@ fn draw_raster_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, rt: &RasterT
     }
 }
 
-// ── Heatmap ──────────────────────────────────────────────────────────────────
-
-/// A heatmap layer (draw_heatmap.ts, flat map):
-/// 1. heatmap.vertex/fragment.glsl: every point (every vertex of the
-///    feature's geometry, inside its tile) adds a Gaussian kernel
-///    `weight · intensity · e^(-4.5 d² / r²) / √(2π)` over a square of half
-///    size `S · r` (where the kernel falls to 1/4080) to a half-float texture
-///    a quarter of the canvas size, blended additively;
-/// 2. heatmap_texture.fragment.glsl: the density texture sampled LINEAR at
-///    each canvas pixel, mapped through the 256-texel `heatmap-color` ramp
-///    and multiplied by `heatmap-opacity`.
-fn draw_heatmap_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile], dpr: f64) {
-    use super::heatmap::{color_ramp, default_heatmap_color, sample_ramp, to_f16};
-    const ZERO: f32 = 1.0 / 255.0 / 16.0;
-    const GAUSS_COEF: f32 = 0.398_942_3;
-    let p = &layer["paint"];
-    let ctx0 = Ctx { zoom, feature: None };
-    let opacity = Prop::new(p.get("heatmap-opacity"), Kind::Number, zoom).num(&ctx0, 1.0);
-    if opacity == 0.0 {
-        return;
-    }
-    let intensity = Prop::new(p.get("heatmap-intensity"), Kind::Number, zoom).num(&ctx0, 1.0) as f32;
-    let weight = Prop::new(p.get("heatmap-weight"), Kind::Number, zoom);
-    let radius = Prop::new(p.get("heatmap-radius"), Kind::Number, zoom);
-    let color_expr = p.get("heatmap-color").filter(|j| !j.is_null()).cloned().unwrap_or_else(default_heatmap_color);
-    let ramp = color_ramp(&color_expr, "heatmap-density", zoom);
-
-    // The kernel texture: painter.width / 4 × painter.height / 4 (truncated).
-    let (w4, h4) = (fb.w / 4, fb.h / 4);
-    if w4 == 0 || h4 == 0 {
-        return;
-    }
-    let (sx, sy) = (fb.w as f64 / w4 as f64, fb.h as f64 / h4 as f64);
-    let mut density = vec![0f32; w4 * h4];
-    for pt in placed.iter().rev() {
-        for (f, scale) in features(layer, pt, zoom) {
-            let ctx = Ctx { zoom, feature: Some(f) };
-            let w = weight.num(&ctx, 1.0) as f32;
-            let r = radius.num(&ctx, 30.0) * dpr;
-            let s = (-2.0 * (ZERO / w / intensity / GAUSS_COEF).ln()).sqrt() / 3.0;
-            if !s.is_finite() || r <= 0.0 {
-                continue;
-            }
-            let k = w * intensity * GAUSS_COEF;
-            let half = s as f64 * r;
-            let mut points: Vec<(f32, f32)> = Vec::new();
-            match &f.geometry {
-                Geometry::Points(ps) => points.extend(ps.iter().copied()),
-                Geometry::Lines(ls) => ls.iter().for_each(|l| points.extend(l.iter().copied())),
-                Geometry::Polygons(polys) => polys.iter().flatten().for_each(|r| points.extend(r.iter().copied())),
-            }
-            for q in points {
-                let (x, y) = to_extent(q, scale);
-                if x < 0.0 || x >= EXTENT || y < 0.0 || y >= EXTENT {
-                    continue;
-                }
-                let (cx, cy) = (pt.ox + x * pt.unit_px, pt.oy + y * pt.unit_px);
-                // Texels whose centres fall inside the quad.
-                let i0 = ((cx - half) / sx - 0.5).ceil().max(0.0) as usize;
-                let i1 = (((cx + half) / sx - 0.5).ceil().max(0.0) as usize).min(w4);
-                let j0 = ((cy - half) / sy - 0.5).ceil().max(0.0) as usize;
-                let j1 = (((cy + half) / sy - 0.5).ceil().max(0.0) as usize).min(h4);
-                for j in j0..j1 {
-                    let vy = (((j as f64 + 0.5) * sy - cy) / r) as f32;
-                    for i in i0..i1 {
-                        let vx = (((i as f64 + 0.5) * sx - cx) / r) as f32;
-                        let val = k * (-0.5 * 9.0 * (vx * vx + vy * vy)).exp();
-                        let d = &mut density[j * w4 + i];
-                        *d = to_f16(*d + val);
-                    }
-                }
-            }
-        }
-    }
-
-    // Colorize: LINEAR sampling of the density texture across the canvas.
-    let op = opacity as f32;
-    for py in 0..fb.h {
-        let t = ((py as f64 + 0.5) / fb.h as f64 * h4 as f64 - 0.5).clamp(0.0, (h4 - 1) as f64);
-        let (j0, fy) = (t.floor() as usize, (t - t.floor()) as f32);
-        let j1 = (j0 + 1).min(h4 - 1);
-        for px in 0..fb.w {
-            let s = ((px as f64 + 0.5) / fb.w as f64 * w4 as f64 - 0.5).clamp(0.0, (w4 - 1) as f64);
-            let (i0, fx) = (s.floor() as usize, (s - s.floor()) as f32);
-            let i1 = (i0 + 1).min(w4 - 1);
-            let d = |i: usize, j: usize| density[j * w4 + i];
-            let v = (d(i0, j0) * (1.0 - fx) + d(i1, j0) * fx) * (1.0 - fy) + (d(i0, j1) * (1.0 - fx) + d(i1, j1) * fx) * fy;
-            let c = sample_ramp(&ramp, v);
-            if c[3] > 0.0 || c[0] > 0.0 || c[1] > 0.0 || c[2] > 0.0 {
-                fb.blend(px, py, [c[0] * op, c[1] * op, c[2] * op, c[3] * op]);
-            }
-        }
-    }
-}
-
 // ── Circle ───────────────────────────────────────────────────────────────────
 
 fn draw_circle_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, placed: &[PlacedTile], dpr: f64) {
@@ -1560,8 +1403,8 @@ pub fn render_svg(
                 }
             }
             "fill" => svg_fill(&mut out, &mut defs, layer, zoom, layer_tiles(&placed, layer), &layer_clip(layer), assets, &mut pattern_ids),
-            "line" if ["line-pattern", "line-gradient"].iter().any(|k| layer["paint"].get(*k).map_or(false, |v| !v.is_null())) => {
-                // Patterned and gradient lines stay raster: the layer drawn alone, embedded.
+            "line" if layer["paint"].get("line-pattern").map_or(false, |v| !v.is_null()) => {
+                // Patterned lines stay raster: the layer drawn alone, embedded.
                 let mut lfb = Framebuffer::new(width as usize, height as usize);
                 draw_line_layer(&mut lfb, layer, zoom, layer_tiles(&placed, layer), 1.0, assets);
                 if lfb.px.iter().any(|p| p[3] > 0 || p[0] > 0 || p[1] > 0 || p[2] > 0) {
@@ -1598,15 +1441,6 @@ pub fn render_svg(
                             svg::png_data_uri(width, height, img.as_raw())
                         );
                     }
-                }
-            }
-            "heatmap" => {
-                // The colored density stays raster: the layer drawn alone, embedded.
-                let mut lfb = Framebuffer::new(width as usize, height as usize);
-                draw_heatmap_layer(&mut lfb, layer, zoom, layer_tiles(&placed, layer), 1.0);
-                if lfb.px.iter().any(|p| p[3] > 0 || p[0] > 0 || p[1] > 0 || p[2] > 0) {
-                    let px = lfb.into_straight_rgba();
-                    let _ = write!(out, r#"<image width="{width}" height="{height}" href="{}"/>"#, svg::png_data_uri(width, height, &px));
                 }
             }
             "hillshade" => {

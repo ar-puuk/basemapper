@@ -80,9 +80,15 @@ measuring against MapLibre and investigating the difference.
   `NEAREST` or `LINEAR` under the same conditions; SDF icons through the text
   shader.
 
-### Not supported yet
+### Not supported
 
-3D terrain. Unsupported layer types are skipped with a warning.
+basemapper renders basemaps, so style features meant for data
+visualisation or interactive 3D are left out: `heatmap` layers (skipped with
+a warning, like other unsupported layer types), `line-gradient` (lines draw
+with `line-color`), GeoJSON `cluster` and `lineMetrics` (clustering is
+ignored with a warning), and 3D `terrain` (ignored with a warning; with the
+straight-down camera MapLibre's terrain only resamples and displaces the
+map). Overlay such data with the R or Python plotting tools instead.
 
 ### Vertical text
 
@@ -161,17 +167,7 @@ maps onto the image plus its 1 px atlas padding (wrapped edges, transparent
 beyond), sampled `LINEAR`. Pattern names can be data-driven. In SVG,
 patterned line layers are embedded as images.
 
-### Heatmap
-
-`heatmap` layers follow draw_heatmap.ts on a flat map. Every point (every
-vertex of a feature's geometry inside its tile) adds a Gaussian kernel,
-`weight · intensity · e^(-4.5 d² / r²) / √(2π)`, over a square where it
-falls to 1/4080. Kernels are summed additively into a half-float texture a
-quarter of the canvas size (truncated), rounding each sum to half precision.
-The texture is then sampled `LINEAR` at every canvas pixel and mapped through
-`heatmap-color`, rendered as a 256-texel ramp (`["heatmap-density"]` from 0
-to 1, stored unpremultiplied, premultiplied on upload), and multiplied by
-`heatmap-opacity`. In SVG, a heatmap layer is embedded as an image.
+### Colour interpolation
 
 Colour interpolation (`interpolate`, legacy functions) works on straight,
 unpremultiplied channels, as the style-spec `Color.interpolate` does.
@@ -198,42 +194,7 @@ of geojson-vt with MapLibre's options (`buffer`, `tolerance`, `maxzoom`, extent
 to the tile plus buffer, simplification, ring rewinding and rounding. Tiles
 are encoded as vector tiles with the layer `_geojsonTileLayer`, which style
 layers without a `source-layer` read, so filters, expressions and numeric
-feature ids behave as with vector tiles. `lineMetrics: true` follows
-geojson-vt: multi-lines are split into one feature per line, clipping tracks
-where each slice starts and ends along the whole line, and every line feature
-carries `geojsonvt_clip_start` / `geojsonvt_clip_end` as fractions of it.
-
-`cluster: true` clusters the source's Point features with a port of the
-supercluster index bundled in MapLibre GL JS 5.24 (MultiPoints and other
-geometries are dropped, as there). Options are MapLibre's: `clusterRadius`
-(default 50 px, times 8192 / 512 in tile units), `clusterMaxZoom` (rounded;
-default the source's `maxzoom` - 1), `clusterMinPoints` (at least 2). From the
-cluster max zoom down, each point not yet taken gathers the untaken points
-within `radius / (8192 · 2^z)` of it in a Float32 KDBush tree; with enough
-points they become a cluster at their weighted centre, and the next zoom
-clusters those. The processing order, tree layout and Float32 rounding follow
-the JavaScript, so clusters, their centres and the order features reach symbol
-placement match. Clusters carry `cluster`, `cluster_id`, `point_count` and
-`point_count_abbreviated` (`1.2k`, `15k`); `clusterProperties` aggregate with
-their map expressions and reduce operators or expressions (`["accumulated"]`).
-
-### Line gradients
-
-`line-gradient` follows line_gradient.fragment.glsl. Each tiled line gets its
-own ramp row (renderColorRamp with clips): texel `i` of `n` is the gradient
-at `start + (end - start) · i / (n - 1)` of `["line-progress"]`, stored
-unpremultiplied and rounded, then premultiplied. Along the line, the texture
-coordinate is the vertex's distance over the slice's length (Float32),
-sampled `LINEAR`, or `NEAREST` with a texture of
-`clamp(nextPowerOfTwo(longest line / 8192 · 1024), 256, 16384)` texels when the
-gradient is a top-level `step` (MapLibre's stepInterpolant). The texel is
-multiplied by antialiasing and opacity, replacing `line-color`. Lines without
-clips (sources without `lineMetrics`) are not drawn; MapLibre rejects such
-layers. With clips, `linesofar` is the position along the whole line scaled
-to `[0, 2^15)`, which phases dashes. Gradient lines with `line-dasharray`
-(line_gradient_sdf) use an SDF edge of `(atlas width / 256) / dash width /
-floorwidth`, without the pixel ratio. In SVG, gradient line layers are
-embedded as images.
+feature ids behave as with vector tiles.
 
 ### Styles with several sources
 

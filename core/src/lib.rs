@@ -723,6 +723,11 @@ async fn fetch_vector_inputs(
 ) -> Result<(serde_json::Value, vector::render::SourceTiles, vector::symbol::SymbolAssets, u8), BasemapError> {
     let style_val: serde_json::Value =
         serde_json::from_str(style_json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
+    // 3D terrain is out of scope for flat basemaps (with a straight-down
+    // camera MapLibre's terrain only resamples and displaces the map).
+    if style_val.get("terrain").is_some_and(|t| !t.is_null()) {
+        log::warn!("style terrain is not supported; the map is drawn flat");
+    }
     let sz = vector::render::scale_zoom(bbox, width);
     let vector_tz = |maxzoom: Option<u8>, minzoom: u8| -> Option<u8> {
         let tz = match request.zoom {
@@ -752,6 +757,9 @@ async fn fetch_vector_inputs(
         let src = &style_val["sources"][&id];
         let kind = src["type"].as_str().unwrap_or("");
         if kind == "geojson" {
+            if src["cluster"].as_bool() == Some(true) {
+                log::warn!("source {id}: GeoJSON clustering is not supported; drawing unclustered features");
+            }
             let data = match &src["data"] {
                 serde_json::Value::String(url) => {
                     let url = resolve_url(url, style_base_url_of(request));
@@ -770,7 +778,7 @@ async fn fetch_vector_inputs(
                 other => other.clone(),
             };
             let opts = vector::geojson::GeoJsonOptions::from_source(src);
-            let index = vector::geojson::GeoJsonIndex::new(&data, opts.clone());
+            let index = vector::geojson::GeoJsonIndex::new(&data, opts);
             let tz = match vector_tz(Some(opts.max_zoom), 0) {
                 Some(z) => z,
                 None => continue,
