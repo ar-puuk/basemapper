@@ -29,6 +29,9 @@ const mlDist = dirname(require.resolve('maplibre-gl/dist/maplibre-gl.js'));
 // The UMD build (global `pmtiles`); not in the package's exports map.
 const pmtilesJs = join(here, 'node_modules/pmtiles/dist/pmtiles.js');
 const outputRoot = join(here, '../../target/golden-output');
+// MapLibre's documented RTL text plugin; basemapper draws right-to-left text
+// as MapLibre does with it loaded (Arabic shaping, bidi reordering).
+const rtlPluginJs = join(here, 'node_modules/@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js');
 
 const PAGE = `<!doctype html><html><head>
 <link rel="stylesheet" href="http://assets.local/maplibre-gl.css">
@@ -131,6 +134,8 @@ async function renderCase(browser, name) {
     const f = new URL(route.request().url()).pathname.slice(1);
     if (f === 'index.html') {
       route.fulfill({ status: 200, contentType: 'text/html', body: PAGE });
+    } else if (f === 'mapbox-gl-rtl-text.js') {
+      route.fulfill({ status: 200, contentType: 'text/javascript', body: readFileSync(rtlPluginJs) });
     } else if (f === 'pmtiles.js') {
       route.fulfill({ status: 200, contentType: 'text/javascript', body: readFileSync(pmtilesJs) });
     } else {
@@ -143,6 +148,7 @@ async function renderCase(browser, name) {
     ({ style, center, zoom, pixelRatio }) =>
       new Promise((resolve, reject) => {
         maplibregl.addProtocol('pmtiles', new pmtiles.Protocol().tile);
+        maplibregl.setRTLTextPlugin('http://assets.local/mapbox-gl-rtl-text.js', false).then(() => {
         const map = new maplibregl.Map({
           container: 'map',
           style,
@@ -166,6 +172,7 @@ async function renderCase(browser, name) {
           console.log(`stats: zoom=${map.getZoom()} layers=${layers} renderedFeatures=${rendered}`);
           resolve(map.getCanvas().toDataURL('image/png'));
         });
+        }, reject);
         setTimeout(() => reject(new Error('timed out waiting for idle')), 60000);
       }),
     { style, center, zoom, pixelRatio },

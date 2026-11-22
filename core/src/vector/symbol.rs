@@ -232,11 +232,13 @@ pub fn feature_text(layer: &Json, f: &Feature, zoom: f64) -> Option<String> {
         .get("text-transform")
         .map(|j| eval_property(j, Kind::Enum, &ctx))
         .and_then(|v| v.as_str().map(str::to_owned));
-    Some(match transform.as_deref() {
+    let text = match transform.as_deref() {
         Some("uppercase") => text.to_uppercase(),
         Some("lowercase") => text.to_lowercase(),
         _ => text,
-    })
+    };
+    // transformText: Arabic shaping (the RTL text plugin's applyArabicShaping).
+    Some(super::rtl::apply_arabic_shaping(&text))
 }
 
 /// The comma-joined font stack of a symbol layer for a feature.
@@ -445,15 +447,9 @@ fn shape_text(
 ) -> Option<Shaping> {
     let chars: Vec<char> = text.chars().collect();
     let breaks = determine_line_breaks(&chars, spacing, max_width, glyphs);
-    let mut lines: Vec<&[char]> = Vec::new();
-    let mut start = 0;
-    for &b in &breaks {
-        lines.push(&chars[start..b]);
-        start = b;
-    }
-    if start < chars.len() {
-        lines.push(&chars[start..]);
-    }
+    // Lines broken on the logical text, each reordered for display
+    // (the RTL text plugin's processBidirectionalText).
+    let lines: Vec<Vec<char>> = super::rtl::process_bidi(&chars, &breaks);
 
     let justify_f = match justify {
         "right" => 1.0,
@@ -2823,6 +2819,11 @@ pub fn svg_layer(
                             svg::num(2.0 * t.style.halo_width)
                         );
                     }
+                }
+                // Glyphs are already in visual order (and Arabic in its
+                // presentation forms): viewers must not reorder them again.
+                if text.chars().any(super::rtl::is_rtl_char) {
+                    paint_attrs.push_str(r#" direction="ltr" unicode-bidi="bidi-override""#);
                 }
                 let _ = write!(
                     out,

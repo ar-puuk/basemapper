@@ -1,0 +1,17 @@
+{
+  "note": "Synthetic: right-to-left labels at pixel ratio 2 and a fractional zoom.",
+  "bbox": [
+    -12470599.217968047,
+    4964840.93839791,
+    -12440476.431750715,
+    4989170.881111911
+  ],
+  "width": 520,
+  "height": 420,
+  "zoom": 10.4,
+  "attribution": "Synthetic labels; Noto Sans (OFL) glyphs from OpenFreeMap",
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.012,
+  "fonts_from": "synthetic_rtl_z10",
+  "pixel_ratio": 2
+}

@@ -82,8 +82,32 @@ measuring against MapLibre and investigating the difference.
 
 ### Not supported yet
 
-3D terrain, vertical text, and right-to-left scripts. Unsupported layer types are skipped
-with a warning.
+3D terrain and vertical text. Unsupported layer types are skipped with a
+warning.
+
+### Right-to-left text
+
+Labels are drawn as MapLibre draws them with its documented RTL text plugin
+(`@mapbox/mapbox-gl-rtl-text` 0.3.0, ICU compiled to WebAssembly) loaded, so
+Arabic, Persian, Urdu and Hebrew read correctly; the references are rendered
+with the plugin. After `text-transform`, every label goes through ICU's Arabic
+shaping (`u_shapeArabic`, letters shaped, logical order), ported in
+`core/src/vector/rtl.rs` with ICU's tables: letters take their isolated,
+initial, medial or final presentation forms from their neighbours' joining
+types, tashkeel take their own forms, and lam + alef become one ligature (the
+text shrinks). Glyphs are then requested for the shaped text. Line breaks are
+chosen on the logical text; each line is reordered for display by the
+Unicode Bidirectional Algorithm (`unicode-bidi`, with bracket pairs) at a
+default left-to-right paragraph level, as ICU `ubidi` does: right-to-left runs
+are reversed with mirrored brackets, trailing whitespace takes the paragraph
+level, bidi controls (ZWNJ, ZWJ, LRM, RLM, embeddings, isolates) are removed,
+and a paragraph separator in the text starts a new paragraph and line. A
+cross-check against the plugin itself over 2,000 random mixed-script strings
+matched the shaping exactly and the line order in all but one: ICU resolves
+two numbers separated by a neutral at the start of a right-to-left paragraph
+that follows a left-to-right one (`"x\n8 0 ب"`) as if left to right. In
+SVG output, labels are written in visual order with
+`unicode-bidi="bidi-override"` so viewers do not reorder them again.
 
 ### Hillshade
 

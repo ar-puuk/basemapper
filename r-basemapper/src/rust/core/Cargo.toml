@@ -9,6 +9,8 @@ lru         = "0.12"
 # In-house CPU vector renderer (core/src/vector/).
 flate2      = "1"
 csscolorparser = "0.7"
+# Right-to-left labels: UAX #9 reordering (as the RTL text plugin's ICU ubidi).
+unicode-bidi = "0.3"
 # SVG text: font lookup and subsetting for embedded fonts.
 ttf-parser  = "0.25"
 allsorts    = { version = "0.17", default-features = false, features = ["flate2_rust"] }

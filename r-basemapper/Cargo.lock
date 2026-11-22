@@ -202,6 +202,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "ttf-parser",
+ "unicode-bidi",
 ]
 
 [[package]]
