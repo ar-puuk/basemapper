@@ -33,7 +33,9 @@ const outputRoot = join(here, '../../target/golden-output');
 // as MapLibre does with it loaded (Arabic shaping, bidi reordering).
 const rtlPluginJs = join(here, 'node_modules/@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js');
 
-const PAGE = `<!doctype html><html><head>
+// UTF-8 throughout: maplibre-gl.js holds non-ASCII literals (the vertical
+// punctuation map), which a page without a charset decodes as windows-1252.
+const PAGE = `<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="http://assets.local/maplibre-gl.css">
 <script src="http://assets.local/maplibre-gl.js"></script>
 <script src="http://assets.local/pmtiles.js"></script>
@@ -133,13 +135,14 @@ async function renderCase(browser, name) {
   await page.route('http://assets.local/**', (route) => {
     const f = new URL(route.request().url()).pathname.slice(1);
     if (f === 'index.html') {
-      route.fulfill({ status: 200, contentType: 'text/html', body: PAGE });
+      route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: PAGE });
     } else if (f === 'mapbox-gl-rtl-text.js') {
-      route.fulfill({ status: 200, contentType: 'text/javascript', body: readFileSync(rtlPluginJs) });
+      route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: readFileSync(rtlPluginJs) });
     } else if (f === 'pmtiles.js') {
-      route.fulfill({ status: 200, contentType: 'text/javascript', body: readFileSync(pmtilesJs) });
+      route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: readFileSync(pmtilesJs) });
     } else {
-      route.fulfill({ status: 200, body: readFileSync(join(mlDist, f)) });
+      const type = f.endsWith('.js') ? 'text/javascript; charset=utf-8' : f.endsWith('.css') ? 'text/css; charset=utf-8' : undefined;
+      route.fulfill({ status: 200, contentType: type, body: readFileSync(join(mlDist, f)) });
     }
   });
   await page.goto('http://assets.local/index.html');
@@ -159,6 +162,9 @@ async function renderCase(browser, name) {
           fadeDuration: 0,
           // case.json pixel_ratio (default 1): drawing buffer = size * ratio.
           pixelRatio,
+          // CJK from the style's glyphs (as basemapper draws it), not a
+          // browser font rendered locally (the default 'sans-serif').
+          localIdeographFontFamily: false,
           // MapLibre defaults (no MSAA); preserveDrawingBuffer only so the
           // canvas can be read back.
           canvasContextAttributes: { preserveDrawingBuffer: true },

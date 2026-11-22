@@ -82,8 +82,32 @@ measuring against MapLibre and investigating the difference.
 
 ### Not supported yet
 
-3D terrain and vertical text. Unsupported layer types are skipped with a
-warning.
+3D terrain. Unsupported layer types are skipped with a warning.
+
+### Vertical text
+
+Text with characters of upright vertical orientation (CJK ideographs, kana,
+Hangul and others; MapLibre's generated Unicode tables, reproduced in
+`core/src/vector/vertical.rs`) also gets a vertical shaping, as in
+symbol_layout.ts: punctuation between upright characters takes its vertical
+presentation form, and upright glyphs advance one em and are turned 90°
+counter-clockwise about their em box (getGlyphQuads).
+
+- Point labels in a layer whose `text-writing-mode` includes `vertical` are
+  shaped both ways (the vertical one left-justified, with every glyph but
+  whitespace and Arabic upright) and placed in the listed order: the first
+  writing mode whose collision box fits wins. The vertical label is drawn
+  turned 90° clockwise about its anchor and collides with its box turned the
+  same way. Not combined with `text-variable-anchor` or `icon-text-fit`
+  yet (those labels stay horizontal).
+- Line labels (kept upright, along the line) switch to their vertical
+  shaping when the projected first and last glyph rise more than they run
+  (updateLineLabels); the vertical version flips when its first glyph is
+  below its last. Collisions use the horizontal version, as in MapLibre.
+
+The references render CJK from the style's glyphs (`localIdeographFontFamily:
+false`), as basemapper does; MapLibre's default draws ideographs with a local
+browser font instead.
 
 ### Right-to-left text
 

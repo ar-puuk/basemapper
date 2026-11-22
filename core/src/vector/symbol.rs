@@ -23,7 +23,10 @@
 //!   spacing and max angle; collision circles; glyphs placed along the
 //!   projected line with keep-upright flipping.
 //!
-//! Not yet: variable anchors, icon-text-fit, vertical text.
+//! - Vertical text (`vertical.rs`): point labels with `text-writing-mode`
+//!   vertical (upright glyphs, the label turned 90°, tried in the layer's
+//!   writing-mode order) and line labels whose line runs vertically
+//!   (updateLineLabels switches to the vertical shaping).
 
 use super::expr::{eval_filter, eval_property, is_data_driven, Color, Ctx, Kind, Val};
 use super::gl::{raster_triangle, smoothstep, Clip, Framebuffer, Vert, EXTENT};
@@ -270,6 +273,13 @@ pub fn required_glyph_ranges<'a>(
             continue;
         }
         let sl = super::mvt::source_layer(layer);
+        // calculateGlyphDependencies: text that can be written vertically
+        // also needs its punctuation's vertical forms (along lines, or with
+        // vertical point placement).
+        let layout = &layer["layout"];
+        let placement = super::expr::layout_enum(layout, "symbol-placement", zoom).unwrap_or_else(|| "point".into());
+        let along = placement != "point" && super::expr::layout_enum(layout, "text-rotation-alignment", zoom).as_deref() != Some("viewport");
+        let vertical_possible = along || (placement == "point" && writing_modes(layout).contains(&true));
         for t in tiles.clone() {
             let Some(l) = t.layers.get(sl) else { continue };
             for f in &l.features {
@@ -279,12 +289,36 @@ pub fn required_glyph_ranges<'a>(
                 }
                 if let Some(text) = feature_text(layer, f, zoom) {
                     let stack = feature_fontstack(layer, Some(f), zoom);
+                    let vertical = vertical_possible && super::vertical::allows_vertical_writing_mode(&text);
                     for ch in text.chars() {
                         out.insert((stack.clone(), (ch as u32 / 256) * 256));
+                        if let Some(v) = super::vertical::verticalized(ch).filter(|_| vertical) {
+                            out.insert((stack.clone(), (v as u32 / 256) * 256));
+                        }
                     }
                 }
             }
         }
+    }
+    out
+}
+
+/// text-writing-mode of a point-placed layer, duplicates removed (true =
+/// vertical); `["horizontal"]` when unset.
+fn writing_modes(layout: &Json) -> Vec<bool> {
+    let mut out: Vec<bool> = Vec::new();
+    for m in layout["text-writing-mode"].as_array().map(|v| v.as_slice()).unwrap_or(&[]) {
+        let v = match m.as_str() {
+            Some("vertical") => true,
+            Some("horizontal") => false,
+            _ => continue,
+        };
+        if !out.contains(&v) {
+            out.push(v);
+        }
+    }
+    if out.is_empty() {
+        out.push(false);
     }
     out
 }
@@ -302,6 +336,8 @@ struct PositionedGlyph {
     codepoint: u32,
     x: f64,
     y: f64,
+    /// Upright in a vertical shaping (isLineVertical).
+    vertical: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -321,16 +357,9 @@ fn breakable(cp: u32) -> bool {
     matches!(cp, 0x0a | 0x20 | 0x26 | 0x29 | 0x2b | 0x2d | 0x2f | 0xad | 0xb7 | 0x200b | 0x2010 | 0x2013 | 0x2027)
 }
 
-/// Rough port of codePointAllowsIdeographicBreaking (CJK and related blocks).
+/// codePointAllowsIdeographicBreaking.
 fn allows_ideographic_breaking(cp: u32) -> bool {
-    if cp < 0x2E80 {
-        return false;
-    }
-    matches!(cp,
-        0x2E80..=0x2FDF | 0x2FF0..=0x303F | 0x3040..=0x309F | 0x30A0..=0x30FF | 0x3100..=0x312F
-        | 0x3130..=0x318F | 0x3190..=0x31BF | 0x31C0..=0x31EF | 0x31F0..=0x31FF | 0x3200..=0x32FF
-        | 0x3300..=0x33FF | 0x3400..=0x4DBF | 0x4E00..=0x9FFF | 0xA000..=0xA4CF | 0xF900..=0xFAFF
-        | 0xFE10..=0xFE1F | 0xFE30..=0xFE4F | 0xFF00..=0xFFEF)
+    super::vertical::ideographic_breaking(cp)
 }
 
 struct Break {
@@ -444,8 +473,13 @@ fn shape_text(
     justify: &str,
     spacing: f64,
     translate: (f64, f64),
+    vertical_mode: bool,
+    allow_vertical_placement: bool,
 ) -> Option<Shaping> {
-    let chars: Vec<char> = text.chars().collect();
+    let mut chars: Vec<char> = text.chars().collect();
+    if vertical_mode {
+        chars = super::vertical::verticalize_punctuation(&chars);
+    }
     let breaks = determine_line_breaks(&chars, spacing, max_width, glyphs);
     // Lines broken on the logical text, each reordered for display
     // (the RTL text plugin's processBidirectionalText).
@@ -470,8 +504,10 @@ fn shape_text(
         for &c in line {
             let cp = c as u32;
             let Some(g) = glyphs.get(&cp) else { continue };
-            pg.push(PositionedGlyph { codepoint: cp, x, y: y + SHAPING_DEFAULT_OFFSET });
-            x += g.advance + spacing;
+            // Upright glyphs of a vertical shaping advance one em.
+            let vertical = vertical_mode && super::vertical::glyph_is_vertical(cp, allow_vertical_placement);
+            pg.push(PositionedGlyph { codepoint: cp, x, y: y + SHAPING_DEFAULT_OFFSET, vertical });
+            x += if vertical { ONE_EM } else { g.advance } + spacing;
         }
         if !pg.is_empty() {
             let line_length = x - spacing;
@@ -526,7 +562,24 @@ fn js_round(x: f64) -> f64 {
     (x + 0.5).floor()
 }
 
-fn glyph_quads(shaping: &Shaping, glyphs: &HashMap<u32, Glyph>, offset: (f64, f64), rotate_deg: f64) -> Vec<GlyphQuad> {
+/// getGlyphQuads' rotation of an upright glyph in a vertical shaping: 90°
+/// counter-clockwise about the left-edge centre of its em box, then the
+/// half-width correction and `then` (the label offset it was laid out at).
+fn rotate_vertical_glyph(corners: &mut [(f64, f64); 4], half_advance: f64, then: (f64, f64)) {
+    let center = (-half_advance, half_advance - SHAPING_DEFAULT_OFFSET);
+    let (cos, sin) = ((-std::f64::consts::FRAC_PI_2).cos(), (-std::f64::consts::FRAC_PI_2).sin());
+    let x_half_width_correction = ONE_EM / 2.0 - half_advance;
+    let correction = (5.0 - SHAPING_DEFAULT_OFFSET - x_half_width_correction, 0.0);
+    for p in corners.iter_mut() {
+        let (dx, dy) = (p.0 - center.0, p.1 - center.1);
+        let r = (center.0 + cos * dx - sin * dy, center.1 + sin * dx + cos * dy);
+        *p = (r.0 + correction.0 + then.0, r.1 + correction.1 + then.1);
+    }
+}
+
+/// Point-label glyph quads; `allow_vertical` (vertical point placement)
+/// rotates the upright glyphs of a vertical shaping.
+fn glyph_quads(shaping: &Shaping, glyphs: &HashMap<u32, Glyph>, offset: (f64, f64), rotate_deg: f64, allow_vertical: bool) -> Vec<GlyphQuad> {
     let rect_buffer = GLYPH_PBF_BORDER + ATLAS_PADDING as f64;
     let (s, c) = (rotate_deg.to_radians().sin(), rotate_deg.to_radians().cos());
     let mut quads = Vec::new();
@@ -534,13 +587,21 @@ fn glyph_quads(shaping: &Shaping, glyphs: &HashMap<u32, Glyph>, offset: (f64, f6
         for pg in line {
             let g = &glyphs[&pg.codepoint];
             let half_advance = g.advance / 2.0;
-            let bx = pg.x + half_advance + offset.0;
-            let by = pg.y + offset.1;
-            let x1 = (g.left - rect_buffer) - half_advance + bx;
-            let y1 = (-g.top - rect_buffer) + by;
+            let mut built_in = (pg.x + half_advance + offset.0, pg.y + offset.1);
+            let rotate_vertical = allow_vertical && pg.vertical;
+            let mut verticalized_offset = (0.0, 0.0);
+            if rotate_vertical {
+                verticalized_offset = built_in;
+                built_in = (0.0, 0.0);
+            }
+            let x1 = (g.left - rect_buffer) - half_advance + built_in.0;
+            let y1 = (-g.top - rect_buffer) + built_in.1;
             let x2 = x1 + g.rect_w as f64;
             let y2 = y1 + g.rect_h as f64;
             let mut corners = [(x1, y1), (x2, y1), (x1, y2), (x2, y2)];
+            if rotate_vertical {
+                rotate_vertical_glyph(&mut corners, half_advance, verticalized_offset);
+            }
             if rotate_deg != 0.0 {
                 for p in &mut corners {
                     *p = (c * p.0 - s * p.1, s * p.0 + c * p.1);
@@ -980,6 +1041,8 @@ struct AlongLine {
     rotate_to_line: bool,
     /// Font scale used for placement along the line (size / 24).
     placement_scale: f64,
+    /// The label's vertical shaping (text with upright characters).
+    vertical: Option<Box<VerticalAlong>>,
 }
 
 #[derive(Clone)]
@@ -1045,6 +1108,9 @@ struct Instance {
     /// Line labels collide with runtime circles along their projected path.
     text_line: Option<TextCircles>,
     icon_box: Option<[f64; 4]>,
+    /// Vertical point text (screen box, text part), tried in the layer's
+    /// text-writing-mode order.
+    vertical: Option<([f64; 4], TextPart)>,
     label: Label,
 }
 
@@ -1247,6 +1313,7 @@ fn build_text(
     tile_zoom: f64,
     tile_pixel_ratio: f64,
     variable_justify: Option<&str>,
+    vertical: bool,
 ) -> Option<(TextPart, [f64; 4], (TextExtents, f64))> {
     let layout = &layer["layout"];
     let paint = &layer["paint"];
@@ -1254,6 +1321,10 @@ fn build_text(
     let lctx = Ctx { zoom: tile_zoom, feature: Some(f) };
     let next_ctx = Ctx { zoom: tile_zoom + 1.0, feature: Some(f) };
     let t = feature_text(layer, f, tile_zoom)?;
+    // A vertical point label only for text with upright characters.
+    if vertical && !super::vertical::allows_vertical_writing_mode(&t) {
+        return None;
+    }
     let stack = feature_fontstack(layer, Some(f), tile_zoom);
     let gmap = assets.glyphs.stacks.get(&stack)?;
     let spacing = num(layout, "text-letter-spacing", &lctx, 0.0) * ONE_EM;
@@ -1280,18 +1351,31 @@ fn build_text(
         let o = num_pair(layout, "text-offset", &lctx);
         (o.0 * ONE_EM, o.1 * ONE_EM)
     };
-    let shaping = shape_text(&t, gmap, max_width, line_height, &anchor, &justify, spacing, text_offset)?;
+    // Vertical point labels: left-justified (addVerticalShapingForPointLabelIfNeeded).
+    if vertical {
+        justify = "left".to_owned();
+    }
+    let shaping = shape_text(&t, gmap, max_width, line_height, &anchor, &justify, spacing, text_offset, vertical, vertical)?;
     let rotate = num(layout, "text-rotate", &lctx, 0.0);
-    let quads = glyph_quads(&shaping, gmap, text_offset, rotate);
+    let mut quads = glyph_quads(&shaping, gmap, text_offset, rotate, vertical);
     if quads.is_empty() {
         return None;
+    }
+    if vertical {
+        // The vertical symbol is drawn turned 90° clockwise about its anchor
+        // (addSymbols' dynamic angle of π/2); exact on the 1/32 grid.
+        for q in &mut quads {
+            for p in &mut q.corners {
+                *p = (-p.1, p.0);
+            }
+        }
     }
     let layout_size = num(layout, "text-size", &next_ctx, 16.0);
     let box_scale = tile_pixel_ratio * layout_size / 24.0;
     let pad = num(layout, "text-padding", &lctx, 2.0) * tile_pixel_ratio;
     let b = rotated_envelope(
         [shaping.left * box_scale - pad, shaping.top * box_scale - pad, shaping.right * box_scale + pad, shaping.bottom * box_scale + pad],
-        rotate,
+        rotate + if vertical { 90.0 } else { 0.0 },
     );
     Some((
         TextPart {
@@ -1486,7 +1570,43 @@ fn build_icon(
 
 /// A line-placed label's text: (part, glyph offsets along the line, shaped
 /// width, collision diameter, text offset, point box).
-type LineText = (TextPart, Vec<f64>, f64, f64, (f64, f64), Option<[f64; 4]>, (TextExtents, f64));
+type LineText = (TextPart, Vec<f64>, f64, f64, (f64, f64), Option<[f64; 4]>, (TextExtents, f64), Option<VerticalAlong>);
+
+/// The vertical shaping of a line label (glyph quads and along-line glyph
+/// offsets), drawn when its line runs vertically.
+#[derive(Clone)]
+struct VerticalAlong {
+    quads: Vec<GlyphQuad>,
+    glyph_offsets: Vec<f64>,
+}
+
+/// Along-line glyph quads (getGlyphQuads with alongLine): corners about the
+/// glyph centre, upright glyphs of a vertical shaping rotated, the glyph's
+/// line y added (addSymbols) before the 1/32 rounding; and the glyph offsets.
+fn along_line_quads(shaping: &Shaping, gmap: &HashMap<u32, Glyph>) -> (Vec<GlyphQuad>, Vec<f64>) {
+    let rect_buffer = GLYPH_PBF_BORDER + ATLAS_PADDING as f64;
+    let mut quads = Vec::new();
+    let mut offsets = Vec::new();
+    for l in &shaping.lines {
+        for pg in l {
+            let g = &gmap[&pg.codepoint];
+            let half = g.advance / 2.0;
+            let x1 = (g.left - rect_buffer) - half;
+            let y1 = -g.top - rect_buffer;
+            let (x2, y2) = (x1 + g.rect_w as f64, y1 + g.rect_h as f64);
+            let mut corners = [(x1, y1), (x2, y1), (x1, y2), (x2, y2)];
+            if pg.vertical {
+                rotate_vertical_glyph(&mut corners, half, (0.0, 0.0));
+            }
+            for c in &mut corners {
+                *c = (js_round(c.0 * 32.0) / 32.0, js_round((pg.y + c.1) * 32.0) / 32.0);
+            }
+            quads.push(GlyphQuad { corners, codepoint: pg.codepoint });
+            offsets.push(pg.x + half);
+        }
+    }
+    (quads, offsets)
+}
 
 /// Shaping for a line label: centred, no line breaks. With `along` (text
 /// rotation alignment `map`), quads carry along-line glyph offsets
@@ -1516,35 +1636,28 @@ fn build_line_text(
     let line_height = num(layout, "text-line-height", &lctx, 1.2) * ONE_EM;
     let o = num_pair(layout, "text-offset", &lctx);
     let text_offset = (o.0 * ONE_EM, o.1 * ONE_EM);
-    let shaping = shape_text(text, gmap, f64::INFINITY, line_height, &anchor, "center", spacing, text_offset)?;
-    let rect_buffer = GLYPH_PBF_BORDER + ATLAS_PADDING as f64;
-    let mut quads = Vec::new();
-    let mut offsets = Vec::new();
-    for l in &shaping.lines {
-        for pg in l {
-            let g = &gmap[&pg.codepoint];
-            let half = g.advance / 2.0;
-            let x1 = (g.left - rect_buffer) - half;
-            let y1 = (-g.top - rect_buffer) + pg.y;
-            let (x2, y2) = (x1 + g.rect_w as f64, y1 + g.rect_h as f64);
-            let mut corners = [(x1, y1), (x2, y1), (x1, y2), (x2, y2)];
-            for c in &mut corners {
-                *c = (js_round(c.0 * 32.0) / 32.0, js_round(c.1 * 32.0) / 32.0);
-            }
-            quads.push(GlyphQuad { corners, codepoint: pg.codepoint });
-            offsets.push(pg.x + half);
-        }
-    }
+    let shaping = shape_text(text, gmap, f64::INFINITY, line_height, &anchor, "center", spacing, text_offset, false, false)?;
+    let (mut quads, offsets) = along_line_quads(&shaping, gmap);
     if quads.is_empty() {
         return None;
     }
+    // Verticalized line label: text with upright characters, drawn along
+    // the line, kept upright.
+    let vertical = if along && layout["text-keep-upright"] != false && super::vertical::allows_vertical_writing_mode(text) {
+        shape_text(text, gmap, f64::INFINITY, line_height, &anchor, "center", spacing, text_offset, true, false)
+            .map(|vs| along_line_quads(&vs, gmap))
+            .filter(|(q, _)| !q.is_empty())
+            .map(|(quads, glyph_offsets)| VerticalAlong { quads, glyph_offsets })
+    } else {
+        None
+    };
     let height = shaping.bottom - shaping.top;
     let layout_size = num(layout, "text-size", &next_ctx, 16.0);
     let diameter = if height > 0.0 { height.max(10.0) * layout_size / ONE_EM } else { -1.0 };
     let mut point_box = None;
     if !along {
         let rotate = num(layout, "text-rotate", &lctx, 0.0);
-        quads = glyph_quads(&shaping, gmap, text_offset, rotate);
+        quads = glyph_quads(&shaping, gmap, text_offset, rotate, false);
         let box_scale = tile_pixel_ratio * layout_size / 24.0;
         let pad = num(layout, "text-padding", &lctx, 2.0) * tile_pixel_ratio;
         point_box = Some(rotated_envelope(
@@ -1567,6 +1680,7 @@ fn build_line_text(
         text_offset,
         point_box,
         ((shaping.left, shaping.right, shaping.top, shaping.bottom), layout_size / ONE_EM),
+        vertical,
     ))
 }
 
@@ -1709,7 +1823,7 @@ fn line_instances(
                     let (cx, cy) = (anchor_px.0 + ttr.0 + VIEWPORT_PADDING, anchor_px.1 + ttr.1 + VIEWPORT_PADDING);
                     [cx + b[0] * r, cy + b[1] * r, cx + b[2] * r, cy + b[3] * r]
                 });
-                let text_part = text.as_ref().map(|(part, offsets, _, diameter, text_offset, point_box, _)| {
+                let text_part = text.as_ref().map(|(part, offsets, _, diameter, text_offset, point_box, _, vertical)| {
                     if point_box.is_some() {
                         return part.clone();
                     }
@@ -1731,6 +1845,7 @@ fn line_instances(
                         keep_upright: layout["text-keep-upright"] != false,
                         rotate_to_line: text_rotate_to_line,
                         placement_scale: font_scale,
+                        vertical: vertical.clone().map(Box::new),
                     });
                     p
                 });
@@ -1750,6 +1865,7 @@ fn line_instances(
                             keep_upright: layout["icon-keep-upright"] == true,
                             rotate_to_line: text_rotate_to_line,
                             placement_scale: p.size / ONE_EM,
+                            vertical: None,
                         });
                     }
                     p
@@ -1761,6 +1877,7 @@ fn line_instances(
                     text_box: point_text_box,
                     text_line,
                     icon_box,
+                    vertical: None,
                     label: Label { anchor_px, text: text_part, icon: icon_part, tile: ti },
                 });
             }
@@ -1800,6 +1917,9 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
         let sl = super::mvt::source_layer(layer);
         let paint = &layer["paint"];
         let sort_key_j = layout.get("symbol-sort-key");
+        // text-writing-mode (point placement): the order writing modes are tried in.
+        let modes = if placement == "point" { writing_modes(layout) } else { vec![false] };
+        let allow_vertical = modes.contains(&true);
         let sort_by_key = super::expr::layout_enum(layout, "symbol-z-order", zoom.floor()).as_deref() != Some("viewport-y")
             && sort_key_j.map_or(false, is_data_driven);
         let overlap = |kind: &str| {
@@ -1868,7 +1988,7 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
                         if by_justify.iter().any(|(k, _)| *k == j) {
                             continue;
                         }
-                        if let Some(t) = build_text(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio, Some(&j)) {
+                        if let Some(t) = build_text(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio, Some(&j), false) {
                             by_justify.push((j, t));
                         }
                     }
@@ -1876,7 +1996,13 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
                 let text = if var_offsets.is_some() {
                     by_justify.first().map(|(_, t)| t.clone())
                 } else if has_text_field {
-                    build_text(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio, None)
+                    build_text(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio, None, false)
+                } else {
+                    None
+                };
+                // Vertical point text (not combined with variable anchors here).
+                let vertical_text = if allow_vertical && var_offsets.is_none() && text.is_some() {
+                    build_text(layer, f, assets, zoom, tile_zoom, tile_pixel_ratio, None, true)
                 } else {
                     None
                 };
@@ -1954,6 +2080,7 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
                         text_line: None,
                         text_box: text.as_ref().map(|t| proj(t.1, ttr)),
                         icon_box: icon.as_ref().map(|i| proj(i.1, itr)),
+                        vertical: vertical_text.as_ref().map(|t| (proj(t.1, ttr), t.0.clone())),
                         label: Label {
                             anchor_px: (px, py),
                             text: text.as_ref().map(|t| t.0.clone()),
@@ -2004,6 +2131,21 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
                     ic.shift = sh;
                 }
                 variant_placed = Some(chosen.is_some());
+            }
+            // placeTextForPlacementModes: the first writing mode whose box fits.
+            if let (Some((vb, vpart)), Some(hb), None) = (inst.vertical.take(), inst.text_box, variant_placed) {
+                let mut fit = None;
+                for &m in &modes {
+                    if placeable(if m { &vb } else { &hb }, text_always, &items) {
+                        fit = Some(m);
+                        break;
+                    }
+                }
+                if fit == Some(true) {
+                    inst.text_box = Some(vb);
+                    inst.label.text = Some(vpart);
+                }
+                variant_placed = Some(fit.is_some());
             }
             let mut place_text = match (&inst.text_box, &inst.text_line) {
                 (Some(_), _) if variant_placed.is_some() => variant_placed.unwrap(),
@@ -2282,6 +2424,28 @@ fn blend_out(fb: &mut Framebuffer, x: usize, y: usize, out: [f64; 4]) {
 /// None when the symbol is hidden.
 fn along_positions(along: Option<&AlongLine>, anchor: (f64, f64), n: usize, w: usize, h: usize) -> Option<Vec<((f64, f64), f64)>> {
     let Some(al) = along else { return Some(vec![(anchor, 0.0); n]) };
+    along_layout(al, anchor, n, w, h, None).map(|(_, p)| p)
+}
+
+/// The quads to draw for a text part and each quad's (origin, angle): its
+/// horizontal quads, or the vertical shaping's when updateLineLabels picks
+/// it for a line running vertically.
+fn text_layout(t: &TextPart, anchor: (f64, f64), w: usize, h: usize) -> Option<(&[GlyphQuad], Vec<((f64, f64), f64)>)> {
+    let Some(al) = &t.along else { return Some((&t.quads, vec![(anchor, 0.0); t.quads.len()])) };
+    let (vertical, pos) = along_layout(al, anchor, t.quads.len(), w, h, al.vertical.as_deref())?;
+    Some((if vertical { &al.vertical.as_ref()?.quads } else { &t.quads }, pos))
+}
+
+/// updateLineLabels for one symbol (and its vertical counterpart): whether
+/// the vertical version is drawn, and the glyph positions.
+fn along_layout(
+    al: &AlongLine,
+    anchor: (f64, f64),
+    n: usize,
+    w: usize,
+    h: usize,
+    vertical: Option<&VerticalAlong>,
+) -> Option<(bool, Vec<((f64, f64), f64)>)> {
     // isVisible: anchor within the clip-space padding.
     let (bx, by) = (256.0 / w as f64 * 2.0 + 1.0, 256.0 / h as f64 * 2.0 + 1.0);
     let (cx, cy) = (anchor.0 / w as f64 * 2.0 - 1.0, 1.0 - anchor.1 / h as f64 * 2.0);
@@ -2289,10 +2453,21 @@ fn along_positions(along: Option<&AlongLine>, anchor: (f64, f64), n: usize, w: u
         return None;
     }
     let pl = ProjectedLine { line: &al.line_px, anchor, segment: al.segment };
-    match line::place_glyphs_for_render(&pl, &al.glyph_offsets, al.placement_scale, al.line_offset, al.keep_upright, al.rotate_to_line) {
+    let mode = if vertical.is_some() { line::WritingMode::Horizontal } else { line::WritingMode::HorizontalOnly };
+    let place = |offsets: &[f64], mode| {
+        line::place_glyphs_for_render(&pl, offsets, al.placement_scale, al.line_offset, al.keep_upright, al.rotate_to_line, mode)
+    };
+    let positions = |g: Vec<line::PlacedGlyph>, n: usize| (g.len() == n).then(|| g.into_iter().map(|p| (p.point, p.angle)).collect());
+    match place(&al.glyph_offsets, mode) {
+        line::GlyphsPlacement::Placed(g) => positions(g, n).map(|p| (false, p)),
+        line::GlyphsPlacement::UseVertical => {
+            let v = vertical?;
+            match place(&v.glyph_offsets, line::WritingMode::Vertical) {
+                line::GlyphsPlacement::Placed(g) => positions(g, v.quads.len()).map(|p| (true, p)),
+                _ => None,
+            }
+        }
         line::GlyphsPlacement::Hidden => None,
-        line::GlyphsPlacement::Placed(g) if g.len() == n => Some(g.into_iter().map(|p| (p.point, p.angle)).collect()),
-        line::GlyphsPlacement::Placed(_) => None,
     }
 }
 
@@ -2314,11 +2489,8 @@ fn draw_text(
     }
     let Some(gmap) = glyphs.stacks.get(&t.fontstack) else { return };
     let font_scale = t.size / 24.0;
-    let positions = match along_positions(t.along.as_ref(), anchor, t.quads.len(), css.0, css.1) {
-        Some(p) => p,
-        None => return,
-    };
-    for (qi, q) in t.quads.iter().enumerate() {
+    let Some((quads, positions)) = text_layout(t, anchor, css.0, css.1) else { return };
+    for (qi, q) in quads.iter().enumerate() {
         let Some(g) = gmap.get(&q.codepoint) else { continue };
         let tex = [(0.0, 0.0), (g.rect_w as f64, 0.0), (0.0, g.rect_h as f64), (g.rect_w as f64, g.rect_h as f64)];
         let (origin, angle) = positions[qi];
@@ -2760,11 +2932,11 @@ pub fn svg_layer(
                 }
                 let Some(gmap) = assets.glyphs.stacks.get(&t.fontstack) else { continue };
                 let fs = t.size / 24.0;
-                let Some(pos) = along_positions(t.along.as_ref(), (l.anchor_px.0 + t.shift.0, l.anchor_px.1 + t.shift.1), t.quads.len(), w, h) else { continue };
+                let Some((quads, pos)) = text_layout(t, (l.anchor_px.0 + t.shift.0, l.anchor_px.1 + t.shift.1), w, h) else { continue };
                 // No exact font for this label: MapLibre's own glyph bitmaps.
-                let label_text: String = t.quads.iter().filter_map(|q| char::from_u32(q.codepoint)).collect();
+                let label_text: String = quads.iter().filter_map(|q| char::from_u32(q.codepoint)).collect();
                 if !fonts.covers(&t.fontstack, &label_text) {
-                    for (qi, q) in t.quads.iter().enumerate() {
+                    for (qi, q) in quads.iter().enumerate() {
                         let Some(g) = gmap.get(&q.codepoint) else { continue };
                         let sq = quad_screen(&q.corners, pos[qi].0, pos[qi].1, fs);
                         bitmaps.glyph(out, defs, prefix, &t.fontstack, q.codepoint, g, sq, fs, &t.style, true, true);
@@ -2776,7 +2948,7 @@ pub fn svg_layer(
                     fonts.baseline_shift(&t.fontstack, &tops)
                 });
                 let (mut xs, mut ys, mut rs, mut text) = (Vec::new(), Vec::new(), Vec::new(), String::new());
-                for (qi, q) in t.quads.iter().enumerate() {
+                for (qi, q) in quads.iter().enumerate() {
                     let (Some(g), Some(ch)) = (gmap.get(&q.codepoint), char::from_u32(q.codepoint)) else { continue };
                     // Baseline origin of the glyph in quad space: the quad's
                     // top-left is (left - buffer, -top - buffer) from it,
@@ -2851,8 +3023,8 @@ pub fn svg_layer(
                     }
                     let Some(gmap) = assets.glyphs.stacks.get(&t.fontstack) else { continue };
                     let fs = t.size / 24.0;
-                    let Some(pos) = along_positions(t.along.as_ref(), (l.anchor_px.0 + t.shift.0, l.anchor_px.1 + t.shift.1), t.quads.len(), w, h) else { continue };
-                    for (qi, q) in t.quads.iter().enumerate() {
+                    let Some((quads, pos)) = text_layout(t, (l.anchor_px.0 + t.shift.0, l.anchor_px.1 + t.shift.1), w, h) else { continue };
+                    for (qi, q) in quads.iter().enumerate() {
                         let Some(g) = gmap.get(&q.codepoint) else { continue };
                         let sq = quad_screen(&q.corners, pos[qi].0, pos[qi].1, fs);
                         bitmaps.glyph(out, defs, prefix, &t.fontstack, q.codepoint, g, sq, fs, &t.style, is_halo, is_plain);
@@ -2875,8 +3047,8 @@ pub fn svg_layer(
                 }
                 let Some(gmap) = assets.glyphs.stacks.get(&t.fontstack) else { continue };
                 let fs = t.size / 24.0;
-                let Some(pos) = along_positions(t.along.as_ref(), (l.anchor_px.0 + t.shift.0, l.anchor_px.1 + t.shift.1), t.quads.len(), w, h) else { continue };
-                for (qi, q) in t.quads.iter().enumerate() {
+                let Some((quads, pos)) = text_layout(t, (l.anchor_px.0 + t.shift.0, l.anchor_px.1 + t.shift.1), w, h) else { continue };
+                for (qi, q) in quads.iter().enumerate() {
                     let Some(g) = gmap.get(&q.codepoint) else { continue };
                     let sq = quad_screen(&q.corners, pos[qi].0, pos[qi].1, fs);
                     let map = cell_to_screen(sq, g.rect_w as f64, g.rect_h as f64);
@@ -2919,7 +3091,7 @@ mod tests {
     #[test]
     fn single_line_centered() {
         let g = glyphs_fixed(10.0);
-        let s = shape_text("abc", &g, 240.0, 28.8, "center", "center", 0.0, (0.0, 0.0)).unwrap();
+        let s = shape_text("abc", &g, 240.0, 28.8, "center", "center", 0.0, (0.0, 0.0), false, false).unwrap();
         assert_eq!(s.lines.len(), 1);
         assert_eq!((s.left, s.right), (-15.0, 15.0));
         assert_eq!(s.lines[0][0].x, -15.0);
@@ -2929,7 +3101,7 @@ mod tests {
     fn breaks_long_text() {
         let g = glyphs_fixed(10.0);
         // 11 words of 3 chars + spaces, max width 50 -> several lines.
-        let s = shape_text("abc abc abc abc", &g, 50.0, 28.8, "center", "center", 0.0, (0.0, 0.0)).unwrap();
+        let s = shape_text("abc abc abc abc", &g, 50.0, 28.8, "center", "center", 0.0, (0.0, 0.0), false, false).unwrap();
         assert!(s.lines.len() >= 2);
     }
 

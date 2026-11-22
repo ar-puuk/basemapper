@@ -468,6 +468,30 @@ pub fn place_glyph_along_line(
 pub enum GlyphsPlacement {
     Hidden,
     Placed(Vec<PlacedGlyph>),
+    /// A horizontal label with a vertical counterpart whose line runs more
+    /// vertically than horizontally: draw the vertical version instead.
+    UseVertical,
+}
+
+/// The writing mode of a symbol placed along a line (placedSymbol.writingMode).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum WritingMode {
+    /// Horizontal text without a vertical counterpart.
+    HorizontalOnly,
+    /// Horizontal text with a vertical counterpart.
+    Horizontal,
+    Vertical,
+}
+
+/// requiresOrientationChange from the first and last placed points (screen
+/// px, y down; MapLibre compares clip-space points scaled by the aspect
+/// ratio, the same as comparing pixels).
+fn orientation_change(mode: WritingMode, first: P, last: P) -> Option<Inner> {
+    if mode == WritingMode::Horizontal && (last.1 - first.1).abs() > (last.0 - first.0).abs() {
+        return Some(Inner::UseVertical);
+    }
+    let flip = if mode == WritingMode::Vertical { first.1 > last.1 } else { first.0 > last.0 };
+    flip.then_some(Inner::NeedsFlipping)
 }
 
 /// updateLineLabels for one symbol: place all glyphs (glyph offsets are in
@@ -479,12 +503,14 @@ pub fn place_glyphs_for_render(
     line_offset: (f64, f64),
     keep_upright: bool,
     rotate_to_line: bool,
+    mode: WritingMode,
 ) -> GlyphsPlacement {
     let mut cache = ProjectionCache::default();
-    match place_glyphs(pl, &mut cache, glyph_offsets, font_scale, line_offset, false, keep_upright, rotate_to_line) {
+    match place_glyphs(pl, &mut cache, glyph_offsets, font_scale, line_offset, false, keep_upright, rotate_to_line, mode) {
         Inner::NotEnoughRoom => GlyphsPlacement::Hidden,
+        Inner::UseVertical => GlyphsPlacement::UseVertical,
         Inner::NeedsFlipping => {
-            match place_glyphs(pl, &mut cache, glyph_offsets, font_scale, line_offset, true, keep_upright, rotate_to_line) {
+            match place_glyphs(pl, &mut cache, glyph_offsets, font_scale, line_offset, true, keep_upright, rotate_to_line, mode) {
                 Inner::Placed(g) => GlyphsPlacement::Placed(g),
                 _ => GlyphsPlacement::Hidden,
             }
@@ -496,6 +522,7 @@ pub fn place_glyphs_for_render(
 enum Inner {
     NotEnoughRoom,
     NeedsFlipping,
+    UseVertical,
     Placed(Vec<PlacedGlyph>),
 }
 
@@ -509,6 +536,7 @@ fn place_glyphs(
     flip: bool,
     keep_upright: bool,
     rotate_to_line: bool,
+    mode: WritingMode,
 ) -> Inner {
     let (lox, loy) = (line_offset.0 * font_scale, line_offset.1 * font_scale);
     if offsets.len() > 1 {
@@ -520,9 +548,10 @@ fn place_glyphs(
         else {
             return Inner::NotEnoughRoom;
         };
-        // requiresOrientationChange for horizontal-only writing mode.
-        if keep_upright && !flip && first.point.0 > last.point.0 {
-            return Inner::NeedsFlipping;
+        if keep_upright && !flip {
+            if let Some(change) = orientation_change(mode, first.point, last.point) {
+                return change;
+            }
         }
         let mut placed = vec![first];
         for &o in &offsets[1..offsets.len() - 1] {
@@ -537,8 +566,8 @@ fn place_glyphs(
         if keep_upright && !flip {
             let a = pl.anchor;
             let b = pl.line[(pl.segment + 1).min(pl.line.len() - 1)];
-            if a.0 > b.0 {
-                return Inner::NeedsFlipping;
+            if let Some(change) = orientation_change(mode, a, b) {
+                return change;
             }
         }
         match place_glyph_along_line(pl, cache, font_scale * offsets.first().copied().unwrap_or(0.0), lox, loy, flip, rotate_to_line)

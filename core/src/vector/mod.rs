@@ -13,5 +13,6 @@ pub mod mvt;
 pub mod render;
 pub mod rtl;
 pub mod svg;
+pub mod vertical;
 pub mod symbol;
 pub mod symbol_line;
