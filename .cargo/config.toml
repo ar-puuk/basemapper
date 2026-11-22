@@ -3,3 +3,13 @@
 # Library search paths are handled by libR-sys's build script and Makevars.win.
 [target.x86_64-pc-windows-gnu]
 linker = "C:\\rtools45\\x86_64-w64-mingw32.static.posix\\bin\\gcc.exe"
+
+# macOS: the Python extension (pyo3 `extension-module`) leaves the Python
+# symbols to be resolved when the interpreter loads it; plain `cargo build`
+# needs the linker told so (maturin passes the same flags). See the pyo3
+# guide, "Building and distribution" > macOS.
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]
+
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]
