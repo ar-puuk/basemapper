@@ -327,28 +327,109 @@ render_basemap_raw(..., layers=["-label_*"])
 
 ## Updating the documentation
 
-The documentation site is pre-built locally and committed to `site/`.
-CI deploys whatever is in that directory on every push to `main` that touches `site/**`.
+The site at <https://ar-puuk.github.io/basemapper/> has four parts, built by
+one script and assembled in `site/`:
 
-**Prerequisites** (one-time):
-- R 4.x with packages: `roxygen2`, `pkgdown`, `ggplot2`, `sf`, `jsonlite`, `tmap`, `terra`, `knitr`, `rmarkdown` — the build script installs any that are missing automatically
-- Rust toolchain + RTools45 (required by `roxygen2::roxygenize()` to compile the R package)
-- Python with `basemapper[dev]` installed (`pip install -e ".[dev]"` from `py-basemapper/`)
-- `great-docs` CLI on PATH (installed by the above pip command)
+| Part | Built by | From |
+|---|---|---|
+| Landing page (`site/index.html`) | copied | `docs/index.html` |
+| R (`site/r/`) | pkgdown | `r-basemapper/` (reference from roxygen; articles in `vignettes/articles/`) |
+| Python (`site/python/`) | great-docs (Quarto) | `py-basemapper/` (reference from docstrings; guide in `user_guide/`) |
+| Rust (`site/rust/`) | rustdoc | `core/` (guide in `core/guide/`, its programs in `core/examples/guide_*.rs`) |
+
+The articles, guide pages and Rust examples are **executed** during the
+build: every map and plot on the site is the output of the code shown with
+it. Building therefore needs network access (tiles are fetched from the
+providers).
+
+**Deploying:** the `Deploy documentation` workflow publishes the committed
+`site/` on every push to `main` that changes it. The `Build documentation`
+workflow builds the whole site in CI (on pushes to `dev`, or by hand) and
+uploads it as an artifact to check; it does not deploy yet.
+
+### Building by hand
+
+Prerequisites (one-time):
+
+- [Rust](https://rustup.rs), and on Windows [Rtools](https://cran.r-project.org/bin/windows/Rtools/) for R
+- R 4.x. The script installs any missing R packages it needs (roxygen2,
+  pkgdown, bslib, ggplot2, sf, jsonlite, tmap, stars, knitr, rmarkdown).
+- Python 3.9+ with pip. The script installs basemapper and great-docs
+  (`pip install -e ".[dev]"` in `py-basemapper/`).
+- The [Quarto](https://quarto.org/docs/get-started/) CLI, which great-docs
+  renders with
+- PowerShell: built into Windows; on macOS or Linux install
+  [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)
+  and run the script with `pwsh`
+
+`Rscript`, `python` and `great-docs` must be on `PATH`, for example on
+Windows:
 
 ```powershell
-# Add R and great-docs to PATH if not already present
-$env:PATH = "C:\Program Files\R\R-4.6.0\bin;$env:PATH"
-# (great-docs is typically at %APPDATA%\Python\PythonXXX\Scripts\)
-
-# Build and assemble site/
-.\scripts\build-docs.ps1
-
-# Commit and push to trigger deployment
-git add site/
-git commit -m "docs: rebuild site"
-git push
+$env:PATH = "C:\Program Files\R\R-4.6.0\bin;$env:APPDATA\Python\Python313\Scripts;$env:PATH"
 ```
+
+Then, from the repository root:
+
+```powershell
+.\scripts\build-docs.ps1          # Windows PowerShell
+pwsh ./scripts/build-docs.ps1     # macOS / Linux
+```
+
+It stops at the first step that fails. In order, it:
+
+1. installs the Python package with its docs extras (and into
+   `py-basemapper/.venv` too, if that exists: great-docs runs the guide with
+   that environment when it is there);
+2. installs missing R packages and copies the Protomaps styles of the PMTiles
+   examples (`core/guide/styles/`) next to the R articles and Python guide;
+3. regenerates the R man pages (roxygen2) and builds the R site (pkgdown);
+4. builds the Python site (great-docs);
+5. runs the Rust guide examples, saving their output and images, and builds
+   the Rust docs (`scripts/docs_rust.py`);
+6. copies the landing page and adds the shared R | Python | Rust switcher
+   (`docs/assets/site-nav.html`) to every page (`scripts/docs_postprocess.py`).
+
+Open `site/index.html` through a local server to check it, for example
+`python -m http.server 8765 --directory site`, then
+<http://127.0.0.1:8765/>. To deploy, commit `site/` (and `py-basemapper/_freeze/`,
+see below) and push to `main`.
+
+### Python pages and the freeze cache
+
+The Python guide uses Quarto's `freeze: auto`: a page's code runs only when
+its `.qmd` file changes, and the results are kept in `py-basemapper/_freeze/`,
+which is committed so that every build (including CI) reuses them. When a
+change in basemapper itself alters a page's output, re-run that page, from
+`py-basemapper/`:
+
+```sh
+great-docs freeze user_guide/05-own-data.qmd   # one page
+great-docs freeze --clean user_guide/*.qmd     # all of them, from scratch
+great-docs freeze --info                       # what is cached
+```
+
+and commit the updated `_freeze/`. The R articles and the Rust examples have
+no such cache: they run on every build.
+
+### Building in CI by hand
+
+The `Build documentation` workflow runs the same script on Ubuntu. Start it
+from the repository's **Actions** tab (**Build documentation**, then **Run
+workflow**), or with the GitHub CLI, and download the site it built:
+
+```sh
+gh workflow run docs-build.yml --ref dev
+gh run list --workflow docs-build.yml          # find the run
+gh run download <run-id> --name site --dir site-ci
+```
+
+### Generated assets
+
+- Logo, mark and favicons: `python tools/logo/build_logo.py` (needs
+  fontTools; Chrome or Edge for the PNG favicons).
+- Protomaps styles for the PMTiles examples: `tools/protomaps-style/generate.cjs`
+  (see `core/guide/styles/README.md`).
 
 ---
 

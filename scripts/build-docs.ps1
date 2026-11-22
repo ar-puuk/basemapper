@@ -16,6 +16,10 @@
     - Rust toolchain + RTools45 (required to compile the R/Python packages
       and to build the Rust docs)
     - Python with pip (great-docs is installed automatically via .[dev])
+    - The Quarto CLI (great-docs renders with it)
+    - On macOS/Linux, PowerShell 7: pwsh ./scripts/build-docs.ps1
+
+    See "Updating the documentation" in README.md for the whole process.
 
     Add Rscript and the Python Scripts folder to your session PATH if needed:
         $env:PATH = "C:\Program Files\R\R-4.6.0\bin;" +

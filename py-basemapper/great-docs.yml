@@ -7,6 +7,13 @@ display_name: basemapper
 pypi: false
 
 parser: google
+
+# Run a user-guide page's code only when its source changes; the results are
+# kept in _freeze/ (committed), so documentation builds, including CI, reuse
+# them. After a change in basemapper itself that alters a page's output,
+# re-run it: `great-docs freeze user_guide/<page>.qmd` (or `--clean` for all).
+freeze: auto
+
 dynamic: true
 
 site_url: "https://ar-puuk.github.io/basemapper/python/"
