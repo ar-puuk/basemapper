@@ -75,6 +75,8 @@ here. See `docs/api.md` in the repository.
   `features` that match no layer of any style warn.
 - `list_layers()` shows each layer's `source_layer`, and takes `layers`,
   `labels` and `features` to preview what a render draws.
+- Raster basemaps no longer show a one-pixel white line at tile seams when
+  rendered at a fractional pixel ratio (as a figure's dpi gives).
 - ArcGIS vector styles whose source names the `VectorTileServer` without a
   trailing slash (Esri's item styles) load their tiles.
 - `list_layers(style)` returns `[{"id", "type"}, ...]` in drawing order.
