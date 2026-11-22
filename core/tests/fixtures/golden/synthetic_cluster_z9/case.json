@@ -1,0 +1,19 @@
+{
+  "note": "Synthetic: GeoJSON clustering (cluster, clusterRadius, clusterMaxZoom, clusterProperties with + / max / case map expressions; a second source with clusterMinPoints 3); point_count steps, point_count_abbreviated with 1.2k-style labels, a MultiPoint and a polygon (both skipped, as in MapLibre).",
+  "fonts_from": "carto_positron_z4",
+  "bbox": [
+    -12495272.96687217,
+    4947204.553245318,
+    -12415802.68284659,
+    5006807.266264503
+  ],
+  "width": 640,
+  "height": 480,
+  "zoom": 9.3,
+  "attribution": "Synthetic points",
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.06,
+  "svg": true,
+  "max_bad_pixel_frac_svg": 0.0305,
+  "max_mean_diff_svg": 1.33
+}

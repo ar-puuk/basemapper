@@ -82,8 +82,8 @@ measuring against MapLibre and investigating the difference.
 
 ### Not supported yet
 
-GeoJSON clustering, PMTiles sources inside vector styles, 3D terrain,
-vertical text, and right-to-left scripts. Unsupported layer types are skipped
+PMTiles sources inside vector styles, 3D terrain, vertical text, and
+right-to-left scripts. Unsupported layer types are skipped
 with a warning.
 
 ### Hillshade
@@ -139,11 +139,24 @@ of geojson-vt with MapLibre's options (`buffer`, `tolerance`, `maxzoom`, extent
 to the tile plus buffer, simplification, ring rewinding and rounding. Tiles
 are encoded as vector tiles with the layer `_geojsonTileLayer`, which style
 layers without a `source-layer` read, so filters, expressions and numeric
-feature ids behave as with vector tiles. `cluster: true` is ignored with a
-warning (features are drawn unclustered). `lineMetrics: true` follows
+feature ids behave as with vector tiles. `lineMetrics: true` follows
 geojson-vt: multi-lines are split into one feature per line, clipping tracks
 where each slice starts and ends along the whole line, and every line feature
 carries `geojsonvt_clip_start` / `geojsonvt_clip_end` as fractions of it.
+
+`cluster: true` clusters the source's Point features with a port of the
+supercluster index bundled in MapLibre GL JS 5.24 (MultiPoints and other
+geometries are dropped, as there). Options are MapLibre's: `clusterRadius`
+(default 50 px, times 8192 / 512 in tile units), `clusterMaxZoom` (rounded;
+default the source's `maxzoom` - 1), `clusterMinPoints` (at least 2). From the
+cluster max zoom down, each point not yet taken gathers the untaken points
+within `radius / (8192 · 2^z)` of it in a Float32 KDBush tree; with enough
+points they become a cluster at their weighted centre, and the next zoom
+clusters those. The processing order, tree layout and Float32 rounding follow
+the JavaScript, so clusters, their centres and the order features reach symbol
+placement match. Clusters carry `cluster`, `cluster_id`, `point_count` and
+`point_count_abbreviated` (`1.2k`, `15k`); `clusterProperties` aggregate with
+their map expressions and reduce operators or expressions (`["accumulated"]`).
 
 ### Line gradients
 

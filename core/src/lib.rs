@@ -719,9 +719,6 @@ async fn fetch_vector_inputs(
         let src = &style_val["sources"][&id];
         let kind = src["type"].as_str().unwrap_or("");
         if kind == "geojson" {
-            if src["cluster"].as_bool() == Some(true) {
-                log::warn!("source {id}: GeoJSON clustering is not supported yet; drawing unclustered features");
-            }
             let data = match &src["data"] {
                 serde_json::Value::String(url) => {
                     let url = resolve_url(url, style_base_url_of(request));
@@ -740,7 +737,7 @@ async fn fetch_vector_inputs(
                 other => other.clone(),
             };
             let opts = vector::geojson::GeoJsonOptions::from_source(src);
-            let index = vector::geojson::GeoJsonIndex::new(&data, opts);
+            let index = vector::geojson::GeoJsonIndex::new(&data, opts.clone());
             let tz = match vector_tz(Some(opts.max_zoom), 0) {
                 Some(z) => z,
                 None => continue,

@@ -13,6 +13,7 @@
 //! recursive splitting: every parent's clip lines lie outside the child's
 //! buffered region.
 
+use super::cluster::{js_round, ClusterIndex, ClusterOptions};
 use super::mvt::{PbFeature, PbLayer, PbTile, PbValue, GEOJSON_LAYER};
 use prost::Message;
 use serde_json::Value as Json;
@@ -24,7 +25,7 @@ pub const CLIP_START: &str = "geojsonvt_clip_start";
 pub const CLIP_END: &str = "geojsonvt_clip_end";
 
 #[derive(Clone, Debug)]
-struct Line {
+pub(super) struct Line {
     pts: Vec<[f64; 3]>,
     /// Area (polygon rings) or length (lines), in world units.
     size: f64,
@@ -35,7 +36,7 @@ struct Line {
 }
 
 #[derive(Clone, Debug)]
-enum Geom {
+pub(super) enum Geom {
     Points(Vec<[f64; 3]>),
     Lines(Vec<Line>),
     /// Polygons, each a list of rings (outer first).
@@ -43,23 +44,29 @@ enum Geom {
 }
 
 #[derive(Clone, Debug)]
-enum Prop {
+pub(super) enum Prop {
     Str(String),
     Num(f64),
     Bool(bool),
 }
 
 #[derive(Clone, Debug)]
-struct Feat {
-    id: Option<u64>,
-    geom: Geom,
-    props: Vec<(String, Prop)>,
+pub(super) struct Feat {
+    pub(super) id: Option<u64>,
+    pub(super) geom: Geom,
+    pub(super) props: Vec<(String, Prop)>,
     min: (f64, f64),
     max: (f64, f64),
 }
 
+impl Feat {
+    pub(super) fn point(id: Option<u64>, p: [f64; 2], props: Vec<(String, Prop)>) -> Feat {
+        make_feat(id, Geom::Points(vec![[p[0], p[1], 0.0]]), props)
+    }
+}
+
 /// Options of a GeoJSON source, in geojson-vt units.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct GeoJsonOptions {
     pub max_zoom: u8,
     /// Buffer in tile units (MapLibre: buffer px * 16).
@@ -68,17 +75,21 @@ pub struct GeoJsonOptions {
     pub tolerance: f64,
     /// `lineMetrics`: lines carry their clip range for `line-gradient`.
     pub line_metrics: bool,
+    /// `cluster: true`: points are clustered (other geometries dropped).
+    pub cluster: Option<ClusterOptions>,
 }
 
 impl GeoJsonOptions {
     /// From a style source (`maxzoom`, `buffer`, `tolerance`).
     pub fn from_source(src: &Json) -> Self {
         let scale = EXTENT / 512.0;
+        let max_zoom = src["maxzoom"].as_u64().map_or(18, |z| z.min(24) as u8);
         GeoJsonOptions {
-            max_zoom: src["maxzoom"].as_u64().map_or(18, |z| z.min(24) as u8),
+            max_zoom,
             buffer: src["buffer"].as_f64().unwrap_or(128.0) * scale,
             tolerance: src["tolerance"].as_f64().unwrap_or(0.375) * scale,
             line_metrics: src["lineMetrics"].as_bool().unwrap_or(false),
+            cluster: ClusterOptions::from_source(src, max_zoom),
         }
     }
 }
@@ -86,6 +97,7 @@ impl GeoJsonOptions {
 /// A GeoJSON source prepared for tiling.
 pub struct GeoJsonIndex {
     features: Vec<Feat>,
+    cluster: Option<ClusterIndex>,
     opts: GeoJsonOptions,
 }
 
@@ -95,12 +107,19 @@ impl GeoJsonIndex {
         let mut features = Vec::new();
         convert(data, &mut features, sq_tol, None, opts.line_metrics);
         let features = wrap(features, opts.buffer / EXTENT, opts.line_metrics);
-        GeoJsonIndex { features, opts }
+        if let Some(c) = &opts.cluster {
+            let cluster = Some(ClusterIndex::new(&features, c.clone()));
+            return GeoJsonIndex { features: Vec::new(), cluster, opts };
+        }
+        GeoJsonIndex { features, cluster: None, opts }
     }
 
     /// The tile (z, x, y) encoded as MVT.
     pub fn tile(&self, z: u8, x: u32, y: u32) -> Vec<u8> {
         let z2 = (1u64 << z) as f64;
+        if let Some(c) = &self.cluster {
+            return encode_tile(&c.tile_features(z, x, y), z2, x as f64, y as f64, 0.0, false);
+        }
         let k = self.opts.buffer / EXTENT;
         let (x0, x1) = ((x as f64 - k) / z2, (x as f64 + 1.0 + k) / z2);
         let (y0, y1) = ((y as f64 - k) / z2, (y as f64 + 1.0 + k) / z2);
@@ -457,7 +476,7 @@ fn clip_line(geom: &Line, out: &mut Vec<Line>, k1: f64, k2: f64, axis: usize, po
 fn encode_tile(features: &[Feat], z2: f64, tx: f64, ty: f64, tol: f64, metrics: bool) -> Vec<u8> {
     let sq_tol = tol * tol;
     let transform = |p: &[f64; 3]| -> (i64, i64) {
-        ((EXTENT * (p[0] * z2 - tx)).round() as i64, (EXTENT * (p[1] * z2 - ty)).round() as i64)
+        (js_round(EXTENT * (p[0] * z2 - tx)) as i64, js_round(EXTENT * (p[1] * z2 - ty)) as i64)
     };
     // Rings/lines kept at this zoom (addLine), as tile coordinates.
     let keep = |l: &Line, polygon: bool, outer: bool| -> Option<Vec<(i64, i64)>> {
@@ -627,7 +646,7 @@ mod tests {
             {"type": "Feature", "properties": {"kind": "park"},
              "geometry": {"type": "Polygon", "coordinates": [[[-10.0, -10.0], [10.0, -10.0], [10.0, 10.0], [-10.0, 10.0], [-10.0, -10.0]]]}}
         ]});
-        let idx = GeoJsonIndex::new(&data, GeoJsonOptions { max_zoom: 18, buffer: 2048.0, tolerance: 6.0, line_metrics: false });
+        let idx = GeoJsonIndex::new(&data, GeoJsonOptions { max_zoom: 18, buffer: 2048.0, tolerance: 6.0, line_metrics: false, cluster: None });
         let bytes = idx.tile(1, 1, 1);
         let tile = super::super::mvt::decode(&bytes).unwrap();
         let layer = &tile.layers[GEOJSON_LAYER];
@@ -655,7 +674,7 @@ mod tests {
         let coords: Vec<Json> = (0..=200).map(|i| json!([i as f64 * 0.01, (i as f64 * 0.3).sin() * 0.0001])).collect();
         let data = json!({"type": "LineString", "coordinates": coords});
         // maxzoom 4: the whole 2-degree line lies in one tile at z <= 4.
-        let idx = GeoJsonIndex::new(&data, GeoJsonOptions { max_zoom: 4, buffer: 2048.0, tolerance: 6.0, line_metrics: false });
+        let idx = GeoJsonIndex::new(&data, GeoJsonOptions { max_zoom: 4, buffer: 2048.0, tolerance: 6.0, line_metrics: false, cluster: None });
         let count = |z: u8| {
             let n = 1u32 << z;
             let (x, y) = ((0.5 + 1.0 / 360.0) * n as f64, 0.5 * n as f64);
@@ -675,7 +694,7 @@ mod tests {
         // of the world, so tile 0 clips at x = 0.625 and tile 1 at 0.375.
         let data = json!({"type": "Feature", "properties": {"k": 1},
             "geometry": {"type": "LineString", "coordinates": [[-90.0, 0.0], [0.0, 0.0], [90.0, 0.0]]}});
-        let idx = GeoJsonIndex::new(&data, GeoJsonOptions { max_zoom: 18, buffer: 2048.0, tolerance: 6.0, line_metrics: true });
+        let idx = GeoJsonIndex::new(&data, GeoJsonOptions { max_zoom: 18, buffer: 2048.0, tolerance: 6.0, line_metrics: true, cluster: None });
         let range = |x: u32| {
             let t = super::super::mvt::decode(&idx.tile(1, x, 1)).unwrap();
             let f = &t.layers[GEOJSON_LAYER].features[0];
@@ -692,7 +711,7 @@ mod tests {
         assert!((s1 - 0.25).abs() < 1e-12, "{s1}");
         assert_eq!(e1, 1.0);
         // Without lineMetrics no clip properties are added.
-        let plain = GeoJsonIndex::new(&data, GeoJsonOptions { max_zoom: 18, buffer: 2048.0, tolerance: 6.0, line_metrics: false });
+        let plain = GeoJsonIndex::new(&data, GeoJsonOptions { max_zoom: 18, buffer: 2048.0, tolerance: 6.0, line_metrics: false, cluster: None });
         let t = super::super::mvt::decode(&plain.tile(1, 0, 1)).unwrap();
         assert!(!t.layers[GEOJSON_LAYER].features[0].properties.contains_key(CLIP_START));
     }

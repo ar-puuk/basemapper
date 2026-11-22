@@ -1,0 +1,17 @@
+{
+  "note": "Synthetic: GeoJSON clustering at pixel ratio 2 and a fractional zoom.",
+  "fonts_from": "carto_positron_z4",
+  "bbox": [
+    -12465623.751209207,
+    4969441.464992541,
+    -12445451.898509555,
+    4984570.35451728
+  ],
+  "width": 400,
+  "height": 300,
+  "zoom": 10.6,
+  "attribution": "Synthetic points",
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.029,
+  "pixel_ratio": 2
+}
