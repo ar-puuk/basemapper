@@ -10,6 +10,11 @@
 // requests to http://fixture.local/..., so no network access is needed. The camera
 // is derived from case.json so the output covers exactly the same EPSG:3857
 // bbox at the same pixel size as basemapper's render.
+//
+// PMTiles cases (case.json "pmtiles") read the archives the golden test packs
+// into target/golden-output/<case>/, so run `cargo test --test golden` first;
+// they load through the pmtiles protocol (the `pmtiles` package) with range
+// requests, as in a browser.
 
 import { chromium } from 'playwright';
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
@@ -21,10 +26,14 @@ const here = dirname(fileURLToPath(import.meta.url));
 const goldenRoot = join(here, '../../core/tests/fixtures/golden');
 const require = createRequire(import.meta.url);
 const mlDist = dirname(require.resolve('maplibre-gl/dist/maplibre-gl.js'));
+// The UMD build (global `pmtiles`); not in the package's exports map.
+const pmtilesJs = join(here, 'node_modules/pmtiles/dist/pmtiles.js');
+const outputRoot = join(here, '../../target/golden-output');
 
 const PAGE = `<!doctype html><html><head>
 <link rel="stylesheet" href="http://assets.local/maplibre-gl.css">
 <script src="http://assets.local/maplibre-gl.js"></script>
+<script src="http://assets.local/pmtiles.js"></script>
 <style>html,body,#map{margin:0;width:100%;height:100%;background:transparent}</style>
 </head><body><div id="map"></div></body></html>`;
 
@@ -91,9 +100,26 @@ async function renderCase(browser, name) {
     const p = new URL(route.request().url()).pathname.split('/').filter(Boolean).map(decodeURIComponent);
     const tilesDir = kase.tiles_from ? join(goldenRoot, kase.tiles_from) : fixtureDir;
     const fontsDir = kase.fonts_from ? join(goldenRoot, kase.fonts_from) : fixtureDir;
-    const file = join(p[0] === 'tiles' ? tilesDir : p[0] === 'fonts' ? fontsDir : fixtureDir, ...p);
+    const spritesDir = kase.sprites_from ? join(goldenRoot, kase.sprites_from) : fixtureDir;
+    const archive = kase.pmtiles && p.length === 1 && kase.pmtiles[p[0]];
+    const file = archive
+      ? join(outputRoot, name, p[0])
+      : join(p[0] === 'tiles' ? tilesDir : p[0] === 'fonts' ? fontsDir : p[0] === 'sprites' ? spritesDir : fixtureDir, ...p);
     if (process.env.DEBUG_TILES) console.error(`  request: ${p.join('/')} exists=${existsSync(file)}`);
-    if (existsSync(file)) {
+    const range = /^bytes=(\d+)-(\d+)$/.exec(route.request().headers()['range'] ?? '');
+    if (archive && !existsSync(file)) {
+      console.error(`  missing archive ${file}: run cargo test --test golden first`);
+      missing++;
+      route.fulfill({ status: 404, body: '' });
+    } else if (existsSync(file) && range) {
+      const data = readFileSync(file);
+      const [a, b] = [Number(range[1]), Math.min(Number(range[2]), data.length - 1)];
+      route.fulfill({
+        status: 206,
+        headers: { 'content-range': `bytes ${a}-${b}/${data.length}`, 'access-control-allow-origin': '*' },
+        body: data.subarray(a, b + 1),
+      });
+    } else if (existsSync(file)) {
       route.fulfill({ status: 200, body: readFileSync(file) });
     } else {
       missing++;
@@ -105,6 +131,8 @@ async function renderCase(browser, name) {
     const f = new URL(route.request().url()).pathname.slice(1);
     if (f === 'index.html') {
       route.fulfill({ status: 200, contentType: 'text/html', body: PAGE });
+    } else if (f === 'pmtiles.js') {
+      route.fulfill({ status: 200, contentType: 'text/javascript', body: readFileSync(pmtilesJs) });
     } else {
       route.fulfill({ status: 200, body: readFileSync(join(mlDist, f)) });
     }
@@ -114,6 +142,7 @@ async function renderCase(browser, name) {
   const dataUrl = await page.evaluate(
     ({ style, center, zoom, pixelRatio }) =>
       new Promise((resolve, reject) => {
+        maplibregl.addProtocol('pmtiles', new pmtiles.Protocol().tile);
         const map = new maplibregl.Map({
           container: 'map',
           style,

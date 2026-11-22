@@ -1,0 +1,1 @@
+{"version": 8, "sources": {"dem": {"type": "raster-dem", "encoding": "terrarium", "tileSize": 256, "url": "pmtiles://{{BASE}}/dem.pmtiles"}}, "layers": [{"id": "background", "type": "background", "paint": {"background-color": "#f2efe9"}}, {"id": "hillshade", "type": "hillshade", "source": "dem"}]}

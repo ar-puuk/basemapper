@@ -82,8 +82,7 @@ measuring against MapLibre and investigating the difference.
 
 ### Not supported yet
 
-PMTiles sources inside vector styles, 3D terrain, vertical text, and
-right-to-left scripts. Unsupported layer types are skipped
+3D terrain, vertical text, and right-to-left scripts. Unsupported layer types are skipped
 with a warning.
 
 ### Hillshade
@@ -130,6 +129,18 @@ Colour interpolation (`interpolate`, legacy functions) works on straight,
 unpremultiplied channels, as the style-spec `Color.interpolate` does.
 Fully transparent colours keep their RGB, so `rgba(0, 0, 255, 0)` fades
 through blue.
+
+### PMTiles sources
+
+A style source whose `url` is `pmtiles://<archive URL>` (as with MapLibre's
+pmtiles protocol; relative URLs resolve against the style) is read from the
+archive with HTTP range requests: the header gives the zoom range (the
+source's own `minzoom` / `maxzoom` take precedence), and tiles are fetched
+concurrently and decompressed per the header's tile compression. Vector,
+raster and raster-dem sources work this way in any style; a style whose
+vector source is an archive renders through the vector pipeline, and a
+raster-only one through the raster pipeline. The older `tiles:
+["pmtiles://<archive URL>"]` form is still read the same way.
 
 ### GeoJSON sources
 

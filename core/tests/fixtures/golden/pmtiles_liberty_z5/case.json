@@ -1,0 +1,33 @@
+{
+  "note": "PMTiles sources inside a vector style: the openfreemap_liberty_z5 view with its vector (openmaptiles, gzip MVT) and raster (ne2_shaded) sources read from archives packed from that fixture's tiles; zoom ranges from the archive headers.",
+  "tiles_from": "openfreemap_liberty_z5",
+  "fonts_from": "openfreemap_liberty_z5",
+  "sprites_from": "openfreemap_liberty_z5",
+  "pmtiles": {
+    "openmaptiles.pmtiles": {
+      "tiles": "tiles/openmaptiles",
+      "type": "mvt",
+      "max_zoom": 14
+    },
+    "ne2_shaded.pmtiles": {
+      "tiles": "tiles/ne2_shaded",
+      "type": "png",
+      "max_zoom": 6
+    }
+  },
+  "bbox": [
+    -13390517.185500259,
+    4059751.987567114,
+    -11433729.261399748,
+    5527342.930642499
+  ],
+  "width": 800,
+  "height": 600,
+  "zoom": 6,
+  "attribution": "OpenFreeMap, OpenMapTiles, OpenStreetMap contributors",
+  "svg": true,
+  "max_bad_pixel_frac": 0.00147,
+  "max_mean_diff": 0.248,
+  "max_bad_pixel_frac_svg": 0.05885,
+  "max_mean_diff_svg": 2.327
+}

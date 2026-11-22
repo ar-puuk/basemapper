@@ -3,9 +3,12 @@
   "private": true,
   "description": "Renders golden fixtures with MapLibre GL JS for comparison with basemapper's own renderer",
   "type": "module",
-  "scripts": { "render": "node render.mjs" },
+  "scripts": {
+    "render": "node render.mjs"
+  },
   "dependencies": {
     "maplibre-gl": "5.24.1",
-    "playwright": "1.65.1"
+    "playwright": "1.65.1",
+    "pmtiles": "4.5.0"
   }
 }

@@ -182,10 +182,13 @@ name = "basemapper-core"
 version = "0.1.0"
 dependencies = [
  "allsorts",
+ "bytes",
  "clap",
  "csscolorparser",
  "flate2",
+ "http 0.2.12",
  "httptest",
+ "hyper 0.14.32",
  "image",
  "log",
  "lru",
@@ -389,6 +392,12 @@ name = "core_detect"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f8f80099a98041a3d1622845c271458a2d73e688351bf3cb999266764b81d48"
+
+[[package]]
+name = "countio"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9702aee5d1d744c01d82f6915644f950f898e014903385464c773b96fefdecb"
 
 [[package]]
 name = "crc32fast"
@@ -1437,9 +1446,12 @@ checksum = "579153334aed2e066da3e2509b03c686b9d6e737ee2c3635f5baa90a57a762e1"
 dependencies = [
  "async-compression",
  "bytes",
+ "countio",
  "fast_hilbert",
+ "flate2",
  "thiserror",
  "tokio",
+ "twox-hash",
  "varint-rs",
 ]
 
@@ -2329,6 +2341,12 @@ name = "ttf-parser"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
+
+[[package]]
+name = "twox-hash"
+version = "2.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86a801b3cea342a06d468c8710662aa29e5e05e4f5c0d62f00bbb7f2ad7941c2"
 
 [[package]]
 name = "ucd-trie"

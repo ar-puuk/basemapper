@@ -38,8 +38,13 @@ cargo run -p basemapper-core --example capture_fixture -- ... --all-sources
 
 Case options in `case.json`: `pixel_ratio` (render at that devicePixelRatio),
 `svg: true` (also score the SVG output, limits `max_*_svg`), `stack`
-(composite other cases), `fixture_from` / `tiles_from` / `fonts_from`
-(reuse another case's files). References are rendered in Web Mercator even
+(composite other cases), `fixture_from` / `tiles_from` / `fonts_from` /
+`sprites_from` (reuse another case's files), `pmtiles` (pack tile directories
+of the tiles fixture into PMTiles archives, served with range requests at
+`{{BASE}}/<name>`; the test also writes them to
+`target/golden-output/<case>/`, where `tools/reference-render` serves them to
+MapLibre through the pmtiles protocol, so run the test before rendering those
+references). References are rendered in Web Mercator even
 when a style asks for the globe projection.
 
 ## Visual comparison
@@ -66,6 +71,7 @@ against the no-labels reference.
 | `esri_world_basemap_z8` | ESRI World Basemap over the Great Salt Lake: `fill-pattern` (marsh, intermittent lakes), also scored as SVG |
 | `openfreemap_liberty_z16` | OpenFreeMap Liberty downtown Salt Lake City: 3D buildings (`fill-extrusion`, perspective and lighting), pedestrian-area patterns, `step` symbol placement; also scored as SVG |
 | `maplibre_demotiles_z3` | MapLibre demotiles over North America: `line-blur` (also in SVG), legacy function `text-field` with `{token}` stops |
+| `pmtiles_*` | PMTiles sources over archives packed at test time from other fixtures' tiles (no archives are committed): `pmtiles_liberty_z5` (vector and raster sources in a vector style), `pmtiles_hillshade` (raster-dem), `pmtiles_osm_raster_slc` (raster-only style). The references equal those of the source cases pixel for pixel |
 | `synthetic_*` | Hand-written styles over existing fixture tiles for features no captured style uses; `synthetic_icon_text_fit`: icon-text-fit both/width/height with a generated nine-slice sprite; `synthetic_variable_anchor`: text-variable-anchor (radial / text-offset), text-variable-anchor-offset, text-justify auto; `synthetic_line_pattern_z13` / `_x2`: line-pattern with a generated sprite (data-driven names and widths, offset, @2x); `synthetic_fill_extrusion_pattern_z13` / `_x2`: fill-extrusion-pattern over inline GeoJSON buildings (data-driven names, heights and bases, a hole, a missing image, a translucent constant pattern, viewport light, @2x); `synthetic_line_gradient_z11` / `_dash` / `_x2`: line-gradient over GeoJSON lineMetrics (lines crossing tile seams, an exploded multi-line, a step gradient with offset and opacity, dashes, @2x); `synthetic_cluster_z9` / `_z12` / `_z15` / `_x2`: GeoJSON clustering (clusterRadius, clusterMaxZoom, clusterMinPoints, clusterProperties with + / max / case, point_count steps and abbreviated labels, a skipped MultiPoint and polygon, past the cluster max zoom, @2x); `synthetic_heatmap_z9` / `_x2`: heatmap over inline GeoJSON points (default and custom ramps, data-driven weight and radius, odd canvas size at pixel ratio 2); `synthetic_hillshade_*`: hillshade methods (standard, multidirectional, combined at pixel ratio 2, stacked basic/igor/standard, igor with nearest resampling) over terrarium DEM tiles stored in `synthetic_hillshade_standard/tiles/dem`; `synthetic_geojson_z13` / `_z6`: GeoJSON sources (URL and inline data: polygons with holes, multipolygons, a long simplified line, points, labels, dashes, line offset) |
 | `osm_raster_slc` | OpenStreetMap raster tiles |
 

@@ -386,7 +386,15 @@ async fn extract_tile_source_from_style(
             })?
     };
 
-    resolve_source(source, src_type, client, auth_token, style_base_url).await.map(|r| r.source)
+    let resolved = resolve_source(source, src_type, client, auth_token, style_base_url).await?.source;
+    Ok(match resolved {
+        // A vector archive: the vector path, which fetches every source
+        // itself (from the archive), with the archive's max zoom.
+        TileSource::PMTiles { maxzoom, .. } if src_type == "vector" => {
+            TileSource::MapboxVectorTile { url_template: String::new(), api_key: None, maxzoom }
+        }
+        other => other,
+    })
 }
 
 /// A style source resolved to its tile URL template (inline `tiles` or
@@ -420,6 +428,19 @@ async fn resolve_source(
             .and_then(|v| v.as_u64())
             .map(|v| v.min(22) as u8);
         (t.to_owned(), mz)
+    } else if let Some(archive) = source.get("url").and_then(|u| u.as_str()).and_then(|u| u.strip_prefix("pmtiles://")) {
+        // The pmtiles protocol's TileJSON: zoom range from the archive
+        // header; the source's own minzoom / maxzoom take precedence.
+        let url = resolve_url(archive, style_base_url);
+        let reader = open_pmtiles(&url, client).await?;
+        let header = reader.get_header();
+        minzoom = minzoom.or(Some(header.min_zoom as f64));
+        let mz = source
+            .get("maxzoom")
+            .and_then(|v| v.as_u64())
+            .map_or(header.max_zoom, |v| v as u8)
+            .min(22);
+        (format!("pmtiles://{url}"), Some(mz))
     } else if let Some(tilejson_url_raw) = source.get("url").and_then(|u| u.as_str()) {
         let tilejson_url = resolve_url(tilejson_url_raw, style_base_url);
         let mut tilejson_req = client.get(&tilejson_url);
@@ -496,20 +517,20 @@ async fn fetch_pmtiles_tiles(
     coords: &[tile_fetcher::TileCoord],
     client: &reqwest::Client,
 ) -> Result<Vec<(tile_fetcher::TileCoord, tile_fetcher::TileData)>, BasemapError> {
-    use pmtiles::AsyncPmTilesReader;
-    use tile_fetcher::ReqwestBackend;
-
-    let backend = ReqwestBackend::new(url.to_owned(), client.clone());
-    let reader = AsyncPmTilesReader::try_from_source(backend)
-        .await
-        .map_err(|e| BasemapError::RenderError(format!("PMTiles open failed: {e}")))?;
-
-    let mut results = Vec::new();
-    for &coord in coords {
+    let reader = std::sync::Arc::new(open_pmtiles(url, client).await?);
+    // Tiles are fetched concurrently and decompressed (tile_compression).
+    let mut set = tokio::task::JoinSet::new();
+    for (i, &coord) in coords.iter().enumerate() {
         let pm_coord = pmtiles::TileCoord::new(coord.z, coord.x, coord.y)
             .map_err(|e| BasemapError::RenderError(format!("PMTiles coord error: {e}")))?;
-        match reader.get_tile(pm_coord).await {
-            Ok(Some(bytes)) => results.push((coord, bytes.to_vec())),
+        let reader = reader.clone();
+        set.spawn(async move { (i, coord, reader.get_tile_decompressed(pm_coord).await) });
+    }
+    let mut results = Vec::new();
+    while let Some(joined) = set.join_next().await {
+        let Ok((i, coord, res)) = joined else { continue };
+        match res {
+            Ok(Some(bytes)) => results.push((i, coord, bytes.to_vec())),
             Ok(None) => {}
             Err(e) => {
                 log::warn!(
@@ -521,7 +542,19 @@ async fn fetch_pmtiles_tiles(
             }
         }
     }
-    Ok(results)
+    results.sort_by_key(|r| r.0);
+    Ok(results.into_iter().map(|(_, c, d)| (c, d)).collect())
+}
+
+/// Open a PMTiles archive over HTTP (header and root directory).
+async fn open_pmtiles(
+    url: &str,
+    client: &reqwest::Client,
+) -> Result<pmtiles::AsyncPmTilesReader<tile_fetcher::ReqwestBackend>, BasemapError> {
+    let backend = tile_fetcher::ReqwestBackend::new(url.to_owned(), client.clone());
+    pmtiles::AsyncPmTilesReader::try_from_source(backend)
+        .await
+        .map_err(|e| BasemapError::RenderError(format!("PMTiles open failed ({url}): {e}")))
 }
 
 /// Resolve a potentially-relative URL against a base URL.
@@ -757,20 +790,21 @@ async fn fetch_vector_inputs(
             continue;
         }
         let resolved = resolve_source(src, kind, client, request.auth_token.as_deref(), style_base_url_of(request)).await?;
-        if matches!(resolved.source, TileSource::PMTiles { .. }) {
-            log::warn!("source {id}: PMTiles inside vector styles is not supported yet");
-            continue;
-        }
-        let fetch = |coords: Vec<tile_fetcher::TileCoord>| {
-            let urls = tile_fetcher::build_tile_urls(&resolved.source, &coords);
+        let source = &resolved.source;
+        let fetch = |coords: Vec<tile_fetcher::TileCoord>| async move {
+            if let TileSource::PMTiles { url, .. } = source {
+                return fetch_pmtiles_tiles(url, &coords, client).await;
+            }
+            let urls = tile_fetcher::build_tile_urls(source, &coords);
             tile_fetcher::fetch_all_tiles(
                 client,
                 urls,
-                &resolved.source,
+                source,
                 request.tile_timeout_ms,
                 request.tile_concurrency,
                 request.fail_on_tile_error,
             )
+            .await
         };
         if kind == "vector" {
             let Some(tz) = vector_tz(resolved.source.maxzoom(), resolved.minzoom) else { continue };

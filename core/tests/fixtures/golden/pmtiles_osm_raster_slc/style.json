@@ -1,0 +1,1 @@
+{"layers": [{"id": "osm", "source": "osm", "type": "raster"}], "sources": {"osm": {"type": "raster", "tileSize": 256, "url": "pmtiles://{{BASE}}/osm.pmtiles"}}, "version": 8}

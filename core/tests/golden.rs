@@ -5,7 +5,9 @@
 //!
 //! - `case.json`    bbox / width / height / zoom / optional layer filter
 //!                  (`fixture_from` reuses another case's style + tiles;
-//!                  `tiles_from` / `fonts_from` reuse only its tiles / glyphs), and
+//!                  `tiles_from` / `fonts_from` / `sprites_from` reuse only its
+//!                  tiles / glyphs / sprites; `pmtiles` packs tile directories
+//!                  into PMTiles archives served at `/<name>`), and
 //!                  the case's fidelity limits `max_bad_pixel_frac` /
 //!                  `max_mean_diff`
 //! - `style.json`   style whose URLs point at `{{BASE}}/tiles|fonts|sprites/...`
@@ -53,7 +55,7 @@ fn encode_segment(s: &str) -> String {
 
 /// Serve the fixture's `tiles/`, `fonts/` and `sprites/` trees at the same
 /// relative paths (`/tiles/{z}/{x}/{y}`, `/fonts/{fontstack}/{range}.pbf`, ...).
-fn serve_fixture(server: &Server, dir: &Path, tiles_dir: &Path, fonts_dir: &Path) {
+fn serve_fixture(server: &Server, dir: &Path, tiles_dir: &Path, fonts_dir: &Path, sprites_dir: &Path) {
     fn walk(server: &Server, root: &Path, dir: &Path) {
         for e in std::fs::read_dir(dir).unwrap() {
             let p = e.unwrap().path();
@@ -80,11 +82,92 @@ fn serve_fixture(server: &Server, dir: &Path, tiles_dir: &Path, fonts_dir: &Path
     if fonts_dir.join("fonts").is_dir() {
         walk(server, fonts_dir, &fonts_dir.join("fonts"));
     }
-    if dir.join("sprites").is_dir() {
-        walk(server, dir, &dir.join("sprites"));
+    if sprites_dir.join("sprites").is_dir() {
+        walk(server, sprites_dir, &sprites_dir.join("sprites"));
     }
     if dir.join("geojson").is_dir() {
         walk(server, dir, &dir.join("geojson"));
+    }
+}
+
+/// case.json `pmtiles`: `{"<name>.pmtiles": {"tiles": "<dir under the
+/// tiles fixture>", "type": "mvt" | "png" | "jpg" | "webp", "min_zoom": 0,
+/// "max_zoom": 14}}`. Each archive is packed from the directory's
+/// `z/x/y[.ext]` files (MVT gzip-compressed, as tile archives usually are),
+/// covering the world, and returned as (name, bytes).
+fn build_pmtiles(tiles_dir: &Path, spec: &Value) -> Vec<(String, Vec<u8>)> {
+    use pmtiles::{PmTilesWriter, TileCoord, TileId, TileType};
+    let Some(spec) = spec.as_object() else { return Vec::new() };
+    spec.iter()
+        .map(|(name, a)| {
+            let root = tiles_dir.join(a["tiles"].as_str().unwrap());
+            let mut tiles: Vec<(u64, TileCoord, Vec<u8>)> = Vec::new();
+            for z in std::fs::read_dir(&root).unwrap().flatten() {
+                for x in std::fs::read_dir(z.path()).unwrap().flatten() {
+                    for y in std::fs::read_dir(x.path()).unwrap().flatten() {
+                        let num = |p: &Path| -> u32 {
+                            p.file_stem().unwrap().to_string_lossy().parse().unwrap()
+                        };
+                        let c = TileCoord::new(num(&z.path()) as u8, num(&x.path()), num(&y.path())).unwrap();
+                        tiles.push((TileId::from(c).value(), c, std::fs::read(y.path()).unwrap()));
+                    }
+                }
+            }
+            tiles.sort_by_key(|t| t.0);
+            let tile_type = match a["type"].as_str().unwrap() {
+                "mvt" => TileType::Mvt,
+                "png" => TileType::Png,
+                "jpg" => TileType::Jpeg,
+                "webp" => TileType::Webp,
+                t => panic!("{name}: unknown tile type {t}"),
+            };
+            let mut buf = Vec::new();
+            let mut w = PmTilesWriter::new(tile_type)
+                .min_zoom(a["min_zoom"].as_u64().unwrap_or(0) as u8)
+                .max_zoom(a["max_zoom"].as_u64().unwrap() as u8)
+                .bounds(-180.0, -85.051129, 180.0, 85.051129)
+                .create(std::io::Cursor::new(&mut buf))
+                .unwrap();
+            for (_, c, data) in &tiles {
+                w.add_tile(*c, data).unwrap();
+            }
+            w.finalize().unwrap();
+            (name.clone(), buf)
+        })
+        .collect()
+}
+
+/// Serves a file with HTTP range requests (206 Partial Content).
+#[derive(Clone)]
+struct RangeFile(std::sync::Arc<Vec<u8>>);
+
+impl httptest::responders::Responder for RangeFile {
+    fn respond<'a>(
+        &mut self,
+        req: &'a http::Request<bytes::Bytes>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = http::Response<hyper::Body>> + Send + 'a>> {
+        let data = self.0.clone();
+        let range = req
+            .headers()
+            .get("range")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("bytes="))
+            .and_then(|v| v.split_once('-'))
+            .and_then(|(a, b)| Some((a.parse::<usize>().ok()?, b.parse::<usize>().ok()?)));
+        Box::pin(async move {
+            match range {
+                Some((a, b)) if a < data.len() => {
+                    let b = b.min(data.len() - 1);
+                    http::Response::builder()
+                        .status(206)
+                        .header("content-range", format!("bytes {a}-{b}/{}", data.len()))
+                        .body(hyper::Body::from(data[a..=b].to_vec()))
+                        .unwrap()
+                }
+                Some(_) => http::Response::builder().status(416).body(hyper::Body::empty()).unwrap(),
+                None => http::Response::builder().status(200).body(hyper::Body::from(data.to_vec())).unwrap(),
+            }
+        })
     }
 }
 
@@ -133,6 +216,10 @@ fn render_fixture(dir: &Path, case: &Value, svg: bool) -> Result<(RgbaImage, Opt
         Some(other) => golden_root().join(other),
         None => fixture_dir.clone(),
     };
+    let sprites_dir = match case["sprites_from"].as_str() {
+        Some(other) => golden_root().join(other),
+        None => fixture_dir.clone(),
+    };
     // Anything not in the fixture is a 404, as a real server would answer
     // (e.g. a glyph range MapLibre never requested). Registered first:
     // httptest prefers the most recently added matching expectation.
@@ -141,7 +228,19 @@ fn render_fixture(dir: &Path, case: &Value, svg: bool) -> Result<(RgbaImage, Opt
             .times(..)
             .respond_with(status_code(404)),
     );
-    serve_fixture(&server, &fixture_dir, &tiles_dir, &fonts_dir);
+    serve_fixture(&server, &fixture_dir, &tiles_dir, &fonts_dir, &sprites_dir);
+    // PMTiles archives, also written next to the outputs for
+    // tools/reference-render (which serves the same bytes to MapLibre).
+    let out = Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/golden-output").join(&name);
+    for (file, bytes) in build_pmtiles(&tiles_dir, &case["pmtiles"]) {
+        std::fs::create_dir_all(&out).unwrap();
+        std::fs::write(out.join(&file), &bytes).unwrap();
+        server.expect(
+            Expectation::matching(method_path("GET", format!("/{file}")))
+                .times(..)
+                .respond_with(RangeFile(std::sync::Arc::new(bytes))),
+        );
+    }
     let base = server.url_str("");
     let style = style_template.replace("{{BASE}}", base.trim_end_matches('/'));
 
