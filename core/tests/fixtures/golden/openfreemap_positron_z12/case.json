@@ -1,0 +1,19 @@
+{
+  "attribution": "OpenStreetMap contributors",
+  "bbox": [
+    -12463073.702828517,
+    4960587.722878612,
+    -12447786.297171483,
+    4972053.277121388
+  ],
+  "fonts_from": null,
+  "height": 600,
+  "layers": null,
+  "source_style": "https://tiles.openfreemap.org/styles/positron",
+  "tiles_from": null,
+  "width": 800,
+  "zoom": 13,
+  "svg": true,
+  "max_bad_pixel_frac": 0.00108,
+  "max_mean_diff": 0.068
+}

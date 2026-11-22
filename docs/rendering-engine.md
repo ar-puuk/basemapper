@@ -55,7 +55,11 @@ measuring against MapLibre and investigating the difference.
   centre minus half the canvas, as MapLibre's transform does.
 - **Rasterisation.** Every primitive is sampled at pixel centres with the
   top-left rule, as a GPU does. There is no other antialiasing; edges get
-  their softness from MapLibre's own shader formulas.
+  their softness from MapLibre's own shader formulas. Triangle and polygon
+  vertices are snapped to a 1/16 px grid before coverage is decided, as on
+  the reference GPU (SwiftShader, 4 sub-pixel bits); interpolated values
+  keep the exact positions. This alone removed most of the sub-pixel noise
+  along edges and icons.
 - **Framebuffer arithmetic.** Colours are premultiplied. Each fragment is
   blended with `src + dst × (1 − src.a)` in float32 and stored to 8 bits with
   round-half-to-even (`0.3 × 255` is exactly 76.5 in float32 and stores as

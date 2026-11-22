@@ -14,7 +14,7 @@
   "attribution": "(c) OpenStreetMap contributors, (c) CARTO",
   "svg": true,
   "max_bad_pixel_frac": 6e-05,
-  "max_mean_diff": 0.162,
-  "max_bad_pixel_frac_svg": 6e-05,
-  "max_mean_diff_svg": 0.795
+  "max_mean_diff": 0.013,
+  "max_bad_pixel_frac_svg": 5e-05,
+  "max_mean_diff_svg": 0.748
 }

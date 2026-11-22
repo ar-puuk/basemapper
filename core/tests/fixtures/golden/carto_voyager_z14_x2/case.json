@@ -15,5 +15,5 @@
   "fonts_from": "carto_positron_z4",
   "tiles_from": "carto_positron_z14",
   "max_bad_pixel_frac": 7e-05,
-  "max_mean_diff": 0.017
+  "max_mean_diff": 0.008
 }

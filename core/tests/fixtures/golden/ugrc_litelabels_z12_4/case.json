@@ -13,8 +13,8 @@
   "tiles_from": null,
   "width": 800,
   "zoom": 13,
-  "max_bad_pixel_frac": 0.00049,
-  "max_mean_diff": 0.07,
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.006,
   "svg": true,
   "max_bad_pixel_frac_svg": 0.00047,
   "max_mean_diff_svg": 0.077

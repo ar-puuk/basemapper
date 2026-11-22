@@ -13,6 +13,6 @@
   "tiles_from": "carto_positron_z14",
   "width": 800,
   "zoom": 15,
-  "max_bad_pixel_frac": 7e-05,
-  "max_mean_diff": 0.125
+  "max_bad_pixel_frac": 6e-05,
+  "max_mean_diff": 0.019
 }

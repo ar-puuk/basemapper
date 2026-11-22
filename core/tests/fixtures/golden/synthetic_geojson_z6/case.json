@@ -11,10 +11,10 @@
   "width": 800,
   "height": 600,
   "zoom": 7,
-  "attribution": "Synthetic GeoJSON; \u00a9 OpenStreetMap contributors, \u00a9 CARTO",
+  "attribution": "Synthetic GeoJSON; © OpenStreetMap contributors, © CARTO",
   "svg": true,
-  "max_bad_pixel_frac": 0.0006,
-  "max_mean_diff": 0.074,
+  "max_bad_pixel_frac": 0.00056,
+  "max_mean_diff": 0.025,
   "max_bad_pixel_frac_svg": 0.00521,
-  "max_mean_diff_svg": 0.423
+  "max_mean_diff_svg": 0.422
 }

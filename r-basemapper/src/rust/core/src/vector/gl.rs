@@ -94,6 +94,17 @@ pub struct Vert<const N: usize> {
     pub v: [f64; N],
 }
 
+/// Sub-pixel precision of vertex positions: the rasterizer snaps them to a
+/// 1/16 px grid. The golden references come from MapLibre on SwiftShader
+/// (ANGLE, `SUBPIXEL_BITS` 4), which covers pixels from snapped positions
+/// while varyings keep the exact values.
+const SUBPIXEL: f64 = 16.0;
+
+#[inline]
+fn snap(v: f64) -> f64 {
+    (v * SUBPIXEL).round() / SUBPIXEL
+}
+
 #[inline]
 fn edge(ax: f64, ay: f64, bx: f64, by: f64, px: f64, py: f64) -> f64 {
     (bx - ax) * (py - ay) - (by - ay) * (px - ax)
@@ -116,7 +127,11 @@ pub fn raster_triangle<const N: usize>(
     clip: &Clip,
     mut frag: impl FnMut(usize, usize, &[f64; N]),
 ) {
-    let [mut a, mut b, c] = tri;
+    let [mut a, mut b, mut c] = tri;
+    for v in [&mut a, &mut b, &mut c] {
+        v.x = snap(v.x);
+        v.y = snap(v.y);
+    }
     let mut area = edge(a.x, a.y, b.x, b.y, c.x, c.y);
     if area == 0.0 || !area.is_finite() {
         return;
@@ -181,8 +196,8 @@ pub fn raster_polygon(
             continue;
         }
         for i in 0..n {
-            let p = ring[i];
-            let q = ring[(i + 1) % n];
+            let (p, q) = (ring[i], ring[(i + 1) % n]);
+            let (p, q) = ((snap(p.0), snap(p.1)), (snap(q.0), snap(q.1)));
             if p.1 != q.1 {
                 edges.push((p.0, p.1, q.0, q.1));
             }
@@ -247,7 +262,8 @@ pub fn raster_gl_line(
     };
     // Note: a strict diamond-exit start rule (emitting the start pixel when
     // the segment begins past its centre) matched SwiftShader's output worse,
-    // so the column/row-centre walk below is kept as is.
+    // so the column/row-centre walk below is kept as is; it was tuned on
+    // exact endpoints, and snapping them to the sub-pixel grid matches worse.
     if dx.abs() >= dy.abs() {
         // x-major: one fragment per column whose centre the segment spans.
         let (k0, k1) = if dx > 0.0 {

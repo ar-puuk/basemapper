@@ -8,8 +8,8 @@
   ],
   "height": 600,
   "layers": null,
-  "max_bad_pixel_frac": 0.0002,
-  "max_mean_diff": 0.293,
+  "max_bad_pixel_frac": 0.00015,
+  "max_mean_diff": 0.018,
   "source_style": "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services/LiteBase/VectorTileServer/resources/styles/root.json",
   "width": 800,
   "zoom": 14

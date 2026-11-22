@@ -10,7 +10,7 @@
   "height": 300,
   "zoom": 13.2,
   "attribution": "Synthetic buildings",
-  "max_bad_pixel_frac": 0.00123,
-  "max_mean_diff": 0.116,
+  "max_bad_pixel_frac": 0.00012,
+  "max_mean_diff": 0.06,
   "pixel_ratio": 2
 }

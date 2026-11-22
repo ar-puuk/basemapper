@@ -11,7 +11,7 @@
   "zoom": 10.1,
   "attribution": "Synthetic labels; Noto Sans (OFL) glyphs from OpenFreeMap",
   "max_bad_pixel_frac": 5e-05,
-  "max_mean_diff": 0.043,
+  "max_mean_diff": 0.005,
   "svg": true,
   "max_bad_pixel_frac_svg": 0.0007,
   "max_mean_diff_svg": 0.113

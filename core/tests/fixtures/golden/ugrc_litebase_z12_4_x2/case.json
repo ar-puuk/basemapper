@@ -14,5 +14,5 @@
   "attribution": "Utah Geospatial Resource Center (UGRC), State of Utah",
   "fonts_from": "ugrc_litebase_slc",
   "max_bad_pixel_frac": 0.00023,
-  "max_mean_diff": 0.204
+  "max_mean_diff": 0.022
 }

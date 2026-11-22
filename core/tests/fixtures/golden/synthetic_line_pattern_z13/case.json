@@ -10,9 +10,9 @@
   "height": 480,
   "zoom": 13.5,
   "attribution": "Synthetic lines",
-  "max_bad_pixel_frac": 0.00068,
-  "max_mean_diff": 0.061,
+  "max_bad_pixel_frac": 0.00067,
+  "max_mean_diff": 0.034,
   "svg": true,
-  "max_bad_pixel_frac_svg": 0.00068,
-  "max_mean_diff_svg": 0.063
+  "max_bad_pixel_frac_svg": 0.00067,
+  "max_mean_diff_svg": 0.041
 }

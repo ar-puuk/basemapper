@@ -16,5 +16,5 @@
   "zoom": 5,
   "attribution": "Utah Geospatial Resource Center (UGRC), State of Utah",
   "max_bad_pixel_frac": 0.0004,
-  "max_mean_diff": 0.026
+  "max_mean_diff": 0.022
 }

@@ -14,5 +14,5 @@
   "width": 800,
   "zoom": 21,
   "max_bad_pixel_frac": 5e-05,
-  "max_mean_diff": 0.006
+  "max_mean_diff": 0.005
 }

@@ -15,6 +15,6 @@
   "height": 600,
   "zoom": 14,
   "attribution": "Utah Geospatial Resource Center (UGRC), State of Utah",
-  "max_bad_pixel_frac": 0.00024,
-  "max_mean_diff": 0.229
+  "max_bad_pixel_frac": 0.00029,
+  "max_mean_diff": 0.024
 }

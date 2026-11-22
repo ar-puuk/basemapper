@@ -13,8 +13,8 @@
   "zoom": 14,
   "attribution": "(c) OpenStreetMap contributors, (c) CARTO",
   "svg": true,
-  "max_bad_pixel_frac": 0.00036,
-  "max_mean_diff": 0.139,
+  "max_bad_pixel_frac": 0.00039,
+  "max_mean_diff": 0.044,
   "max_bad_pixel_frac_svg": 0.00456,
   "max_mean_diff_svg": 0.825
 }

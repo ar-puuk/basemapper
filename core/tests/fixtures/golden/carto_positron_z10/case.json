@@ -13,6 +13,6 @@
   "width": 800,
   "zoom": 11,
   "max_bad_pixel_frac": 0.0001,
-  "max_mean_diff": 0.046,
+  "max_mean_diff": 0.016,
   "fonts_from": "carto_positron_z4"
 }

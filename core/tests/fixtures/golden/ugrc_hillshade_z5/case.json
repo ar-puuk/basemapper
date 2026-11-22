@@ -13,6 +13,6 @@
   "tiles_from": null,
   "width": 800,
   "zoom": 6,
-  "max_bad_pixel_frac": 0.0006,
-  "max_mean_diff": 0.047
+  "max_bad_pixel_frac": 0.00059,
+  "max_mean_diff": 0.046
 }
