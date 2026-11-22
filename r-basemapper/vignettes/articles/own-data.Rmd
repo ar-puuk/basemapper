@@ -1,0 +1,131 @@
+---
+title: "Your own tiles and services"
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7.5, fig.height = 4.2, message = FALSE)
+```
+
+Besides named basemaps and MapLibre styles, `style` takes tile data: a tile
+URL template, TileJSON, a PMTiles archive (URL or local file), or an ArcGIS
+service. basemapper detects whether the tiles are raster or vector and
+builds a style for them; `tile_style()` builds one with your overrides.
+OGC services (WMS, WMTS) have their own style builders.
+
+```{r}
+library(basemapper)
+```
+
+## A tile URL
+
+An XYZ template, as raster tiles:
+
+```{r}
+basemap("https://tile.opentopomap.org/{z}/{x}/{y}.png", 720, 405,
+        center = c(-111.65, 40.60), zoom = 11)
+```
+
+## PMTiles
+
+A [PMTiles](https://docs.protomaps.com/pmtiles/) archive is read with HTTP
+range requests, or from a local file. Raster archives draw as they are;
+here a USGS topographic map of Mount Whitney, fitted to the archive's
+extent:
+
+```{r}
+basemap("https://pmtiles.io/usgs-mt-whitney-8-15-webp-512.pmtiles", 720, 405,
+        bounds = c(-118.3198, 36.5611, -118.2607, 36.5930))
+```
+
+Vector archives get a default style over every source layer:
+
+```{r}
+firenze <- "https://pmtiles.io/protomaps(vector)ODbL_firenze.pmtiles"
+basemap(firenze, 720, 405, center = c(11.255, 43.773), zoom = 13.5)
+```
+
+`tile_style()` sets which source layers it draws, and its paint:
+
+```{r}
+list_layers(firenze)[, c("id", "type", "source_layer")]
+
+styled <- tile_style(
+  firenze,
+  source_layers = c("earth", "water", "landuse", "roads", "buildings"),
+  paint = list("fill-color" = "#f2efe9", "line-color" = "#8a8a8a")
+)
+basemap(styled, 720, 405, center = c(11.255, 43.773), zoom = 13.5)
+```
+
+### With a basemap style
+
+A vector archive can also be drawn with a full basemap style whose source
+points at it. [protomaps-light.json](../../styles/protomaps-light.json) and
+[protomaps-dark.json](../../styles/protomaps-dark.json) are the
+[Protomaps](https://github.com/protomaps/basemaps) basemap styles with the
+Florence archive as their source
+(`"url": "pmtiles://https://pmtiles.io/protomaps(vector)ODbL_firenze.pmtiles"`),
+and a style file's path works as `style`:
+
+```{r}
+basemap("styles/protomaps-light.json", 720, 405, center = c(11.2551, 43.7710), zoom = 15.2)
+basemap("styles/protomaps-dark.json", 720, 405, center = c(11.2551, 43.7710), zoom = 15.2)
+```
+
+For your own Protomaps archive, change the source's `url` to `pmtiles://`
+and the archive's URL or path. These styles are for Protomaps tiles v3;
+archives built from late 2024 on use tiles v4, with the styles of
+`@protomaps/basemaps` 5 ([how the styles were made](../../styles/README.md)).
+
+## TileJSON
+
+A TileJSON URL works the same way; this is OpenFreeMap's planet tileset,
+with the default vector style:
+
+```{r}
+basemap("https://tiles.openfreemap.org/planet", 720, 405,
+        center = c(-111.8887, 40.7556), zoom = 12)
+```
+
+## Your tiles in a basemap's style
+
+`basemap_provider(name, tiles =)` keeps a basemap's style and swaps in your
+own tiles, which must use the same schema (OpenFreeMap's styles use
+OpenMapTiles): self-hosted tiles, or an extract for offline use.
+
+```{r}
+style <- basemap_provider("OpenFreeMap.Positron", tiles = "https://tiles.openfreemap.org/planet")
+basemap(style, 720, 405, center = c(-111.8887, 40.7556), zoom = 12)
+```
+
+## OGC services
+
+`wms_style()` and `wmts_style()` build styles for OGC services. NASA's
+Blue Marble, from GIBS:
+
+```{r}
+gibs <- wms_style("https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi",
+                  layers = "BlueMarble_ShadedRelief_Bathymetry", format = "image/jpeg")
+basemap(gibs, 720, 360, center = c(0, 20), zoom = 0.6)
+```
+
+## In plots
+
+Any of these goes in `geom_basemap()` and `tm_basemap()`:
+
+```{r}
+library(ggplot2)
+nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
+
+ggplot(nc) +
+  geom_basemap("https://tile.opentopomap.org/{z}/{x}/{y}.png", alpha = 0.8) +
+  geom_sf(fill = NA, colour = "black", linewidth = 0.3) +
+  coord_sf(xlim = c(-84.4, -81.2), ylim = c(34.9, 36.6)) +
+  theme_void()
+```
+
+## Tile cache
+
+Tiles are cached on disk, for as long as the servers' caching headers
+allow. `tile_cache()` shows where; `tile_cache(clear = TRUE)` empties it,
+and `tile_cache(FALSE)` turns it off for the session.

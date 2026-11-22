@@ -1,0 +1,189 @@
+# Stacking, labels and features
+
+A style is a stack of layers: background, water, roads, labels and so on. basemapper can draw only some of them, and can stack several styles into one map.
+
+
+``` python
+import basemapper as bm
+
+slc = (-111.8887, 40.7556)
+def view(style, **kw):
+    return bm.basemap(style, 720, 405, center=slc, zoom=12.4, **kw)
+```
+
+
+# What a style draws
+
+[list_layers()](reference/list_layers.html#basemapper.list_layers) lists a style's layers in drawing order, with the vector tile layer each one draws (`source_layer`) and the *feature* it shows:
+
+
+``` python
+from collections import Counter
+
+layers = bm.list_layers("OpenFreeMap.Liberty")
+print(len(layers), "layers")
+for l in layers[:10]:
+    print(f"{l['id']:<22} {l['type']:<10} {str(l['source_layer']):<14} {l['feature']}")
+print(Counter(l["feature"] for l in layers))
+```
+
+
+    111 layers
+    background             background None           background
+    natural_earth          raster     None           terrain
+    park                   fill       park           parks
+    park_outline           line       park           parks
+    landuse_residential    fill       landuse        landcover
+    landcover_wood         fill       landcover      landcover
+    landcover_grass        fill       landcover      landcover
+    landcover_ice          fill       landcover      landcover
+    landcover_wetland      fill       landcover      landcover
+    landuse_pitch          fill       landuse        landcover
+    Counter({'roads': 58, 'rail': 12, 'landcover': 11, 'places': 9, 'water': 7, 'poi': 5, 'boundaries': 3, 'parks': 2, 'buildings': 2, 'background': 1, 'terrain': 1})
+
+
+# Labels
+
+`labels=False` draws a style without its labels (text and icons):
+
+
+``` python
+view("OpenFreeMap.Liberty", labels=False)
+```
+
+
+<figure class="figure">
+<p><img src="layers_files/figure-html/cell-4-output-1.png" class="figure-img" width="720" height="405" /></p>
+</figure>
+
+
+`labels="only"` draws just the labels, on a transparent background, to go over another map.
+
+
+# Stacking
+
+A list of styles is drawn bottom to top. To filter one style of a stack, give the filter to [basemap_provider()](reference/basemap_provider.html#basemapper.basemap_provider); this puts satellite imagery under a vector basemap's labels:
+
+
+``` python
+hybrid = ["Esri.WorldImagery", bm.basemap_provider("OpenFreeMap.Liberty", labels="only")]
+view(hybrid)
+```
+
+
+<figure class="figure">
+<p><img src="layers_files/figure-html/cell-5-output-1.png" class="figure-img" width="720" height="405" /></p>
+</figure>
+
+
+ArcGIS basemaps are often published as separate services, drawn in order. The Utah Geospatial Resource Center's *Lite* basemap is a hillshade, a base map and labels:
+
+
+``` python
+ugrc = "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services"
+lite = [f"{ugrc}/{s}/VectorTileServer/resources/styles/root.json"
+        for s in ["VectorHillshade", "LiteBase", "LiteLabels"]]
+bm.basemap(lite, 720, 405, center=(-111.75, 40.62), zoom=10.5)
+```
+
+
+<figure class="figure">
+<p><img src="layers_files/figure-html/cell-6-output-1.png" class="figure-img" width="720" height="405" /></p>
+</figure>
+
+
+# Features
+
+`features` keeps or drops parts of the map by what they show: background, water, landcover, parks, buildings, roads, rail, boundaries, places, poi and terrain. Plain names keep, `"-name"` drops.
+
+
+``` python
+view("OpenFreeMap.Liberty", labels=False, features=["background", "water", "parks", "roads"])
+```
+
+
+<figure class="figure">
+<p><img src="layers_files/figure-html/cell-7-output-1.png" class="figure-img" width="720" height="405" /></p>
+</figure>
+
+
+``` python
+view("OpenFreeMap.Liberty", features=["-roads", "-rail", "-poi"])
+```
+
+
+<figure class="figure">
+<p><img src="layers_files/figure-html/cell-8-output-1.png" class="figure-img" width="720" height="405" /></p>
+</figure>
+
+
+[list_layers()](reference/list_layers.html#basemapper.list_layers) takes the same filters and lists what a render with them draws, to check a filter before rendering:
+
+
+``` python
+for l in bm.list_layers("OpenFreeMap.Liberty", labels=False, features=["water", "parks"]):
+    print(f"{l['id']:<22} {l['type']:<6} {l['feature']}")
+```
+
+
+    park                   fill   parks
+    park_outline           line   parks
+    waterway_tunnel        line   water
+    waterway_river         line   water
+    waterway_other         line   water
+    water                  fill   water
+
+
+# Layers
+
+Features are sorted from each layer's source layer, as a convenience. For exact control, `layers` keeps layers by id, or drops them with `"-"`; `*` and `?` are wildcards:
+
+
+``` python
+view("OpenFreeMap.Liberty", layers=["-road_*", "-bridge_*", "-tunnel_*"])
+```
+
+
+<figure class="figure">
+<p><img src="layers_files/figure-html/cell-10-output-1.png" class="figure-img" width="720" height="405" /></p>
+</figure>
+
+
+A name that matches no layer warns, so a typo does not go unnoticed:
+
+
+``` python
+m = view("OpenFreeMap.Liberty", layers=["-lable_village"])
+_ = m.render_array()
+```
+
+
+    D:\GitHub\basemapper\py-basemapper\src\basemapper\_basemap.py:200: UserWarning: layers: "-lable_village" matches no layer
+
+
+# In plots
+
+The plot layers take the same arguments:
+
+
+``` python
+import geodatasets
+import geopandas as gpd
+from plotnine import geom_map, ggplot, theme, theme_void
+
+nc = gpd.read_file(geodatasets.get_path("geoda.sids"))
+water = bm.basemap_provider("OpenFreeMap.Liberty", features=["water"], labels=False)
+
+(
+    ggplot(nc)
+    + bm.geom_basemap(["Esri.WorldShadedRelief", water])
+    + geom_map(fill=None, color="#262626", size=0.25)
+    + theme_void()
+    + theme(figure_size=(8, 3.6))
+)
+```
+
+
+<figure class="figure">
+<p><img src="layers_files/figure-html/cell-12-output-1.png" class="figure-img" width="768" height="346" /></p>
+</figure>

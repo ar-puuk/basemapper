@@ -1,7 +1,10 @@
 # Great Docs Configuration
 # https://posit-dev.github.io/great-docs/user-guide/configuration.html
 
-display_name: python
+display_name: basemapper
+
+# GitHub-only distribution for now: no package-index link.
+pypi: false
 
 parser: google
 dynamic: true
@@ -11,7 +14,17 @@ site_url: "https://ar-puuk.github.io/basemapper/python/"
 site:
   theme: cosmo
 
-logo: logo.svg
+# The navbar shows the mark (the hex logo's map plates) with the name; the
+# hex logo itself (logo.svg) is the README's.
+logo:
+  light: mark.svg
+  dark: mark.svg
+  show_title: true
+
+favicon: favicon.svg
+
+# The README opens with the logo and title; a hero would repeat them.
+hero: false
 
 accent_color: "#007EA7"
 navbar_color: "#0E171E"
@@ -30,45 +43,19 @@ include_in_header:
       body, p, li, td, th, .navbar, .sidebar { font-family: 'Inter', sans-serif !important; }
       h1, h2, h3, h4, h5, h6 { font-family: 'Inter', sans-serif !important; }
       code, pre, tt, kbd { font-family: 'JetBrains Mono', monospace !important; }
-      pre, :not(pre) > code { background-color: #E8F4F8 !important; }
+      body:not(.quarto-dark) pre, body:not(.quarto-dark) :not(pre) > code { background-color: #E8F4F8 !important; }
+      /* The name beside the navbar mark, as plain text (great-docs boxes it). */
+      .navbar .navbar-title { border: 0 !important; padding: 0 !important; font-size: 1.15rem; }
+      .navbar .navbar-brand-logo { margin-right: 0.15rem; }
       a:not(.navbar-brand):not(.nav-link):not(.btn) { color: #007EA7; }
       a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
-      #r-docs-nav-link {
-        margin-left: auto;
-        align-self: stretch;
-        display: flex !important;
-        align-items: center;
-        padding: 0 16px !important;
-        margin-right: 8px;
-        background-color: #007EA7;
-        color: #fff !important;
-        text-decoration: none !important;
-        font-weight: 600;
-        font-size: 0.95rem;
-        border-radius: 6px;
-        transition: background-color 0.15s ease;
-      }
-      #r-docs-nav-link:hover {
-        background-color: #D96E34 !important;
-        color: #fff !important;
-      }
+      .cell-output-display img, main table img { max-width: 100%; height: auto; border-radius: 6px; }
+      .bm-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; margin: 1rem 0 1.5rem; }
+      .bm-cell { margin: 0; }
+      .bm-cell img { width: 100%; height: auto; border-radius: 6px; display: block; }
+      .bm-cell figcaption { font-size: 0.85rem; margin-top: 4px; display: flex; justify-content: space-between; gap: 6px; }
+      .bm-cell figcaption span { opacity: 0.65; }
       </style>
-  - text: |
-      <script>
-      (function(){
-        function addLink(){
-          var tools=document.querySelector('.quarto-navbar-tools');
-          if(!tools||document.getElementById('r-docs-nav-link'))return;
-          var a=document.createElement('a');
-          a.id='r-docs-nav-link';
-          a.href='../r/';
-          a.textContent='R docs';
-          tools.parentNode.appendChild(a);
-        }
-        if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',addLink);}
-        else{addLink();}
-      })();
-      </script>
 
 reference:
   - title: Basemap views

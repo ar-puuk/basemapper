@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["FEATURES"],"enum":["Labels"],"fn":["is_label","layer_feature","select","select_layers","validate_features"],"struct":["Selection"]};

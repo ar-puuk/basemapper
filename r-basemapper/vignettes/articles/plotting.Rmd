@@ -1,0 +1,120 @@
+---
+title: "Plots with ggplot2 and tmap"
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7.5, fig.height = 4.2, message = FALSE, warning = FALSE)
+```
+
+`geom_basemap()` ({ggplot2}) and `tm_basemap()` ({tmap}) add a basemap
+under your data. They render when the plot is drawn, for the panel's extent
+and at the output device's resolution: on screen, in this page, or in
+`ggsave(dpi = 300)` and `tmap_save(dpi = 300)`, labels stay sharp and
+the right size. Both take the arguments of `basemap()`'s renderers (`labels`,
+`features`, `layers`, `alpha`, ...) and credit the provider in the corner.
+
+```{r}
+library(tmap)        # before basemapper: basemapper's tm_basemap() replaces tmap's
+library(basemapper)
+library(ggplot2)
+library(sf)
+
+nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
+```
+
+## ggplot2
+
+```{r ggplot-choropleth}
+ggplot(nc) +
+  geom_basemap("OpenFreeMap.Positron") +
+  geom_sf(aes(fill = SID79 / BIR79 * 1000), colour = "white", linewidth = 0.15, alpha = 0.8) +
+  scale_fill_distiller("SIDS per 1,000\nbirths, 1979", palette = "OrRd", direction = 1) +
+  theme_void()
+```
+
+### Projected data
+
+The basemap is rendered in Web Mercator and warped to the plot's coordinate
+system, so data in any CRS works. Here North Carolina's state plane
+(EPSG:32119), with the counties' centroids:
+
+```{r ggplot-projected}
+nc_sp <- st_transform(nc, 32119)
+centroids <- st_centroid(nc_sp)
+
+ggplot(nc_sp) +
+  geom_basemap("Esri.WorldTopoMap") +
+  geom_sf(fill = NA, colour = "grey25", linewidth = 0.2) +
+  geom_sf(data = centroids, aes(size = BIR74), colour = "#D96E34", alpha = 0.7) +
+  scale_size_area("Births, 1974", max_size = 6) +
+  theme_void()
+```
+
+### A quieter basemap
+
+For a data map, a basemap often reads better without its labels, faded, or
+with only some of its features (see [Stacking, labels and
+features](layers.html)):
+
+```{r}
+ggplot(nc) +
+  geom_basemap("OpenFreeMap.Liberty", labels = FALSE, features = c("-roads", "-rail"), alpha = 0.6) +
+  geom_sf(aes(fill = NWBIR74 / BIR74), colour = "white", linewidth = 0.15) +
+  scale_fill_viridis_c("Share of births,\nnon-white, 1974", labels = scales::percent) +
+  theme_void()
+```
+
+### Zooming in
+
+The basemap follows the panel, so `coord_sf()` limits zoom it in, with
+detail to match:
+
+```{r}
+ggplot(nc) +
+  geom_basemap("Esri.WorldImagery") +
+  geom_sf(fill = NA, colour = "yellow", linewidth = 0.6) +
+  geom_sf_text(aes(label = NAME), colour = "white", size = 3.2, fontface = "bold") +
+  coord_sf(xlim = c(-76.9, -75.4), ylim = c(35.0, 36.0)) +
+  theme_void()
+```
+
+### Credits
+
+The credit line is on by default. `attribution = FALSE` turns it off;
+`get_attribution()` returns the text, for a caption:
+
+```{r}
+ggplot(nc) +
+  geom_basemap("Esri.WorldGrayCanvas", attribution = FALSE) +
+  geom_sf(fill = NA, colour = "steelblue", linewidth = 0.3) +
+  labs(caption = get_attribution("Esri.WorldGrayCanvas")) +
+  theme_void()
+```
+
+## tmap
+
+`tm_basemap()` is a {tmap} v4 layer; it takes its extent from the map's
+shapes. tmap has a `tm_basemap()` of its own, so attach tmap before
+basemapper (or call `basemapper::tm_basemap()`):
+
+```{r}
+tm_shape(nc) +
+  tm_basemap("OpenFreeMap.Positron") +
+  tm_polygons(
+    fill = "BIR79", fill_alpha = 0.75, col = "white", lwd = 0.5,
+    fill.scale = tm_scale_intervals(values = "brewer.blues"),
+    fill.legend = tm_legend("Births, 1979")
+  )
+```
+
+Raster and vector basemaps, stacks, labels and features work the same way;
+here shaded relief under a vector basemap's labels:
+
+```{r tmap-relief}
+relief <- c("Esri.WorldShadedRelief", basemap_provider("OpenFreeMap.Liberty", labels = "only"))
+
+tm_shape(nc_sp) +
+  tm_basemap(relief) +
+  tm_borders(col = "grey20", lwd = 0.6) +
+  tm_dots(size = "BIR74", fill = "#D96E34", fill_alpha = 0.7, size.legend = tm_legend("Births, 1974"))
+```

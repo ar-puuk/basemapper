@@ -1,0 +1,7 @@
+111 layers; the first five:
+  background             background -              background
+  natural_earth          raster     -              terrain
+  park                   fill       park           parks
+  park_outline           line       park           parks
+  landuse_residential    fill       landuse        landcover
+the filter keeps 56 layers

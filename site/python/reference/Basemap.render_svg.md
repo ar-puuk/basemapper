@@ -1,7 +1,7 @@
 ## Basemap.render_svg()
 
 
-Render a vector SVG (`width` x `height` user units;
+Render an SVG (`width` x `height` user units; `pixel_ratio`
 
 
 Usage
@@ -14,7 +14,7 @@ Basemap.render_svg(
 ```
 
 
-`pixel_ratio` does not apply), written to `path` when given. Returns the SVG text.
+does not apply), written to `path` when given: vector layers as paths and text, raster tiles (raster basemaps, hillshade) as embedded images. Returns the SVG text.
 
 
 ## Parameters

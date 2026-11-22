@@ -50,7 +50,7 @@ Render to a `(height, width, 4)` uint8 RGBA array (device pixels).
 Render a PNG, written to `path` when given. Returns the PNG bytes.
 
 [Basemap.render_svg()](Basemap.render_svg.md#basemapper.Basemap.render_svg)  
-Render a vector SVG (`width` x `height` user units;
+Render an SVG (`width` x `height` user units; `pixel_ratio`
 
 
 ## One-shot rendering

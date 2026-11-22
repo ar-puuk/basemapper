@@ -40,6 +40,9 @@ The same functions and arguments exist in Python.
   [`render_array()`](https://ar-puuk.github.io/basemapper/r/reference/render_png.md)
   [`render_raster()`](https://ar-puuk.github.io/basemapper/r/reference/render_png.md)
   : Render a basemap view
+- [`plot(`*`<basemap>`*`)`](https://ar-puuk.github.io/basemapper/r/reference/plot.basemap.md)
+  [`knit_print(`*`<basemap>`*`)`](https://ar-puuk.github.io/basemapper/r/reference/plot.basemap.md)
+  : Show a basemap view
 
 ## One-shot rendering
 

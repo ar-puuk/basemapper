@@ -1,0 +1,640 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `core\src\tile_style.rs`."><title>tile_style.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="basemapper_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"><!-- basemapper: one language switcher for the R (pkgdown), Python (great-docs)
+     and Rust (rustdoc) sites, in the same place on each. The build script
+     includes this file in every page's <head>. -->
+<style>
+/* The pill keeps one look everywhere; only its spacing adapts, so it sits as
+   the last control of each site's top bar, a control's width from the one
+   before it and as tall as the site's own buttons. */
+.bm-switch {
+  display: inline-flex; align-items: center; gap: 2px; flex: none;
+  margin: 0 0 0 12px; padding: 3px; box-sizing: border-box;
+  border-radius: 999px; background: #16232C; width: fit-content;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font: 600 13px/1 Inter, system-ui, sans-serif; white-space: nowrap;
+}
+.bm-switch a {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 12px; border-radius: 999px;
+  color: rgba(255, 251, 242, 0.78) !important; text-decoration: none !important;
+  transition: background-color .15s ease, color .15s ease;
+}
+.bm-switch a:hover { color: #fff !important; background: rgba(255, 255, 255, 0.12); }
+.bm-switch a.bm-active { background: #007EA7; color: #fff !important; }
+.bm-switch a.bm-home { padding: 8px 10px; }
+.bm-switch svg { width: 14px; height: 14px; fill: currentColor; flex: none; }
+/* pkgdown: a list item after the GitHub link */
+li.bm-switch-item { display: flex; align-items: center; }
+li.bm-switch-item .bm-switch { margin-left: 4px; } /* nav links carry their own padding */
+/* great-docs (Quarto): after the search button */
+.navbar-container > .bm-switch { order: 1000; margin-left: 8px; } /* after Quarto's tools (order 900) */
+@media (max-width: 991.98px) { .navbar-container > .bm-switch { margin: 6px auto 0; } }
+/* rustdoc: after Summary in the page toolbar */
+rustdoc-toolbar > .bm-switch { align-self: center; margin-left: 16px; }
+/* Thin scrollbars in the page's colours, light or dark (pkgdown, Quarto and
+   rustdoc each mark their dark theme differently). A site's own, more
+   specific scrollbar styles still win. */
+:root { --bm-thumb: rgba(14, 23, 30, .30); }
+:root[data-bs-theme="dark"], :root:has(body.quarto-dark), :root[data-theme="dark"], :root[data-theme="ayu"] {
+  --bm-thumb: rgba(255, 255, 255, .26);
+}
+* { scrollbar-width: thin; scrollbar-color: var(--bm-thumb) transparent; }
+pre, .sourceCode, nav.navbar { scrollbar-color: rgba(255, 255, 255, .28) transparent; }
+:root[data-bs-theme="light"] pre, :root:has(body.quarto-light) pre, :root:has(body.quarto-light) .sourceCode { scrollbar-color: var(--bm-thumb) transparent; }
+.bm-switch-fixed {
+  position: fixed; top: 10px; right: 16px; z-index: 1000;
+  background: #0E171E; box-shadow: 0 2px 10px rgba(0, 0, 0, .25);
+}
+/* Collapsed navbars (pkgdown, Quarto): the pill starts its own row. */
+@media (max-width: 991.98px) {
+  li.bm-switch-item { padding: 8px 0; }
+  li.bm-switch-item .bm-switch { margin-left: 0; }
+}
+/* Between the navbar collapsing (992px) and 1200px the bars are crowded: logos only. */
+@media (min-width: 992px) and (max-width: 1199.98px) { .bm-switch a { padding: 8px 9px; } .bm-switch a span { display: none; } }
+@media (max-width: 700px) {
+  .bm-switch a { padding: 8px 9px; } .bm-switch a span { display: none; }
+  rustdoc-toolbar > .bm-switch { grid-column: 1 / -1; justify-self: end; margin: 6px 0 0; }
+}
+</style>
+<script>
+(function () {
+  // Language logos: Simple Icons (CC0), https://simpleicons.org
+  var ICONS = {"r": "M12 2.746c-6.627 0-12 3.599-12 8.037 0 3.897 4.144 7.144 9.64 7.88V16.26c-2.924-.915-4.925-2.755-4.925-4.877 0-3.035 4.084-5.494 9.12-5.494 5.038 0 8.757 1.683 8.757 5.494 0 1.976-.999 3.379-2.662 4.272.09.066.174.128.258.216.169.149.25.363.372.544 2.128-1.45 3.44-3.437 3.44-5.631 0-4.44-5.373-8.038-12-8.038zm-2.111 4.99v13.516l4.093-.002-.002-5.291h1.1c.225 0 .321.066.549.25.272.22.715.982.715.982l2.164 4.063 4.627-.002-2.864-4.826s-.086-.193-.265-.383a2.22 2.22 0 00-.582-.416c-.422-.214-1.149-.434-1.149-.434s3.578-.264 3.578-3.826c0-3.562-3.744-3.63-3.744-3.63zm4.127 2.93l2.478.002s1.149-.062 1.149 1.127c0 1.165-1.149 1.17-1.149 1.17h-2.478zm1.754 6.119c-.494.049-1.012.079-1.54.088v1.807a16.622 16.622 0 002.37-.473l-.471-.891s-.108-.183-.248-.394c-.039-.054-.08-.098-.111-.137z", "python": "M14.25.18l.9.2.73.26.59.3.45.32.34.34.25.34.16.33.1.3.04.26.02.2-.01.13V8.5l-.05.63-.13.55-.21.46-.26.38-.3.31-.33.25-.35.19-.35.14-.33.1-.3.07-.26.04-.21.02H8.77l-.69.05-.59.14-.5.22-.41.27-.33.32-.27.35-.2.36-.15.37-.1.35-.07.32-.04.27-.02.21v3.06H3.17l-.21-.03-.28-.07-.32-.12-.35-.18-.36-.26-.36-.36-.35-.46-.32-.59-.28-.73-.21-.88-.14-1.05-.05-1.23.06-1.22.16-1.04.24-.87.32-.71.36-.57.4-.44.42-.33.42-.24.4-.16.36-.1.32-.05.24-.01h.16l.06.01h8.16v-.83H6.18l-.01-2.75-.02-.37.05-.34.11-.31.17-.28.25-.26.31-.23.38-.2.44-.18.51-.15.58-.12.64-.1.71-.06.77-.04.84-.02 1.27.05zm-6.3 1.98l-.23.33-.08.41.08.41.23.34.33.22.41.09.41-.09.33-.22.23-.34.08-.41-.08-.41-.23-.33-.33-.22-.41-.09-.41.09zm13.09 3.95l.28.06.32.12.35.18.36.27.36.35.35.47.32.59.28.73.21.88.14 1.04.05 1.23-.06 1.23-.16 1.04-.24.86-.32.71-.36.57-.4.45-.42.33-.42.24-.4.16-.36.09-.32.05-.24.02-.16-.01h-8.22v.82h5.84l.01 2.76.02.36-.05.34-.11.31-.17.29-.25.25-.31.24-.38.2-.44.17-.51.15-.58.13-.64.09-.71.07-.77.04-.84.01-1.27-.04-1.07-.14-.9-.2-.73-.25-.59-.3-.45-.33-.34-.34-.25-.34-.16-.33-.1-.3-.04-.25-.02-.2.01-.13v-5.34l.05-.64.13-.54.21-.46.26-.38.3-.32.33-.24.35-.2.35-.14.33-.1.3-.06.26-.04.21-.02.13-.01h5.84l.69-.05.59-.14.5-.21.41-.28.33-.32.27-.35.2-.36.15-.36.1-.35.07-.32.04-.28.02-.21V6.07h2.09l.14.01zm-6.47 14.25l-.23.33-.08.41.08.41.23.33.33.23.41.08.41-.08.33-.23.23-.33.08-.41-.08-.41-.23-.33-.33-.23-.41-.08-.41.08z", "rust": "M23.8346 11.7033l-1.0073-.6236a13.7268 13.7268 0 00-.0283-.2936l.8656-.8069a.3483.3483 0 00-.1154-.578l-1.1066-.414a8.4958 8.4958 0 00-.087-.2856l.6904-.9587a.3462.3462 0 00-.2257-.5446l-1.1663-.1894a9.3574 9.3574 0 00-.1407-.2622l.49-1.0761a.3437.3437 0 00-.0274-.3361.3486.3486 0 00-.3006-.154l-1.1845.0416a6.7444 6.7444 0 00-.1873-.2268l.2723-1.153a.3472.3472 0 00-.417-.4172l-1.1532.2724a14.0183 14.0183 0 00-.2278-.1873l.0415-1.1845a.3442.3442 0 00-.49-.328l-1.076.491c-.0872-.0476-.1742-.0952-.2623-.1407l-.1903-1.1673A.3483.3483 0 0016.256.955l-.9597.6905a8.4867 8.4867 0 00-.2855-.086l-.414-1.1066a.3483.3483 0 00-.5781-.1154l-.8069.8666a9.2936 9.2936 0 00-.2936-.0284L12.2946.1683a.3462.3462 0 00-.5892 0l-.6236 1.0073a13.7383 13.7383 0 00-.2936.0284L9.9803.3374a.3462.3462 0 00-.578.1154l-.4141 1.1065c-.0962.0274-.1903.0567-.2855.086L7.744.955a.3483.3483 0 00-.5447.2258L7.009 2.348a9.3574 9.3574 0 00-.2622.1407l-1.0762-.491a.3462.3462 0 00-.49.328l.0416 1.1845a7.9826 7.9826 0 00-.2278.1873L3.8413 3.425a.3472.3472 0 00-.4171.4171l.2713 1.1531c-.0628.075-.1255.1509-.1863.2268l-1.1845-.0415a.3462.3462 0 00-.328.49l.491 1.0761a9.167 9.167 0 00-.1407.2622l-1.1662.1894a.3483.3483 0 00-.2258.5446l.6904.9587a13.303 13.303 0 00-.087.2855l-1.1065.414a.3483.3483 0 00-.1155.5781l.8656.807a9.2936 9.2936 0 00-.0283.2935l-1.0073.6236a.3442.3442 0 000 .5892l1.0073.6236c.008.0982.0182.1964.0283.2936l-.8656.8079a.3462.3462 0 00.1155.578l1.1065.4141c.0273.0962.0567.1914.087.2855l-.6904.9587a.3452.3452 0 00.2268.5447l1.1662.1893c.0456.088.0922.1751.1408.2622l-.491 1.0762a.3462.3462 0 00.328.49l1.1834-.0415c.0618.0769.1235.1528.1873.2277l-.2713 1.1541a.3462.3462 0 00.4171.4161l1.153-.2713c.075.0638.151.1255.2279.1863l-.0415 1.1845a.3442.3442 0 00.49.327l1.0761-.49c.087.0486.1741.0951.2622.1407l.1903 1.1662a.3483.3483 0 00.5447.2268l.9587-.6904a9.299 9.299 0 00.2855.087l.414 1.1066a.3452.3452 0 00.5781.1154l.8079-.8656c.0972.0111.1954.0203.2936.0294l.6236 1.0073a.3472.3472 0 00.5892 0l.6236-1.0073c.0982-.0091.1964-.0183.2936-.0294l.8069.8656a.3483.3483 0 00.578-.1154l.4141-1.1066a8.4626 8.4626 0 00.2855-.087l.9587.6904a.3452.3452 0 00.5447-.2268l.1903-1.1662c.088-.0456.1751-.0931.2622-.1407l1.0762.49a.3472.3472 0 00.49-.327l-.0415-1.1845a6.7267 6.7267 0 00.2267-.1863l1.1531.2713a.3472.3472 0 00.4171-.416l-.2713-1.1542c.0628-.0749.1255-.1508.1863-.2278l1.1845.0415a.3442.3442 0 00.328-.49l-.49-1.076c.0475-.0872.0951-.1742.1407-.2623l1.1662-.1893a.3483.3483 0 00.2258-.5447l-.6904-.9587.087-.2855 1.1066-.414a.3462.3462 0 00.1154-.5781l-.8656-.8079c.0101-.0972.0202-.1954.0283-.2936l1.0073-.6236a.3442.3442 0 000-.5892zm-6.7413 8.3551a.7138.7138 0 01.2986-1.396.714.714 0 11-.2997 1.396zm-.3422-2.3142a.649.649 0 00-.7715.5l-.3573 1.6685c-1.1035.501-2.3285.7795-3.6193.7795a8.7368 8.7368 0 01-3.6951-.814l-.3574-1.6684a.648.648 0 00-.7714-.499l-1.473.3158a8.7216 8.7216 0 01-.7613-.898h7.1676c.081 0 .1356-.0141.1356-.088v-2.536c0-.074-.0536-.0881-.1356-.0881h-2.0966v-1.6077h2.2677c.2065 0 1.1065.0587 1.394 1.2088.0901.3533.2875 1.5044.4232 1.8729.1346.413.6833 1.2381 1.2685 1.2381h3.5716a.7492.7492 0 00.1296-.0131 8.7874 8.7874 0 01-.8119.9526zM6.8369 20.024a.714.714 0 11-.2997-1.396.714.714 0 01.2997 1.396zM4.1177 8.9972a.7137.7137 0 11-1.304.5791.7137.7137 0 011.304-.579zm-.8352 1.9813l1.5347-.6824a.65.65 0 00.33-.8585l-.3158-.7147h1.2432v5.6025H3.5669a8.7753 8.7753 0 01-.2834-3.348zm6.7343-.5437V8.7836h2.9601c.153 0 1.0792.1772 1.0792.8697 0 .575-.7107.7815-1.2948.7815zm10.7574 1.4862c0 .2187-.008.4363-.0243.651h-.9c-.09 0-.1265.0586-.1265.1477v.413c0 .973-.5487 1.1846-1.0296 1.2382-.4576.0517-.9648-.1913-1.0275-.4717-.2704-1.5186-.7198-1.8436-1.4305-2.4034.8817-.5599 1.799-1.386 1.799-2.4915 0-1.1936-.819-1.9458-1.3769-2.3153-.7825-.5163-1.6491-.6195-1.883-.6195H5.4682a8.7651 8.7651 0 014.907-2.7699l1.0974 1.151a.648.648 0 00.9182.0213l1.227-1.1743a8.7753 8.7753 0 016.0044 4.2762l-.8403 1.8982a.652.652 0 00.33.8585l1.6178.7188c.0283.2875.0425.577.0425.8717zm-9.3006-9.5993a.7128.7128 0 11.984 1.0316.7137.7137 0 01-.984-1.0316zm8.3389 6.71a.7107.7107 0 01.9395-.3625.7137.7137 0 11-.9405.3635z"};
+  var SITES = [["r", "R"], ["python", "Python"], ["rust", "Rust"]];
+  var HOME = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 1 7.4V15h5v-4.5h4V15h5V7.4z"/></svg>';
+  function build() {
+    if (document.querySelector(".bm-switch")) return;
+    var path = window.location.pathname;
+    var m = path.match(/^(.*?\/)(r|python|rust)\//);
+    var root = m ? m[1] : "../";
+    var current = m ? m[2] : "";
+    var nav = document.createElement("nav");
+    nav.className = "bm-switch";
+    nav.setAttribute("aria-label", "basemapper documentation");
+    var home = document.createElement("a");
+    home.className = "bm-home"; home.href = root + "index.html";
+    home.title = "basemapper home"; home.innerHTML = HOME;
+    nav.appendChild(home);
+    SITES.forEach(function (s) {
+      var a = document.createElement("a");
+      a.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + ICONS[s[0]] + '"/></svg><span>' + s[1] + '</span>';
+      a.href = root + s[0] + "/" + (s[0] === "rust" ? "basemapper_core/index.html" : "index.html");
+      if (s[0] === current) { a.className = "bm-active"; a.setAttribute("aria-current", "page"); }
+      nav.appendChild(a);
+    });
+    // Always the last control of the site's top bar.
+    var pkgdown = document.querySelector("nav.navbar #navbar > ul.navbar-nav:last-of-type");
+    var quarto = document.querySelector("nav.navbar .navbar-container");
+    var rustdoc = document.querySelector(".main-heading rustdoc-toolbar");
+    if (pkgdown && !pkgdown.classList.contains("me-auto")) {
+      var li = document.createElement("li");
+      li.className = "nav-item bm-switch-item";
+      li.appendChild(nav); pkgdown.appendChild(li);
+    }
+    else if (quarto) { quarto.appendChild(nav); }
+    else if (rustdoc) { rustdoc.appendChild(nav); }
+    else { nav.classList.add("bm-switch-fixed"); document.body.appendChild(nav); }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build);
+  else build();
+})();
+</script>
+</head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">basemapper_core/</div>tile_style.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Styles for tile data: anything a user may pass as `style` that is not
+<a href=#2 id=2 data-nosnippet>2</a>//! itself a style. MapLibre always needs a style; when it is given a tile
+<a href=#3 id=3 data-nosnippet>3</a>//! URL, a TileJSON, a PMTiles archive or an ArcGIS service instead, the style
+<a href=#4 id=4 data-nosnippet>4</a>//! is built here, the way one would write it for MapLibre:
+<a href=#5 id=5 data-nosnippet>5</a>//!
+<a href=#6 id=6 data-nosnippet>6</a>//! | Input                                   | Detected by                       | Style                                   |
+<a href=#7 id=7 data-nosnippet>7</a>//! |-----------------------------------------|-----------------------------------|-----------------------------------------|
+<a href=#8 id=8 data-nosnippet>8</a>//! | `*.pmtiles` (URL, path) / `pmtiles://`  | the archive header's tile type    | raster layer / default vector style     |
+<a href=#9 id=9 data-nosnippet>9</a>//! | tile template (`{z}`, `{quadkey}`, ...) | extension, else one probed tile   | raster layer / default vector style     |
+<a href=#10 id=10 data-nosnippet>10</a>//! | TileJSON URL or file                    | `vector_layers`, `format`         | raster layer / default vector style     |
+<a href=#11 id=11 data-nosnippet>11</a>//! | `.../MapServer`                         | URL                               | raster layer over `tile/{z}/{y}/{x}`    |
+<a href=#12 id=12 data-nosnippet>12</a>//! | `.../VectorTileServer`                  | URL                               | the service's published style           |
+<a href=#13 id=13 data-nosnippet>13</a>//! | style URL or file                       | `layers` in the JSON              | the style, relative URLs made absolute  |
+<a href=#14 id=14 data-nosnippet>14</a>//!
+<a href=#15 id=15 data-nosnippet>15</a>//! The default vector style draws every source layer: polygons as
+<a href=#16 id=16 data-nosnippet>16</a>//! translucent fills, lines and outlines, points as circles, a colour per
+<a href=#17 id=17 data-nosnippet>17</a>//! source layer, over a transparent background (ready to stack).
+<a href=#18 id=18 data-nosnippet>18</a>
+<a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">use </span><span class="kw">crate</span>::error::BasemapError;
+<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><span class="kw">crate</span>::tile_fetcher::{local_path, TileCoord, TileUrls};
+<a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span>serde_json::{json, Map, Value};
+<a href=#22 id=22 data-nosnippet>22</a>
+<a href=#23 id=23 data-nosnippet>23</a><span class="doccomment">/// Raster or vector tiles.
+<a href=#24 id=24 data-nosnippet>24</a></span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+<a href=#25 id=25 data-nosnippet>25</a></span><span class="kw">pub enum </span>TileKind {
+<a href=#26 id=26 data-nosnippet>26</a>    Raster,
+<a href=#27 id=27 data-nosnippet>27</a>    Vector,
+<a href=#28 id=28 data-nosnippet>28</a>}
+<a href=#29 id=29 data-nosnippet>29</a>
+<a href=#30 id=30 data-nosnippet>30</a><span class="kw">impl </span>TileKind {
+<a href=#31 id=31 data-nosnippet>31</a>    <span class="doccomment">/// `"raster"` or `"vector"`.
+<a href=#32 id=32 data-nosnippet>32</a>    </span><span class="kw">pub fn </span>parse(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;TileKind, BasemapError&gt; {
+<a href=#33 id=33 data-nosnippet>33</a>        <span class="kw">match </span>s {
+<a href=#34 id=34 data-nosnippet>34</a>            <span class="string">"raster" </span>=&gt; <span class="prelude-val">Ok</span>(TileKind::Raster),
+<a href=#35 id=35 data-nosnippet>35</a>            <span class="string">"vector" </span>=&gt; <span class="prelude-val">Ok</span>(TileKind::Vector),
+<a href=#36 id=36 data-nosnippet>36</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(BasemapError::InvalidInput(<span class="macro">format!</span>(<span class="string">"type must be \"raster\" or \"vector\", not {s:?}"</span>))),
+<a href=#37 id=37 data-nosnippet>37</a>        }
+<a href=#38 id=38 data-nosnippet>38</a>    }
+<a href=#39 id=39 data-nosnippet>39</a>
+<a href=#40 id=40 data-nosnippet>40</a>    <span class="doccomment">/// `"raster"` or `"vector"`.
+<a href=#41 id=41 data-nosnippet>41</a>    </span><span class="kw">pub fn </span>name(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#42 id=42 data-nosnippet>42</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#43 id=43 data-nosnippet>43</a>            TileKind::Raster =&gt; <span class="string">"raster"</span>,
+<a href=#44 id=44 data-nosnippet>44</a>            TileKind::Vector =&gt; <span class="string">"vector"</span>,
+<a href=#45 id=45 data-nosnippet>45</a>        }
+<a href=#46 id=46 data-nosnippet>46</a>    }
+<a href=#47 id=47 data-nosnippet>47</a>}
+<a href=#48 id=48 data-nosnippet>48</a>
+<a href=#49 id=49 data-nosnippet>49</a><span class="doccomment">/// Overrides for [`crate::tile_style()`]; unset fields are detected or left to
+<a href=#50 id=50 data-nosnippet>50</a>/// MapLibre's defaults.
+<a href=#51 id=51 data-nosnippet>51</a></span><span class="attr">#[derive(Clone, Debug, Default)]
+<a href=#52 id=52 data-nosnippet>52</a></span><span class="kw">pub struct </span>TileStyleOptions {
+<a href=#53 id=53 data-nosnippet>53</a>    <span class="doccomment">/// Raster or vector; detected when unset.
+<a href=#54 id=54 data-nosnippet>54</a>    </span><span class="kw">pub </span>kind: <span class="prelude-ty">Option</span>&lt;TileKind&gt;,
+<a href=#55 id=55 data-nosnippet>55</a>    <span class="doccomment">/// Tile size in px (raster default 256 for tile URLs and archives).
+<a href=#56 id=56 data-nosnippet>56</a>    </span><span class="kw">pub </span>tile_size: <span class="prelude-ty">Option</span>&lt;u32&gt;,
+<a href=#57 id=57 data-nosnippet>57</a>    <span class="doccomment">/// `"xyz"` or `"tms"`.
+<a href=#58 id=58 data-nosnippet>58</a>    </span><span class="kw">pub </span>scheme: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#59 id=59 data-nosnippet>59</a>    <span class="kw">pub </span>minzoom: <span class="prelude-ty">Option</span>&lt;u8&gt;,
+<a href=#60 id=60 data-nosnippet>60</a>    <span class="kw">pub </span>maxzoom: <span class="prelude-ty">Option</span>&lt;u8&gt;,
+<a href=#61 id=61 data-nosnippet>61</a>    <span class="kw">pub </span>attribution: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#62 id=62 data-nosnippet>62</a>    <span class="doccomment">/// Vector: the source layers to draw (default: all).
+<a href=#63 id=63 data-nosnippet>63</a>    </span><span class="kw">pub </span>source_layers: <span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;,
+<a href=#64 id=64 data-nosnippet>64</a>    <span class="doccomment">/// Vector: paint properties for the generated `fill-*`, `line-*` and
+<a href=#65 id=65 data-nosnippet>65</a>    /// `circle-*` layers, e.g. `{"fill-color": "#e8e0d8"}`.
+<a href=#66 id=66 data-nosnippet>66</a>    </span><span class="kw">pub </span>paint: Map&lt;String, Value&gt;,
+<a href=#67 id=67 data-nosnippet>67</a>}
+<a href=#68 id=68 data-nosnippet>68</a>
+<a href=#69 id=69 data-nosnippet>69</a><span class="doccomment">/// What a `style` string names.
+<a href=#70 id=70 data-nosnippet>70</a></span><span class="attr">#[derive(Debug, PartialEq)]
+<a href=#71 id=71 data-nosnippet>71</a></span><span class="kw">enum </span>Input {
+<a href=#72 id=72 data-nosnippet>72</a>    <span class="doccomment">/// URL, `file://` URL or path, without `pmtiles://`.
+<a href=#73 id=73 data-nosnippet>73</a>    </span>Pmtiles(String),
+<a href=#74 id=74 data-nosnippet>74</a>    Template(String),
+<a href=#75 id=75 data-nosnippet>75</a>    MapServer(String),
+<a href=#76 id=76 data-nosnippet>76</a>    VectorTileServer(String),
+<a href=#77 id=77 data-nosnippet>77</a>    <span class="doccomment">/// A style or TileJSON, by URL or path.
+<a href=#78 id=78 data-nosnippet>78</a>    </span>Resource(String),
+<a href=#79 id=79 data-nosnippet>79</a>}
+<a href=#80 id=80 data-nosnippet>80</a>
+<a href=#81 id=81 data-nosnippet>81</a><span class="kw">fn </span>classify(s: <span class="kw-2">&amp;</span>str) -&gt; Input {
+<a href=#82 id=82 data-nosnippet>82</a>    <span class="kw">let </span>s = s.trim();
+<a href=#83 id=83 data-nosnippet>83</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(inner) = s.strip_prefix(<span class="string">"pmtiles://"</span>) {
+<a href=#84 id=84 data-nosnippet>84</a>        <span class="kw">return </span>Input::Pmtiles(inner.to_owned());
+<a href=#85 id=85 data-nosnippet>85</a>    }
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="kw">let </span>path = s.split([<span class="string">'?'</span>, <span class="string">'#'</span>]).next().unwrap_or(s).to_ascii_lowercase();
+<a href=#87 id=87 data-nosnippet>87</a>    <span class="kw">if </span>path.ends_with(<span class="string">".pmtiles"</span>) {
+<a href=#88 id=88 data-nosnippet>88</a>        <span class="kw">return </span>Input::Pmtiles(s.to_owned());
+<a href=#89 id=89 data-nosnippet>89</a>    }
+<a href=#90 id=90 data-nosnippet>90</a>    <span class="kw">if </span>[<span class="string">"{z}"</span>, <span class="string">"{quadkey}"</span>, <span class="string">"{bbox-epsg-3857}"</span>, <span class="string">"{TileMatrix}"</span>].iter().any(|t| s.contains(t)) {
+<a href=#91 id=91 data-nosnippet>91</a>        <span class="kw">return </span>Input::Template(s.to_owned());
+<a href=#92 id=92 data-nosnippet>92</a>    }
+<a href=#93 id=93 data-nosnippet>93</a>    <span class="kw">let </span>trimmed = path.trim_end_matches(<span class="string">'/'</span>);
+<a href=#94 id=94 data-nosnippet>94</a>    <span class="kw">let </span>base = || s.split([<span class="string">'?'</span>, <span class="string">'#'</span>]).next().unwrap_or(s).trim_end_matches(<span class="string">'/'</span>).to_owned();
+<a href=#95 id=95 data-nosnippet>95</a>    <span class="kw">if </span>trimmed.ends_with(<span class="string">"/mapserver"</span>) {
+<a href=#96 id=96 data-nosnippet>96</a>        <span class="kw">return </span>Input::MapServer(base());
+<a href=#97 id=97 data-nosnippet>97</a>    }
+<a href=#98 id=98 data-nosnippet>98</a>    <span class="kw">if </span>trimmed.ends_with(<span class="string">"/vectortileserver"</span>) {
+<a href=#99 id=99 data-nosnippet>99</a>        <span class="kw">return </span>Input::VectorTileServer(base());
+<a href=#100 id=100 data-nosnippet>100</a>    }
+<a href=#101 id=101 data-nosnippet>101</a>    Input::Resource(s.to_owned())
+<a href=#102 id=102 data-nosnippet>102</a>}
+<a href=#103 id=103 data-nosnippet>103</a>
+<a href=#104 id=104 data-nosnippet>104</a><span class="doccomment">/// The base URL when `s` names an ArcGIS VectorTileServer.
+<a href=#105 id=105 data-nosnippet>105</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>vector_tile_server(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+<a href=#106 id=106 data-nosnippet>106</a>    <span class="kw">match </span>classify(s) {
+<a href=#107 id=107 data-nosnippet>107</a>        Input::VectorTileServer(base) =&gt; <span class="prelude-val">Some</span>(base),
+<a href=#108 id=108 data-nosnippet>108</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+<a href=#109 id=109 data-nosnippet>109</a>    }
+<a href=#110 id=110 data-nosnippet>110</a>}
+<a href=#111 id=111 data-nosnippet>111</a>
+<a href=#112 id=112 data-nosnippet>112</a><span class="kw">fn </span>is_http(s: <span class="kw-2">&amp;</span>str) -&gt; bool {
+<a href=#113 id=113 data-nosnippet>113</a>    s.starts_with(<span class="string">"http://"</span>) || s.starts_with(<span class="string">"https://"</span>)
+<a href=#114 id=114 data-nosnippet>114</a>}
+<a href=#115 id=115 data-nosnippet>115</a>
+<a href=#116 id=116 data-nosnippet>116</a><span class="doccomment">/// A style for `input` (a style itself, or tile data), as [`crate::tile_style`].
+<a href=#117 id=117 data-nosnippet>117</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">async fn </span>tile_style(
+<a href=#118 id=118 data-nosnippet>118</a>    input: <span class="kw-2">&amp;</span>str,
+<a href=#119 id=119 data-nosnippet>119</a>    opts: <span class="kw-2">&amp;</span>TileStyleOptions,
+<a href=#120 id=120 data-nosnippet>120</a>    client: <span class="kw-2">&amp;</span>reqwest::Client,
+<a href=#121 id=121 data-nosnippet>121</a>    auth_token: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+<a href=#122 id=122 data-nosnippet>122</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(String, Vec&lt;String&gt;), BasemapError&gt; {
+<a href=#123 id=123 data-nosnippet>123</a>    <span class="kw">let </span>want = |found: TileKind, what: <span class="kw-2">&amp;</span>str| <span class="kw">match </span>opts.kind {
+<a href=#124 id=124 data-nosnippet>124</a>        <span class="prelude-val">Some</span>(k) <span class="kw">if </span>k != found =&gt; <span class="prelude-val">Err</span>(BasemapError::InvalidInput(<span class="macro">format!</span>(
+<a href=#125 id=125 data-nosnippet>125</a>            <span class="string">"{what} holds {} tiles, not {}"</span>,
+<a href=#126 id=126 data-nosnippet>126</a>            found.name(),
+<a href=#127 id=127 data-nosnippet>127</a>            k.name()
+<a href=#128 id=128 data-nosnippet>128</a>        ))),
+<a href=#129 id=129 data-nosnippet>129</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(()),
+<a href=#130 id=130 data-nosnippet>130</a>    };
+<a href=#131 id=131 data-nosnippet>131</a>    <span class="kw">match </span>classify(input) {
+<a href=#132 id=132 data-nosnippet>132</a>        Input::Pmtiles(url) =&gt; {
+<a href=#133 id=133 data-nosnippet>133</a>            <span class="kw">let </span>url = archive_url(<span class="kw-2">&amp;</span>url)<span class="question-mark">?</span>;
+<a href=#134 id=134 data-nosnippet>134</a>            <span class="kw">let </span>reader = <span class="kw">crate</span>::open_pmtiles(<span class="kw-2">&amp;</span>url, client).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#135 id=135 data-nosnippet>135</a>            <span class="kw">let </span>header = reader.get_header();
+<a href=#136 id=136 data-nosnippet>136</a>            <span class="kw">let </span>kind = <span class="kw">match </span>header.tile_type {
+<a href=#137 id=137 data-nosnippet>137</a>                pmtiles::TileType::Mvt =&gt; TileKind::Vector,
+<a href=#138 id=138 data-nosnippet>138</a>                pmtiles::TileType::Png | pmtiles::TileType::Jpeg | pmtiles::TileType::Webp | pmtiles::TileType::Avif =&gt; {
+<a href=#139 id=139 data-nosnippet>139</a>                    TileKind::Raster
+<a href=#140 id=140 data-nosnippet>140</a>                }
+<a href=#141 id=141 data-nosnippet>141</a>                pmtiles::TileType::Mlt =&gt; {
+<a href=#142 id=142 data-nosnippet>142</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(BasemapError::InvalidInput(<span class="macro">format!</span>(
+<a href=#143 id=143 data-nosnippet>143</a>                        <span class="string">"{input}: MapLibre Tiles (MLT) are not supported yet"
+<a href=#144 id=144 data-nosnippet>144</a>                    </span>)))
+<a href=#145 id=145 data-nosnippet>145</a>                }
+<a href=#146 id=146 data-nosnippet>146</a>                pmtiles::TileType::Unknown =&gt; {
+<a href=#147 id=147 data-nosnippet>147</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(BasemapError::InvalidInput(<span class="macro">format!</span>(<span class="string">"{input}: unknown tile type in the archive"</span>)))
+<a href=#148 id=148 data-nosnippet>148</a>                }
+<a href=#149 id=149 data-nosnippet>149</a>            };
+<a href=#150 id=150 data-nosnippet>150</a>            want(kind, <span class="string">"the archive"</span>)<span class="question-mark">?</span>;
+<a href=#151 id=151 data-nosnippet>151</a>            <span class="kw">let </span>meta: Value = reader
+<a href=#152 id=152 data-nosnippet>152</a>                .get_metadata()
+<a href=#153 id=153 data-nosnippet>153</a>                .<span class="kw">await
+<a href=#154 id=154 data-nosnippet>154</a>                </span>.ok()
+<a href=#155 id=155 data-nosnippet>155</a>                .and_then(|m| serde_json::from_str(<span class="kw-2">&amp;</span>m).ok())
+<a href=#156 id=156 data-nosnippet>156</a>                .unwrap_or_default();
+<a href=#157 id=157 data-nosnippet>157</a>            <span class="kw">let </span><span class="kw-2">mut </span>source = <span class="macro">json!</span>({<span class="string">"type"</span>: kind.name(), <span class="string">"url"</span>: <span class="macro">format!</span>(<span class="string">"pmtiles://{url}"</span>)});
+<a href=#158 id=158 data-nosnippet>158</a>            <span class="kw">if </span>kind == TileKind::Raster {
+<a href=#159 id=159 data-nosnippet>159</a>                source[<span class="string">"tileSize"</span>] = <span class="macro">json!</span>(opts.tile_size.unwrap_or(<span class="number">256</span>));
+<a href=#160 id=160 data-nosnippet>160</a>            }
+<a href=#161 id=161 data-nosnippet>161</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(a) = meta[<span class="string">"attribution"</span>].as_str() {
+<a href=#162 id=162 data-nosnippet>162</a>                source[<span class="string">"attribution"</span>] = <span class="macro">json!</span>(a);
+<a href=#163 id=163 data-nosnippet>163</a>            }
+<a href=#164 id=164 data-nosnippet>164</a>            <span class="prelude-val">Ok</span>(build_style(kind, source, vector_layer_ids(<span class="kw-2">&amp;</span>meta), opts))
+<a href=#165 id=165 data-nosnippet>165</a>        }
+<a href=#166 id=166 data-nosnippet>166</a>        Input::Template(template) =&gt; {
+<a href=#167 id=167 data-nosnippet>167</a>            <span class="kw">let </span>urls = TileUrls { templates: <span class="macro">vec!</span>[template.clone()], tms: opts.scheme.as_deref() == <span class="prelude-val">Some</span>(<span class="string">"tms"</span>) };
+<a href=#168 id=168 data-nosnippet>168</a>            <span class="kw">let </span>(kind, names) = <span class="kw">match </span>opts.kind.or_else(|| kind_from_template(<span class="kw-2">&amp;</span>template)) {
+<a href=#169 id=169 data-nosnippet>169</a>                <span class="prelude-val">Some</span>(TileKind::Raster) =&gt; (TileKind::Raster, Vec::new()),
+<a href=#170 id=170 data-nosnippet>170</a>                <span class="prelude-val">Some</span>(TileKind::Vector) <span class="kw">if </span>opts.source_layers.is_some() =&gt; (TileKind::Vector, Vec::new()),
+<a href=#171 id=171 data-nosnippet>171</a>                <span class="kw">_ </span>=&gt; probe(<span class="kw-2">&amp;</span>urls, opts, client, auth_token).<span class="kw">await</span><span class="question-mark">?</span>,
+<a href=#172 id=172 data-nosnippet>172</a>            };
+<a href=#173 id=173 data-nosnippet>173</a>            want(kind, <span class="string">"the tile URL"</span>)<span class="question-mark">?</span>;
+<a href=#174 id=174 data-nosnippet>174</a>            <span class="kw">let </span><span class="kw-2">mut </span>source = <span class="macro">json!</span>({<span class="string">"type"</span>: kind.name(), <span class="string">"tiles"</span>: [template]});
+<a href=#175 id=175 data-nosnippet>175</a>            <span class="kw">if </span>kind == TileKind::Raster {
+<a href=#176 id=176 data-nosnippet>176</a>                source[<span class="string">"tileSize"</span>] = <span class="macro">json!</span>(opts.tile_size.unwrap_or(<span class="number">256</span>));
+<a href=#177 id=177 data-nosnippet>177</a>            }
+<a href=#178 id=178 data-nosnippet>178</a>            <span class="prelude-val">Ok</span>(build_style(kind, source, names, opts))
+<a href=#179 id=179 data-nosnippet>179</a>        }
+<a href=#180 id=180 data-nosnippet>180</a>        Input::MapServer(base) =&gt; {
+<a href=#181 id=181 data-nosnippet>181</a>            want(TileKind::Raster, <span class="string">"an ArcGIS MapServer"</span>)<span class="question-mark">?</span>;
+<a href=#182 id=182 data-nosnippet>182</a>            <span class="kw">let </span>source = <span class="macro">json!</span>({
+<a href=#183 id=183 data-nosnippet>183</a>                <span class="string">"type"</span>: <span class="string">"raster"</span>,
+<a href=#184 id=184 data-nosnippet>184</a>                <span class="string">"tiles"</span>: [<span class="macro">format!</span>(<span class="string">"{base}/tile/{{z}}/{{y}}/{{x}}"</span>)],
+<a href=#185 id=185 data-nosnippet>185</a>                <span class="string">"tileSize"</span>: opts.tile_size.unwrap_or(<span class="number">256</span>),
+<a href=#186 id=186 data-nosnippet>186</a>            });
+<a href=#187 id=187 data-nosnippet>187</a>            <span class="prelude-val">Ok</span>(build_style(TileKind::Raster, source, Vec::new(), opts))
+<a href=#188 id=188 data-nosnippet>188</a>        }
+<a href=#189 id=189 data-nosnippet>189</a>        Input::VectorTileServer(base) =&gt; {
+<a href=#190 id=190 data-nosnippet>190</a>            want(TileKind::Vector, <span class="string">"an ArcGIS VectorTileServer"</span>)<span class="question-mark">?</span>;
+<a href=#191 id=191 data-nosnippet>191</a>            <span class="kw">let </span>(style, url) = load_json(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{base}/resources/styles/root.json"</span>), client, auth_token).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#192 id=192 data-nosnippet>192</a>            <span class="prelude-val">Ok</span>((absolutize(style, <span class="kw-2">&amp;</span>url).to_string(), Vec::new()))
+<a href=#193 id=193 data-nosnippet>193</a>        }
+<a href=#194 id=194 data-nosnippet>194</a>        Input::Resource(r) =&gt; {
+<a href=#195 id=195 data-nosnippet>195</a>            <span class="kw">let </span>(v, url) = load_json(<span class="kw-2">&amp;</span>r, client, auth_token).<span class="kw">await</span><span class="question-mark">?</span>;
+<a href=#196 id=196 data-nosnippet>196</a>            <span class="kw">if </span>v.get(<span class="string">"layers"</span>).is_some() {
+<a href=#197 id=197 data-nosnippet>197</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>((absolutize(v, <span class="kw-2">&amp;</span>url).to_string(), Vec::new()));
+<a href=#198 id=198 data-nosnippet>198</a>            }
+<a href=#199 id=199 data-nosnippet>199</a>            <span class="kw">if </span>v.get(<span class="string">"tiles"</span>).is_none() {
+<a href=#200 id=200 data-nosnippet>200</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(BasemapError::StyleParseError(<span class="macro">format!</span>(
+<a href=#201 id=201 data-nosnippet>201</a>                    <span class="string">"{r} is neither a MapLibre style (no \"layers\") nor a TileJSON (no \"tiles\")"
+<a href=#202 id=202 data-nosnippet>202</a>                </span>)));
+<a href=#203 id=203 data-nosnippet>203</a>            }
+<a href=#204 id=204 data-nosnippet>204</a>            <span class="comment">// TileJSON: the source references it, as MapLibre's `url`.
+<a href=#205 id=205 data-nosnippet>205</a>            </span><span class="kw">let </span>format = v[<span class="string">"format"</span>].as_str().unwrap_or(<span class="string">""</span>);
+<a href=#206 id=206 data-nosnippet>206</a>            <span class="kw">let </span>found = <span class="kw">if </span>v.get(<span class="string">"vector_layers"</span>).is_some() || <span class="macro">matches!</span>(format, <span class="string">"pbf" </span>| <span class="string">"mvt"</span>) {
+<a href=#207 id=207 data-nosnippet>207</a>                TileKind::Vector
+<a href=#208 id=208 data-nosnippet>208</a>            } <span class="kw">else </span>{
+<a href=#209 id=209 data-nosnippet>209</a>                TileKind::Raster
+<a href=#210 id=210 data-nosnippet>210</a>            };
+<a href=#211 id=211 data-nosnippet>211</a>            <span class="kw">let </span>kind = opts.kind.unwrap_or(found);
+<a href=#212 id=212 data-nosnippet>212</a>            <span class="kw">let </span>source_url = <span class="kw">if </span>is_http(<span class="kw-2">&amp;</span>url) { url.clone() } <span class="kw">else </span>{ r.clone() };
+<a href=#213 id=213 data-nosnippet>213</a>            <span class="kw">let </span><span class="kw-2">mut </span>source = <span class="macro">json!</span>({<span class="string">"type"</span>: kind.name(), <span class="string">"url"</span>: source_url});
+<a href=#214 id=214 data-nosnippet>214</a>            <span class="kw">if </span>!is_http(<span class="kw-2">&amp;</span>url) {
+<a href=#215 id=215 data-nosnippet>215</a>                <span class="comment">// A local TileJSON: inline it (the renderer fetches TileJSON over HTTP).
+<a href=#216 id=216 data-nosnippet>216</a>                </span>source = v.clone();
+<a href=#217 id=217 data-nosnippet>217</a>                source[<span class="string">"type"</span>] = <span class="macro">json!</span>(kind.name());
+<a href=#218 id=218 data-nosnippet>218</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(o) = source.as_object_mut() {
+<a href=#219 id=219 data-nosnippet>219</a>                    o.retain(|k, <span class="kw">_</span>| {
+<a href=#220 id=220 data-nosnippet>220</a>                        <span class="macro">matches!</span>(k.as_str(), <span class="string">"type" </span>| <span class="string">"tiles" </span>| <span class="string">"minzoom" </span>| <span class="string">"maxzoom" </span>| <span class="string">"bounds" </span>| <span class="string">"scheme" </span>| <span class="string">"tileSize" </span>| <span class="string">"attribution"</span>)
+<a href=#221 id=221 data-nosnippet>221</a>                    });
+<a href=#222 id=222 data-nosnippet>222</a>                }
+<a href=#223 id=223 data-nosnippet>223</a>            }
+<a href=#224 id=224 data-nosnippet>224</a>            <span class="prelude-val">Ok</span>(build_style(kind, source, vector_layer_ids(<span class="kw-2">&amp;</span>v), opts))
+<a href=#225 id=225 data-nosnippet>225</a>        }
+<a href=#226 id=226 data-nosnippet>226</a>    }
+<a href=#227 id=227 data-nosnippet>227</a>}
+<a href=#228 id=228 data-nosnippet>228</a>
+<a href=#229 id=229 data-nosnippet>229</a><span class="doccomment">/// The style for a `style` string the renderer is given: a style URL or file
+<a href=#230 id=230 data-nosnippet>230</a>/// is loaded (relative URLs made absolute); tile data gets a built style; a
+<a href=#231 id=231 data-nosnippet>231</a>/// catalogue name (`"CartoDB.Positron"`) is that basemap's default form.
+<a href=#232 id=232 data-nosnippet>232</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">async fn </span>resolve_style_input(
+<a href=#233 id=233 data-nosnippet>233</a>    input: <span class="kw-2">&amp;</span>str,
+<a href=#234 id=234 data-nosnippet>234</a>    client: <span class="kw-2">&amp;</span>reqwest::Client,
+<a href=#235 id=235 data-nosnippet>235</a>    auth_token: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+<a href=#236 id=236 data-nosnippet>236</a>) -&gt; <span class="prelude-ty">Result</span>&lt;String, BasemapError&gt; {
+<a href=#237 id=237 data-nosnippet>237</a>    <span class="kw">let </span>named = <span class="kw">crate</span>::providers::bare_name_style(input)<span class="question-mark">?</span>;
+<a href=#238 id=238 data-nosnippet>238</a>    <span class="kw">let </span>input = <span class="kw">match </span><span class="kw-2">&amp;</span>named {
+<a href=#239 id=239 data-nosnippet>239</a>        <span class="prelude-val">Some</span>(style) <span class="kw">if </span>style.trim_start().starts_with(<span class="string">'{'</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(style.clone()),
+<a href=#240 id=240 data-nosnippet>240</a>        <span class="prelude-val">Some</span>(url) =&gt; url.as_str(),
+<a href=#241 id=241 data-nosnippet>241</a>        <span class="prelude-val">None </span>=&gt; input,
+<a href=#242 id=242 data-nosnippet>242</a>    };
+<a href=#243 id=243 data-nosnippet>243</a>    tile_style(input, <span class="kw-2">&amp;</span>TileStyleOptions::default(), client, auth_token).<span class="kw">await</span>.map(|(s, <span class="kw">_</span>)| s)
+<a href=#244 id=244 data-nosnippet>244</a>}
+<a href=#245 id=245 data-nosnippet>245</a>
+<a href=#246 id=246 data-nosnippet>246</a><span class="doccomment">/// An archive location the backend reads: URLs as they are, paths as
+<a href=#247 id=247 data-nosnippet>247</a>/// absolute `file://` URLs.
+<a href=#248 id=248 data-nosnippet>248</a></span><span class="kw">fn </span>archive_url(url: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, BasemapError&gt; {
+<a href=#249 id=249 data-nosnippet>249</a>    <span class="kw">if </span>is_http(url) || url.starts_with(<span class="string">"file://"</span>) {
+<a href=#250 id=250 data-nosnippet>250</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(url.to_owned());
+<a href=#251 id=251 data-nosnippet>251</a>    }
+<a href=#252 id=252 data-nosnippet>252</a>    <span class="kw">let </span>path = std::fs::canonicalize(url)
+<a href=#253 id=253 data-nosnippet>253</a>        .map_err(|e| BasemapError::InvalidInput(<span class="macro">format!</span>(<span class="string">"PMTiles archive {url}: {e}"</span>)))<span class="question-mark">?</span>;
+<a href=#254 id=254 data-nosnippet>254</a>    reqwest::Url::from_file_path(<span class="kw-2">&amp;</span>path)
+<a href=#255 id=255 data-nosnippet>255</a>        .map(|u| u.to_string())
+<a href=#256 id=256 data-nosnippet>256</a>        .map_err(|<span class="kw">_</span>| BasemapError::InvalidInput(<span class="macro">format!</span>(<span class="string">"PMTiles archive {url}: not an absolute path"</span>)))
+<a href=#257 id=257 data-nosnippet>257</a>}
+<a href=#258 id=258 data-nosnippet>258</a>
+<a href=#259 id=259 data-nosnippet>259</a><span class="kw">fn </span>kind_from_template(t: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;TileKind&gt; {
+<a href=#260 id=260 data-nosnippet>260</a>    <span class="kw">if </span>t.contains(<span class="string">"{bbox-epsg-3857}"</span>) {
+<a href=#261 id=261 data-nosnippet>261</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(TileKind::Raster);
+<a href=#262 id=262 data-nosnippet>262</a>    }
+<a href=#263 id=263 data-nosnippet>263</a>    <span class="kw">let </span>path = t.split(<span class="string">'?'</span>).next().unwrap_or(t).to_ascii_lowercase();
+<a href=#264 id=264 data-nosnippet>264</a>    <span class="kw">let </span>ext = path.rsplit(<span class="string">'.'</span>).next().unwrap_or(<span class="string">""</span>);
+<a href=#265 id=265 data-nosnippet>265</a>    <span class="kw">match </span>ext {
+<a href=#266 id=266 data-nosnippet>266</a>        <span class="string">"png" </span>| <span class="string">"jpg" </span>| <span class="string">"jpeg" </span>| <span class="string">"webp" </span>| <span class="string">"avif" </span>| <span class="string">"gif" </span>=&gt; <span class="prelude-val">Some</span>(TileKind::Raster),
+<a href=#267 id=267 data-nosnippet>267</a>        <span class="string">"pbf" </span>| <span class="string">"mvt" </span>=&gt; <span class="prelude-val">Some</span>(TileKind::Vector),
+<a href=#268 id=268 data-nosnippet>268</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+<a href=#269 id=269 data-nosnippet>269</a>    }
+<a href=#270 id=270 data-nosnippet>270</a>}
+<a href=#271 id=271 data-nosnippet>271</a>
+<a href=#272 id=272 data-nosnippet>272</a><span class="doccomment">/// Fetch one tile (0, 0 at the minimum zoom) and tell raster from vector by
+<a href=#273 id=273 data-nosnippet>273</a>/// its bytes; for vector tiles, the layer names in it.
+<a href=#274 id=274 data-nosnippet>274</a></span><span class="kw">async fn </span>probe(
+<a href=#275 id=275 data-nosnippet>275</a>    urls: <span class="kw-2">&amp;</span>TileUrls,
+<a href=#276 id=276 data-nosnippet>276</a>    opts: <span class="kw-2">&amp;</span>TileStyleOptions,
+<a href=#277 id=277 data-nosnippet>277</a>    client: <span class="kw-2">&amp;</span>reqwest::Client,
+<a href=#278 id=278 data-nosnippet>278</a>    auth_token: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+<a href=#279 id=279 data-nosnippet>279</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(TileKind, Vec&lt;String&gt;), BasemapError&gt; {
+<a href=#280 id=280 data-nosnippet>280</a>    <span class="kw">let </span>url = urls.url(TileCoord { z: opts.minzoom.unwrap_or(<span class="number">0</span>), x: <span class="number">0</span>, y: <span class="number">0 </span>}, <span class="number">1.0</span>);
+<a href=#281 id=281 data-nosnippet>281</a>    <span class="kw">let </span><span class="kw-2">mut </span>req = client.get(<span class="kw-2">&amp;</span>url);
+<a href=#282 id=282 data-nosnippet>282</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(t) = auth_token {
+<a href=#283 id=283 data-nosnippet>283</a>        req = req.header(<span class="string">"Authorization"</span>, <span class="macro">format!</span>(<span class="string">"Bearer {t}"</span>));
+<a href=#284 id=284 data-nosnippet>284</a>    }
+<a href=#285 id=285 data-nosnippet>285</a>    <span class="kw">let </span>hint = <span class="string">"; give type = \"raster\" or \"vector\" (and source_layers for vector tiles)"</span>;
+<a href=#286 id=286 data-nosnippet>286</a>    <span class="kw">let </span>resp = req
+<a href=#287 id=287 data-nosnippet>287</a>        .send()
+<a href=#288 id=288 data-nosnippet>288</a>        .<span class="kw">await
+<a href=#289 id=289 data-nosnippet>289</a>        </span>.map_err(|e| BasemapError::InvalidInput(<span class="macro">format!</span>(<span class="string">"could not fetch a tile to detect its type ({url}: {e}){hint}"</span>)))<span class="question-mark">?</span>;
+<a href=#290 id=290 data-nosnippet>290</a>    <span class="kw">if </span>!resp.status().is_success() {
+<a href=#291 id=291 data-nosnippet>291</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(BasemapError::InvalidInput(<span class="macro">format!</span>(
+<a href=#292 id=292 data-nosnippet>292</a>            <span class="string">"could not fetch a tile to detect its type ({url}: HTTP {}){hint}"</span>,
+<a href=#293 id=293 data-nosnippet>293</a>            resp.status()
+<a href=#294 id=294 data-nosnippet>294</a>        )));
+<a href=#295 id=295 data-nosnippet>295</a>    }
+<a href=#296 id=296 data-nosnippet>296</a>    <span class="kw">let </span>bytes = resp.bytes().<span class="kw">await</span>.map_err(|e| BasemapError::InvalidInput(<span class="macro">format!</span>(<span class="string">"{url}: {e}"</span>)))<span class="question-mark">?</span>;
+<a href=#297 id=297 data-nosnippet>297</a>    <span class="kw">let </span>b = <span class="kw-2">&amp;</span>bytes[..];
+<a href=#298 id=298 data-nosnippet>298</a>    <span class="kw">let </span>image = b.starts_with(<span class="kw-2">&amp;</span>[<span class="number">0x89</span>, <span class="string">b'P'</span>, <span class="string">b'N'</span>, <span class="string">b'G'</span>])
+<a href=#299 id=299 data-nosnippet>299</a>        || b.starts_with(<span class="kw-2">&amp;</span>[<span class="number">0xff</span>, <span class="number">0xd8</span>, <span class="number">0xff</span>])
+<a href=#300 id=300 data-nosnippet>300</a>        || b.starts_with(<span class="string">b"GIF8"</span>)
+<a href=#301 id=301 data-nosnippet>301</a>        || (b.len() &gt; <span class="number">12 </span>&amp;&amp; <span class="kw-2">&amp;</span>b[..<span class="number">4</span>] == <span class="string">b"RIFF" </span>&amp;&amp; <span class="kw-2">&amp;</span>b[<span class="number">8</span>..<span class="number">12</span>] == <span class="string">b"WEBP"</span>)
+<a href=#302 id=302 data-nosnippet>302</a>        || (b.len() &gt; <span class="number">12 </span>&amp;&amp; <span class="kw-2">&amp;</span>b[<span class="number">4</span>..<span class="number">8</span>] == <span class="string">b"ftyp"</span>);
+<a href=#303 id=303 data-nosnippet>303</a>    <span class="kw">if </span>image {
+<a href=#304 id=304 data-nosnippet>304</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>((TileKind::Raster, Vec::new()));
+<a href=#305 id=305 data-nosnippet>305</a>    }
+<a href=#306 id=306 data-nosnippet>306</a>    <span class="kw">let </span>tile = <span class="kw">crate</span>::vector::mvt::decode(b)
+<a href=#307 id=307 data-nosnippet>307</a>        .map_err(|e| BasemapError::InvalidInput(<span class="macro">format!</span>(<span class="string">"{url}: neither an image nor a vector tile ({e}){hint}"</span>)))<span class="question-mark">?</span>;
+<a href=#308 id=308 data-nosnippet>308</a>    <span class="kw">let </span><span class="kw-2">mut </span>names: Vec&lt;String&gt; = tile.layers.into_keys().collect();
+<a href=#309 id=309 data-nosnippet>309</a>    names.sort();
+<a href=#310 id=310 data-nosnippet>310</a>    <span class="kw">if </span>names.is_empty() {
+<a href=#311 id=311 data-nosnippet>311</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(BasemapError::InvalidInput(<span class="macro">format!</span>(<span class="string">"{url}: the probed vector tile is empty{hint}"</span>)));
+<a href=#312 id=312 data-nosnippet>312</a>    }
+<a href=#313 id=313 data-nosnippet>313</a>    <span class="prelude-val">Ok</span>((TileKind::Vector, names))
+<a href=#314 id=314 data-nosnippet>314</a>}
+<a href=#315 id=315 data-nosnippet>315</a>
+<a href=#316 id=316 data-nosnippet>316</a><span class="kw">fn </span>vector_layer_ids(v: <span class="kw-2">&amp;</span>Value) -&gt; Vec&lt;String&gt; {
+<a href=#317 id=317 data-nosnippet>317</a>    v[<span class="string">"vector_layers"</span>]
+<a href=#318 id=318 data-nosnippet>318</a>        .as_array()
+<a href=#319 id=319 data-nosnippet>319</a>        .map(|a| a.iter().filter_map(|l| l[<span class="string">"id"</span>].as_str().map(str::to_owned)).collect())
+<a href=#320 id=320 data-nosnippet>320</a>        .unwrap_or_default()
+<a href=#321 id=321 data-nosnippet>321</a>}
+<a href=#322 id=322 data-nosnippet>322</a>
+<a href=#323 id=323 data-nosnippet>323</a><span class="doccomment">/// Tableau 10: a colour per source layer.
+<a href=#324 id=324 data-nosnippet>324</a></span><span class="kw">const </span>PALETTE: [<span class="kw-2">&amp;</span>str; <span class="number">10</span>] =
+<a href=#325 id=325 data-nosnippet>325</a>    [<span class="string">"#4e79a7"</span>, <span class="string">"#f28e2b"</span>, <span class="string">"#e15759"</span>, <span class="string">"#76b7b2"</span>, <span class="string">"#59a14f"</span>, <span class="string">"#edc948"</span>, <span class="string">"#b07aa1"</span>, <span class="string">"#ff9da7"</span>, <span class="string">"#9c755f"</span>, <span class="string">"#bab0ac"</span>];
+<a href=#326 id=326 data-nosnippet>326</a>
+<a href=#327 id=327 data-nosnippet>327</a><span class="doccomment">/// A style with one source ("tiles"): a raster layer, or the default vector
+<a href=#328 id=328 data-nosnippet>328</a>/// style over `names` (or `opts.source_layers`). Returns the style and the
+<a href=#329 id=329 data-nosnippet>329</a>/// paint keys that applied to no generated layer.
+<a href=#330 id=330 data-nosnippet>330</a></span><span class="kw">fn </span>build_style(kind: TileKind, <span class="kw-2">mut </span>source: Value, names: Vec&lt;String&gt;, opts: <span class="kw-2">&amp;</span>TileStyleOptions) -&gt; (String, Vec&lt;String&gt;) {
+<a href=#331 id=331 data-nosnippet>331</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(s) = <span class="kw-2">&amp;</span>opts.scheme {
+<a href=#332 id=332 data-nosnippet>332</a>        source[<span class="string">"scheme"</span>] = <span class="macro">json!</span>(s);
+<a href=#333 id=333 data-nosnippet>333</a>    }
+<a href=#334 id=334 data-nosnippet>334</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(z) = opts.minzoom {
+<a href=#335 id=335 data-nosnippet>335</a>        source[<span class="string">"minzoom"</span>] = <span class="macro">json!</span>(z);
+<a href=#336 id=336 data-nosnippet>336</a>    }
+<a href=#337 id=337 data-nosnippet>337</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(z) = opts.maxzoom {
+<a href=#338 id=338 data-nosnippet>338</a>        source[<span class="string">"maxzoom"</span>] = <span class="macro">json!</span>(z);
+<a href=#339 id=339 data-nosnippet>339</a>    }
+<a href=#340 id=340 data-nosnippet>340</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(t) = opts.tile_size {
+<a href=#341 id=341 data-nosnippet>341</a>        source[<span class="string">"tileSize"</span>] = <span class="macro">json!</span>(t);
+<a href=#342 id=342 data-nosnippet>342</a>    }
+<a href=#343 id=343 data-nosnippet>343</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(a) = <span class="kw-2">&amp;</span>opts.attribution {
+<a href=#344 id=344 data-nosnippet>344</a>        source[<span class="string">"attribution"</span>] = <span class="macro">json!</span>(a);
+<a href=#345 id=345 data-nosnippet>345</a>    }
+<a href=#346 id=346 data-nosnippet>346</a>    <span class="kw">let </span><span class="kw-2">mut </span>dropped = Vec::new();
+<a href=#347 id=347 data-nosnippet>347</a>    <span class="kw">let </span>layers = <span class="kw">match </span>kind {
+<a href=#348 id=348 data-nosnippet>348</a>        TileKind::Raster =&gt; {
+<a href=#349 id=349 data-nosnippet>349</a>            dropped.extend(opts.paint.keys().cloned());
+<a href=#350 id=350 data-nosnippet>350</a>            <span class="macro">vec!</span>[<span class="macro">json!</span>({<span class="string">"id"</span>: <span class="string">"raster"</span>, <span class="string">"type"</span>: <span class="string">"raster"</span>, <span class="string">"source"</span>: <span class="string">"tiles"</span>})]
+<a href=#351 id=351 data-nosnippet>351</a>        }
+<a href=#352 id=352 data-nosnippet>352</a>        TileKind::Vector =&gt; {
+<a href=#353 id=353 data-nosnippet>353</a>            <span class="kw">let </span>names = opts.source_layers.clone().unwrap_or(names);
+<a href=#354 id=354 data-nosnippet>354</a>            <span class="kw">let </span>paint_for = |prefix: <span class="kw-2">&amp;</span>str, defaults: Value| {
+<a href=#355 id=355 data-nosnippet>355</a>                <span class="kw">let </span><span class="kw-2">mut </span>p = defaults;
+<a href=#356 id=356 data-nosnippet>356</a>                <span class="kw">for </span>(k, v) <span class="kw">in </span><span class="kw-2">&amp;</span>opts.paint {
+<a href=#357 id=357 data-nosnippet>357</a>                    <span class="kw">if </span>k.starts_with(prefix) {
+<a href=#358 id=358 data-nosnippet>358</a>                        p[k] = v.clone();
+<a href=#359 id=359 data-nosnippet>359</a>                    }
+<a href=#360 id=360 data-nosnippet>360</a>                }
+<a href=#361 id=361 data-nosnippet>361</a>                p
+<a href=#362 id=362 data-nosnippet>362</a>            };
+<a href=#363 id=363 data-nosnippet>363</a>            dropped.extend(
+<a href=#364 id=364 data-nosnippet>364</a>                opts.paint.keys().filter(|k| ![<span class="string">"fill-"</span>, <span class="string">"line-"</span>, <span class="string">"circle-"</span>].iter().any(|p| k.starts_with(p))).cloned(),
+<a href=#365 id=365 data-nosnippet>365</a>            );
+<a href=#366 id=366 data-nosnippet>366</a>            <span class="kw">let </span>colour = |i: usize| PALETTE[i % PALETTE.len()];
+<a href=#367 id=367 data-nosnippet>367</a>            <span class="kw">let </span><span class="kw-2">mut </span>layers = Vec::new();
+<a href=#368 id=368 data-nosnippet>368</a>            <span class="kw">for </span>(i, n) <span class="kw">in </span>names.iter().enumerate() {
+<a href=#369 id=369 data-nosnippet>369</a>                layers.push(<span class="macro">json!</span>({
+<a href=#370 id=370 data-nosnippet>370</a>                    <span class="string">"id"</span>: <span class="macro">format!</span>(<span class="string">"{n}-fill"</span>), <span class="string">"type"</span>: <span class="string">"fill"</span>, <span class="string">"source"</span>: <span class="string">"tiles"</span>, <span class="string">"source-layer"</span>: n,
+<a href=#371 id=371 data-nosnippet>371</a>                    <span class="string">"filter"</span>: [<span class="string">"=="</span>, <span class="string">"$type"</span>, <span class="string">"Polygon"</span>],
+<a href=#372 id=372 data-nosnippet>372</a>                    <span class="string">"paint"</span>: paint_for(<span class="string">"fill-"</span>, <span class="macro">json!</span>({<span class="string">"fill-color"</span>: colour(i), <span class="string">"fill-opacity"</span>: <span class="number">0.4</span>})),
+<a href=#373 id=373 data-nosnippet>373</a>                }));
+<a href=#374 id=374 data-nosnippet>374</a>            }
+<a href=#375 id=375 data-nosnippet>375</a>            <span class="kw">for </span>(i, n) <span class="kw">in </span>names.iter().enumerate() {
+<a href=#376 id=376 data-nosnippet>376</a>                layers.push(<span class="macro">json!</span>({
+<a href=#377 id=377 data-nosnippet>377</a>                    <span class="string">"id"</span>: <span class="macro">format!</span>(<span class="string">"{n}-line"</span>), <span class="string">"type"</span>: <span class="string">"line"</span>, <span class="string">"source"</span>: <span class="string">"tiles"</span>, <span class="string">"source-layer"</span>: n,
+<a href=#378 id=378 data-nosnippet>378</a>                    <span class="string">"filter"</span>: [<span class="string">"!="</span>, <span class="string">"$type"</span>, <span class="string">"Point"</span>],
+<a href=#379 id=379 data-nosnippet>379</a>                    <span class="string">"paint"</span>: paint_for(<span class="string">"line-"</span>, <span class="macro">json!</span>({<span class="string">"line-color"</span>: colour(i), <span class="string">"line-width"</span>: <span class="number">1</span>})),
+<a href=#380 id=380 data-nosnippet>380</a>                }));
+<a href=#381 id=381 data-nosnippet>381</a>            }
+<a href=#382 id=382 data-nosnippet>382</a>            <span class="kw">for </span>(i, n) <span class="kw">in </span>names.iter().enumerate() {
+<a href=#383 id=383 data-nosnippet>383</a>                layers.push(<span class="macro">json!</span>({
+<a href=#384 id=384 data-nosnippet>384</a>                    <span class="string">"id"</span>: <span class="macro">format!</span>(<span class="string">"{n}-circle"</span>), <span class="string">"type"</span>: <span class="string">"circle"</span>, <span class="string">"source"</span>: <span class="string">"tiles"</span>, <span class="string">"source-layer"</span>: n,
+<a href=#385 id=385 data-nosnippet>385</a>                    <span class="string">"filter"</span>: [<span class="string">"=="</span>, <span class="string">"$type"</span>, <span class="string">"Point"</span>],
+<a href=#386 id=386 data-nosnippet>386</a>                    <span class="string">"paint"</span>: paint_for(<span class="string">"circle-"</span>, <span class="macro">json!</span>({
+<a href=#387 id=387 data-nosnippet>387</a>                        <span class="string">"circle-color"</span>: colour(i), <span class="string">"circle-radius"</span>: <span class="number">3</span>,
+<a href=#388 id=388 data-nosnippet>388</a>                        <span class="string">"circle-stroke-color"</span>: <span class="string">"#ffffff"</span>, <span class="string">"circle-stroke-width"</span>: <span class="number">1</span>,
+<a href=#389 id=389 data-nosnippet>389</a>                    })),
+<a href=#390 id=390 data-nosnippet>390</a>                }));
+<a href=#391 id=391 data-nosnippet>391</a>            }
+<a href=#392 id=392 data-nosnippet>392</a>            layers
+<a href=#393 id=393 data-nosnippet>393</a>        }
+<a href=#394 id=394 data-nosnippet>394</a>    };
+<a href=#395 id=395 data-nosnippet>395</a>    <span class="kw">let </span>style = <span class="macro">json!</span>({<span class="string">"version"</span>: <span class="number">8</span>, <span class="string">"sources"</span>: {<span class="string">"tiles"</span>: source}, <span class="string">"layers"</span>: layers});
+<a href=#396 id=396 data-nosnippet>396</a>    (style.to_string(), dropped)
+<a href=#397 id=397 data-nosnippet>397</a>}
+<a href=#398 id=398 data-nosnippet>398</a>
+<a href=#399 id=399 data-nosnippet>399</a><span class="doccomment">/// Load JSON from a URL or a local file; returns it with the URL relative
+<a href=#400 id=400 data-nosnippet>400</a>/// references resolve against (after redirects, or the file's `file://` URL).
+<a href=#401 id=401 data-nosnippet>401</a></span><span class="kw">async fn </span>load_json(
+<a href=#402 id=402 data-nosnippet>402</a>    input: <span class="kw-2">&amp;</span>str,
+<a href=#403 id=403 data-nosnippet>403</a>    client: <span class="kw-2">&amp;</span>reqwest::Client,
+<a href=#404 id=404 data-nosnippet>404</a>    auth_token: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+<a href=#405 id=405 data-nosnippet>405</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(Value, String), BasemapError&gt; {
+<a href=#406 id=406 data-nosnippet>406</a>    <span class="kw">if </span>is_http(input) {
+<a href=#407 id=407 data-nosnippet>407</a>        <span class="kw">let </span><span class="kw-2">mut </span>req = client.get(input);
+<a href=#408 id=408 data-nosnippet>408</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(token) = auth_token {
+<a href=#409 id=409 data-nosnippet>409</a>            req = req.header(<span class="string">"Authorization"</span>, <span class="macro">format!</span>(<span class="string">"Bearer {token}"</span>));
+<a href=#410 id=410 data-nosnippet>410</a>        }
+<a href=#411 id=411 data-nosnippet>411</a>        <span class="kw">let </span>resp = req
+<a href=#412 id=412 data-nosnippet>412</a>            .send()
+<a href=#413 id=413 data-nosnippet>413</a>            .<span class="kw">await
+<a href=#414 id=414 data-nosnippet>414</a>            </span>.map_err(|<span class="kw">_</span>| BasemapError::StyleFetchFailed { url: input.to_owned(), status: <span class="number">0 </span>})<span class="question-mark">?</span>;
+<a href=#415 id=415 data-nosnippet>415</a>        <span class="kw">if </span>!resp.status().is_success() {
+<a href=#416 id=416 data-nosnippet>416</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(BasemapError::StyleFetchFailed { url: input.to_owned(), status: resp.status().as_u16() });
+<a href=#417 id=417 data-nosnippet>417</a>        }
+<a href=#418 id=418 data-nosnippet>418</a>        <span class="kw">let </span>url = resp.url().to_string();
+<a href=#419 id=419 data-nosnippet>419</a>        <span class="kw">let </span>text = resp
+<a href=#420 id=420 data-nosnippet>420</a>            .text()
+<a href=#421 id=421 data-nosnippet>421</a>            .<span class="kw">await
+<a href=#422 id=422 data-nosnippet>422</a>            </span>.map_err(|<span class="kw">_</span>| BasemapError::StyleParseError(<span class="string">"could not read style response body"</span>.into()))<span class="question-mark">?</span>;
+<a href=#423 id=423 data-nosnippet>423</a>        <span class="kw">let </span>v = serde_json::from_str(<span class="kw-2">&amp;</span>text).map_err(|e| BasemapError::StyleParseError(<span class="macro">format!</span>(<span class="string">"{input}: {e}"</span>)))<span class="question-mark">?</span>;
+<a href=#424 id=424 data-nosnippet>424</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>((v, url));
+<a href=#425 id=425 data-nosnippet>425</a>    }
+<a href=#426 id=426 data-nosnippet>426</a>    <span class="kw">let </span>path = local_path(input);
+<a href=#427 id=427 data-nosnippet>427</a>    <span class="kw">let </span>text = std::fs::read_to_string(<span class="kw-2">&amp;</span>path).map_err(|<span class="kw">_</span>| {
+<a href=#428 id=428 data-nosnippet>428</a>        BasemapError::InvalidInput(<span class="macro">format!</span>(
+<a href=#429 id=429 data-nosnippet>429</a>            <span class="string">"style {input:?} is not a style, a tile URL, a .pmtiles archive or an existing file"
+<a href=#430 id=430 data-nosnippet>430</a>        </span>))
+<a href=#431 id=431 data-nosnippet>431</a>    })<span class="question-mark">?</span>;
+<a href=#432 id=432 data-nosnippet>432</a>    <span class="kw">let </span>v = serde_json::from_str(<span class="kw-2">&amp;</span>text).map_err(|e| BasemapError::StyleParseError(<span class="macro">format!</span>(<span class="string">"{input}: {e}"</span>)))<span class="question-mark">?</span>;
+<a href=#433 id=433 data-nosnippet>433</a>    <span class="kw">let </span>url = std::fs::canonicalize(<span class="kw-2">&amp;</span>path)
+<a href=#434 id=434 data-nosnippet>434</a>        .ok()
+<a href=#435 id=435 data-nosnippet>435</a>        .and_then(|p| reqwest::Url::from_file_path(p).ok())
+<a href=#436 id=436 data-nosnippet>436</a>        .map(|u| u.to_string())
+<a href=#437 id=437 data-nosnippet>437</a>        .unwrap_or_else(|| input.to_owned());
+<a href=#438 id=438 data-nosnippet>438</a>    <span class="prelude-val">Ok</span>((v, url))
+<a href=#439 id=439 data-nosnippet>439</a>}
+<a href=#440 id=440 data-nosnippet>440</a>
+<a href=#441 id=441 data-nosnippet>441</a><span class="doccomment">/// Make a style's relative URLs (sources, tiles, GeoJSON data, sprite,
+<a href=#442 id=442 data-nosnippet>442</a>/// glyphs) absolute against `base`, the URL the style was loaded from.
+<a href=#443 id=443 data-nosnippet>443</a></span><span class="kw">fn </span>absolutize(<span class="kw-2">mut </span>style: Value, base: <span class="kw-2">&amp;</span>str) -&gt; Value {
+<a href=#444 id=444 data-nosnippet>444</a>    <span class="kw">let </span>abs = |u: <span class="kw-2">&amp;</span>str| <span class="kw">match </span>u.strip_prefix(<span class="string">"pmtiles://"</span>) {
+<a href=#445 id=445 data-nosnippet>445</a>        <span class="prelude-val">Some</span>(inner) =&gt; <span class="macro">format!</span>(<span class="string">"pmtiles://{}"</span>, <span class="kw">crate</span>::resolve_url(inner, <span class="prelude-val">Some</span>(base))),
+<a href=#446 id=446 data-nosnippet>446</a>        <span class="prelude-val">None </span>=&gt; <span class="kw">crate</span>::resolve_url(u, <span class="prelude-val">Some</span>(base)),
+<a href=#447 id=447 data-nosnippet>447</a>    };
+<a href=#448 id=448 data-nosnippet>448</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(sources) = style[<span class="string">"sources"</span>].as_object_mut() {
+<a href=#449 id=449 data-nosnippet>449</a>        <span class="kw">for </span>src <span class="kw">in </span>sources.values_mut() {
+<a href=#450 id=450 data-nosnippet>450</a>            <span class="kw">for </span>key <span class="kw">in </span>[<span class="string">"url"</span>, <span class="string">"data"</span>] {
+<a href=#451 id=451 data-nosnippet>451</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(u) = src[key].as_str().map(abs) {
+<a href=#452 id=452 data-nosnippet>452</a>                    src[key] = <span class="macro">json!</span>(u);
+<a href=#453 id=453 data-nosnippet>453</a>                }
+<a href=#454 id=454 data-nosnippet>454</a>            }
+<a href=#455 id=455 data-nosnippet>455</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(tiles) = src[<span class="string">"tiles"</span>].as_array_mut() {
+<a href=#456 id=456 data-nosnippet>456</a>                <span class="kw">for </span>t <span class="kw">in </span>tiles.iter_mut() {
+<a href=#457 id=457 data-nosnippet>457</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(u) = t.as_str().map(abs) {
+<a href=#458 id=458 data-nosnippet>458</a>                        <span class="kw-2">*</span>t = <span class="macro">json!</span>(u);
+<a href=#459 id=459 data-nosnippet>459</a>                    }
+<a href=#460 id=460 data-nosnippet>460</a>                }
+<a href=#461 id=461 data-nosnippet>461</a>            }
+<a href=#462 id=462 data-nosnippet>462</a>        }
+<a href=#463 id=463 data-nosnippet>463</a>    }
+<a href=#464 id=464 data-nosnippet>464</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(u) = style[<span class="string">"glyphs"</span>].as_str().map(abs) {
+<a href=#465 id=465 data-nosnippet>465</a>        style[<span class="string">"glyphs"</span>] = <span class="macro">json!</span>(u);
+<a href=#466 id=466 data-nosnippet>466</a>    }
+<a href=#467 id=467 data-nosnippet>467</a>    <span class="kw">match </span><span class="kw-2">&amp;mut </span>style[<span class="string">"sprite"</span>] {
+<a href=#468 id=468 data-nosnippet>468</a>        Value::String(u) =&gt; <span class="kw-2">*</span>u = abs(u),
+<a href=#469 id=469 data-nosnippet>469</a>        Value::Array(sprites) =&gt; {
+<a href=#470 id=470 data-nosnippet>470</a>            <span class="kw">for </span>s <span class="kw">in </span>sprites.iter_mut() {
+<a href=#471 id=471 data-nosnippet>471</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(u) = s[<span class="string">"url"</span>].as_str().map(abs) {
+<a href=#472 id=472 data-nosnippet>472</a>                    s[<span class="string">"url"</span>] = <span class="macro">json!</span>(u);
+<a href=#473 id=473 data-nosnippet>473</a>                }
+<a href=#474 id=474 data-nosnippet>474</a>            }
+<a href=#475 id=475 data-nosnippet>475</a>        }
+<a href=#476 id=476 data-nosnippet>476</a>        <span class="kw">_ </span>=&gt; {}
+<a href=#477 id=477 data-nosnippet>477</a>    }
+<a href=#478 id=478 data-nosnippet>478</a>    style
+<a href=#479 id=479 data-nosnippet>479</a>}
+<a href=#480 id=480 data-nosnippet>480</a>
+<a href=#481 id=481 data-nosnippet>481</a><span class="attr">#[cfg(test)]
+<a href=#482 id=482 data-nosnippet>482</a></span><span class="kw">mod </span>tests {
+<a href=#483 id=483 data-nosnippet>483</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#484 id=484 data-nosnippet>484</a>
+<a href=#485 id=485 data-nosnippet>485</a>    <span class="attr">#[test]
+<a href=#486 id=486 data-nosnippet>486</a>    </span><span class="kw">fn </span>inputs_are_classified() {
+<a href=#487 id=487 data-nosnippet>487</a>        <span class="macro">assert_eq!</span>(classify(<span class="string">"pmtiles://https://x/a.pmtiles"</span>), Input::Pmtiles(<span class="string">"https://x/a.pmtiles"</span>.into()));
+<a href=#488 id=488 data-nosnippet>488</a>        <span class="macro">assert_eq!</span>(classify(<span class="string">"data/area.PMTiles"</span>), Input::Pmtiles(<span class="string">"data/area.PMTiles"</span>.into()));
+<a href=#489 id=489 data-nosnippet>489</a>        <span class="macro">assert_eq!</span>(classify(<span class="string">"https://x/a.pmtiles?v=2"</span>), Input::Pmtiles(<span class="string">"https://x/a.pmtiles?v=2"</span>.into()));
+<a href=#490 id=490 data-nosnippet>490</a>        <span class="macro">assert_eq!</span>(classify(<span class="string">"https://t/{z}/{x}/{y}.png"</span>), Input::Template(<span class="string">"https://t/{z}/{x}/{y}.png"</span>.into()));
+<a href=#491 id=491 data-nosnippet>491</a>        <span class="macro">assert_eq!</span>(
+<a href=#492 id=492 data-nosnippet>492</a>            classify(<span class="string">"https://s/arcgis/rest/services/World_Imagery/MapServer/"</span>),
+<a href=#493 id=493 data-nosnippet>493</a>            Input::MapServer(<span class="string">"https://s/arcgis/rest/services/World_Imagery/MapServer"</span>.into())
+<a href=#494 id=494 data-nosnippet>494</a>        );
+<a href=#495 id=495 data-nosnippet>495</a>        <span class="macro">assert_eq!</span>(
+<a href=#496 id=496 data-nosnippet>496</a>            classify(<span class="string">"https://s/arcgis/rest/services/B/VectorTileServer?f=json"</span>),
+<a href=#497 id=497 data-nosnippet>497</a>            Input::VectorTileServer(<span class="string">"https://s/arcgis/rest/services/B/VectorTileServer"</span>.into())
+<a href=#498 id=498 data-nosnippet>498</a>        );
+<a href=#499 id=499 data-nosnippet>499</a>        <span class="macro">assert_eq!</span>(classify(<span class="string">"https://x/style.json"</span>), Input::Resource(<span class="string">"https://x/style.json"</span>.into()));
+<a href=#500 id=500 data-nosnippet>500</a>    }
+<a href=#501 id=501 data-nosnippet>501</a>
+<a href=#502 id=502 data-nosnippet>502</a>    <span class="attr">#[test]
+<a href=#503 id=503 data-nosnippet>503</a>    </span><span class="kw">fn </span>template_kind_from_extension() {
+<a href=#504 id=504 data-nosnippet>504</a>        <span class="macro">assert_eq!</span>(kind_from_template(<span class="string">"https://t/{z}/{x}/{y}.png"</span>), <span class="prelude-val">Some</span>(TileKind::Raster));
+<a href=#505 id=505 data-nosnippet>505</a>        <span class="macro">assert_eq!</span>(kind_from_template(<span class="string">"https://t/{z}/{x}/{y}.pbf?key=1"</span>), <span class="prelude-val">Some</span>(TileKind::Vector));
+<a href=#506 id=506 data-nosnippet>506</a>        <span class="macro">assert_eq!</span>(kind_from_template(<span class="string">"https://w?BBOX={bbox-epsg-3857}"</span>), <span class="prelude-val">Some</span>(TileKind::Raster));
+<a href=#507 id=507 data-nosnippet>507</a>        <span class="macro">assert_eq!</span>(kind_from_template(<span class="string">"https://t/{z}/{x}/{y}"</span>), <span class="prelude-val">None</span>);
+<a href=#508 id=508 data-nosnippet>508</a>    }
+<a href=#509 id=509 data-nosnippet>509</a>
+<a href=#510 id=510 data-nosnippet>510</a>    <span class="attr">#[test]
+<a href=#511 id=511 data-nosnippet>511</a>    </span><span class="kw">fn </span>default_vector_style_and_paint() {
+<a href=#512 id=512 data-nosnippet>512</a>        <span class="kw">let </span><span class="kw-2">mut </span>opts = TileStyleOptions::default();
+<a href=#513 id=513 data-nosnippet>513</a>        opts.paint.insert(<span class="string">"fill-color"</span>.into(), <span class="macro">json!</span>(<span class="string">"#123456"</span>));
+<a href=#514 id=514 data-nosnippet>514</a>        opts.paint.insert(<span class="string">"text-color"</span>.into(), <span class="macro">json!</span>(<span class="string">"#000"</span>));
+<a href=#515 id=515 data-nosnippet>515</a>        <span class="kw">let </span>(s, dropped) =
+<a href=#516 id=516 data-nosnippet>516</a>            build_style(TileKind::Vector, <span class="macro">json!</span>({<span class="string">"type"</span>: <span class="string">"vector"</span>, <span class="string">"tiles"</span>: [<span class="string">"t"</span>]}), <span class="macro">vec!</span>[<span class="string">"roads"</span>.into(), <span class="string">"water"</span>.into()], <span class="kw-2">&amp;</span>opts);
+<a href=#517 id=517 data-nosnippet>517</a>        <span class="kw">let </span>v: Value = serde_json::from_str(<span class="kw-2">&amp;</span>s).unwrap();
+<a href=#518 id=518 data-nosnippet>518</a>        <span class="kw">let </span>ids: Vec&lt;<span class="kw-2">&amp;</span>str&gt; = v[<span class="string">"layers"</span>].as_array().unwrap().iter().map(|l| l[<span class="string">"id"</span>].as_str().unwrap()).collect();
+<a href=#519 id=519 data-nosnippet>519</a>        <span class="macro">assert_eq!</span>(ids, [<span class="string">"roads-fill"</span>, <span class="string">"water-fill"</span>, <span class="string">"roads-line"</span>, <span class="string">"water-line"</span>, <span class="string">"roads-circle"</span>, <span class="string">"water-circle"</span>]);
+<a href=#520 id=520 data-nosnippet>520</a>        <span class="macro">assert_eq!</span>(v[<span class="string">"layers"</span>][<span class="number">0</span>][<span class="string">"paint"</span>][<span class="string">"fill-color"</span>], <span class="string">"#123456"</span>);
+<a href=#521 id=521 data-nosnippet>521</a>        <span class="macro">assert_eq!</span>(v[<span class="string">"layers"</span>][<span class="number">2</span>][<span class="string">"paint"</span>][<span class="string">"line-color"</span>], PALETTE[<span class="number">0</span>]);
+<a href=#522 id=522 data-nosnippet>522</a>        <span class="macro">assert_eq!</span>(dropped, [<span class="string">"text-color"</span>]);
+<a href=#523 id=523 data-nosnippet>523</a>        <span class="kw">crate</span>::style::validate_maplibre_style(<span class="kw-2">&amp;</span>s).unwrap();
+<a href=#524 id=524 data-nosnippet>524</a>    }
+<a href=#525 id=525 data-nosnippet>525</a>
+<a href=#526 id=526 data-nosnippet>526</a>    <span class="attr">#[test]
+<a href=#527 id=527 data-nosnippet>527</a>    </span><span class="kw">fn </span>relative_urls_become_absolute() {
+<a href=#528 id=528 data-nosnippet>528</a>        <span class="kw">let </span>style = <span class="macro">json!</span>({
+<a href=#529 id=529 data-nosnippet>529</a>            <span class="string">"sources"</span>: {<span class="string">"esri"</span>: {<span class="string">"type"</span>: <span class="string">"vector"</span>, <span class="string">"url"</span>: <span class="string">"../../"</span>}, <span class="string">"p"</span>: {<span class="string">"type"</span>: <span class="string">"vector"</span>, <span class="string">"url"</span>: <span class="string">"pmtiles://a.pmtiles"</span>}},
+<a href=#530 id=530 data-nosnippet>530</a>            <span class="string">"sprite"</span>: <span class="string">"../sprites/sprite"</span>, <span class="string">"glyphs"</span>: <span class="string">"../fonts/{fontstack}/{range}.pbf"</span>,
+<a href=#531 id=531 data-nosnippet>531</a>        });
+<a href=#532 id=532 data-nosnippet>532</a>        <span class="kw">let </span>v = absolutize(style, <span class="string">"https://h/s/VectorTileServer/resources/styles/root.json"</span>);
+<a href=#533 id=533 data-nosnippet>533</a>        <span class="macro">assert_eq!</span>(v[<span class="string">"sources"</span>][<span class="string">"esri"</span>][<span class="string">"url"</span>], <span class="string">"https://h/s/VectorTileServer/"</span>);
+<a href=#534 id=534 data-nosnippet>534</a>        <span class="macro">assert_eq!</span>(v[<span class="string">"sources"</span>][<span class="string">"p"</span>][<span class="string">"url"</span>], <span class="string">"pmtiles://https://h/s/VectorTileServer/resources/styles/a.pmtiles"</span>);
+<a href=#535 id=535 data-nosnippet>535</a>        <span class="macro">assert_eq!</span>(v[<span class="string">"sprite"</span>], <span class="string">"https://h/s/VectorTileServer/resources/sprites/sprite"</span>);
+<a href=#536 id=536 data-nosnippet>536</a>        <span class="macro">assert_eq!</span>(v[<span class="string">"glyphs"</span>], <span class="string">"https://h/s/VectorTileServer/resources/fonts/{fontstack}/{range}.pbf"</span>);
+<a href=#537 id=537 data-nosnippet>537</a>    }
+<a href=#538 id=538 data-nosnippet>538</a>}
+</code></pre></div></section></main></body></html>

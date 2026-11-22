@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["StyleInput"],"fn":["filter_layers","filter_style_layers","layer_matches","validate_maplibre_style"]};

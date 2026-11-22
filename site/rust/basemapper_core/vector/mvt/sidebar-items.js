@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["GEOJSON_LAYER"],"enum":["GeomType","Geometry","Value"],"fn":["decode","source_layer"],"struct":["Feature","Layer","Tile"],"type":["Point"]};

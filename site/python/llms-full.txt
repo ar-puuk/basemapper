@@ -127,9 +127,10 @@ Render a PNG, written to ``path`` when given. Returns the PNG bytes.
 
 render_svg(self, path: 'Optional[str]' = None, text: 'str' = 'editable', embed_fonts: 'str' = 'subset', font_dirs: 'Optional[List[str]]' = None) -> 'str'
 
-Render a vector SVG (``width`` x ``height`` user units;
-``pixel_ratio`` does not apply), written to ``path`` when given.
-Returns the SVG text.
+Render an SVG (``width`` x ``height`` user units; ``pixel_ratio``
+does not apply), written to ``path`` when given: vector layers as
+paths and text, raster tiles (raster basemaps, hillshade) as embedded
+images. Returns the SVG text.
 
 Args:
     path: Output file, or None.
@@ -561,3 +562,606 @@ Raised when a style cannot be fetched or parsed.
 NetworkError(message: str) -> None
 
 Raised when tile or style network requests fail.
+
+
+----------------------------------------------------------------------
+This is the User Guide documentation for the package.
+----------------------------------------------------------------------
+
+### Get started
+
+> **R or Rust?** The same functions and arguments exist in
+> [R](../../r/index.html) (`verb(m, ...)` for Python's `m.verb(...)`) and
+> [Rust](../../rust/basemapper_core/index.html).
+
+basemapper renders MapLibre GL basemaps headlessly with a Rust core: no
+browser, display server, GPU or GDAL. Vector styles are drawn by a software
+port of MapLibre GL JS's renderer, so maps look as they do in MapLibre.
+Everything on this page was run when the page was built; the maps are the
+output of the code above them.
+
+## Installation
+
+```sh
+pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+# or: uv add "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+```
+
+See the [home page](../index.html) for conda.
+
+## Choose a style
+
+Every function takes a `style`. The simplest is a named basemap, a
+[leaflet-providers](https://leaflet-extras.github.io/leaflet-providers/preview/)
+name; `list_providers()` lists them, with the API key some need:
+
+```{python}
+import basemapper as bm
+
+for p in bm.list_providers()[:12]:
+    print(f"{p['name']:<24} vector={p['vector']!s:<5} raster={p['raster']!s:<5} key={p['api_key_env']}")
+```
+
+A MapLibre style URL or JSON works too, and so does tile data: a tile URL,
+TileJSON, PMTiles archive or ArcGIS service (see
+[Your own tiles and services](05-own-data.qmd)).
+
+## A map on its own
+
+`basemap()` creates a view: a centre and MapLibre zoom (or bounds to fit),
+and a size in CSS pixels. In a notebook, a view shows the map:
+
+```{python}
+m = bm.basemap("OpenFreeMap.Positron", 720, 405, center=(-111.8887, 40.7556), zoom=12.4)
+m
+```
+
+`repr()` describes it, and the `get_*()` methods read it:
+
+```{python}
+print(repr(m))
+print(m.get_bounds(lonlat=True))
+print(m.get_attribution())
+```
+
+`set_view()` and `set_bounds()` change the view. Here it fits North
+Carolina's counties (a GeoDataFrame, from
+[geodatasets](https://geodatasets.readthedocs.io)):
+
+```{python}
+import geopandas as gpd
+import geodatasets
+
+nc = gpd.read_file(geodatasets.get_path("geoda.sids"))
+bm.basemap("OpenFreeMap.Liberty", 720, 300, bounds=nc)
+```
+
+## Raster and vector, PNG and SVG
+
+Basemaps come as raster tiles (images, like OpenStreetMap's) or vector tiles
+(geometry styled on the fly, like OpenFreeMap's). Either renders to a PNG
+with `render_png()` or an SVG with `render_svg()`. In an SVG, vector layers
+are paths and the labels editable text with the style's fonts embedded;
+raster tiles are embedded as images.
+
+```{python}
+import os, tempfile
+
+slc = (-111.8910, 40.7608)
+raster = bm.basemap("OpenStreetMap.Mapnik", 480, 300, center=slc, zoom=11.5)
+vector = bm.basemap("OpenFreeMap.Bright", 480, 300, center=slc, zoom=11.5)
+
+out = tempfile.mkdtemp()
+for name, m in [("raster", raster), ("vector", vector)]:
+    m.render_png(os.path.join(out, f"{name}.png"))
+    m.render_svg(os.path.join(out, f"{name}.svg"))
+
+for f in sorted(os.listdir(out)):
+    print(f"{f:<12} {os.path.getsize(os.path.join(out, f)) // 1024} KB")
+```
+
+```{python}
+#| echo: false
+# Show the four files written above.
+import base64
+from IPython.display import HTML
+
+def uri(f):
+    mime = "image/svg+xml" if f.endswith(".svg") else "image/png"
+    return f"data:{mime};base64," + base64.b64encode(open(os.path.join(out, f), "rb").read()).decode()
+
+HTML(f"""<table class="table" style="table-layout:fixed"><col style="width:7.5em"><col><col><tr><th></th><th>PNG</th><th>SVG</th></tr>
+<tr><th>Raster<br><small>OpenStreetMap</small></th><td><img src="{uri('raster.png')}" style="width:100%"></td><td><img src="{uri('raster.svg')}" style="width:100%"></td></tr>
+<tr><th>Vector<br><small>OpenFreeMap Bright</small></th><td><img src="{uri('vector.png')}" style="width:100%"></td><td><img src="{uri('vector.svg')}" style="width:100%"></td></tr></table>""")
+```
+
+`render_array()` returns the pixels, for your own compositing, and
+`get_bounds()` their extent in Web Mercator:
+
+```{python}
+a = vector.render_array()
+a.shape, a.dtype, vector.get_bounds()
+```
+
+`pixel_ratio` makes images larger with the same view and label layout:
+`pixel_ratio=2` for a sharp 2x image, `dpi / 96` for print.
+
+## In a plot
+
+`add_basemap()` adds a basemap under a matplotlib axes' content. It renders
+when the figure is drawn, for the axes' extent and at the output resolution,
+and credits the provider in the corner:
+
+```{python}
+import matplotlib.pyplot as plt
+
+nc_3857 = nc.to_crs(3857)
+fig, ax = plt.subplots(figsize=(8, 3.6))
+nc_3857.plot(ax=ax, column="BIR74", cmap="viridis", alpha=0.75, edgecolor="white", linewidth=0.3, legend=True)
+bm.add_basemap(ax, "OpenFreeMap.Positron", crs=3857)
+ax.set_axis_off()
+```
+
+`geom_basemap()` does the same in plotnine, with the arguments of R's
+`geom_basemap()`:
+
+```{python}
+from plotnine import aes, geom_map, ggplot, scale_fill_cmap, theme_void, theme
+
+(
+    ggplot(nc)
+    + bm.geom_basemap("Esri.WorldGrayCanvas")
+    + geom_map(aes(fill="SID74"), alpha=0.7, color="white", size=0.2)
+    + scale_fill_cmap("Blues", name="SIDS, 1974")
+    + theme_void()
+    + theme(figure_size=(8, 3.6))
+)
+```
+
+[Plots with matplotlib and plotnine](03-plotting.qmd) has more.
+
+
+### Basemap gallery
+
+Every basemap in the catalogue that needs no API key, rendered for the same
+view of the San Francisco Bay Area. The names work as `style` anywhere: in
+`basemap()`, `add_basemap()`, `geom_basemap()` and in R and Rust.
+
+```{python}
+import basemapper as bm
+
+providers = bm.list_providers()
+keyless = [p for p in providers if p["api_key_env"] is None]
+print(len(keyless), "basemaps")
+
+images = {}
+for p in keyless:
+    m = bm.basemap(p["name"], 340, 220, center=(-122.25, 37.75), zoom=9)
+    images[p["name"]] = m.render_png()
+```
+
+```{python}
+#| echo: false
+# Lay out the images rendered above, with each one's name and form.
+import base64
+from IPython.display import HTML
+
+cells = []
+for p in keyless:
+    src = "data:image/png;base64," + base64.b64encode(images[p["name"]]).decode()
+    form = "vector" if p["vector"] else "raster"
+    cells.append(f'<figure class="bm-cell"><img src="{src}" alt="{p["name"]}" loading="lazy">'
+                 f'<figcaption><code>{p["name"]}</code> <span>{form}</span></figcaption></figure>')
+HTML('<div class="bm-gallery">' + "\n".join(cells) + "</div>")
+```
+
+The vector basemaps (OpenFreeMap, and Esri's vector styles) are drawn from
+vector tiles by basemapper's port of MapLibre GL JS; the raster ones are
+tile images. Esri's names have both forms; `basemap_provider(name,
+type="raster")` picks the other one.
+
+## With an API key
+
+CARTO, Stadia Maps and MapTiler need a free API key, read from the
+environment variable in `api_key_env` (or given as `api_key=` to
+`basemap_provider()`):
+
+```{python}
+for p in providers:
+    if p["api_key_env"]:
+        print(f"{p['name']:<26} {p['api_key_env']}")
+```
+
+
+### Plots with matplotlib and plotnine
+
+`add_basemap()` (matplotlib) and `geom_basemap()` (plotnine) add a basemap
+under your data. They render when the figure is drawn, for the axes' extent
+and at the output resolution: on screen, in this page, or in
+`savefig(dpi=300)` and `save(dpi=300)`, labels stay sharp and the right
+size. Both take the arguments of `basemap()`'s renderers (`labels`,
+`features`, `layers`, `alpha`, ...) and credit the provider in the corner.
+
+```{python}
+import warnings
+warnings.filterwarnings("ignore", message=".*centroid.*")
+
+import basemapper as bm
+import geodatasets
+import geopandas as gpd
+import matplotlib.pyplot as plt
+
+nc = gpd.read_file(geodatasets.get_path("geoda.sids"))
+```
+
+## matplotlib
+
+`add_basemap()` draws under what the axes already show. Give it the data's
+CRS with `crs=`:
+
+```{python}
+fig, ax = plt.subplots(figsize=(8, 3.6))
+nc.assign(rate=nc.SID79 / nc.BIR79 * 1000).plot(
+    ax=ax, column="rate", cmap="OrRd", alpha=0.8, edgecolor="white", linewidth=0.2,
+    legend=True, legend_kwds={"label": "SIDS per 1,000 births, 1979", "shrink": 0.7},
+)
+bm.add_basemap(ax, "OpenFreeMap.Positron", crs=nc.crs)
+ax.set_axis_off()
+```
+
+### Projected data
+
+The basemap is rendered in Web Mercator and warped to the axes' CRS, so data
+in any CRS works. Here North Carolina's state plane (EPSG:32119), with the
+counties' centroids sized by births:
+
+```{python}
+nc_sp = nc.to_crs(32119)
+fig, ax = plt.subplots(figsize=(8, 3.6))
+nc_sp.boundary.plot(ax=ax, color="0.15", linewidth=0.3)
+nc_sp.centroid.plot(ax=ax, markersize=nc_sp.BIR74 / 300, color="#D96E34", alpha=0.7)
+bm.add_basemap(ax, "Esri.WorldTopoMap", crs=nc_sp.crs)
+ax.set_axis_off()
+```
+
+### A quieter basemap
+
+For a data map, a basemap often reads better without its labels, faded, or
+with only some of its features (see [Stacking, labels and
+features](04-layers.qmd)):
+
+```{python}
+fig, ax = plt.subplots(figsize=(8, 3.6))
+nc.assign(share=nc.NWBIR74 / nc.BIR74).plot(
+    ax=ax, column="share", cmap="viridis", edgecolor="white", linewidth=0.2, legend=True,
+    legend_kwds={"label": "Share of births, non-white, 1974", "shrink": 0.7},
+)
+bm.add_basemap(ax, "OpenFreeMap.Liberty", labels=False, features=["-roads", "-rail"], alpha=0.6, crs=nc.crs)
+ax.set_axis_off()
+```
+
+### Zooming in
+
+The basemap follows the axes, so setting their limits zooms it in, with
+detail to match:
+
+```{python}
+fig, ax = plt.subplots(figsize=(8, 5.2))
+nc.boundary.plot(ax=ax, color="yellow", linewidth=1)
+for _, row in nc.iterrows():
+    p = row.geometry.representative_point()
+    if -76.9 < p.x < -75.4 and 35.0 < p.y < 36.0:
+        ax.annotate(row.NAME, (p.x, p.y), color="white", fontsize=9, fontweight="bold", ha="center")
+ax.set_xlim(-76.9, -75.4)
+ax.set_ylim(35.0, 36.0)
+bm.add_basemap(ax, "Esri.WorldImagery", crs=nc.crs)
+ax.set_axis_off()
+```
+
+### Credits
+
+The credit line is on by default. `attribution=False` turns it off;
+`get_attribution()` returns the text, for a caption:
+
+```{python}
+fig, ax = plt.subplots(figsize=(8, 3.6))
+nc.boundary.plot(ax=ax, color="steelblue", linewidth=0.4)
+bm.add_basemap(ax, "Esri.WorldGrayCanvas", attribution=False, crs=nc.crs)
+ax.set_axis_off()
+fig.text(0.98, 0.02, bm.get_attribution("Esri.WorldGrayCanvas"), ha="right", fontsize=6, color="0.4")
+```
+
+## plotnine
+
+`geom_basemap()` is a plotnine layer with the arguments of R's
+`geom_basemap()`:
+
+```{python}
+from plotnine import aes, geom_map, ggplot, labs, scale_fill_distiller, theme, theme_void
+
+(
+    ggplot(nc)
+    + bm.geom_basemap("OpenFreeMap.Positron")
+    + geom_map(aes(fill="BIR79"), alpha=0.75, color="white", size=0.2)
+    + scale_fill_distiller(type="seq", palette="Blues", direction=1, name="Births, 1979")
+    + theme_void()
+    + theme(figure_size=(8, 3.6))
+)
+```
+
+Raster and vector basemaps, stacks, labels and features work the same way;
+here shaded relief under a vector basemap's labels:
+
+```{python}
+from plotnine import geom_point, scale_size_area
+
+relief = ["Esri.WorldShadedRelief", bm.basemap_provider("OpenFreeMap.Liberty", labels="only")]
+centroids = nc.assign(x=nc.centroid.x, y=nc.centroid.y)
+
+(
+    ggplot(centroids)
+    + bm.geom_basemap(relief)
+    + geom_map(fill=None, color="#333333", size=0.25)
+    + geom_point(aes("x", "y", size="BIR74"), color="#D96E34", alpha=0.7)
+    + scale_size_area(max_size=6, name="Births, 1974")
+    + theme_void()
+    + theme(figure_size=(8, 3.6))
+)
+```
+
+
+### Stacking, labels and features
+
+A style is a stack of layers: background, water, roads, labels and so on.
+basemapper can draw only some of them, and can stack several styles into
+one map.
+
+```{python}
+import basemapper as bm
+
+slc = (-111.8887, 40.7556)
+def view(style, **kw):
+    return bm.basemap(style, 720, 405, center=slc, zoom=12.4, **kw)
+```
+
+## What a style draws
+
+`list_layers()` lists a style's layers in drawing order, with the vector
+tile layer each one draws (`source_layer`) and the *feature* it shows:
+
+```{python}
+from collections import Counter
+
+layers = bm.list_layers("OpenFreeMap.Liberty")
+print(len(layers), "layers")
+for l in layers[:10]:
+    print(f"{l['id']:<22} {l['type']:<10} {str(l['source_layer']):<14} {l['feature']}")
+print(Counter(l["feature"] for l in layers))
+```
+
+## Labels
+
+`labels=False` draws a style without its labels (text and icons):
+
+```{python}
+view("OpenFreeMap.Liberty", labels=False)
+```
+
+`labels="only"` draws just the labels, on a transparent background, to go
+over another map.
+
+## Stacking
+
+A list of styles is drawn bottom to top. To filter one style of a stack,
+give the filter to `basemap_provider()`; this puts satellite imagery under a
+vector basemap's labels:
+
+```{python}
+hybrid = ["Esri.WorldImagery", bm.basemap_provider("OpenFreeMap.Liberty", labels="only")]
+view(hybrid)
+```
+
+ArcGIS basemaps are often published as separate services, drawn in order.
+The Utah Geospatial Resource Center's *Lite* basemap is a hillshade, a base
+map and labels:
+
+```{python}
+ugrc = "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services"
+lite = [f"{ugrc}/{s}/VectorTileServer/resources/styles/root.json"
+        for s in ["VectorHillshade", "LiteBase", "LiteLabels"]]
+bm.basemap(lite, 720, 405, center=(-111.75, 40.62), zoom=10.5)
+```
+
+## Features
+
+`features` keeps or drops parts of the map by what they show: background,
+water, landcover, parks, buildings, roads, rail, boundaries, places, poi and
+terrain. Plain names keep, `"-name"` drops.
+
+```{python}
+view("OpenFreeMap.Liberty", labels=False, features=["background", "water", "parks", "roads"])
+```
+
+```{python}
+view("OpenFreeMap.Liberty", features=["-roads", "-rail", "-poi"])
+```
+
+`list_layers()` takes the same filters and lists what a render with them
+draws, to check a filter before rendering:
+
+```{python}
+for l in bm.list_layers("OpenFreeMap.Liberty", labels=False, features=["water", "parks"]):
+    print(f"{l['id']:<22} {l['type']:<6} {l['feature']}")
+```
+
+## Layers
+
+Features are sorted from each layer's source layer, as a convenience. For
+exact control, `layers` keeps layers by id, or drops them with `"-"`; `*`
+and `?` are wildcards:
+
+```{python}
+view("OpenFreeMap.Liberty", layers=["-road_*", "-bridge_*", "-tunnel_*"])
+```
+
+A name that matches no layer warns, so a typo does not go unnoticed:
+
+```{python}
+m = view("OpenFreeMap.Liberty", layers=["-lable_village"])
+_ = m.render_array()
+```
+
+## In plots
+
+The plot layers take the same arguments:
+
+```{python}
+import geodatasets
+import geopandas as gpd
+from plotnine import geom_map, ggplot, theme, theme_void
+
+nc = gpd.read_file(geodatasets.get_path("geoda.sids"))
+water = bm.basemap_provider("OpenFreeMap.Liberty", features=["water"], labels=False)
+
+(
+    ggplot(nc)
+    + bm.geom_basemap(["Esri.WorldShadedRelief", water])
+    + geom_map(fill=None, color="#262626", size=0.25)
+    + theme_void()
+    + theme(figure_size=(8, 3.6))
+)
+```
+
+
+### Your own tiles and services
+
+Besides named basemaps and MapLibre styles, `style` takes tile data: a tile
+URL template, TileJSON, a PMTiles archive (URL or local file), or an ArcGIS
+service. basemapper detects whether the tiles are raster or vector and
+builds a style for them; `tile_style()` builds one with your overrides.
+OGC services (WMS, WMTS) have their own style builders.
+
+```{python}
+import basemapper as bm
+```
+
+## A tile URL
+
+An XYZ template, as raster tiles:
+
+```{python}
+bm.basemap("https://tile.opentopomap.org/{z}/{x}/{y}.png", 720, 405,
+           center=(-111.65, 40.60), zoom=11)
+```
+
+## PMTiles
+
+A [PMTiles](https://docs.protomaps.com/pmtiles/) archive is read with HTTP
+range requests, or from a local file. Raster archives draw as they are;
+here a USGS topographic map of Mount Whitney, fitted to the archive's
+extent:
+
+```{python}
+bm.basemap("https://pmtiles.io/usgs-mt-whitney-8-15-webp-512.pmtiles", 720, 405,
+           bounds=[-118.3198, 36.5611, -118.2607, 36.5930])
+```
+
+Vector archives get a default style over every source layer:
+
+```{python}
+firenze = "https://pmtiles.io/protomaps(vector)ODbL_firenze.pmtiles"
+bm.basemap(firenze, 720, 405, center=(11.255, 43.773), zoom=13.5)
+```
+
+`tile_style()` sets which source layers it draws, and its paint:
+
+```{python}
+print(sorted({l["source_layer"] for l in bm.list_layers(firenze)}))
+
+styled = bm.tile_style(
+    firenze,
+    source_layers=["earth", "water", "landuse", "roads", "buildings"],
+    paint={"fill-color": "#f2efe9", "line-color": "#8a8a8a"},
+)
+bm.basemap(styled, 720, 405, center=(11.255, 43.773), zoom=13.5)
+```
+
+### With a basemap style
+
+A vector archive can also be drawn with a full basemap style whose source
+points at it. [protomaps-light.json](../../styles/protomaps-light.json) and
+[protomaps-dark.json](../../styles/protomaps-dark.json) are the
+[Protomaps](https://github.com/protomaps/basemaps) basemap styles with the
+Florence archive as their source
+(`"url": "pmtiles://https://pmtiles.io/protomaps(vector)ODbL_firenze.pmtiles"`),
+and a style file's path works as `style`:
+
+```{python}
+bm.basemap("styles/protomaps-light.json", 720, 405, center=(11.2551, 43.7710), zoom=15.2)
+```
+
+```{python}
+bm.basemap("styles/protomaps-dark.json", 720, 405, center=(11.2551, 43.7710), zoom=15.2)
+```
+
+For your own Protomaps archive, change the source's `url` to `pmtiles://`
+and the archive's URL or path. These styles are for Protomaps tiles v3;
+archives built from late 2024 on use tiles v4, with the styles of
+`@protomaps/basemaps` 5 ([how the styles were made](../../styles/README.md)).
+
+## TileJSON
+
+A TileJSON URL works the same way; this is OpenFreeMap's planet tileset,
+with the default vector style:
+
+```{python}
+bm.basemap("https://tiles.openfreemap.org/planet", 720, 405,
+           center=(-111.8887, 40.7556), zoom=12)
+```
+
+## Your tiles in a basemap's style
+
+`basemap_provider(name, tiles=)` keeps a basemap's style and swaps in your
+own tiles, which must use the same schema (OpenFreeMap's styles use
+OpenMapTiles): self-hosted tiles, or an extract for offline use.
+
+```{python}
+style = bm.basemap_provider("OpenFreeMap.Positron", tiles="https://tiles.openfreemap.org/planet")
+bm.basemap(style, 720, 405, center=(-111.8887, 40.7556), zoom=12)
+```
+
+## OGC services
+
+`wms_style()` and `wmts_style()` build styles for OGC services. NASA's
+Blue Marble, from GIBS:
+
+```{python}
+gibs = bm.wms_style("https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi",
+                    layers="BlueMarble_ShadedRelief_Bathymetry", format="image/jpeg")
+bm.basemap(gibs, 720, 360, center=(0, 20), zoom=0.6)
+```
+
+## In plots
+
+Any of these goes in `add_basemap()` and `geom_basemap()`:
+
+```{python}
+import geodatasets
+import geopandas as gpd
+import matplotlib.pyplot as plt
+
+nc = gpd.read_file(geodatasets.get_path("geoda.sids"))
+fig, ax = plt.subplots(figsize=(8, 4.4))
+nc.boundary.plot(ax=ax, color="black", linewidth=0.4)
+ax.set_xlim(-84.4, -81.2)
+ax.set_ylim(34.9, 36.6)
+bm.add_basemap(ax, "https://tile.opentopomap.org/{z}/{x}/{y}.png", alpha=0.8, crs=nc.crs)
+ax.set_axis_off()
+```
+
+## Tile cache
+
+Tiles are cached on disk, for as long as the servers' caching headers
+allow. `tile_cache()` shows where; `tile_cache(clear=True)` empties it, and
+`tile_cache(False)` turns it off for the session.
+

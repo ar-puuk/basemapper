@@ -1,3 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 232 268" width="232" height="268"><metadata><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><rdf:Description><dc:creator>RealFaviconGenerator</dc:creator><dc:source>https://realfavicongenerator.net</dc:source></rdf:Description></rdf:RDF></metadata><polygon points="116,4 220,62 220,206 116,264 12,206 12,62" fill="#1a1a2e" stroke="#2266c4" stroke-width="6"></polygon><line x1="40" y1="100" x2="192" y2="100" stroke="#2266c4" stroke-width="1" stroke-opacity="0.25"></line><line x1="40" y1="134" x2="192" y2="134" stroke="#2266c4" stroke-width="1" stroke-opacity="0.25"></line><line x1="40" y1="168" x2="192" y2="168" stroke="#2266c4" stroke-width="1" stroke-opacity="0.25"></line><line x1="82" y1="72" x2="82" y2="196" stroke="#2266c4" stroke-width="1" stroke-opacity="0.25"></line><line x1="116" y1="72" x2="116" y2="196" stroke="#2266c4" stroke-width="1" stroke-opacity="0.25"></line><line x1="150" y1="72" x2="150" y2="196" stroke="#2266c4" stroke-width="1" stroke-opacity="0.25"></line><circle cx="116" cy="120" r="22" fill="#2266c4"></circle><circle cx="116" cy="120" r="10" fill="#1a1a2e"></circle><path d="M116,142 L103,158 Q116,172 129,158 Z" fill="#2266c4"></path><text x="116" y="205" font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="700" fill="#ffffff" text-anchor="middle" letter-spacing="1">
-    basemapper
-  </text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="22 -25.31 188 188" width="160" height="160" role="img" aria-label="basemapper">
+  <!-- The basemapper mark: the logo's map plates, for small spaces. Drawn by tools/logo/build_logo.py. -->
+<rect x="22" y="-25.31" width="188" height="188" rx="37.6" fill="#0E171E"/>
+  <path d="M36 84.19 116 130.38 196 84.19 196 91.19 116 137.38 36 91.19Z" fill="#06303D"/>
+  <path d="M116 38 196 84.19 116 130.38 36 84.19Z" fill="#0A5068"/>
+  <clipPath id="p0"><path d="M0 0H100V100H0Z"/></clipPath>
+  <g transform="matrix(0.8 0.46 -0.8 0.46 116 38)" clip-path="url(#p0)"><g stroke="#0E171E" stroke-width="1.6" opacity="0.55" fill="none"><path d="M25 0V100M50 0V100M75 0V100M0 25H100M0 50H100M0 75H100" vector-effect="non-scaling-stroke"/></g></g>
+  <path d="M36 65.19 116 111.38 196 65.19 196 72.19 116 118.38 36 72.19Z" fill="#05566F"/>
+  <path d="M116 19 196 65.19 116 111.38 36 65.19Z" fill="#007EA7"/>
+  <clipPath id="p1"><path d="M0 0H100V100H0Z"/></clipPath>
+  <g transform="matrix(0.8 0.46 -0.8 0.46 116 19)" clip-path="url(#p1)"><path d="M0 0H50V50H0Z" fill="#1592BA"/><path d="M50 50H100V100H50Z" fill="#1592BA"/><path d="M50 0H75V25H50ZM25 75H50V100H25Z" fill="#3AA9CC"/></g>
+  <path d="M36 46.19 116 92.38 196 46.19 196 53.19 116 99.38 36 53.19Z" fill="#C9C1AE"/>
+  <path d="M116 0 196 46.19 116 92.38 36 46.19Z" fill="#FFFBF2"/>
+  <clipPath id="p2"><path d="M0 0H100V100H0Z"/></clipPath>
+  <g transform="matrix(0.8 0.46 -0.8 0.46 116 0)" clip-path="url(#p2)"><path d="M0 62C14 58 22 70 34 72C46 74 52 62 62 64C72 66 74 82 80 100H0Z" fill="#9CCFE3"/><path d="M66 6C78 2 92 8 94 20C96 32 84 38 74 34C64 30 56 12 66 6Z" fill="#BFDDA6"/><g fill="none" stroke-linecap="round"><path d="M-5 30C20 34 40 24 58 40S88 58 105 52" stroke="#E8833A" stroke-width="3.2" vector-effect="non-scaling-stroke"/><path d="M30 -5C34 20 28 40 42 58S48 90 50 105" stroke="#0E171E" stroke-width="1.6" opacity="0.55" vector-effect="non-scaling-stroke"/><path d="M-5 12C10 16 22 10 30 14" stroke="#0E171E" stroke-width="1.2" opacity="0.4" vector-effect="non-scaling-stroke"/></g></g>
+</svg>

@@ -70,3 +70,7 @@ check/
 
 # R graphics output from tests run without an open device
 Rplots.pdf
+
+# Copies of core/guide/styles made by scripts/build-docs.ps1
+r-basemapper/vignettes/articles/styles/
+py-basemapper/user_guide/styles/

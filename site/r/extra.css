@@ -9,30 +9,24 @@
   --bs-navbar-toggler-border-color: rgba(255, 251, 242, 0.2);
 }
 
-/* Python docs rounded-rect block in the navbar */
-.navbar .nav-item:has(a[href="../python/"]) {
-  display: flex;
-  align-items: stretch;
-  margin-left: 14px;
-}
-.navbar a[href="../python/"] {
-  background-color: #007EA7;
-  color: #fff !important;
-  display: flex !important;
-  align-items: center;
-  padding: 0 16px !important;
-  font-weight: 600;
-  font-size: 0.95rem;
-  border-radius: 6px;
-  margin: 0;
-  transition: background-color 0.15s ease;
-}
-.navbar a[href="../python/"]:hover {
-  background-color: #D96E34 !important;
-  color: #fff !important;
-}
-
-/* Code blocks: teal-tinted background */
-pre, code {
+/* Code blocks: teal-tinted background (light mode) */
+[data-bs-theme="light"] pre, [data-bs-theme="light"] code {
   background-color: #E8F4F8;
 }
+
+/* pkgdown inverts plot images in dark mode; maps keep their colours. */
+[data-bs-theme="dark"] img.r-plt,
+[data-bs-theme="dark"] pre .r-plt.img img,
+[data-bs-theme="dark"] .cell-output-display img {
+  filter: none;
+}
+
+/* Output images: rounded, never wider than the text column. */
+img.r-plt, main table img { max-width: 100%; height: auto; border-radius: 6px; }
+
+/* Basemap gallery grid */
+.bm-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; margin: 1rem 0 1.5rem; }
+.bm-cell { margin: 0; }
+.bm-cell img { width: 100%; height: auto; border-radius: 6px; display: block; }
+.bm-cell figcaption { font-size: 0.85rem; margin-top: 4px; display: flex; justify-content: space-between; gap: 6px; }
+.bm-cell figcaption span { opacity: 0.65; }

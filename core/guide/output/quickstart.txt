@@ -1,0 +1,3 @@
+720 x 405 px at zoom 12.4
+bounds (lon/lat): [-111.9355, 40.7356, -111.8419, 40.7756]
+credit: OpenFreeMap © OpenMapTiles Data from OpenStreetMap

@@ -91,6 +91,13 @@ Python. See `docs/api.md` in the repository.
   `features` that match no layer of any style warn.
 * `list_layers()` shows each layer's `source_layer`, and takes `layers`,
   `labels` and `features` to preview what a render draws.
+* `render_svg()` takes raster basemaps too: raster tiles are embedded as
+  images (vector layers stay paths and text).
+* A view printed in R Markdown or Quarto (`m` on its own line) shows the map,
+  at its CSS pixel size; `plot(m)` draws it on the current device.
+* `geom_basemap()` and `tm_basemap()` no longer fail on a stack that includes
+  inline style JSON (e.g. `basemap_provider(..., labels = "only")`): the
+  attribution cache used the style as a variable name.
 * Raster basemaps no longer show a one-pixel white line at tile seams when
   rendered at a fractional pixel ratio (as a figure's dpi gives).
 * ArcGIS vector styles whose source names the `VectorTileServer` without a

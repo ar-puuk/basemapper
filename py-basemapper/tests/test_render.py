@@ -164,3 +164,15 @@ def test_add_basemap_draws_attribution_unless_disabled():
     assert credits() == ["\u00a9 Test"]
     assert credits(attribution=False) == []
     assert credits(attribution="Mine") == ["Mine"]
+
+
+def test_basemap_shows_itself_in_notebooks_at_css_size():
+    import json
+
+    import basemapper
+
+    bg = json.dumps({"version": 8, "sources": {}, "layers": [
+        {"id": "bg", "type": "background", "paint": {"background-color": "#336699"}}]})
+    data, meta = basemapper.basemap(bg, 16, 8, pixel_ratio=2)._repr_png_()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    assert meta == {"width": 16, "height": 8}

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["apply_arabic_shaping","is_rtl_char","process_bidi"]};

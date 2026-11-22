@@ -1,0 +1,3 @@
+raster: fitted at zoom 12.81
+light: Protomaps © OpenStreetMap
+dark: Protomaps © OpenStreetMap

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["FontEmbed","SvgText"],"fn":["parse_font_name","resolve","subset_for_fixture"],"struct":["FontFace","SvgFonts","SvgOptions"]};

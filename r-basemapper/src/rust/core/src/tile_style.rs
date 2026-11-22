@@ -46,7 +46,7 @@ impl TileKind {
     }
 }
 
-/// Overrides for [`crate::tile_style`]; unset fields are detected or left to
+/// Overrides for [`crate::tile_style()`]; unset fields are detected or left to
 /// MapLibre's defaults.
 #[derive(Clone, Debug, Default)]
 pub struct TileStyleOptions {

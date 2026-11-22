@@ -1,7 +1,11 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://ar-puuk.github.io/basemapper/r/404.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/articles/gallery.html</loc></url>
 <url><loc>https://ar-puuk.github.io/basemapper/r/articles/getting-started.html</loc></url>
 <url><loc>https://ar-puuk.github.io/basemapper/r/articles/index.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/articles/layers.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/articles/own-data.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/articles/plotting.html</loc></url>
 <url><loc>https://ar-puuk.github.io/basemapper/r/authors.html</loc></url>
 <url><loc>https://ar-puuk.github.io/basemapper/r/index.html</loc></url>
 <url><loc>https://ar-puuk.github.io/basemapper/r/LICENSE-text.html</loc></url>
@@ -22,6 +26,7 @@
 <url><loc>https://ar-puuk.github.io/basemapper/r/reference/makeContent.BasemapGrob.html</loc></url>
 <url><loc>https://ar-puuk.github.io/basemapper/r/reference/normalize_bbox.html</loc></url>
 <url><loc>https://ar-puuk.github.io/basemapper/r/reference/ogc_styles.html</loc></url>
+<url><loc>https://ar-puuk.github.io/basemapper/r/reference/plot.basemap.html</loc></url>
 <url><loc>https://ar-puuk.github.io/basemapper/r/reference/providers.html</loc></url>
 <url><loc>https://ar-puuk.github.io/basemapper/r/reference/render_basemap_raw.html</loc></url>
 <url><loc>https://ar-puuk.github.io/basemapper/r/reference/render_png.html</loc></url>

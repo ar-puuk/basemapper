@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["allows_vertical_writing_mode","glyph_is_vertical","ideographic_breaking","upright","verticalize_punctuation","verticalized"]};

@@ -1,3 +1,70 @@
+// Crate documentation: the guide in guide/, with each example's source
+// (examples/guide_*.rs) and its output (guide/output/, written by
+// scripts/build-docs.ps1). Only read when building docs, so builds
+// without the guide folder (the vendored R copy) are unaffected.
+#![cfg_attr(doc, doc = include_str!("../guide/intro.md"))]
+#![cfg_attr(doc, doc = include_str!("../guide/quickstart.md"))]
+//! ```no_run
+#![cfg_attr(doc, doc = include_str!("../examples/guide_quickstart.rs"))]
+//! ```
+//!
+//! Output:
+//!
+//! ```text
+#![cfg_attr(doc, doc = include_str!("../guide/output/quickstart.txt"))]
+//! ```
+#![cfg_attr(doc, doc = include_str!("../guide/quickstart_after.md"))]
+//!
+#![cfg_attr(doc, doc = include_str!("../guide/formats.md"))]
+//! ```no_run
+#![cfg_attr(doc, doc = include_str!("../examples/guide_formats.rs"))]
+//! ```
+//!
+//! Output:
+//!
+//! ```text
+#![cfg_attr(doc, doc = include_str!("../guide/output/formats.txt"))]
+//! ```
+#![cfg_attr(doc, doc = include_str!("../guide/formats_after.md"))]
+//!
+#![cfg_attr(doc, doc = include_str!("../guide/stack.md"))]
+//! ```no_run
+#![cfg_attr(doc, doc = include_str!("../examples/guide_stack.rs"))]
+//! ```
+//!
+//! Output:
+//!
+//! ```text
+#![cfg_attr(doc, doc = include_str!("../guide/output/stack.txt"))]
+//! ```
+#![cfg_attr(doc, doc = include_str!("../guide/stack_after.md"))]
+//!
+#![cfg_attr(doc, doc = include_str!("../guide/layers.md"))]
+//! ```no_run
+#![cfg_attr(doc, doc = include_str!("../examples/guide_layers.rs"))]
+//! ```
+//!
+//! Output:
+//!
+//! ```text
+#![cfg_attr(doc, doc = include_str!("../guide/output/layers.txt"))]
+//! ```
+#![cfg_attr(doc, doc = include_str!("../guide/layers_after.md"))]
+//!
+#![cfg_attr(doc, doc = include_str!("../guide/pmtiles.md"))]
+//! ```no_run
+#![cfg_attr(doc, doc = include_str!("../examples/guide_pmtiles.rs"))]
+//! ```
+//!
+//! Output:
+//!
+//! ```text
+#![cfg_attr(doc, doc = include_str!("../guide/output/pmtiles.txt"))]
+//! ```
+#![cfg_attr(doc, doc = include_str!("../guide/pmtiles_after.md"))]
+//!
+#![cfg_attr(doc, doc = include_str!("../guide/more.md"))]
+
 pub mod attribution;
 pub mod basemap;
 pub mod bbox;
@@ -1072,9 +1139,8 @@ pub fn render_svg_stack_with(requests: Vec<RenderRequest>, options: &SvgOptions)
                 serde_json::from_str(&style_json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
             let tile_source =
                 extract_tile_source_from_style(&style_val, &client, request.auth_token.as_deref(), style_base_url_of(request)).await?;
-            if !matches!(tile_source, TileSource::MapboxVectorTile { .. }) {
-                return Err(BasemapError::RenderError("SVG output needs a vector tile source".into()));
-            }
+            // Raster-only styles take the same path: raster layers are
+            // embedded as images (vector layers are paths and text).
             let (style_val, sources, assets, _) =
                 fetch_vector_inputs(request, &client, &style_json, &tile_source, bbox, width).await?;
             inputs.push((style_val, sources, assets));

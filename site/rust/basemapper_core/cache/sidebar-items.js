@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["clear","default_dir","dir","set_dir"]};

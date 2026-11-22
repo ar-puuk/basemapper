@@ -169,6 +169,11 @@ class Basemap:
             f"({w} x {h} px), center ({lon:.5f}, {lat:.5f}), zoom {self._zoom:.3f}>"
         )
 
+    def _repr_png_(self):
+        """Show the rendered view in Jupyter and Quarto, at its CSS pixel size
+        (sharp at any ``pixel_ratio``). ``repr(m)`` describes the view."""
+        return self.render_png(), {"width": self.width, "height": self.height}
+
     # ── Rendering ───────────────────────────────────────────────────────────
 
     def _options(self) -> dict:
@@ -213,9 +218,10 @@ class Basemap:
         embed_fonts: str = "subset",
         font_dirs: Optional[List[str]] = None,
     ) -> str:
-        """Render a vector SVG (``width`` x ``height`` user units;
-        ``pixel_ratio`` does not apply), written to ``path`` when given.
-        Returns the SVG text.
+        """Render an SVG (``width`` x ``height`` user units; ``pixel_ratio``
+        does not apply), written to ``path`` when given: vector layers as
+        paths and text, raster tiles (raster basemaps, hillshade) as embedded
+        images. Returns the SVG text.
 
         Args:
             path: Output file, or None.

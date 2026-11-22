@@ -361,3 +361,22 @@ fn list_layers_previews_filters() {
     assert!(ids(LayerFilter { labels: basemapper_core::Labels::Only, features: Some(vec!["water".into()]), ..Default::default() }).is_empty());
     assert!(list_layers(&style, None, &LayerFilter { features: Some(vec!["highways".into()]), ..Default::default() }).is_err());
 }
+
+#[test]
+fn raster_styles_render_to_svg_as_embedded_images() {
+    let server = Server::run();
+    for (x, y) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+        serve(&server, &format!("/r/1/{x}/{y}.png"), png([200, 100, 50]));
+    }
+    let style = serde_json::json!({
+        "version": 8,
+        "sources": {"r": {"type": "raster", "tiles": [server.url_str("/r/{z}/{x}/{y}.png")], "tileSize": 256}},
+        "layers": [{"id": "r", "type": "raster", "source": "r"}],
+    })
+    .to_string();
+    let mut req = RenderRequest::new([-WORLD, -WORLD, WORLD, WORLD], 512, 512, StyleInput::detect(&style));
+    req.fail_on_tile_error = true;
+    let svg = basemapper_core::render_svg(req).unwrap();
+    assert!(svg.starts_with("<svg"), "{}", &svg[..svg.len().min(200)]);
+    assert_eq!(svg.matches("<image").count(), 1, "the raster layer is one embedded image");
+}

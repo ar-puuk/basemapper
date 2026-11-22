@@ -1,292 +1,455 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>basemapper — Headless Spatial Basemap Renderer</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>basemapper: MapLibre basemaps for R, Python and Rust, rendered headlessly</title>
+<meta name="description" content="Render MapLibre GL basemaps headlessly, with no browser, GPU or GDAL: to PNG, SVG, arrays, and under ggplot2, tmap, matplotlib and plotnine plots.">
+<link rel="icon" href="r/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #0E171E; --ink-2: #16232C; --paper: #FFFBF2; --teal: #007EA7; --orange: #D96E34;
+  --muted: #5b6770; --line: #e6e1d6; --card: #ffffff;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; font: 16px/1.6 Inter, system-ui, sans-serif; color: var(--ink); background: var(--paper); }
+a { color: var(--teal); }
+a:hover { color: var(--orange); }
+code, pre { font-family: "JetBrains Mono", ui-monospace, monospace; }
+img { max-width: 100%; height: auto; display: block; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                   "Helvetica Neue", Arial, sans-serif;
-      background: #fafafa;
-      color: #1a1a2e;
-      line-height: 1.6;
-    }
+/* Top bar */
+.top { background: var(--ink); color: var(--paper); }
+.top .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--paper); text-decoration: none; font-weight: 700; font-size: 1.1rem; }
+.brand img { width: 30px; }
+.top nav { display: flex; gap: 4px; }
+.top nav a { color: rgba(255,251,242,.8); text-decoration: none; padding: 6px 12px; border-radius: 999px; font-weight: 600; font-size: .92rem; display: inline-flex; align-items: center; gap: 7px; }
+.top nav a:hover { background: rgba(255,255,255,.1); color: #fff; }
+.top nav svg { width: 15px; height: 15px; fill: currentColor; }
 
-    /* ── Hero ── */
-    .hero {
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
-      color: #fff;
-      padding: 64px 24px 56px;
-      text-align: center;
-    }
-    .hero h1 { font-size: 2.8rem; font-weight: 700; letter-spacing: -.5px; }
-    .hero .tagline {
-      margin-top: 14px;
-      font-size: 1.15rem;
-      opacity: .85;
-      max-width: 560px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    .hero .badges { margin-top: 20px; font-size: .85rem; opacity: .6; }
-    .hero .badges a { color: #a8d8ff; text-decoration: none; }
-    .hero .badges a:hover { text-decoration: underline; }
+/* Hero */
+.hero { background: radial-gradient(1200px 500px at 85% 0%, #123447 0%, var(--ink) 60%); color: var(--paper); padding: 48px 0 52px; }
+.hero .wrap { display: grid; grid-template-columns: 1.1fr 1fr; gap: 44px; align-items: center; }
+.hero h1 { font-size: clamp(2.1rem, 3.8vw, 3rem); line-height: 1.08; margin: 0 0 18px; letter-spacing: -.02em; font-weight: 800; }
+.hero h1 span { color: var(--teal); }
+.hero p.lead { font-size: 1.08rem; color: rgba(255,251,242,.82); margin: 0 0 28px; max-width: 34em; }
+.langs { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn { display: inline-flex; align-items: center; gap: 9px; padding: 11px 18px; border-radius: 10px; font-weight: 600; text-decoration: none; transition: transform .15s, background-color .15s; }
+.btn svg { width: 18px; height: 18px; fill: currentColor; }
+.btn.solid { background: var(--teal); color: #fff; }
+.btn.solid:hover { background: var(--orange); color: #fff; transform: translateY(-1px); }
+.hero figure { margin: 0; }
+.hero figure img { border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+.hero figcaption { font-size: .8rem; color: rgba(255,251,242,.6); margin-top: 10px; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 22px; font-size: .88rem; color: rgba(255,251,242,.7); }
+.facts b { color: var(--paper); }
 
-    /* ── Doc cards ── */
-    .cards {
-      display: flex;
-      gap: 24px;
-      justify-content: center;
-      flex-wrap: wrap;
-      padding: 48px 24px 32px;
-      max-width: 860px;
-      margin: 0 auto;
-    }
-    .card {
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 2px 12px rgba(0,0,0,.08);
-      padding: 32px 28px 28px;
-      flex: 1 1 320px;
-      max-width: 380px;
-      border-top: 4px solid #ccc;
-      text-decoration: none;
-      color: inherit;
-      display: block;
-      transition: box-shadow .2s, transform .2s;
-    }
-    .card:hover { box-shadow: 0 6px 24px rgba(0,0,0,.14); transform: translateY(-2px); }
-    .card.r   { border-top-color: #2266c4; }
-    .card.py  { border-top-color: #2e7d32; }
-    .card .lang-label {
-      font-size: .75rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      margin-bottom: 8px;
-    }
-    .card.r  .lang-label { color: #2266c4; }
-    .card.py .lang-label { color: #2e7d32; }
-    .card h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 10px; }
-    .card p  { font-size: .92rem; color: #444; margin-bottom: 18px; }
-    .card .go {
-      display: inline-block;
-      font-size: .88rem;
-      font-weight: 600;
-      padding: 7px 16px;
-      border-radius: 6px;
-      text-decoration: none;
-    }
-    .card.r  .go { background: #e8f0fe; color: #2266c4; }
-    .card.py .go { background: #e8f5e9; color: #2e7d32; }
+/* Sections */
+section { padding: 72px 0; }
+section.alt { background: #fff; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+h2 { font-size: 1.9rem; margin: 0 0 10px; letter-spacing: -.01em; }
+.sub { color: var(--muted); margin: 0 0 32px; max-width: 46em; }
 
-    /* ── Install ── */
-    .install {
-      max-width: 760px;
-      margin: 0 auto;
-      padding: 8px 24px 48px;
-    }
-    .install h2 {
-      font-size: 1.3rem;
-      font-weight: 600;
-      margin: 32px 0 14px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid #e0e0e0;
-    }
-    pre {
-      background: #1e1e2e;
-      color: #cdd6f4;
-      border-radius: 8px;
-      padding: 16px 20px;
-      font-size: .87rem;
-      overflow-x: auto;
-      line-height: 1.5;
-    }
-    .note {
-      margin-top: 8px;
-      font-size: .82rem;
-      color: #777;
-    }
+/* Tabsets, after Quarto's panel-tabset: a row of tabs over a bordered
+   panel. Tabsets with data-group="lang" switch together and remember the
+   choice, as Quarto's tabset groups do. */
+.demo { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+.tabset { min-width: 0; }
+.tablist { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--line); margin: 0; padding: 0; }
+.tablist button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 16px; margin-bottom: -1px; border: 1px solid transparent; border-radius: 8px 8px 0 0;
+  color: var(--muted); font-weight: 600; font-size: .92rem; transition: color .15s, background-color .15s; }
+.tablist button svg { width: 15px; height: 15px; fill: currentColor; }
+.tablist button:hover { color: var(--ink); background: rgba(14,23,30,.04); }
+.tablist button:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+.tablist button[aria-selected="true"] { color: var(--teal); background: var(--card); border-color: var(--line) var(--line) var(--card); }
+.tabset > .pane { display: none; background: var(--card); border: 1px solid var(--line); border-top: 0;
+  border-radius: 0 0 12px 12px; padding: 16px; }
+.tabset > .pane.on { display: block; }
+/* a tabset inside a pane: smaller tabs, no second box */
+.pane .tabset .tablist button { padding: 5px 12px; font-size: .84rem; font-weight: 500; }
+.pane .tabset > .pane { border: 0; padding: 12px 0 0; border-radius: 0; background: none; }
+.pane p { margin: 12px 2px 0; font-size: .88rem; color: var(--muted); }
+.pane p a { font-weight: 600; }
+/* code blocks with a copy button */
+.code { position: relative; background: var(--ink); border-radius: 10px; }
+.code pre { margin: 0; padding: 16px 18px; color: #e8e6df; font-size: .84rem; line-height: 1.6; overflow-x: auto; }
+.code .copy { all: unset; cursor: pointer; position: absolute; top: 8px; right: 8px; padding: 4px 9px;
+  border-radius: 6px; font: 600 .74rem Inter, system-ui, sans-serif; color: rgba(255,251,242,.75);
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); opacity: 0; transition: opacity .15s; }
+.code:hover .copy, .code .copy:focus-visible { opacity: 1; }
+.code .copy:hover { color: #fff; background: rgba(255,255,255,.16); }
+.code .c { color: #7f8c95; } .code .s { color: #f0b37e; } .code .k { color: #6fc3df; } .code .n { color: #b5cea8; }
+.demo .tabset > .pane { padding: 0; border: 0; background: none; }
+.demo .tabset > .pane .code { border-radius: 0 10px 10px 10px; }
+.out { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+.out img { border-radius: 8px; }
+.out p { font-size: .82rem; color: var(--muted); margin: 10px 4px 2px; }
 
-    /* ── API table ── */
-    .api-section {
-      max-width: 760px;
-      margin: 0 auto;
-      padding: 0 24px 48px;
-    }
-    .api-section h2 {
-      font-size: 1.3rem;
-      font-weight: 600;
-      margin-bottom: 14px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid #e0e0e0;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: .9rem;
-    }
-    th {
-      text-align: left;
-      padding: 8px 12px;
-      background: #f0f4ff;
-      color: #333;
-      font-weight: 600;
-    }
-    td { padding: 8px 12px; border-bottom: 1px solid #eee; }
-    td code, th code {
-      background: #f0f0f0;
-      padding: 1px 5px;
-      border-radius: 3px;
-      font-size: .85em;
-    }
-    tr:last-child td { border-bottom: none; }
+/* Grids of outputs */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.tile { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin: 0; }
+.tile img { border-radius: 8px; }
+.tile figcaption { font-size: .88rem; margin: 10px 4px 2px; color: var(--muted); }
+.tile figcaption b { color: var(--ink); }
+.formats { display: grid; grid-template-columns: auto 1fr 1fr; gap: 14px 18px; align-items: center; }
+.formats .h { font-weight: 700; font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.formats .row { font-weight: 600; }
+.formats .row small { display: block; color: var(--muted); font-weight: 400; }
+.formats img { border-radius: 8px; border: 1px solid var(--line); }
 
-    /* ── Footer ── */
-    footer {
-      text-align: center;
-      padding: 24px;
-      font-size: .82rem;
-      color: #888;
-      border-top: 1px solid #e8e8e8;
-    }
-    footer a { color: #2266c4; text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
-  </style>
+/* Features */
+.features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.feature { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
+.feature h3 { margin: 0 0 6px; font-size: 1.02rem; }
+.feature p { margin: 0; color: var(--muted); font-size: .93rem; }
+
+/* Install, first thing under the hero */
+.install-sec { padding: 56px 0; }
+.install-grid { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.5fr); gap: 40px; align-items: start; }
+.install-grid .sub { margin-bottom: 14px; }
+.reqs { margin: 0; padding: 0; list-style: none; font-size: .92rem; color: var(--muted); }
+.reqs li { padding-left: 18px; position: relative; margin: 4px 0; }
+.reqs li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: var(--teal); }
+.note { margin-top: 18px; color: var(--muted); font-size: .9rem; }
+
+/* Scrollbars: thin, in the page's colours */
+* { scrollbar-width: thin; scrollbar-color: rgba(14,23,30,.28) transparent; }
+.code, .hero, .top, footer { scrollbar-color: rgba(255,251,242,.28) transparent; }
+html { scrollbar-color: rgba(14,23,30,.32) var(--paper); }
+
+footer { background: var(--ink); color: rgba(255,251,242,.6); padding: 28px 0; font-size: .88rem; }
+footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+footer a { color: rgba(255,251,242,.85); }
+
+@media (max-width: 900px) {
+  /* minmax(0, 1fr): long commands scroll in their block instead of widening the page */
+  .hero .wrap, .demo, .grid2, .grid3, .features, .install-grid { grid-template-columns: minmax(0, 1fr); }
+  .top nav a span { display: none; }
+}
+</style>
+<!-- bm-icons: language logos, added by scripts/docs_postprocess.py -->
 </head>
 <body>
 
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img src="python/mark.svg" alt="">basemapper</a>
+    <nav aria-label="Documentation">
+      <a href="r/index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path data-icon="r"/></svg><span>R</span></a>
+      <a href="python/index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path data-icon="python"/></svg><span>Python</span></a>
+      <a href="rust/basemapper_core/index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path data-icon="rust"/></svg><span>Rust</span></a>
+      <a href="#install"><span>Install</span></a>
+      <a href="https://github.com/ar-puuk/basemapper"><span>GitHub</span></a>
+    </nav>
+  </div>
+</header>
+
 <div class="hero">
-  <h1>basemapper</h1>
-  <p class="tagline">
-    A headless spatial basemap renderer for R and Python.<br>
-    Fetch and composite styled map tiles into RGBA arrays — no browser,
-    no display server, no GDAL.
-  </p>
-  <p class="badges">
-    <a href="https://github.com/ar-puuk/basemapper">GitHub</a> &nbsp;·&nbsp;
-    MIT License &nbsp;·&nbsp; v0.1.0
-  </p>
+  <div class="wrap">
+    <div>
+      <h1>MapLibre basemaps, <span>without a browser</span>.</h1>
+      <p class="lead">
+        basemapper renders MapLibre GL basemaps headlessly, with a Rust core:
+        no browser, GPU, display server or GDAL. Vector styles are drawn by a
+        CPU port of MapLibre GL JS, tested pixel by pixel against it. Get PNG,
+        SVG or pixels, or a basemap under your ggplot2, tmap, matplotlib and
+        plotnine plots, from R, Python or Rust.
+      </p>
+      <div class="langs">
+        <a class="btn solid" href="r/articles/getting-started.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path data-icon="r"/></svg>Get started in R</a>
+        <a class="btn solid" href="python/user-guide/get-started.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path data-icon="python"/></svg>in Python</a>
+        <a class="btn solid" href="rust/basemapper_core/index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path data-icon="rust"/></svg>in Rust</a>
+      </div>
+      <div class="facts">
+        <span><b>42</b> named basemaps</span>
+        <span><b>Raster &amp; vector</b> tiles</span>
+        <span><b>PNG &amp; SVG</b> output</span>
+        <span><b>PMTiles</b>, ArcGIS, WMS/WMTS</span>
+      </div>
+    </div>
+    <figure>
+      <img src="rust/img/hybrid.png" width="720" height="405" alt="Esri World Imagery of Salt Lake City under OpenFreeMap Liberty's labels">
+      <figcaption>Satellite imagery under a vector basemap's labels: two styles stacked, rendered by the code in the <a href="rust/basemapper_core/index.html#stacking-styles">Rust guide</a> when these pages were built.</figcaption>
+    </figure>
+  </div>
 </div>
 
-<div class="cards">
-  <a class="card r" href="r/">
-    <div class="lang-label">R</div>
-    <h2>R documentation</h2>
-    <p>
-      ggplot2, tmap, and sf integration. Installs from GitHub with
-      <code>pak</code>, <code>remotes</code> or <code>devtools</code>.
-    </p>
-    <span class="go">Open R docs →</span>
-  </a>
-
-  <a class="card py" href="python/">
-    <div class="lang-label">Python</div>
-    <h2>Python documentation</h2>
-    <p>
-      matplotlib and plotnine integration. Installs from GitHub with
-      pip, uv or conda.
-    </p>
-    <span class="go">Open Python docs →</span>
-  </a>
-</div>
-
-<div class="install">
-  <h2>Install</h2>
-
-  <p style="margin-bottom:10px"><strong>R</strong></p>
-  <pre>pak::pak("ar-puuk/basemapper/r-basemapper")
-# or
-remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
-devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper")</pre>
-  <p class="note">
-    Requires ggplot2 ≥ 3.4, sf ≥ 1.0, jsonlite ≥ 1.8, terra ≥ 1.7.
-    Optional: tmap ≥ 4.0 for <code>tm_basemap()</code>.
-    CRAN and R-Universe packages planned after extended testing.
-  </p>
-
-  <h2 style="margin-top:28px"> </h2>
-  <p style="margin-bottom:10px"><strong>Python</strong></p>
-  <pre>pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
-# or with uv
-uv add "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
-# or in a conda environment (conda-forge's rust builds the extension)
+<section class="install-sec" id="install">
+  <div class="wrap install-grid">
+    <div>
+      <h2>Install from GitHub</h2>
+      <p class="sub">basemapper is installed from GitHub for now. Each package
+        compiles the Rust core, so you need:</p>
+      <ul class="reqs">
+        <li>a <a href="https://rustup.rs">Rust toolchain</a> (conda-forge's <code>rust</code> works too)</li>
+        <li>on Windows for R, <a href="https://cran.r-project.org/bin/windows/Rtools/">Rtools</a></li>
+      </ul>
+    </div>
+    <div class="tabset" data-group="lang">
+      <div class="tablist" role="tablist">
+        <button role="tab" data-tab="r"><svg viewBox="0 0 24 24" aria-hidden="true"><path data-icon="r"/></svg>R</button>
+        <button role="tab" data-tab="python"><svg viewBox="0 0 24 24" aria-hidden="true"><path data-icon="python"/></svg>Python</button>
+        <button role="tab" data-tab="rust"><svg viewBox="0 0 24 24" aria-hidden="true"><path data-icon="rust"/></svg>Rust</button>
+      </div>
+      <div class="pane" data-pane="r">
+        <div class="tabset"><div class="tablist" role="tablist"><button role="tab" data-tab="pak">pak</button><button role="tab" data-tab="remotes">remotes</button><button role="tab" data-tab="devtools">devtools</button></div>
+          <div class="pane" data-pane="pak"><div class="code"><pre>pak::pak(<span class="s">"ar-puuk/basemapper/r-basemapper"</span>)</pre><button class="copy" type="button">Copy</button></div></div>
+          <div class="pane" data-pane="remotes"><div class="code"><pre>remotes::install_github(<span class="s">"ar-puuk/basemapper"</span>, subdir = <span class="s">"r-basemapper"</span>)</pre><button class="copy" type="button">Copy</button></div></div>
+          <div class="pane" data-pane="devtools"><div class="code"><pre>devtools::install_github(<span class="s">"ar-puuk/basemapper"</span>, subdir = <span class="s">"r-basemapper"</span>)</pre><button class="copy" type="button">Copy</button></div></div>
+        </div>
+        <p>Suggests ggplot2 and tmap for the plot layers. <a href="r/articles/getting-started.html">Get started in R &rarr;</a></p>
+      </div>
+      <div class="pane" data-pane="python">
+        <div class="tabset"><div class="tablist" role="tablist"><button role="tab" data-tab="pip">pip</button><button role="tab" data-tab="uv">uv</button><button role="tab" data-tab="conda">conda</button></div>
+          <div class="pane" data-pane="pip"><div class="code"><pre>pip install <span class="s">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></pre><button class="copy" type="button">Copy</button></div></div>
+          <div class="pane" data-pane="uv"><div class="code"><pre>uv add <span class="s">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></pre><button class="copy" type="button">Copy</button></div></div>
+          <div class="pane" data-pane="conda"><div class="code"><pre><span class="c"># conda-forge gives the dependencies and the Rust toolchain; pip builds basemapper</span>
 conda create -n basemapper -c conda-forge python numpy pyproj matplotlib xarray rust pip
 conda activate basemapper
-pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</pre>
-  <p class="note">
-    Requires numpy, pyproj, matplotlib, xarray.
-    Optional: plotnine ≥ 0.12 for <code>geom_basemap()</code>.
-    PyPI and conda packages planned after extended testing.
-  </p>
-</div>
+pip install <span class="s">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></pre><button class="copy" type="button">Copy</button></div></div>
+        </div>
+        <p>Needs numpy, pyproj, matplotlib and xarray; plotnine for <code>geom_basemap()</code>. <a href="python/user-guide/get-started.html">Get started in Python &rarr;</a></p>
+      </div>
+      <div class="pane" data-pane="rust">
+        <div class="tabset"><div class="tablist" role="tablist"><button role="tab" data-tab="toml">Cargo.toml</button><button role="tab" data-tab="cargo">cargo add</button></div>
+          <div class="pane" data-pane="toml"><div class="code"><pre>[dependencies]
+basemapper-core = { git = <span class="s">"https://github.com/ar-puuk/basemapper"</span> }</pre><button class="copy" type="button">Copy</button></div></div>
+          <div class="pane" data-pane="cargo"><div class="code"><pre>cargo add basemapper-core --git https://github.com/ar-puuk/basemapper</pre><button class="copy" type="button">Copy</button></div></div>
+        </div>
+        <p>The crate the R and Python packages are built on. <a href="rust/basemapper_core/index.html">Rust guide &rarr;</a></p>
+      </div>
+    </div>
+  </div>
+</section>
 
-<div class="api-section">
-  <h2>Key functions</h2>
-  <p class="note">The same functions and argument names in both languages:
-    R's <code>verb(m, ...)</code> is Python's <code>m.verb(...)</code>.</p>
-  <table>
-    <thead>
-      <tr><th>What you want</th><th>R</th><th>Python</th></tr>
-    </thead>
-    <tbody>
-      <tr><td>A map view (centre + zoom, or bounds)</td>
-          <td><code>basemap()</code></td>
-          <td><code>basemap()</code></td></tr>
-      <tr><td>Change / read the view</td>
-          <td><code>set_view()</code>, <code>set_bounds()</code>, <code>get_bounds()</code>, <code>get_center()</code>, <code>get_zoom()</code>, <code>get_size()</code></td>
-          <td><code>m.set_view()</code>, <code>m.set_bounds()</code>, <code>m.get_bounds()</code>, <code>…</code></td></tr>
-      <tr><td>PNG / vector SVG / array</td>
-          <td><code>render_png()</code>, <code>render_svg()</code>, <code>render_array()</code></td>
-          <td><code>m.render_png()</code>, <code>m.render_svg()</code>, <code>m.render_array()</code></td></tr>
-      <tr><td>terra raster</td>
-          <td><code>render_raster()</code></td>
-          <td>—</td></tr>
-      <tr><td>One-shot render of bounds</td>
-          <td><code>render_basemap_raw()</code></td>
-          <td><code>render_basemap_raw()</code></td></tr>
-      <tr><td>ggplot2 / plotnine layer</td>
-          <td><code>geom_basemap()</code></td>
-          <td><code>geom_basemap()</code></td></tr>
-      <tr><td>matplotlib layer</td>
-          <td>—</td>
-          <td><code>add_basemap()</code></td></tr>
-      <tr><td>tmap layer</td>
-          <td><code>tm_basemap()</code></td>
-          <td>—</td></tr>
-      <tr><td>Named basemaps (leaflet names, usable as <code>style</code>)</td>
-          <td><code>basemap_provider()</code>, <code>list_providers()</code>, <code>providers</code></td>
-          <td><code>basemap_provider()</code>, <code>list_providers()</code>, <code>providers</code></td></tr>
-      <tr><td>Tile cache</td>
-          <td><code>tile_cache()</code></td>
-          <td><code>tile_cache()</code></td></tr>
-      <tr><td>Your own tile data / OGC services</td>
-          <td><code>tile_style()</code> (or pass tile data as <code>style</code>), <code>wms_style()</code>, <code>wmts_style()</code></td>
-          <td>same names</td></tr>
-      <tr><td>Attribution text</td>
-          <td><code>get_attribution()</code></td>
-          <td><code>get_attribution()</code>, <code>m.get_attribution()</code></td></tr>
-      <tr><td>Labels / features (stack parts of basemaps)</td>
-          <td><code>labels =</code>, <code>features =</code></td>
-          <td><code>labels=</code>, <code>features=</code></td></tr>
-      <tr><td>Inspect style layers</td>
-          <td><code>list_layers()</code></td>
-          <td><code>list_layers()</code></td></tr>
-    </tbody>
-  </table>
-</div>
+<section class="alt">
+  <div class="wrap">
+    <h2>One call, three languages</h2>
+    <p class="sub">The same functions and arguments in R, Python and Rust. The
+      map is the output of this code: every example on these pages is run when
+      the documentation is built.</p>
+    <div class="demo">
+      <div class="tabset" data-group="lang">
+        <div class="tablist" role="tablist">
+          <button role="tab" data-tab="r"><svg viewBox="0 0 24 24" aria-hidden="true"><path data-icon="r"/></svg>R</button>
+          <button role="tab" data-tab="python"><svg viewBox="0 0 24 24" aria-hidden="true"><path data-icon="python"/></svg>Python</button>
+          <button role="tab" data-tab="rust"><svg viewBox="0 0 24 24" aria-hidden="true"><path data-icon="rust"/></svg>Rust</button>
+        </div>
+<div class="pane" data-pane="r"><div class="code"><pre><span class="k">library</span>(basemapper)
+
+m <- <span class="k">basemap</span>(<span class="s">"OpenFreeMap.Positron"</span>, <span class="n">720</span>, <span class="n">405</span>,
+             center = <span class="k">c</span>(<span class="n">-111.8887</span>, <span class="n">40.7556</span>), zoom = <span class="n">12.4</span>)
+m                               <span class="c"># shows the map in a document</span>
+<span class="k">render_png</span>(m, path = <span class="s">"slc.png"</span>)
+<span class="k">render_svg</span>(m, path = <span class="s">"slc.svg"</span>)  <span class="c"># paths and editable text</span>
+<span class="k">get_attribution</span>(m)</pre><button class="copy" type="button">Copy</button></div></div>
+<div class="pane" data-pane="python"><div class="code"><pre><span class="k">import</span> basemapper <span class="k">as</span> bm
+
+m = bm.<span class="k">basemap</span>(<span class="s">"OpenFreeMap.Positron"</span>, <span class="n">720</span>, <span class="n">405</span>,
+               center=(<span class="n">-111.8887</span>, <span class="n">40.7556</span>), zoom=<span class="n">12.4</span>)
+m                               <span class="c"># shows the map in a notebook</span>
+m.<span class="k">render_png</span>(<span class="s">"slc.png"</span>)
+m.<span class="k">render_svg</span>(<span class="s">"slc.svg"</span>)          <span class="c"># paths and editable text</span>
+m.<span class="k">get_attribution</span>()</pre><button class="copy" type="button">Copy</button></div></div>
+<div class="pane" data-pane="rust"><div class="code"><pre><span class="k">use</span> basemapper_core::providers::{basemap_provider, ProviderOptions};
+<span class="k">use</span> basemapper_core::Basemap;
+
+<span class="k">let</span> style = <span class="k">basemap_provider</span>(<span class="s">"OpenFreeMap.Positron"</span>, &amp;ProviderOptions::default())?;
+<span class="k">let</span> m = Basemap::<span class="k">new</span>(style)
+    .<span class="k">size</span>(<span class="n">720</span>, <span class="n">405</span>)
+    .<span class="k">center</span>(<span class="n">-111.8887</span>, <span class="n">40.7556</span>)
+    .<span class="k">zoom</span>(<span class="n">12.4</span>);
+m.<span class="k">render_png</span>(Some(Path::new(<span class="s">"slc.png"</span>)))?;
+m.<span class="k">get_attribution</span>()?;</pre><button class="copy" type="button">Copy</button></div></div>
+      </div>
+      <div class="out">
+        <img src="rust/img/quickstart.png" width="720" height="405" alt="OpenFreeMap Positron over Salt Lake City">
+        <p>OpenFreeMap Positron at zoom 12.4. The same render opens the
+          <a href="r/articles/getting-started.html">R</a>,
+          <a href="python/user-guide/get-started.html">Python</a> and
+          <a href="rust/basemapper_core/index.html">Rust</a> guides.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Raster or vector, PNG or SVG</h2>
+    <p class="sub">Raster tiles are images; vector tiles are geometry styled on
+      the fly, as MapLibre does. Either renders to a PNG, or to an SVG with
+      paths, editable text and embedded fonts (raster tiles embedded as
+      images).</p>
+    <div class="formats">
+      <div></div><div class="h">PNG</div><div class="h">SVG</div>
+      <div class="row">Raster<small>OpenStreetMap</small></div>
+      <img src="rust/img/raster.png" width="480" height="300" alt="OpenStreetMap raster tiles as PNG" loading="lazy">
+      <img src="rust/img/raster.svg" width="480" height="300" alt="OpenStreetMap raster tiles as SVG" loading="lazy">
+      <div class="row">Vector<small>OpenFreeMap Bright</small></div>
+      <img src="rust/img/vector.png" width="480" height="300" alt="OpenFreeMap Bright as PNG" loading="lazy">
+      <img src="rust/img/vector.svg" width="480" height="300" alt="OpenFreeMap Bright as SVG" loading="lazy">
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <h2>Under your data</h2>
+    <p class="sub">The plot layers render when the plot is drawn, for its
+      extent and at the output resolution, in any coordinate system, and
+      credit the provider in the corner.</p>
+    <div class="grid3">
+      <figure class="tile">
+        <img src="r/articles/plotting_files/figure-html/ggplot-choropleth-1.png" alt="A ggplot2 choropleth of North Carolina over OpenFreeMap Positron" loading="lazy">
+        <figcaption><b>ggplot2</b> <code>geom_basemap()</code>. <a href="r/articles/plotting.html">R plots</a></figcaption>
+      </figure>
+      <figure class="tile">
+        <img src="r/articles/plotting_files/figure-html/tmap-relief-1.png" alt="A tmap map of North Carolina over shaded relief and labels" loading="lazy">
+        <figcaption><b>tmap</b> <code>tm_basemap()</code>. <a href="r/articles/plotting.html#tmap">R plots</a></figcaption>
+      </figure>
+      <figure class="tile">
+        <img src="r/articles/plotting_files/figure-html/ggplot-projected-1.png" alt="North Carolina in its state plane over Esri World Topo Map" loading="lazy">
+        <figcaption><b>Any CRS</b>, here a state plane. <a href="r/articles/plotting.html#projected-data">R plots</a></figcaption>
+      </figure>
+    </div>
+    <p class="note">matplotlib's <code>add_basemap()</code> and plotnine's
+      <code>geom_basemap()</code> do the same in Python:
+      <a href="python/user-guide/plotting.html">Python plots</a>.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Stack basemaps, keep only parts of them</h2>
+    <p class="sub">Draw several styles as one map, drop labels, or keep
+      features by what they show: water, parks, roads and more.</p>
+    <div class="grid2">
+      <figure class="tile">
+        <img src="rust/img/hybrid.png" width="720" height="405" alt="Imagery under vector labels" loading="lazy">
+        <figcaption><b>Stacked</b>: imagery under a vector basemap's labels.</figcaption>
+      </figure>
+      <figure class="tile">
+        <img src="rust/img/layers.png" width="720" height="405" alt="Water, parks and roads only" loading="lazy">
+        <figcaption><b>Filtered</b>: water, parks and roads, without labels.</figcaption>
+      </figure>
+    </div>
+    <p class="note"><a href="r/articles/layers.html">Stacking, labels and features</a> (R) ·
+      <a href="python/user-guide/layers.html">(Python)</a> ·
+      <a href="r/articles/gallery.html">every basemap in the catalogue</a></p>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <h2>Your tiles, from one file</h2>
+    <p class="sub">A PMTiles archive is a whole tileset in one file, read over
+      HTTP range requests or from disk, with no tile server. Raster archives
+      draw as they are; vector archives take any basemap style pointed at
+      them, here Protomaps' light and dark styles.</p>
+    <div class="grid3">
+      <figure class="tile">
+        <img src="rust/img/pmtiles-raster.png" width="720" height="405" alt="USGS topographic map of Mount Whitney from a raster PMTiles archive" loading="lazy">
+        <figcaption><b>Raster archive</b>: USGS topo, Mount Whitney.</figcaption>
+      </figure>
+      <figure class="tile">
+        <img src="rust/img/pmtiles-light.png" width="720" height="405" alt="Florence in the Protomaps light style, from a vector PMTiles archive" loading="lazy">
+        <figcaption><b>Vector archive</b>, Protomaps light.</figcaption>
+      </figure>
+      <figure class="tile">
+        <img src="rust/img/pmtiles-dark.png" width="720" height="405" alt="Florence in the Protomaps dark style" loading="lazy">
+        <figcaption><b>The same archive</b>, Protomaps dark.</figcaption>
+      </figure>
+    </div>
+    <p class="note"><a href="rust/basemapper_core/index.html#pmtiles">PMTiles in Rust</a> ·
+      <a href="r/articles/own-data.html#pmtiles">R</a> ·
+      <a href="python/user-guide/own-data.html#pmtiles">Python</a> ·
+      <a href="styles/README.md">the Protomaps styles</a></p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Why basemapper</h2>
+    <p class="sub">Static maps for reports, papers and pipelines, the way they
+      look in MapLibre.</p>
+    <div class="features">
+      <div class="feature"><h3>MapLibre's look, headless</h3><p>A CPU port of MapLibre GL JS's renderer, gated on pixel tests against MapLibre GL JS: fills, lines, labels, icons, patterns, hillshade.</p></div>
+      <div class="feature"><h3>Any zoom, any resolution</h3><p>Fractional zooms are rendered, not resampled. <code>pixel_ratio</code> gives sharp 2x or print-resolution images with the same layout.</p></div>
+      <div class="feature"><h3>Your tiles, too</h3><p>Named basemaps, any MapLibre style, tile URLs, TileJSON, PMTiles, ArcGIS services and WMS/WMTS.</p></div>
+      <div class="feature"><h3>True vector SVG</h3><p>Paths for the map and editable text for labels, with the style's fonts embedded: ready for Illustrator or Inkscape.</p></div>
+      <div class="feature"><h3>In your plots</h3><p>ggplot2, tmap, matplotlib and plotnine layers that render at the output resolution, in any CRS.</p></div>
+      <div class="feature"><h3>Nothing else to install</h3><p>No browser, GPU, display server or GDAL. Tiles are cached on disk as the servers allow.</p></div>
+    </div>
+  </div>
+</section>
 
 <footer>
-  <p>
-    basemapper &nbsp;·&nbsp; MIT License &nbsp;·&nbsp;
-    <a href="https://github.com/ar-puuk/basemapper">GitHub</a> &nbsp;·&nbsp;
-    Built with <a href="https://pkgdown.r-lib.org">pkgdown</a> (R) and
-    <a href="https://github.com/posit-dev/great-docs">great-docs</a> (Python)
-  </p>
+  <div class="wrap">
+    <span>basemapper · MIT License · map data © their providers, credited on each map</span>
+    <span><a href="https://github.com/ar-puuk/basemapper">GitHub</a> · <a href="https://github.com/ar-puuk/basemapper/issues">Report a bug</a></span>
+  </div>
 </footer>
 
+<script>
+// Language logos (Simple Icons, CC0), filled in from site-nav.html's set.
+(function () {
+  var ICONS = window.BM_ICONS || {};
+  document.querySelectorAll("path[data-icon]").forEach(function (p) {
+    var d = ICONS[p.getAttribute("data-icon")];
+    if (d) p.setAttribute("d", d);
+  });
+  // Tabsets. A tabset's tabs and panes are its own children, so tabsets nest.
+  var KEY = "basemapper-tab-lang";
+  function tabs(set) { return set.querySelectorAll(":scope > .tablist > [data-tab]"); }
+  function show(set, name) {
+    var found = false;
+    tabs(set).forEach(function (b) { if (b.getAttribute("data-tab") === name) found = true; });
+    if (!found) return;
+    tabs(set).forEach(function (b) {
+      var on = b.getAttribute("data-tab") === name;
+      b.setAttribute("aria-selected", on); b.tabIndex = on ? 0 : -1;
+    });
+    set.querySelectorAll(":scope > .pane").forEach(function (p) { p.classList.toggle("on", p.getAttribute("data-pane") === name); });
+  }
+  function choose(set, name) {
+    var group = set.getAttribute("data-group");
+    if (!group) return show(set, name);
+    document.querySelectorAll('.tabset[data-group="' + group + '"]').forEach(function (s) { show(s, name); });
+    try { localStorage.setItem(KEY, name); } catch (e) {}
+  }
+  var saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) {}
+  document.querySelectorAll(".tabset").forEach(function (set) {
+    var list = tabs(set);
+    show(set, list[0].getAttribute("data-tab"));
+    if (saved && set.getAttribute("data-group")) show(set, saved);
+    list.forEach(function (b, i) {
+      b.addEventListener("click", function () { choose(set, b.getAttribute("data-tab")); });
+      b.addEventListener("keydown", function (e) {
+        var step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+        if (!step) return;
+        var next = list[(i + step + list.length) % list.length];
+        choose(set, next.getAttribute("data-tab")); next.focus(); e.preventDefault();
+      });
+    });
+  });
+  // Copy buttons
+  document.querySelectorAll(".code .copy").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var text = btn.parentNode.querySelector("pre").innerText;
+      navigator.clipboard.writeText(text).then(function () {
+        btn.textContent = "Copied"; setTimeout(function () { btn.textContent = "Copy"; }, 1400);
+      });
+    });
+  });
+})();
+</script>
 </body>
 </html>

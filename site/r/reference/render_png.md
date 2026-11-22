@@ -2,8 +2,9 @@
 
 - `render_png()` writes or returns a PNG.
 
-- `render_svg()` writes or returns a vector SVG document (`width` x
-  `height` user units; `pixel_ratio` does not apply).
+- `render_svg()` writes or returns an SVG document (`width` x `height`
+  user units; `pixel_ratio` does not apply): vector layers as paths and
+  text, raster tiles (raster basemaps, hillshade) as embedded images.
 
 - `render_array()` returns an integer array `[height, width, 4]` (RGBA,
   0–255) with the extent as attributes, like

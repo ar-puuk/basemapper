@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["draw_layer","feature_fontstack","feature_icon","feature_text","layer_visible","place","required_glyph_ranges","svg_layer"],"struct":["Glyph","GlyphMap","Placement","Shaping","Sprite","SpriteImage","SymbolAssets","SymbolTile"]};
