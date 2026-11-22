@@ -1,12 +1,14 @@
 # basemapper
 
-> **Also available for Python** — same Rust core, PyO3 bindings. [Python
-> documentation →](https://ar-puuk.github.io/basemapper/python/)
+> **Also available for Python** — the same Rust core, and the same
+> functions and argument names (`verb(m, ...)` here is `m.verb(...)` in
+> Python). [Python documentation
+> →](https://ar-puuk.github.io/basemapper/python/)
 
-**basemapper** is a headless spatial basemap renderer for R. It fetches
-and composites styled map tiles (raster or MapLibre GL vector styles)
-into georeferenced RGBA arrays using a Rust core, and exposes the result
-through native integrations with {ggplot2}, {tmap} v4, and {sf}.
+**basemapper** renders MapLibre GL basemaps (vector and raster styles)
+headlessly with a Rust core: to PNG, arrays, {terra} rasters or true
+vector SVG, at any fractional zoom and pixel ratio, and as {ggplot2} and
+{tmap} v4 layers that render at the output device’s resolution.
 
 ## Installation
 
@@ -44,11 +46,39 @@ macOS users also need the Xcode Command Line Tools
 
 ### Install the package
 
-``` r
+\
+`# install.packages("remotes")`\
+`remotes``::`[`install_github`](https://remotes.r-lib.org/reference/install_github.html)`(``"ar-puuk/basemapper"``, subdir ``=`` ``"r-basemapper"``)`
 
-# install.packages("remotes")
-remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
-```
+## Quick example
+
+\
+[`library`](https://rdrr.io/r/base/library.html)`(`[`basemapper`](https://ar-puuk.github.io/basemapper/r/)`)`\
+\
+`# Built-in basemaps by leaflet name (list_providers(), providers$...);`\
+`# the name works as a style`\
+`style`` ``<-`` ``"OpenFreeMap.Liberty"`\
+`style`` ``<-`` `[`basemap_provider`](https://ar-puuk.github.io/basemapper/r/reference/basemap_provider.md)`(``"Esri.WorldGrayCanvas"``, type ``=`` ``"raster"``)``   ``# pick the form`\
+`style`` ``<-`` `[`basemap_provider`](https://ar-puuk.github.io/basemapper/r/reference/basemap_provider.md)`(``"OpenFreeMap.Liberty"``, tiles ``=`` ``"data/omt.pmtiles"``)``   ``# your own tiles`\
+\
+`# Stack parts of basemaps: imagery under a vector basemap's labels`\
+`hybrid`` ``<-`` `[`c`](https://rdrr.io/r/base/c.html)`(``"Esri.WorldImagery"``, `[`basemap_provider`](https://ar-puuk.github.io/basemapper/r/reference/basemap_provider.md)`(``"OpenFreeMap.Liberty"``, labels ``=`` ``"only"``)``)`\
+`# labels = FALSE / "only", features = c("water", "roads") / "-buildings"`\
+\
+`# A view: centre + zoom, or bounds to fit`\
+`m`` ``<-`` `[`basemap`](https://ar-puuk.github.io/basemapper/r/reference/basemap.md)`(``style``, ``800``, ``600``, center ``=`` `[`c`](https://rdrr.io/r/base/c.html)`(``-``122.45``, ``37.75``)``, zoom ``=`` ``12``, pixel_ratio ``=`` ``2``)`\
+[`render_png`](https://ar-puuk.github.io/basemapper/r/reference/render_png.md)`(``m``, path ``=`` ``"sf.png"``)``     ``# 1600 x 1200`\
+[`render_svg`](https://ar-puuk.github.io/basemapper/r/reference/render_png.md)`(``m``, path ``=`` ``"sf.svg"``)``     ``# true vector`\
+[`get_bounds`](https://ar-puuk.github.io/basemapper/r/reference/get_bounds.md)`(`[`set_view`](https://ar-puuk.github.io/basemapper/r/reference/set_view.md)`(``m``, zoom ``=`` ``13``)``, lonlat ``=`` ``TRUE``)`\
+\
+`# One-shot render of bounds to a georeferenced [height, width, 4] array`\
+`a`` ``<-`` `[`render_basemap_raw`](https://ar-puuk.github.io/basemapper/r/reference/render_basemap_raw.md)`(`[`c`](https://rdrr.io/r/base/c.html)`(``-``122.5``, ``37.7``, ``-``122.4``, ``37.8``)``, ``400``, ``300``, ``style``)`\
+\
+`# Your own tile data works as a style: tile URLs, TileJSON, PMTiles`\
+`# archives (URL or local file), ArcGIS services`\
+`m`` ``<-`` `[`basemap`](https://ar-puuk.github.io/basemapper/r/reference/basemap.md)`(``"data/area.pmtiles"``, ``800``, ``600``, bounds ``=`` `[`c`](https://rdrr.io/r/base/c.html)`(``-``122.5``, ``37.7``, ``-``122.4``, ``37.8``)``)`\
+`style`` ``<-`` `[`tile_style`](https://ar-puuk.github.io/basemapper/r/reference/tile_style.md)`(``"https://example.com/{z}/{x}/{y}.png"``, maxzoom ``=`` ``16``)``   ``# with overrides`\
+`style`` ``<-`` `[`wms_style`](https://ar-puuk.github.io/basemapper/r/reference/ogc_styles.md)`(``"https://gis.example.com/wms"``, layers ``=`` ``"imagery"``)`
 
 ## Get started
 

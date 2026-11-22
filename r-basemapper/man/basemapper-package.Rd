@@ -10,6 +10,15 @@
 
 Renders MapLibre GL styled basemaps (vector and raster tiles) headlessly with a Rust core: a software port of MapLibre GL JS's renderer, tested pixel by pixel against MapLibre GL JS. Renders at any fractional zoom and pixel ratio to PNG, rasters and arrays, or to true vector SVG; several styles can be stacked. Integrates with ggplot2 via geom_basemap() and with tmap v4 via tm_basemap(), rendering at the output device's resolution.
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://ar-puuk.github.io/basemapper/r/}
+  \item \url{https://github.com/ar-puuk/basemapper}
+  \item Report bugs at \url{https://github.com/ar-puuk/basemapper/issues}
+}
+
+}
 \author{
 \strong{Maintainer}: Pukar Bhandari \email{arpuuuk@gmail.com}
 

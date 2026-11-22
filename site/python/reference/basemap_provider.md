@@ -1,79 +1,55 @@
 ## basemap_provider()
 
 
-Return a style URL or inline MapLibre GL JSON for a named basemap provider.
+A named basemap's style.
 
 
 Usage
 
 
 ``` python
-basemap_provider(name, api_key=None)
+basemap_provider(
+    name, type=None, api_key=None, tiles=None, labels=True, features=None
+)
 ```
+
+
+Names follow leaflet-providers (`"CartoDB.Positron"`, `"Esri.WorldImagery"`, `"OpenStreetMap.HOT"`); see [list_providers()](list_providers.md#basemapper.list_providers) or the [providers](providers.md#basemapper.providers) object. A name also works as `style` directly; this function picks the form, passes a key, or swaps in your own tiles.
 
 
 ## Parameters
 
 
 `name: str`  
-Provider name, e.g. `"OpenFreeMap.liberty"` or `"Carto.DarkMatter"`. See
-the catalog below for all available names.
+Basemap name (case-insensitive).
+
+`type: Optional[str] = None`  
+`"vector"` (a MapLibre style) or `"raster"` (tiles). By default the vector form when there is one, else raster. Asking for a form a basemap lacks is an error, never a silent fallback.
 
 `api_key: Optional[str] = None`  
-API key required by some providers (e.g. MapTiler). Ignored for providers
-that do not use a key. Stadia providers work without a key at low volume;
-supply one to lift rate limits.
+API key for CARTO, MapTiler and Stadia; by default read from `CARTO_API_KEY`, `MAPTILER_API_KEY` or `STADIA_API_KEY`. The keys are free for moderate use; [list_providers()](list_providers.md#basemapper.list_providers) shows which basemaps need one.
+
+`tiles: Optional[str] = None`  
+Your own tile data to draw with this basemap's style: a `.pmtiles` archive (URL or path), tile URL or TileJSON. It must use the same schema as the provider's tiles (OpenMapTiles for OpenFreeMap and Stadia).
+
+`labels: Union[bool, str] = ``True`  
+`True` keeps every layer, `False` drops the labels, `"only"` keeps only the labels, to stack this basemap's labels over another map. Raster tiles switch to the provider's label-free or label-only tiles (an error when it has none).
+
+`features: Optional[List[str]] = None`  
+Vector form: features to keep (`["water", "roads"]`) or drop (`["-buildings"]`); see [list_layers()](list_layers.md#basemapper.list_layers).
 
 
 ## Returns
 
 
 `str`  
-A MapLibre GL style URL or inline JSON string, ready to pass to
-[render_basemap_raw()](render_basemap_raw.md#basemapper.render_basemap_raw).
+A style URL, or inline style JSON (the raster form, or with
+
+`tiles`, `labels` or `features`).
 
 
 ## Raises
 
 
-`ValueError`  
-For unknown provider names or when a required `api_key` is missing.
-
-
-## Provider catalog
-
-**Vector GL styles** (no key required): `"OpenFreeMap.liberty"`,
-`"OpenFreeMap.bright"`, `"OpenFreeMap.positron"`, `"Carto.Positron"`,
-`"Carto.DarkMatter"`, `"Carto.Voyager"`, `"ESRI.WorldBasemap"`
-
-**MapTiler GL styles** (require `api_key`): `"MapTiler.Streets"`,
-`"MapTiler.Satellite"`, `"MapTiler.Topo"`, `"MapTiler.Outdoor"`
-
-**ESRI raster** (no key required): `"ESRI.WorldImagery"`,
-`"ESRI.WorldStreetMap"`, `"ESRI.WorldTopoMap"`, `"ESRI.WorldShadedRelief"`,
-`"ESRI.WorldGrayCanvas"`, `"ESRI.NatGeoWorldMap"`
-
-**OSM raster** (no key required): `"OSM.Standard"`, `"OSM.CyclOSM"`
-
-**Stadia/Stamen** (key optional): `"Stadia.AlidadeSmooth"`,
-`"Stadia.AlidadeSmoothDark"`, `"Stadia.OSMBright"`,
-`"Stadia.StamenToner"`, `"Stadia.StamenTerrain"`,
-`"Stadia.StamenWatercolor"`
-
-
-## Examples
-
-
-``` python
-from basemapper import basemap_provider, render_basemap_raw
-
-style = basemap_provider("OpenFreeMap.liberty")
-style = basemap_provider("OSM.Standard")
-style = basemap_provider("MapTiler.Streets", api_key="YOUR_KEY")
-
-pixels = render_basemap_raw(
-    bbox=[-122.5, 37.7, -122.4, 37.8],
-    width=400, height=300,
-    style_input=basemap_provider("Carto.Positron"),
-)
-```
+`ValidationError`  
+For an unknown name (with suggestions), a form the basemap lacks, or a missing API key.

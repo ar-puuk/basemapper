@@ -1,0 +1,47 @@
+---
+title: "[Basemap]{.doc-object-name .doc-class .doc-label .doc-label-class}"
+body-classes: doc-api-page
+page-navigation: false
+html-table-processing: none
+---
+
+::: {.doc-subject}
+
+A map view rendered headlessly: one style, or several stacked.
+:::
+
+::: {.doc-usage-source}
+Usage
+:::
+
+::: {.doc-signature .doc-Kind.CLASS}
+```python
+Basemap(
+    style,
+    width=800,
+    height=600,
+    *,
+    center=None,
+    zoom=None,
+    bounds=None,
+    crs=None,
+    pixel_ratio=1.0,
+    layers=None,
+    labels=True,
+    features=None,
+    auth_token=None,
+    tile_timeout_ms=10000,
+    max_tiles=256,
+    tile_concurrency=16,
+    fail_on_tile_error=False
+)
+```
+:::
+
+::: {.doc-text}
+
+Create one with :func:`basemap`; see there for the arguments. Change the
+view with :meth:`set_view` / :meth:`set_bounds` (which return the view, so
+calls chain), read it with the ``get_*`` methods, and render it with
+:meth:`render_png`, :meth:`render_svg` or :meth:`render_array`.
+:::

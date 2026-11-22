@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.38">
+<meta name="generator" content="quarto-1.11.9">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,10 +12,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -71,14 +74,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="../favicon.svg" rel="icon" type="image/svg+xml">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/scrollable-regions/scrollable-regions.js" type="module"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
 <script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="../site_libs/quarto-html/anchor.min.js"></script>
 <link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="../site_libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-63b5708e65d6cd79cd7618c58d0c21e7.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-54660e341cb0033737839121e0616329.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-653588d2c95361f950ce041430bad3f3.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -153,26 +157,32 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
 </script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script>document.head.appendChild(Object.assign(document.createElement('link'),{rel:'stylesheet',href:(document.querySelector('meta[name="quarto:offset"]')||{content:''}).content+'termshow.css'}));</script>
+<script>document.head.appendChild(Object.assign(document.createElement('link'),{rel:'stylesheet',href:(document.querySelector('meta[name="quarto:offset"]')||{content:''}).content+'gd-lightbox.css'}));</script>
+<script>(function(){var s=document.createElement('script');var m=document.querySelector('meta[name="quarto:offset"]');s.src=(m?m.content:'')+'gd-lightbox.js';s.defer=true;document.head.appendChild(s);})();</script>
+<script>document.head.appendChild(Object.assign(document.createElement('link'),{rel:'stylesheet',href:(document.querySelector('meta[name="quarto:offset"]')||{content:''}).content+'gd-lightbox-compare.css'}));</script>
+<script>(function(){var s=document.createElement('script');var m=document.querySelector('meta[name="quarto:offset"]');s.src=(m?m.content:'')+'gd-lightbox-compare.js';s.defer=true;document.head.appendChild(s);})();</script>
+<script>document.head.appendChild(Object.assign(document.createElement('link'),{rel:'stylesheet',href:(document.querySelector('meta[name="quarto:offset"]')||{content:''}).content+'gd-lightbox-annotate.css'}));</script>
+<script>(function(){var s=document.createElement('script');var m=document.querySelector('meta[name="quarto:offset"]');s.src=(m?m.content:'')+'gd-lightbox-annotate.js';s.defer=true;document.head.appendChild(s);})();</script>
 <link rel="icon" type="image/svg+xml" href="https://ar-puuk.github.io/basemapper/python/favicon.svg">
 <script src="../theme-init.js"></script>
-<script>document.addEventListener('DOMContentLoaded',function(){document.body.setAttribute('data-gd-ref-sections','api,mcp');});</script>
 
 
-  <meta name="description" content="Render a basemap and composite it beneath existing axes content.">
+  <link rel="alternate" type="text/markdown" href="add_basemap.md">
+  <meta name="description" content="Render a basemap beneath existing axes content.">
   <meta property="og:type" content="website">
   <meta property="og:title" content="add_basemap() – python | python">
-  <meta property="og:description" content="Render a basemap and composite it beneath existing axes content.">
+  <meta property="og:description" content="Render a basemap beneath existing axes content.">
   <meta property="og:site_name" content="python">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="add_basemap() – python | python">
-  <meta name="twitter:description" content="Render a basemap and composite it beneath existing axes content.">
+  <meta name="twitter:description" content="Render a basemap beneath existing axes content.">
 </head>
 
-<body class="gd-ref-sidebar nav-sidebar floating nav-fixed doc-api-page quarto-light">
+<body class="gd-ref-sidebar nav-sidebar floating nav-fixed doc-api-page quarto-light"><a id="quarto-skip-link" class="visually-hidden-focusable" href="#quarto-document-content">Skip to main content</a>
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
-    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark" aria-label="Site">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="../index.html" class="navbar-brand navbar-brand-logo">
@@ -180,8 +190,7 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
     <img src="../logo.svg" alt="python" class="navbar-logo dark-content">
     </a>
   </div>
-            <div id="quarto-search" class=""></div>
-          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
   <span class="navbar-toggler-icon"></span>
 </button>
           <div class="collapse navbar-collapse" id="navbarCollapse">
@@ -194,15 +203,16 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
           </div> <!-- /navcollapse -->
             <div class="quarto-navbar-tools">
 </div>
+            <div id="quarto-search" class=""></div>
       </div> <!-- /container-fluid -->
     </nav>
-  <nav class="quarto-secondary-nav">
+  <nav class="quarto-secondary-nav" aria-label="Toolbar">
     <div class="container-fluid d-flex">
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
         <h1 class="quarto-secondary-nav-title no-breadcrumbs gd-ref-title"><span class="gd-ref-title-prefix">API</span><span class="gd-ref-title-sep">/</span><span class="gd-ref-title-name">add_basemap()</span></h1>
-        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        <a class="flex-grow-1" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
   </nav>
@@ -210,7 +220,7 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
 <!-- content -->
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
-  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto" aria-label="Section">
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item">
@@ -221,94 +231,238 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
 </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start">
- <span class="menu-text">Core rendering</span></a>
-</div>
-      <ul id="quarto-sidebar-section-1" class="list-unstyled sidebar-section depth1 show">  
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" aria-controls="quarto-sidebar-section-1" aria-expanded="true">
+ <span class="menu-text" id="quarto-sidebar-section-1-label">Basemap views</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+      </div>
+      <ul id="quarto-sidebar-section-1" aria-labelledby="quarto-sidebar-section-1-label" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/render_basemap_raw.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text"><span class="doc-object-name doc-function doc-label doc-label-function">render_basemap_raw()</span></span></a>
+  <a href="../reference/basemap.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">basemap</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/Basemap.qmd" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basemap</span></a>
   </div>
 </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start">
- <span class="menu-text">Plot integrations</span></a>
-</div>
-      <ul id="quarto-sidebar-section-2" class="list-unstyled sidebar-section depth1 show">  
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" aria-controls="quarto-sidebar-section-2" aria-expanded="true">
+ <span class="menu-text" id="quarto-sidebar-section-2-label">Basemap Methods</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+      </div>
+      <ul id="quarto-sidebar-section-2" aria-labelledby="quarto-sidebar-section-2-label" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/Basemap.set_view.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basemap.set_view</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/Basemap.set_bounds.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basemap.set_bounds</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/Basemap.get_bounds.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basemap.get_bounds</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/Basemap.get_center.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basemap.get_center</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/Basemap.get_zoom.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basemap.get_zoom</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/Basemap.get_size.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basemap.get_size</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/Basemap.get_attribution.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basemap.get_attribution</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/Basemap.__repr__.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basemap.__repr__</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/Basemap.render_array.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basemap.render_array</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/Basemap.render_png.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basemap.render_png</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/Basemap.render_svg.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basemap.render_svg</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" aria-controls="quarto-sidebar-section-3" aria-expanded="true">
+ <span class="menu-text" id="quarto-sidebar-section-3-label">One-shot rendering</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+      </div>
+      <ul id="quarto-sidebar-section-3" aria-labelledby="quarto-sidebar-section-3-label" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/render_basemap_raw.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">render_basemap_raw</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" aria-controls="quarto-sidebar-section-4" aria-expanded="true">
+ <span class="menu-text" id="quarto-sidebar-section-4-label">Plot integrations</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+      </div>
+      <ul id="quarto-sidebar-section-4" aria-labelledby="quarto-sidebar-section-4-label" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/add_basemap.html" class="sidebar-item-text sidebar-link active">
- <span class="menu-text"><span class="doc-object-name doc-function doc-label doc-label-function">add_basemap()</span></span></a>
+ <span class="menu-text">add_basemap</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/geom_basemap.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text"><span class="doc-object-name doc-class doc-label doc-label-class">geom_basemap</span></span></a>
+ <span class="menu-text">geom_basemap</span></a>
   </div>
 </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start">
- <span class="menu-text">Layer utilities</span></a>
-</div>
-      <ul id="quarto-sidebar-section-3" class="list-unstyled sidebar-section depth1 show">  
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" aria-controls="quarto-sidebar-section-5" aria-expanded="true">
+ <span class="menu-text" id="quarto-sidebar-section-5-label">Styles</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+      </div>
+      <ul id="quarto-sidebar-section-5" aria-labelledby="quarto-sidebar-section-5-label" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/basemap_provider.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">basemap_provider</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/list_providers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">list_providers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/providers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">providers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/tile_style.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tile_style</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/wms_style.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">wms_style</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/wmts_style.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">wmts_style</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" aria-controls="quarto-sidebar-section-6" aria-expanded="true">
+ <span class="menu-text" id="quarto-sidebar-section-6-label">Style layers and attribution</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+      </div>
+      <ul id="quarto-sidebar-section-6" aria-labelledby="quarto-sidebar-section-6-label" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/list_layers.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text"><span class="doc-object-name doc-function doc-label doc-label-function">list_layers()</span></span></a>
+ <span class="menu-text">list_layers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/get_attribution.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">get_attribution</span></a>
   </div>
 </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start">
- <span class="menu-text">Tile style helpers</span></a>
-</div>
-      <ul id="quarto-sidebar-section-4" class="list-unstyled sidebar-section depth1 show">  
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" aria-controls="quarto-sidebar-section-7" aria-expanded="true">
+ <span class="menu-text" id="quarto-sidebar-section-7-label">Tile cache</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+      </div>
+      <ul id="quarto-sidebar-section-7" aria-labelledby="quarto-sidebar-section-7-label" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/RasterProvider.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text"><span class="doc-object-name doc-class doc-label doc-label-class">RasterProvider</span></span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/VectorProvider.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text"><span class="doc-object-name doc-class doc-label doc-label-class">VectorProvider</span></span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/EsriVectorProvider.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text"><span class="doc-object-name doc-class doc-label doc-label-class">EsriVectorProvider</span></span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/EsriRasterProvider.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text"><span class="doc-object-name doc-class doc-label doc-label-class">EsriRasterProvider</span></span></a>
+  <a href="../reference/tile_cache.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tile_cache</span></a>
   </div>
 </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start">
- <span class="menu-text">Exceptions</span></a>
-</div>
-      <ul id="quarto-sidebar-section-5" class="list-unstyled sidebar-section depth1 show">  
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" aria-controls="quarto-sidebar-section-8" aria-expanded="true">
+ <span class="menu-text" id="quarto-sidebar-section-8-label">Exceptions</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+      </div>
+      <ul id="quarto-sidebar-section-8" aria-labelledby="quarto-sidebar-section-8-label" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/BasemapError.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text"><span class="doc-object-name doc-class doc-label doc-label-exception">BasemapError</span></span></a>
+ <span class="menu-text">BasemapError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/ValidationError.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ValidationError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/StyleError.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StyleError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/NetworkError.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">NetworkError</span></a>
   </div>
 </li>
       </ul>
@@ -319,7 +473,7 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
 <div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        <nav id="TOC" role="doc-toc" class="toc-active">
+        <nav id="TOC" role="doc-toc" aria-labelledby="toc-title" class="toc-active">
     <h3 id="toc-title">On this page</h3>
    
   <ul class="collapse">
@@ -330,7 +484,7 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
 </nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content">
+<main class="content" id="quarto-document-content" tabindex="-1">
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
@@ -352,7 +506,7 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
 
 
 <div class="doc-subject">
-<p>Render a basemap and composite it beneath existing axes content.</p>
+<p>Render a basemap beneath existing axes content.</p>
 </div>
 <div class="doc-usage-source">
 <p>Usage</p>
@@ -360,16 +514,22 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
 <div class="doc-signature doc-Kind.FUNCTION">
 <div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="sig-name">add_basemap</span>(</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">ax</span>,</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="va">style_url</span>,</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="va">zoom</span><span class="op">=</span><span class="cn-none">None</span>,</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="va">tile_timeout_ms</span><span class="op">=</span><span class="dv">10000</span>,</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">max_tiles</span><span class="op">=</span><span class="dv">256</span>,</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="va">alpha</span><span class="op">=</span><span class="fl">1.0</span>,</span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="va">layers</span><span class="op">=</span><span class="cn-none">None</span></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="va">style</span>,</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="va">tile_zoom</span><span class="op">=</span><span class="cn-none">None</span>,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="va">alpha</span><span class="op">=</span><span class="fl">1.0</span>,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">layers</span><span class="op">=</span><span class="cn-none">None</span>,</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="va">labels</span><span class="op">=</span><span class="cn-bool">True</span>,</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="va">features</span><span class="op">=</span><span class="cn-none">None</span>,</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="va">pixel_ratio</span><span class="op">=</span><span class="cn-none">None</span>,</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    <span class="va">auth_token</span><span class="op">=</span><span class="cn-none">None</span>,</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    <span class="va">tile_timeout_ms</span><span class="op">=</span><span class="dv">10000</span>,</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    <span class="va">max_tiles</span><span class="op">=</span><span class="dv">256</span>,</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    <span class="va">attribution</span><span class="op">=</span><span class="cn-bool">True</span>,</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    <span class="va">crs</span><span class="op">=</span><span class="cn-none">None</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
 </div>
 <div class="doc-text">
-<p>Extracts the geographic bounding box and CRS directly from <em>ax</em>, reprojects to EPSG:3857, calls the Rust core, and injects the result via imshow.</p>
+<p>The basemap is an artist that renders when the figure is drawn, at the output resolution: on screen at the canvas dpi, and natively at the requested resolution in <code>savefig(dpi=...)</code> or PDF / SVG output. Takes the same arguments as <a href="geom_basemap.html#basemapper.geom_basemap" class="gdls-link gdls-code">geom_basemap</a> (and R’s <a href="geom_basemap.html#basemapper.geom_basemap" class="gdls-link gdls-code">geom_basemap()</a>).</p>
 </div>
 <section id="parameters" class="level2 doc-parameters">
 <h2 class="doc-parameters">Parameters</h2>
@@ -377,23 +537,15 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
 <dl>
 <dt><code><span class="doc-parameter-name">ax</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">‘matplotlib.axes.Axes’</span></code></dt>
 <dd>
-<p>An existing matplotlib Axes with a recognized geographic projection.</p>
+<p>An existing matplotlib Axes.</p>
 </dd>
-<dt><code><span class="doc-parameter-name">style_url</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">str</span></code></dt>
+<dt><code><span class="doc-parameter-name">style</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">Union[str, Any, Sequence[Any]]</span></code></dt>
 <dd>
-<p>MapLibre GL style URL or inline JSON string.</p>
+<p>A MapLibre GL style URL or JSON string (e.g.&nbsp;from <a href="basemap_provider.html#basemapper.basemap_provider" class="gdls-link gdls-code">basemap_provider()</a>), or a list of those stacked bottom to top.</p>
 </dd>
-<dt><code><span class="doc-parameter-name">zoom</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">Optional[int]</span> <span class="doc-parameter-default-sep op">=</span> <span class="doc-parameter-default">None</span></code></dt>
+<dt><code><span class="doc-parameter-name">tile_zoom</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">Optional[int]</span> <span class="doc-parameter-default-sep op">=</span> <span class="doc-parameter-default">None</span></code></dt>
 <dd>
-<p>Tile zoom level override (0–22). Auto-computed when None.</p>
-</dd>
-<dt><code><span class="doc-parameter-name">tile_timeout_ms</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">int</span> <span class="doc-parameter-default-sep op">=</span> <span class="doc-parameter-default"><span class="dv">10000</span></span></code></dt>
-<dd>
-<p>Per-tile HTTP timeout in milliseconds.</p>
-</dd>
-<dt><code><span class="doc-parameter-name">max_tiles</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">int</span> <span class="doc-parameter-default-sep op">=</span> <span class="doc-parameter-default"><span class="dv">256</span></span></code></dt>
-<dd>
-<p>Maximum tile downloads per render.</p>
+<p>Tile detail override: the tile zoom on the 256 px grid (vector sources use one less), or None to pick tiles as MapLibre does for the view.</p>
 </dd>
 <dt><code><span class="doc-parameter-name">alpha</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">float</span> <span class="doc-parameter-default-sep op">=</span> <span class="doc-parameter-default"><span class="fl">1.0</span></span></code></dt>
 <dd>
@@ -401,7 +553,39 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
 </dd>
 <dt><code><span class="doc-parameter-name">layers</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">Optional[List[str]]</span> <span class="doc-parameter-default-sep op">=</span> <span class="doc-parameter-default">None</span></code></dt>
 <dd>
-Optional layer filter. Plain IDs keep only those layers; minus-prefixed IDs exclude those layers.
+<p>Optional layer filter. Plain IDs keep only those layers; minus-prefixed IDs drop those layers; <code>*</code> and <code>?</code> are wildcards.</p>
+</dd>
+<dt><code><span class="doc-parameter-name">labels</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">Union[bool, str]</span> <span class="doc-parameter-default-sep op">=</span> <span class="doc-parameter-default"><span class="va">True</span></span></code></dt>
+<dd>
+<p><code>True</code> keeps every layer, <code>False</code> drops the labels (text and icons), <code>"only"</code> keeps only the labels on a transparent background, to stack over another map. Catalogue raster basemaps switch to their label-free or label-only tiles.</p>
+</dd>
+<dt><code><span class="doc-parameter-name">features</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">Optional[List[str]]</span> <span class="doc-parameter-default-sep op">=</span> <span class="doc-parameter-default">None</span></code></dt>
+<dd>
+<p>Optional feature filter applied to every style: plain names keep those features, <code>-</code> prefixed names drop them, e.g. <code>["water", "roads"]</code> or <code>["-buildings"]</code>. Features: background, water, landcover, parks, buildings, roads, rail, boundaries, places, poi, terrain, other (see the <code>feature</code> of <a href="list_layers.html#basemapper.list_layers" class="gdls-link gdls-code">list_layers()</a>).</p>
+</dd>
+<dt><code><span class="doc-parameter-name">pixel_ratio</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">Optional[float]</span> <span class="doc-parameter-default-sep op">=</span> <span class="doc-parameter-default">None</span></code></dt>
+<dd>
+<p>Device pixels per CSS pixel (MapLibre’s devicePixelRatio). Default: output dpi / 96, so lines and labels keep their physical size at any dpi. Larger values draw map symbols smaller.</p>
+</dd>
+<dt><code><span class="doc-parameter-name">auth_token</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">Optional[str]</span> <span class="doc-parameter-default-sep op">=</span> <span class="doc-parameter-default">None</span></code></dt>
+<dd>
+<p>Optional access token for the tile service.</p>
+</dd>
+<dt><code><span class="doc-parameter-name">tile_timeout_ms</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">int</span> <span class="doc-parameter-default-sep op">=</span> <span class="doc-parameter-default"><span class="dv">10000</span></span></code></dt>
+<dd>
+<p>Per-tile HTTP timeout in milliseconds.</p>
+</dd>
+<dt><code><span class="doc-parameter-name">max_tiles</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">int</span> <span class="doc-parameter-default-sep op">=</span> <span class="doc-parameter-default"><span class="dv">256</span></span></code></dt>
+<dd>
+<p>Maximum tile downloads per style.</p>
+</dd>
+<dt><code><span class="doc-parameter-name">attribution</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">Union[bool, str]</span> <span class="doc-parameter-default-sep op">=</span> <span class="doc-parameter-default"><span class="va">True</span></span></code></dt>
+<dd>
+<p>The credit line the basemap’s providers ask for, drawn small in the bottom-right corner over the plot: <code>True</code> (the default) for the styles’ own (see <a href="get_attribution.html#basemapper.get_attribution" class="gdls-link gdls-code">get_attribution()</a>), <code>False</code> for none, or your own text.</p>
+</dd>
+<dt><code><span class="doc-parameter-name">crs</span><span class="doc-parameter-annotation-sep">:</span> <span class="doc-parameter-annotation">Optional[object]</span> <span class="doc-parameter-default-sep op">=</span> <span class="doc-parameter-default">None</span></code></dt>
+<dd>
+CRS of the axes data coordinates (anything <code>pyproj.CRS</code> accepts, e.g.&nbsp;<code>"EPSG:4326"</code>, <code>gdf.crs</code>). Required for plain matplotlib axes and GeoDataFrame plots, whose axes carry no CRS; detected automatically for cartopy axes when omitted.
 </dd>
 </dl>
 </div>
@@ -410,9 +594,11 @@ Optional layer filter. Plain IDs keep only those layers; minus-prefixed IDs excl
 <h2 class="doc-returns">Returns</h2>
 <div class="doc-definition-items">
 <dl>
-<dt><code> <span class="doc-parameter-annotation">np.ndarray</span></code></dt>
+<dt><code> <span class="doc-parameter-annotation">‘xr.DataArray’</span></code></dt>
 <dd>
-numpy.ndarray of shape (height, width, 4) with spatial bounds in .attrs.
+<p>xarray.DataArray of shape (height, width, 4) holding the first render</p>
+<p>(at the figure’s current dpi), with spatial bounds and CRS in</p>
+<code>.attrs</code>. The live artist is <code>ax.images[-1]</code>.
 </dd>
 </dl>
 </div>
@@ -450,7 +636,8 @@ If CRS detection fails, the render fails, or the network is unreachable.
           return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
       }
       // Inspect non-navigation links and adorn them if external
-     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      window.quartoDecorateExternalLinks = function (root) {
+     var links = (root || window.document).querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
       for (var i=0; i<links.length; i++) {
         const link = links[i];
         if (!isInternal(link.href)) {
@@ -459,8 +646,69 @@ If CRS detection fails, the render fails, or the network is unreachable.
           if (link.dataset.originalHref !== undefined) {
             link.href = link.dataset.originalHref;
           }
+          if (!link.classList.contains('no-external-icon')) {
+          }
         }
       }
+      };
+      window.quartoDecorateExternalLinks(window.document);
+    // Esc closes the popup (WCAG 1.4.13) and focus leaving both trigger and
+    // popup closes it (WCAG 2.4.11); tippy handles neither for interactive popups.
+    const hideOnEscAndFocusOut = {
+      name: 'hideOnEscAndFocusOut',
+      defaultValue: true,
+      fn(instance) {
+        const dismiss = () => {
+          // A show scheduled by the trigger delay would otherwise reopen it
+          instance.clearDelayTimeouts();
+          instance.hide();
+        };
+        const onKeyDown = (event) => {
+          if (event.key !== 'Escape') {
+            return;
+          }
+          // Keep Esc from also reaching page handlers (e.g. reveal.js overview),
+          // except an open reveal.js slide menu, which Esc should close too.
+          // The menu handles keys only when its keyboard option is on.
+          const menuHandlesEsc = window.Reveal?.getPlugin?.('menu')?.isOpen() &&
+            window.Reveal.getConfig().menu?.keyboard !== false;
+          if (!menuHandlesEsc) {
+            event.stopPropagation();
+          }
+          if (instance.popper.contains(window.document.activeElement)) {
+            // Disabled while refocusing so the focus trigger does not reopen it
+            instance.disable();
+            instance.reference.focus();
+            instance.enable();
+          }
+          dismiss();
+        };
+        const onFocusOut = (event) => {
+          const target = event.relatedTarget;
+          if (target && !instance.reference.contains(target) &&
+              !instance.popper.contains(target)) {
+            dismiss();
+          }
+        };
+        // On the trigger too: a click trigger (code-annotations: select) has no
+        // blur handling. Attached for the instance's lifetime so leaving the
+        // trigger also cancels a show still pending on the trigger delay.
+        instance.reference.addEventListener('focusout', onFocusOut);
+        return {
+          onShow() {
+            window.document.addEventListener('keydown', onKeyDown, true);
+            instance.popper.addEventListener('focusout', onFocusOut);
+          },
+          onHide() {
+            window.document.removeEventListener('keydown', onKeyDown, true);
+            instance.popper.removeEventListener('focusout', onFocusOut);
+          },
+          onDestroy() {
+            instance.reference.removeEventListener('focusout', onFocusOut);
+          },
+        };
+      },
+    };
     function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
       const config = {
         allowHTML: true,
@@ -474,6 +722,7 @@ If CRS detection fails, the render fails, or the network is unreachable.
         interactiveBorder: 10,
         theme: 'quarto',
         placement: 'bottom-start',
+        plugins: [hideOnEscAndFocusOut],
       };
       if (contentFn) {
         config.content = contentFn;
@@ -636,44 +885,54 @@ If CRS detection fails, the render fails, or the network is unreachable.
           const lineIds = lines.map((line) => {
             return targetCell + "-" + line;
           })
-          let top = null;
-          let height = null;
-          let parent = null;
+          // Each band is positioned against its own containing block, which is
+          // not the offsetParent of the lines, so place it from client rects.
+          const placeBand = (band, firstEl, lastEl, codeBlock) => {
+            const container = band.offsetParent;
+            if (container === null) {
+              return;
+            }
+            const containerRect = container.getBoundingClientRect();
+            // Reveal.js scales slides with a transform, so convert client
+            // pixels back to the CSS pixels of the container.
+            const scale = containerRect.height / container.offsetHeight || 1;
+            const firstRect = firstEl.getBoundingClientRect();
+            const lastRect = lastEl.getBoundingClientRect();
+            const top = (firstRect.top - containerRect.top) / scale - container.clientTop + container.scrollTop;
+            const height = (lastRect.bottom - firstRect.top) / scale;
+            band.style.top = top - 2 + "px";
+            band.style.height = height + 4 + "px";
+            if (codeBlock) {
+              // Without the copy button wrapper, the containing block is wider
+              // than the code block, so span the code block explicitly.
+              const blockRect = codeBlock.getBoundingClientRect();
+              band.style.left = (blockRect.left - containerRect.left) / scale - container.clientLeft + container.scrollLeft + "px";
+              band.style.width = blockRect.width / scale + "px";
+            }
+          };
           if (lineIds.length > 0) {
-              //compute the position of the single el (top and bottom and make a div)
-              const el = window.document.getElementById(lineIds[0]);
-              top = el.offsetTop;
-              height = el.offsetHeight;
-              parent = el.parentElement.parentElement;
-            if (lineIds.length > 1) {
-              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
-              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
-              height = bottom - top;
+            const el = window.document.getElementById(lineIds[0]);
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const parent = el.parentElement.parentElement;
+            // cook up a div (if necessary) and position it
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
             }
-            if (top !== null && height !== null && parent !== null) {
-              // cook up a div (if necessary) and position it 
-              let div = window.document.getElementById("code-annotation-line-highlight");
-              if (div === null) {
-                div = window.document.createElement("div");
-                div.setAttribute("id", "code-annotation-line-highlight");
-                div.style.position = 'absolute';
-                parent.appendChild(div);
-              }
-              div.style.top = top - 2 + "px";
-              div.style.height = height + 4 + "px";
-              div.style.left = 0;
-              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
-              if (gutterDiv === null) {
-                gutterDiv = window.document.createElement("div");
-                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
-                gutterDiv.style.position = 'absolute';
-                const codeCell = window.document.getElementById(targetCell);
-                const gutter = codeCell.querySelector('.code-annotation-gutter');
-                gutter.appendChild(gutterDiv);
-              }
-              gutterDiv.style.top = top - 2 + "px";
-              gutterDiv.style.height = height + 4 + "px";
+            placeBand(div, el, lastEl, parent.closest("div.sourceCode") || parent);
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
             }
+            placeBand(gutterDiv, el, lastEl);
             selectedAnnoteEl = annoteEl;
           }
         };
@@ -772,6 +1031,9 @@ If CRS detection fails, the render fails, or the network is unreachable.
     }
   });
   </script>
+  <script type="application/javascript">
+  window.quartoScrollableRegionsLabels = {"code":"Scrollable code","output":"Scrollable output"};
+  </script>
 </div> <!-- /content -->
 <footer class="footer">
   <div class="nav-footer">
@@ -791,11 +1053,10 @@ If CRS detection fails, the render fails, or the network is unreachable.
 <script src="../copy-code.js"></script>
 <script src="../details.js"></script>
 <script src="../mermaid-renderer.js"></script>
-<script src="../reference-switcher.js"></script>
 <script src="../tooltips.js"></script>
-<script>(function(){var s=document.createElement('script');s.src=(document.querySelector('link[rel="canonical"]')||{href:location.href}).href.replace(/\/[^\/]*$/,'').replace(/\/[^\/]*$/,'')+'/color-swatch.js';var h=document.currentScript;h.parentNode.insertBefore(s,h.nextSibling);})()</script>
+<script>(function(){var s=document.createElement('script');var m=document.querySelector('meta[name="quarto:offset"]');s.src=(m?m.content:'')+'color-swatch.js';document.body.appendChild(s);})();</script>
 <script src="../responsive-tables.js"></script>
-<script src="video-embed.js"></script>
+<script>(function(){var s=document.createElement('script');var m=document.querySelector('meta[name="quarto:offset"]');s.src=(m?m.content:'')+'video-embed.js';document.body.appendChild(s);})();</script>
 <script>(function(){var s=document.createElement('script');var m=document.querySelector('meta[name="quarto:offset"]');s.src=(m?m.content:'')+'termshow.js';document.body.appendChild(s);})();</script>
 <script src="../navbar-widgets.js"></script>
 <style>
@@ -809,164 +1070,220 @@ html.quarto-dark, :root[data-bs-theme='dark'] {
 </style>
 <style>
 /* Great Docs: navbar_color overrides */
-html.quarto-light, :root[data-bs-theme='light'] {
+html.quarto-light,
+:root[data-bs-theme='light'] {
     --gd-navbar-bg: #0e171e;
     --gd-navbar-text: #FFFFFF;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar {
+html.quarto-light .navbar,
+:root[data-bs-theme='light'] .navbar {
     background: #0e171e !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.15);
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .navbar-title,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-link {
+html.quarto-light .navbar .navbar-title,
+:root[data-bs-theme='light'] .navbar .navbar-title,
+html.quarto-light .navbar .nav-link,
+:root[data-bs-theme='light'] .navbar .nav-link {
     color: #FFFFFF !important;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-link:hover {
+html.quarto-light .navbar .nav-link:hover,
+:root[data-bs-theme='light'] .navbar .nav-link:hover {
     background-color: rgba(255, 255, 255, 0.15) !important;
     color: #FFFFFF !important;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-item:has(#github-widget) .nav-link:hover {
+html.quarto-light .navbar .nav-item:has(#github-widget) .nav-link:hover,
+:root[data-bs-theme='light'] .navbar .nav-item:has(#github-widget) .nav-link:hover {
     background-color: transparent !important;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-link.active {
+html.quarto-light .navbar .nav-link.active,
+:root[data-bs-theme='light'] .navbar .nav-link.active {
     text-decoration-color: rgba(255, 255, 255, 0.75) !important;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .dark-mode-toggle,
-html.quarto-light, :root[data-bs-theme='light'] #quarto-search .aa-DetachedSearchButton {
+html.quarto-light .navbar .dark-mode-toggle,
+:root[data-bs-theme='light'] .navbar .dark-mode-toggle,
+html.quarto-light #quarto-search .aa-DetachedSearchButton,
+:root[data-bs-theme='light'] #quarto-search .aa-DetachedSearchButton {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.15);
     color: #FFFFFF;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .dark-mode-toggle:hover,
-html.quarto-light, :root[data-bs-theme='light'] #quarto-search .aa-DetachedSearchButton:hover {
+html.quarto-light .navbar .dark-mode-toggle:hover,
+:root[data-bs-theme='light'] .navbar .dark-mode-toggle:hover,
+html.quarto-light #quarto-search .aa-DetachedSearchButton:hover,
+:root[data-bs-theme='light'] #quarto-search .aa-DetachedSearchButton:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .gh-widget-trigger {
+html.quarto-light .navbar .gh-widget-trigger,
+:root[data-bs-theme='light'] .navbar .gh-widget-trigger {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.15);
     color: #FFFFFF;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .gh-widget-trigger:hover {
+html.quarto-light .navbar .gh-widget-trigger:hover,
+:root[data-bs-theme='light'] .navbar .gh-widget-trigger:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .quarto-navbar-tools button,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .quarto-navbar-tools .quarto-navigation-tool {
+html.quarto-light .navbar .quarto-navbar-tools button,
+:root[data-bs-theme='light'] .navbar .quarto-navbar-tools button,
+html.quarto-light .navbar .quarto-navbar-tools .quarto-navigation-tool,
+:root[data-bs-theme='light'] .navbar .quarto-navbar-tools .quarto-navigation-tool {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.15);
     color: #FFFFFF;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .quarto-navbar-tools button:hover,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .quarto-navbar-tools .quarto-navigation-tool:hover {
+html.quarto-light .navbar .quarto-navbar-tools button:hover,
+:root[data-bs-theme='light'] .navbar .quarto-navbar-tools button:hover,
+html.quarto-light .navbar .quarto-navbar-tools .quarto-navigation-tool:hover,
+:root[data-bs-theme='light'] .navbar .quarto-navbar-tools .quarto-navigation-tool:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-item.compact .nav-link,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .gd-navbar-icon {
+html.quarto-light .navbar .nav-item.compact .nav-link,
+:root[data-bs-theme='light'] .navbar .nav-item.compact .nav-link,
+html.quarto-light .navbar .gd-navbar-icon,
+:root[data-bs-theme='light'] .navbar .gd-navbar-icon {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 6px;
     color: #FFFFFF;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-item.compact .nav-link:hover,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .gd-navbar-icon:hover {
+html.quarto-light .navbar .nav-item.compact .nav-link:hover,
+:root[data-bs-theme='light'] .navbar .nav-item.compact .nav-link:hover,
+html.quarto-light .navbar .gd-navbar-icon:hover,
+:root[data-bs-theme='light'] .navbar .gd-navbar-icon:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .navbar-toggler-icon {
+html.quarto-light .navbar .navbar-toggler-icon,
+:root[data-bs-theme='light'] .navbar .navbar-toggler-icon {
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%23e0e0e0' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .bi,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .aa-SubmitIcon,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .aa-SearchIcon,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .aa-DetachedSearchButtonIcon,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .aa-DetachedSearchButtonIcon svg {
+html.quarto-light .navbar .bi,
+:root[data-bs-theme='light'] .navbar .bi,
+html.quarto-light .navbar .aa-SubmitIcon,
+:root[data-bs-theme='light'] .navbar .aa-SubmitIcon,
+html.quarto-light .navbar .aa-SearchIcon,
+:root[data-bs-theme='light'] .navbar .aa-SearchIcon,
+html.quarto-light .navbar .aa-DetachedSearchButtonIcon,
+:root[data-bs-theme='light'] .navbar .aa-DetachedSearchButtonIcon,
+html.quarto-light .navbar .aa-DetachedSearchButtonIcon svg,
+:root[data-bs-theme='light'] .navbar .aa-DetachedSearchButtonIcon svg {
     color: #FFFFFF !important;
     fill: #FFFFFF !important;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .version-badge {
+html.quarto-light .navbar .version-badge,
+:root[data-bs-theme='light'] .navbar .version-badge {
     color: #FFFFFF;
     opacity: 0.75;
     background-color: rgba(255, 255, 255, 0.08);
 }
-html.quarto-dark, :root[data-bs-theme='dark'] {
+html.quarto-dark,
+:root[data-bs-theme='dark'] {
     --gd-navbar-bg: #0e171e;
     --gd-navbar-text: #FFFFFF;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar {
+html.quarto-dark .navbar,
+:root[data-bs-theme='dark'] .navbar {
     background: #0e171e !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.15);
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .navbar-title,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-link {
+html.quarto-dark .navbar .navbar-title,
+:root[data-bs-theme='dark'] .navbar .navbar-title,
+html.quarto-dark .navbar .nav-link,
+:root[data-bs-theme='dark'] .navbar .nav-link {
     color: #FFFFFF !important;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-link:hover {
+html.quarto-dark .navbar .nav-link:hover,
+:root[data-bs-theme='dark'] .navbar .nav-link:hover {
     background-color: rgba(255, 255, 255, 0.15) !important;
     color: #FFFFFF !important;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-item:has(#github-widget) .nav-link:hover {
+html.quarto-dark .navbar .nav-item:has(#github-widget) .nav-link:hover,
+:root[data-bs-theme='dark'] .navbar .nav-item:has(#github-widget) .nav-link:hover {
     background-color: transparent !important;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-link.active {
+html.quarto-dark .navbar .nav-link.active,
+:root[data-bs-theme='dark'] .navbar .nav-link.active {
     text-decoration-color: rgba(255, 255, 255, 0.75) !important;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .dark-mode-toggle,
-html.quarto-dark, :root[data-bs-theme='dark'] #quarto-search .aa-DetachedSearchButton {
+html.quarto-dark .navbar .dark-mode-toggle,
+:root[data-bs-theme='dark'] .navbar .dark-mode-toggle,
+html.quarto-dark #quarto-search .aa-DetachedSearchButton,
+:root[data-bs-theme='dark'] #quarto-search .aa-DetachedSearchButton {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.15);
     color: #FFFFFF;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .dark-mode-toggle:hover,
-html.quarto-dark, :root[data-bs-theme='dark'] #quarto-search .aa-DetachedSearchButton:hover {
+html.quarto-dark .navbar .dark-mode-toggle:hover,
+:root[data-bs-theme='dark'] .navbar .dark-mode-toggle:hover,
+html.quarto-dark #quarto-search .aa-DetachedSearchButton:hover,
+:root[data-bs-theme='dark'] #quarto-search .aa-DetachedSearchButton:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .gh-widget-trigger {
+html.quarto-dark .navbar .gh-widget-trigger,
+:root[data-bs-theme='dark'] .navbar .gh-widget-trigger {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.15);
     color: #FFFFFF;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .gh-widget-trigger:hover {
+html.quarto-dark .navbar .gh-widget-trigger:hover,
+:root[data-bs-theme='dark'] .navbar .gh-widget-trigger:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .quarto-navbar-tools button,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .quarto-navbar-tools .quarto-navigation-tool {
+html.quarto-dark .navbar .quarto-navbar-tools button,
+:root[data-bs-theme='dark'] .navbar .quarto-navbar-tools button,
+html.quarto-dark .navbar .quarto-navbar-tools .quarto-navigation-tool,
+:root[data-bs-theme='dark'] .navbar .quarto-navbar-tools .quarto-navigation-tool {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.15);
     color: #FFFFFF;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .quarto-navbar-tools button:hover,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .quarto-navbar-tools .quarto-navigation-tool:hover {
+html.quarto-dark .navbar .quarto-navbar-tools button:hover,
+:root[data-bs-theme='dark'] .navbar .quarto-navbar-tools button:hover,
+html.quarto-dark .navbar .quarto-navbar-tools .quarto-navigation-tool:hover,
+:root[data-bs-theme='dark'] .navbar .quarto-navbar-tools .quarto-navigation-tool:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-item.compact .nav-link,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .gd-navbar-icon {
+html.quarto-dark .navbar .nav-item.compact .nav-link,
+:root[data-bs-theme='dark'] .navbar .nav-item.compact .nav-link,
+html.quarto-dark .navbar .gd-navbar-icon,
+:root[data-bs-theme='dark'] .navbar .gd-navbar-icon {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 6px;
     color: #FFFFFF;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-item.compact .nav-link:hover,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .gd-navbar-icon:hover {
+html.quarto-dark .navbar .nav-item.compact .nav-link:hover,
+:root[data-bs-theme='dark'] .navbar .nav-item.compact .nav-link:hover,
+html.quarto-dark .navbar .gd-navbar-icon:hover,
+:root[data-bs-theme='dark'] .navbar .gd-navbar-icon:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .navbar-toggler-icon {
+html.quarto-dark .navbar .navbar-toggler-icon,
+:root[data-bs-theme='dark'] .navbar .navbar-toggler-icon {
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%23e0e0e0' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .bi,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .aa-SubmitIcon,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .aa-SearchIcon,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .aa-DetachedSearchButtonIcon,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .aa-DetachedSearchButtonIcon svg {
+html.quarto-dark .navbar .bi,
+:root[data-bs-theme='dark'] .navbar .bi,
+html.quarto-dark .navbar .aa-SubmitIcon,
+:root[data-bs-theme='dark'] .navbar .aa-SubmitIcon,
+html.quarto-dark .navbar .aa-SearchIcon,
+:root[data-bs-theme='dark'] .navbar .aa-SearchIcon,
+html.quarto-dark .navbar .aa-DetachedSearchButtonIcon,
+:root[data-bs-theme='dark'] .navbar .aa-DetachedSearchButtonIcon,
+html.quarto-dark .navbar .aa-DetachedSearchButtonIcon svg,
+:root[data-bs-theme='dark'] .navbar .aa-DetachedSearchButtonIcon svg {
     color: #FFFFFF !important;
     fill: #FFFFFF !important;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .version-badge {
+html.quarto-dark .navbar .version-badge,
+:root[data-bs-theme='dark'] .navbar .version-badge {
     color: #FFFFFF;
     opacity: 0.75;
     background-color: rgba(255, 255, 255, 0.08);

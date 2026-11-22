@@ -1,73 +1,182 @@
 [
   {
-    "objectID": "reference/VectorProvider.html",
-    "href": "reference/VectorProvider.html",
-    "title": "VectorProvider",
+    "objectID": "reference/wmts_style.html",
+    "href": "reference/wmts_style.html",
+    "title": "wmts_style()",
     "section": "",
-    "text": "Generate a MapLibre GL Style JSON string for an MVT vector tile source.\n\n\nUsage\n\n\nVectorProvider()\n\n\nAccepted paint keys: fill-color, fill-opacity, fill-outline-color, line-color, line-width, line-opacity. Unrecognised keys are dropped with a warning. Omitting paint applies a light-grey default style.\n\n\nParameters\n\n\nurl_template: str\n\nMVT tile URL with {z}, {x}, {y} placeholders.\n\npaint: Optional[Dict[str, object]] = None\n\nOptional dict of MapLibre GL paint properties.",
+    "text": "Style for an OGC WMTS GetTile (KVP) endpoint. A RESTful WMTS\n\n\nUsage\n\n\nwmts_style(\n    url,\n    layer,\n    tilematrixset=\"GoogleMapsCompatible\",\n    format=\"image/png\",\n    style=\"default\",\n    version=\"1.0.0\",\n    extra_params=None\n)\n\n\ntemplate ({TileMatrix}/{TileRow}/{TileCol}) needs no builder: pass it as style.\n\n\nParameters\n\n\nurl: str\n\nBase service URL without query parameters.\n\nlayer: str\n\nLAYER parameter.\n\ntilematrixset: str = \"GoogleMapsCompatible\"\n\nTile matrix set (a Web Mercator one).\n\nformat: str = \"image/png\"\n\nImage MIME type.\n\nstyle: str = \"default\"\n\nSTYLE parameter.\n\nversion: str = \"1.0.0\"\n\nService version.\n\nextra_params: Optional[str] = None\n\nAdditional query parameters appended verbatim.",
     "crumbs": [
       "Reference",
-      "Tile style helpers",
-      "[VectorProvider]{.doc-object-name .doc-class .doc-label .doc-label-class}"
+      "Styles",
+      "wmts_style"
     ]
   },
   {
-    "objectID": "reference/RasterProvider.html",
-    "href": "reference/RasterProvider.html",
-    "title": "RasterProvider",
+    "objectID": "reference/ValidationError.html",
+    "href": "reference/ValidationError.html",
+    "title": "ValidationError",
     "section": "",
-    "text": "Generate a MapLibre GL Style JSON string for an XYZ raster tile source.",
-    "crumbs": [
-      "Reference",
-      "Tile style helpers",
-      "[RasterProvider]{.doc-object-name .doc-class .doc-label .doc-label-class}"
-    ]
-  },
-  {
-    "objectID": "reference/RasterProvider.html#to_style_json",
-    "href": "reference/RasterProvider.html#to_style_json",
-    "title": "RasterProvider",
-    "section": "to_style_json()",
-    "text": "to_style_json()\n\nReturn a MapLibre GL Style JSON string.\n\n\nUsage\n\n\nto_style_json()",
-    "crumbs": [
-      "Reference",
-      "Tile style helpers",
-      "[RasterProvider]{.doc-object-name .doc-class .doc-label .doc-label-class}"
-    ]
-  },
-  {
-    "objectID": "reference/index.html",
-    "href": "reference/index.html",
-    "title": "Reference",
-    "section": "",
-    "text": "Core rendering\n\nLow-level tile fetch and composite.\n\n\nrender_basemap_raw()\n\nFetch and composite map tiles into a raw RGBA pixel buffer.\n\n\n\n\nPlot integrations\n\nDrop a basemap layer into an existing spatial plot. geom_basemap works in both ggplot2 (R) and plotnine (Python).\n\n\nadd_basemap()\n\nRender a basemap and composite it beneath existing axes content.\n\ngeom_basemap\n\nRender a styled basemap beneath plotnine spatial layers.\n\n\n\n\nLayer utilities\n\nInspect and filter layers inside a MapLibre GL style.\n\n\nlist_layers()\n\nReturn all layer IDs from a MapLibre GL style.\n\n\n\n\nTile style helpers\n\nConvert bare tile URLs to MapLibre GL Style JSON.\n\n\nRasterProvider\n\nGenerate a MapLibre GL Style JSON string for an XYZ raster tile source.\n\nVectorProvider\n\nGenerate a MapLibre GL Style JSON string for an MVT vector tile source.\n\nEsriVectorProvider\n\nReturn the root.json style endpoint URL for an ArcGIS VectorTileServer.\n\nEsriRasterProvider\n\nGenerate a MapLibre GL Style JSON string for an ArcGIS MapServer raster source.\n\n\n\n\nExceptions\n\n\n\n\nBasemapError\n\nRaised when the Rust basemapper core returns an error.",
-    "crumbs": [
-      "Reference",
-      "API Index"
-    ]
-  },
-  {
-    "objectID": "reference/EsriVectorProvider.html",
-    "href": "reference/EsriVectorProvider.html",
-    "title": "EsriVectorProvider",
-    "section": "",
-    "text": "Return the root.json style endpoint URL for an ArcGIS VectorTileServer.\n\n\nUsage\n\n\nEsriVectorProvider()\n\n\nThe Rust core fetches this URL to obtain the full, ESRI-published MapLibre GL style JSON. Cast to str to get the URL string (not inline JSON).\n\n\nParameters\n\n\nbase_url: str\n\nBase ArcGIS VectorTileServer URL (trailing slashes stripped).",
-    "crumbs": [
-      "Reference",
-      "Tile style helpers",
-      "[EsriVectorProvider]{.doc-object-name .doc-class .doc-label .doc-label-class}"
-    ]
-  },
-  {
-    "objectID": "reference/BasemapError.html",
-    "href": "reference/BasemapError.html",
-    "title": "BasemapError",
-    "section": "",
-    "text": "Raised when the Rust basemapper core returns an error.\n\n\nUsage\n\n\nBasemapError()",
+    "text": "Raised for invalid bbox, dimensions, zoom, or layer filter.\n\n\nUsage\n\n\nValidationError(message)\n\n\nSubclasses both :class:BasemapError and :class:ValueError so that callers that catch the built-in ValueError continue to work unchanged.",
     "crumbs": [
       "Reference",
       "Exceptions",
-      "[BasemapError]{.doc-object-name .doc-class .doc-label .doc-label-exception}"
+      "ValidationError"
+    ]
+  },
+  {
+    "objectID": "reference/tile_cache.html",
+    "href": "reference/tile_cache.html",
+    "title": "tile_cache()",
+    "section": "",
+    "text": "The disk cache for map tiles.\n\n\nUsage\n\n\ntile_cache(dir=None, clear=False)\n\n\nTiles are kept as long as the server’s caching headers allow (a day when they say nothing), so repeated renders of an area do not download them again. The cache starts in BASEMAPPER_CACHE_DIR when set (off disables it), else in the platform cache directory.\n\n\nParameters\n\n\ndir: Optional[str] = None\n\nMove the cache to this directory; False or \"\" turns it off. None leaves it as it is.\n\nclear: bool = False\n\nDelete every cached tile.\n\n\n\n\n\nReturns\n\n\n Optional[str]\n\nThe cache directory, or None when the cache is off.",
+    "crumbs": [
+      "Reference",
+      "Tile cache",
+      "tile_cache"
+    ]
+  },
+  {
+    "objectID": "reference/render_basemap_raw.html",
+    "href": "reference/render_basemap_raw.html",
+    "title": "render_basemap_raw()",
+    "section": "",
+    "text": "Render a basemap for bounds in one call.\n\n\nUsage\n\n\nrender_basemap_raw(\n    bounds,\n    width,\n    height,\n    style,\n    crs=None,\n    pixel_ratio=1.0,\n    tile_zoom=None,\n    layers=None,\n    labels=True,\n    features=None,\n    auth_token=None,\n    tile_timeout_ms=10000,\n    max_tiles=256,\n    tile_concurrency=16,\n    fail_on_tile_error=False\n)\n\n\nA one-shot render: fit bounds into a width x height CSS-pixel view and return the pixels. :func:basemap with :meth:Basemap.render_array gives the same result with a reusable view. The same function exists in R (render_basemap_raw()).\n\n\nParameters\n\n\nbounds: Any\n\nBounding box: a [xmin, ymin, xmax, ymax] sequence in crs (default EPSG:4326, with a warning when the values look projected), a dict with xmin/ymin/xmax/ymax (and optionally crs) keys, or a GeoDataFrame / GeoSeries (CRS read from it).\n\nwidth: int\n\nView width in CSS pixels.\n\nheight: int\n\nView height in CSS pixels.\n\nstyle: Any\n\nA MapLibre GL style URL or JSON string (e.g. from :func:basemap_provider), or a list of those stacked bottom to top.\n\ncrs: Optional[Any] = None\n\nCRS of bounds (anything pyproj.CRS accepts).\n\npixel_ratio: float = 1.0\n\nDevice pixels per CSS pixel; the image is width * pixel_ratio by height * pixel_ratio.\n\ntile_zoom: Optional[int] = None\n\nTile detail override: the tile zoom on the 256 px grid (vector sources use one less, their tiles being 512 px), or None to pick tiles as MapLibre does for the view.\n\nlayers: Optional[List[str]] = None\n\nOptional layer filter: plain IDs keep only those layers, - prefixed IDs drop them; * and ? are wildcards (\"-label_*\").\n\nlabels: Union[bool, str] = True\n\nTrue keeps every layer, False drops the labels (text and icons), \"only\" keeps only the labels on a transparent background, to stack over another map. Catalogue raster basemaps switch to their label-free or label-only tiles.\n\nfeatures: Optional[List[str]] = None\n\nOptional feature filter applied to every style: plain names keep those features, - prefixed names drop them, e.g. [\"water\", \"roads\"] or [\"-buildings\"]. Features: background, water, landcover, parks, buildings, roads, rail, boundaries, places, poi, terrain, other (see the feature of :func:list_layers).\n\nauth_token: Optional[str] = None\n\nOptional access token for the tile service.\n\ntile_timeout_ms: int = 10000\n\nPer-tile HTTP timeout in milliseconds.\n\nmax_tiles: int = 256\n\nMaximum tiles fetched per style.\n\ntile_concurrency: int = 16\n\nParallel tile downloads.\n\nfail_on_tile_error: bool = False\n\nAbort on a failed tile instead of leaving it empty.\n\n\n\n\n\nReturns\n\n\n np.ndarray\n\nnumpy.ndarray: (height * pixel_ratio, width * pixel_ratio, 4)\nuint8 RGBA pixels.\n\n\n\n\n\nRaises\n\n\n BasemapError\n\nOn any rendering or network failure.",
+    "crumbs": [
+      "Reference",
+      "One-shot rendering",
+      "render_basemap_raw"
+    ]
+  },
+  {
+    "objectID": "reference/NetworkError.html",
+    "href": "reference/NetworkError.html",
+    "title": "NetworkError",
+    "section": "",
+    "text": "Raised when tile or style network requests fail.\n\n\nUsage\n\n\nNetworkError(message)",
+    "crumbs": [
+      "Reference",
+      "Exceptions",
+      "NetworkError"
+    ]
+  },
+  {
+    "objectID": "reference/list_layers.html",
+    "href": "reference/list_layers.html",
+    "title": "list_layers()",
+    "section": "",
+    "text": "List a style’s layers, or preview a filter.\n\n\nUsage\n\n\nlist_layers(style, auth_token=None, layers=None, labels=True, features=None)\n\n\nThe layers of a style in drawing order: their id (what layers matches), type (symbol layers are the labels labels keeps or drops), source_layer (the vector tile layer drawn, None for background and raster layers) and feature (what features matches). With layers, labels or features, the layers a render with those filters draws; an empty list when they leave nothing. The same function exists in R (list_layers(), returning a data frame).\nA layer’s feature comes from its source layer, with tables for the OpenMapTiles (OpenFreeMap, Stadia, MapTiler), Protomaps (CARTO) and Shortbread (VersaTiles) schemas, and keywords for others (Esri’s descriptive names, layer ids). It is a convenience: check it here, and use layers for exact control.\n\n\nParameters\n\n\nstyle: Any\n\nA style (anything :func:basemap takes).\n\nauth_token: Optional[str] = None\n\nOptional access token for the style URL.\n\nlayers: Optional[List[str]] = None\n\nLayer filter to preview: plain IDs keep, - prefixed IDs drop; * and ? are wildcards.\n\nlabels: Union[bool, str] = True\n\nTrue, False or \"only\", as the renderers take it.\n\nfeatures: Optional[List[str]] = None\n\nFeature filter to preview, as the renderers take it.\n\n\n\n\n\nReturns\n\n\n List[Dict[str, Optional[str]]]\n\nA list of {\"id\", \"type\", \"source_layer\", \"feature\"} dicts\n(pandas.DataFrame(...) turns it into a table).\n\n\n\n\n\nRaises\n\n\n BasemapError\n\nIf the style cannot be fetched or parsed, or a filter is invalid.",
+    "crumbs": [
+      "Reference",
+      "Style layers and attribution",
+      "list_layers"
+    ]
+  },
+  {
+    "objectID": "reference/get_attribution.html",
+    "href": "reference/get_attribution.html",
+    "title": "get_attribution()",
+    "section": "",
+    "text": "The attribution text a style asks maps to show.\n\n\nUsage\n\n\nget_attribution(style, auth_token=None)\n\n\nEvery source the style’s layers draw from contributes its attribution (from the style, the source’s TileJSON or PMTiles metadata), as MapLibre’s attribution control collects it, as plain text without duplicates, joined with \" | \". Use it for a caption or a credit line, e.g. ax.annotate(get_attribution(style), ...). :meth:Basemap.get_attribution gives a view’s. The same function exists in R (get_attribution()).\n\n\nParameters\n\n\nstyle: Any\n\nA style (anything :func:basemap takes), or a list of styles stacked bottom to top.\n\nauth_token: Optional[str] = None\n\nOptional access token for the tile service.\n\n\n\n\n\nReturns\n\n\n str\n\nThe attribution; an empty string when the styles give none.",
+    "crumbs": [
+      "Reference",
+      "Style layers and attribution",
+      "get_attribution"
+    ]
+  },
+  {
+    "objectID": "reference/basemap_provider.html",
+    "href": "reference/basemap_provider.html",
+    "title": "basemap_provider()",
+    "section": "",
+    "text": "A named basemap’s style.\n\n\nUsage\n\n\nbasemap_provider(\n    name, type=None, api_key=None, tiles=None, labels=True, features=None\n)\n\n\nNames follow leaflet-providers (\"CartoDB.Positron\", \"Esri.WorldImagery\", \"OpenStreetMap.HOT\"); see :func:list_providers or the :data:providers object. A name also works as style directly; this function picks the form, passes a key, or swaps in your own tiles.\n\n\nParameters\n\n\nname: str\n\nBasemap name (case-insensitive).\n\ntype: Optional[str] = None\n\n\"vector\" (a MapLibre style) or \"raster\" (tiles). By default the vector form when there is one, else raster. Asking for a form a basemap lacks is an error, never a silent fallback.\n\napi_key: Optional[str] = None\n\nAPI key for CARTO, MapTiler and Stadia; by default read from CARTO_API_KEY, MAPTILER_API_KEY or STADIA_API_KEY. The keys are free for moderate use; :func:list_providers shows which basemaps need one.\n\ntiles: Optional[str] = None\n\nYour own tile data to draw with this basemap’s style: a .pmtiles archive (URL or path), tile URL or TileJSON. It must use the same schema as the provider’s tiles (OpenMapTiles for OpenFreeMap and Stadia).\n\nlabels: Union[bool, str] = True\n\nTrue keeps every layer, False drops the labels, \"only\" keeps only the labels, to stack this basemap’s labels over another map. Raster tiles switch to the provider’s label-free or label-only tiles (an error when it has none).\n\nfeatures: Optional[List[str]] = None\n\nVector form: features to keep ([\"water\", \"roads\"]) or drop ([\"-buildings\"]); see :func:list_layers.\n\n\n\n\n\nReturns\n\n\n str\n\nA style URL, or inline style JSON (the raster form, or with\ntiles, labels or features).\n\n\n\n\n\nRaises\n\n\n ValidationError\n\nFor an unknown name (with suggestions), a form the basemap lacks, or a missing API key.",
+    "crumbs": [
+      "Reference",
+      "Styles",
+      "basemap_provider"
+    ]
+  },
+  {
+    "objectID": "reference/Basemap.__repr__.html",
+    "href": "reference/Basemap.__repr__.html",
+    "title": "Basemap.__repr__()",
+    "section": "",
+    "text": "Usage\n\n\nBasemap.__repr__()",
+    "crumbs": [
+      "Reference",
+      "Basemap Methods",
+      "Basemap.__repr__"
+    ]
+  },
+  {
+    "objectID": "reference/Basemap.set_bounds.html",
+    "href": "reference/Basemap.set_bounds.html",
+    "title": "Basemap.set_bounds()",
+    "section": "",
+    "text": "Fit the view to bounds (in crs, default EPSG:4326), keeping\n\n\nUsage\n\n\nBasemap.set_bounds(bounds, crs=None)\n\n\nthe view’s size.",
+    "crumbs": [
+      "Reference",
+      "Basemap Methods",
+      "Basemap.set_bounds"
+    ]
+  },
+  {
+    "objectID": "reference/Basemap.render_png.html",
+    "href": "reference/Basemap.render_png.html",
+    "title": "Basemap.render_png()",
+    "section": "",
+    "text": "Render a PNG, written to path when given. Returns the PNG bytes.\n\n\nUsage\n\n\nBasemap.render_png(path=None)",
+    "crumbs": [
+      "Reference",
+      "Basemap Methods",
+      "Basemap.render_png"
+    ]
+  },
+  {
+    "objectID": "reference/basemap.html",
+    "href": "reference/basemap.html",
+    "title": "Basemap",
+    "section": "",
+    "text": "A map view rendered headlessly: one style, or several stacked.\n\n\nUsage\n\n\nBasemap(\n    style,\n    width=800,\n    height=600,\n    *,\n    center=None,\n    zoom=None,\n    bounds=None,\n    crs=None,\n    pixel_ratio=1.0,\n    layers=None,\n    labels=True,\n    features=None,\n    auth_token=None,\n    tile_timeout_ms=10000,\n    max_tiles=256,\n    tile_concurrency=16,\n    fail_on_tile_error=False\n)\n\n\nCreate one with :func:basemap; see there for the arguments. Change the view with :meth:set_view / :meth:set_bounds (which return the view, so calls chain), read it with the get_* methods, and render it with :meth:render_png, :meth:render_svg or :meth:render_array.",
+    "crumbs": [
+      "Reference",
+      "Basemap views",
+      "basemap"
+    ]
+  },
+  {
+    "objectID": "reference/Basemap.get_size.html",
+    "href": "reference/Basemap.get_size.html",
+    "title": "Basemap.get_size()",
+    "section": "",
+    "text": "(width, height) of rendered images in device pixels.\n\n\nUsage\n\n\nBasemap.get_size()",
+    "crumbs": [
+      "Reference",
+      "Basemap Methods",
+      "Basemap.get_size"
+    ]
+  },
+  {
+    "objectID": "reference/Basemap.get_bounds.html",
+    "href": "reference/Basemap.get_bounds.html",
+    "title": "Basemap.get_bounds()",
+    "section": "",
+    "text": "The view’s (xmin, ymin, xmax, ymax) in EPSG:3857 metres, or in\n\n\nUsage\n\n\nBasemap.get_bounds(lonlat=False)\n\n\ndegrees with lonlat=True.",
+    "crumbs": [
+      "Reference",
+      "Basemap Methods",
+      "Basemap.get_bounds"
+    ]
+  },
+  {
+    "objectID": "reference/add_basemap.html",
+    "href": "reference/add_basemap.html",
+    "title": "add_basemap()",
+    "section": "",
+    "text": "Render a basemap beneath existing axes content.\n\n\nUsage\n\n\nadd_basemap(\n    ax,\n    style,\n    tile_zoom=None,\n    alpha=1.0,\n    layers=None,\n    labels=True,\n    features=None,\n    pixel_ratio=None,\n    auth_token=None,\n    tile_timeout_ms=10000,\n    max_tiles=256,\n    attribution=True,\n    crs=None\n)\n\n\nThe basemap is an artist that renders when the figure is drawn, at the output resolution: on screen at the canvas dpi, and natively at the requested resolution in savefig(dpi=...) or PDF / SVG output. Takes the same arguments as :class:geom_basemap (and R’s geom_basemap()).\n\n\nParameters\n\n\nax: ‘matplotlib.axes.Axes’\n\nAn existing matplotlib Axes.\n\nstyle: Union[str, Any, Sequence[Any]]\n\nA MapLibre GL style URL or JSON string (e.g. from :func:basemap_provider), or a list of those stacked bottom to top.\n\ntile_zoom: Optional[int] = None\n\nTile detail override: the tile zoom on the 256 px grid (vector sources use one less), or None to pick tiles as MapLibre does for the view.\n\nalpha: float = 1.0\n\nOpacity of the basemap layer (0.0–1.0).\n\nlayers: Optional[List[str]] = None\n\nOptional layer filter. Plain IDs keep only those layers; minus-prefixed IDs drop those layers; * and ? are wildcards.\n\nlabels: Union[bool, str] = True\n\nTrue keeps every layer, False drops the labels (text and icons), \"only\" keeps only the labels on a transparent background, to stack over another map. Catalogue raster basemaps switch to their label-free or label-only tiles.\n\nfeatures: Optional[List[str]] = None\n\nOptional feature filter applied to every style: plain names keep those features, - prefixed names drop them, e.g. [\"water\", \"roads\"] or [\"-buildings\"]. Features: background, water, landcover, parks, buildings, roads, rail, boundaries, places, poi, terrain, other (see the feature of :func:list_layers).\n\npixel_ratio: Optional[float] = None\n\nDevice pixels per CSS pixel (MapLibre’s devicePixelRatio). Default: output dpi / 96, so lines and labels keep their physical size at any dpi. Larger values draw map symbols smaller.\n\nauth_token: Optional[str] = None\n\nOptional access token for the tile service.\n\ntile_timeout_ms: int = 10000\n\nPer-tile HTTP timeout in milliseconds.\n\nmax_tiles: int = 256\n\nMaximum tile downloads per style.\n\nattribution: Union[bool, str] = True\n\nThe credit line the basemap’s providers ask for, drawn small in the bottom-right corner over the plot: True (the default) for the styles’ own (see :func:get_attribution), False for none, or your own text.\n\ncrs: Optional[object] = None\n\nCRS of the axes data coordinates (anything pyproj.CRS accepts, e.g. \"EPSG:4326\", gdf.crs). Required for plain matplotlib axes and GeoDataFrame plots, whose axes carry no CRS; detected automatically for cartopy axes when omitted.\n\n\n\n\n\nReturns\n\n\n ‘xr.DataArray’\n\nxarray.DataArray of shape (height, width, 4) holding the first render\n(at the figure’s current dpi), with spatial bounds and CRS in\n.attrs. The live artist is ax.images[-1].\n\n\n\n\n\nRaises\n\n\n BasemapError\n\nIf CRS detection fails, the render fails, or the network is unreachable.",
+    "crumbs": [
+      "Reference",
+      "Plot integrations",
+      "add_basemap"
     ]
   },
   {
@@ -85,6 +194,13 @@
     "text": "Installation\n\nPrerequisites\nThe package compiles a Rust extension during installation. Install Rust for your platform before proceeding.\n\nWindows\nwinget install Rustlang.Rustup\nAfter installation, open a new terminal so rustup and cargo are on your PATH.\n\n\nmacOS\nbrew install rustup\nrustup-init\nOr without Homebrew:\ncurl https://sh.rustup.rs -sSf | sh\n\n\nLinux\ncurl https://sh.rustup.rs -sSf | sh\n\n\n\nInstall the package\nInstall the development version from GitHub:\npip install \"git+https://github.com/ar-puuk/basemapper.git#subdirectory=py-basemapper\"\n\nA PyPI release is planned once the package stabilises."
   },
   {
+    "objectID": "index.html#quick-example",
+    "href": "index.html#quick-example",
+    "title": "basemapper ",
+    "section": "Quick example",
+    "text": "Quick example\nimport basemapper\nfrom basemapper import basemap_provider, tile_style, wms_style\n\n# Built-in basemaps by leaflet name (list_providers(), basemapper.providers);\n# the name works as a style\nstyle = \"OpenFreeMap.Liberty\"\nstyle = basemap_provider(\"Esri.WorldGrayCanvas\", type=\"raster\")   # pick the form\nstyle = basemap_provider(\"OpenFreeMap.Liberty\", tiles=\"data/omt.pmtiles\")   # your own tiles\n\n# Stack parts of basemaps: imagery under a vector basemap's labels\nhybrid = [\"Esri.WorldImagery\", basemap_provider(\"OpenFreeMap.Liberty\", labels=\"only\")]\n# labels=False / \"only\", features=[\"water\", \"roads\"] / [\"-buildings\"]\n\n# A view: centre + zoom, or bounds to fit\nm = basemapper.basemap(style, 800, 600, center=(-122.45, 37.75), zoom=12, pixel_ratio=2)\nm.render_png(path=\"sf.png\")        # 1600 x 1200\nm.render_svg(path=\"sf.svg\")        # true vector\nm.set_view(zoom=13).get_bounds(lonlat=True)\n\n# One-shot render of bounds to a (height, width, 4) uint8 array\na = basemapper.render_basemap_raw([-122.5, 37.7, -122.4, 37.8], 400, 300, style)\n\n# Your own tile data works as a style: tile URLs, TileJSON, PMTiles\n# archives (URL or local file), ArcGIS services\nm = basemapper.basemap(\"data/area.pmtiles\", 800, 600, bounds=[-122.5, 37.7, -122.4, 37.8])\nstyle = tile_style(\"https://example.com/{z}/{x}/{y}.png\", maxzoom=16)   # with overrides\nstyle = wms_style(\"https://gis.example.com/wms\", layers=\"imagery\")"
+  },
+  {
     "objectID": "index.html#get-started",
     "href": "index.html#get-started",
     "title": "basemapper ",
@@ -99,27 +215,108 @@
     "text": "Related\n\nR docs — the R package exposes the same Rust core via extendr."
   },
   {
-    "objectID": "reference/add_basemap.html",
-    "href": "reference/add_basemap.html",
-    "title": "add_basemap()",
+    "objectID": "package-info.html",
+    "href": "package-info.html",
+    "title": "Package Info",
     "section": "",
-    "text": "Render a basemap and composite it beneath existing axes content.\n\n\nUsage\n\n\nadd_basemap(\n    ax,\n    style_url,\n    zoom=None,\n    tile_timeout_ms=10000,\n    max_tiles=256,\n    alpha=1.0,\n    layers=None\n)\n\n\nExtracts the geographic bounding box and CRS directly from ax, reprojects to EPSG:3857, calls the Rust core, and injects the result via imshow.\n\n\nParameters\n\n\nax: ‘matplotlib.axes.Axes’\n\nAn existing matplotlib Axes with a recognized geographic projection.\n\nstyle_url: str\n\nMapLibre GL style URL or inline JSON string.\n\nzoom: Optional[int] = None\n\nTile zoom level override (0–22). Auto-computed when None.\n\ntile_timeout_ms: int = 10000\n\nPer-tile HTTP timeout in milliseconds.\n\nmax_tiles: int = 256\n\nMaximum tile downloads per render.\n\nalpha: float = 1.0\n\nOpacity of the basemap layer (0.0–1.0).\n\nlayers: Optional[List[str]] = None\n\nOptional layer filter. Plain IDs keep only those layers; minus-prefixed IDs exclude those layers.\n\n\n\n\n\nReturns\n\n\n np.ndarray\n\nnumpy.ndarray of shape (height, width, 4) with spatial bounds in .attrs.\n\n\n\n\n\nRaises\n\n\n BasemapError\n\nIf CRS detection fails, the render fails, or the network is unreachable.",
+    "text": "Package\nVersion Constraint\nLast Published\nPyPI\n\n\n\n\nnumpy\n&gt;=1.21\n2026-11-15\n\n\n\npyproj\n&gt;=3.3\n2026-09-05\n\n\n\nmatplotlib\n&gt;=3.5\n2026-09-11\n\n\n\nxarray\n&gt;=2022.06\n2026-09-29"
+  },
+  {
+    "objectID": "package-info.html#dev",
+    "href": "package-info.html#dev",
+    "title": "Package Info",
+    "section": "dev",
+    "text": "dev\n\n\n\nPackage\nVersion Constraint\nLast Published\nPyPI\n\n\n\n\ngreat-docs\n—\n2026-08-13\n\n\n\npytest\n&gt;=7\n2026-10-27\n\n\n\nplotnine\n&gt;=0.12\n2026-11-03"
+  },
+  {
+    "objectID": "package-info.html#plotnine",
+    "href": "package-info.html#plotnine",
+    "title": "Package Info",
+    "section": "plotnine",
+    "text": "plotnine\n\n\n\nPackage\nVersion Constraint\nLast Published\nPyPI\n\n\n\n\nplotnine\n&gt;=0.12\n2026-11-03"
+  },
+  {
+    "objectID": "reference/Basemap.get_attribution.html",
+    "href": "reference/Basemap.get_attribution.html",
+    "title": "Basemap.get_attribution()",
+    "section": "",
+    "text": "The attribution text the view’s styles ask maps to show (see\n\n\nUsage\n\n\nBasemap.get_attribution()\n\n\n:func:get_attribution), e.g. for a caption.",
     "crumbs": [
       "Reference",
-      "Plot integrations",
-      "[add_basemap()]{.doc-object-name .doc-function .doc-label .doc-label-function}"
+      "Basemap Methods",
+      "Basemap.get_attribution"
     ]
   },
   {
-    "objectID": "reference/EsriRasterProvider.html",
-    "href": "reference/EsriRasterProvider.html",
-    "title": "EsriRasterProvider",
+    "objectID": "reference/Basemap.get_center.html",
+    "href": "reference/Basemap.get_center.html",
+    "title": "Basemap.get_center()",
     "section": "",
-    "text": "Generate a MapLibre GL Style JSON string for an ArcGIS MapServer raster source.\n\n\nUsage\n\n\nEsriRasterProvider()\n\n\nParameters\n\n\nurl_template: str\n\nArcGIS MapServer tile URL (e.g., .../MapServer/tile/{z}/{y}/{x}).\n\ntile_size: int = 256\n\nTile size in pixels (default 256).",
+    "text": "(longitude, latitude) of the view centre.\n\n\nUsage\n\n\nBasemap.get_center()",
     "crumbs": [
       "Reference",
-      "Tile style helpers",
-      "[EsriRasterProvider]{.doc-object-name .doc-class .doc-label .doc-label-class}"
+      "Basemap Methods",
+      "Basemap.get_center"
+    ]
+  },
+  {
+    "objectID": "reference/Basemap.get_zoom.html",
+    "href": "reference/Basemap.get_zoom.html",
+    "title": "Basemap.get_zoom()",
+    "section": "",
+    "text": "The MapLibre zoom of the view.\n\n\nUsage\n\n\nBasemap.get_zoom()",
+    "crumbs": [
+      "Reference",
+      "Basemap Methods",
+      "Basemap.get_zoom"
+    ]
+  },
+  {
+    "objectID": "reference/Basemap.render_array.html",
+    "href": "reference/Basemap.render_array.html",
+    "title": "Basemap.render_array()",
+    "section": "",
+    "text": "Render to a (height, width, 4) uint8 RGBA array (device pixels).\n\n\nUsage\n\n\nBasemap.render_array()",
+    "crumbs": [
+      "Reference",
+      "Basemap Methods",
+      "Basemap.render_array"
+    ]
+  },
+  {
+    "objectID": "reference/Basemap.render_svg.html",
+    "href": "reference/Basemap.render_svg.html",
+    "title": "Basemap.render_svg()",
+    "section": "",
+    "text": "Render a vector SVG (width x height user units;\n\n\nUsage\n\n\nBasemap.render_svg(\n    path=None, text=\"editable\", embed_fonts=\"subset\", font_dirs=None\n)\n\n\npixel_ratio does not apply), written to path when given. Returns the SVG text.\n\n\nParameters\n\n\npath: Optional[str] = None\n\nOutput file, or None.\n\ntext: str = \"editable\"\n\n\"editable\": labels are &lt;text&gt; elements (editable, selectable) at MapLibre’s glyph positions, halos as strokes, with the style’s fonts embedded; labels whose font file is not available fall back to \"bitmap\". \"bitmap\": every label drawn from the style’s own glyph bitmaps, thresholded by SVG filters as MapLibre’s shader does (MapLibre’s look at any zoom; not editable). \"paths\": glyph outlines traced from those bitmaps (plain paths, no filters).\n\nembed_fonts: str = \"subset\"\n\n\"subset\" (only the glyphs used), \"full\" (whole fonts, for retyping labels) or \"none\" (fonts by name only). Fonts come from font_dirs, the BASEMAPPER_FONT_DIRS folders, a local cache, then Google Fonts for open fonts; others are referenced by name.\n\nfont_dirs: Optional[List[str]] = None\n\nFolders of .ttf / .otf files to use first.",
+    "crumbs": [
+      "Reference",
+      "Basemap Methods",
+      "Basemap.render_svg"
+    ]
+  },
+  {
+    "objectID": "reference/Basemap.set_view.html",
+    "href": "reference/Basemap.set_view.html",
+    "title": "Basemap.set_view()",
+    "section": "",
+    "text": "Set the centre (longitude, latitude) and/or the MapLibre zoom\n\n\nUsage\n\n\nBasemap.set_view(center=None, zoom=None)\n\n\n(0-22, fractional allowed); None keeps the current value.",
+    "crumbs": [
+      "Reference",
+      "Basemap Methods",
+      "Basemap.set_view"
+    ]
+  },
+  {
+    "objectID": "reference/BasemapError.html",
+    "href": "reference/BasemapError.html",
+    "title": "BasemapError",
+    "section": "",
+    "text": "Base exception for all basemapper errors.\n\n\nUsage\n\n\nBasemapError(message)",
+    "crumbs": [
+      "Reference",
+      "Exceptions",
+      "BasemapError"
     ]
   },
   {
@@ -131,7 +328,7 @@
     "crumbs": [
       "Reference",
       "Plot integrations",
-      "[geom_basemap]{.doc-object-name .doc-class .doc-label .doc-label-class}"
+      "geom_basemap"
     ]
   },
   {
@@ -139,35 +336,82 @@
     "href": "reference/geom_basemap.html#draw_panel",
     "title": "geom_basemap",
     "section": "draw_panel()",
-    "text": "draw_panel()\n\nRender basemap at draw time and inject via imshow.\n\n\nUsage\n\n\ndraw_panel(data, panel_params, coord, ax, **kwargs)\n\n\nH4: zorder=0 may hide behind ax.patch (zorder=0). If basemap is invisible, set ax.set_facecolor(‘none’) and increase zorder to 0.5.",
+    "text": "draw_panel()\n\nAdd a basemap artist that renders at draw time.\n\n\nUsage\n\n\ndraw_panel(data, panel_params, coord, ax, **kwargs)\n\n\nThe panel background is made transparent so the basemap shows through. Axis limits are kept at the panel ranges.",
     "crumbs": [
       "Reference",
       "Plot integrations",
-      "[geom_basemap]{.doc-object-name .doc-class .doc-label .doc-label-class}"
+      "geom_basemap"
     ]
   },
   {
-    "objectID": "reference/list_layers.html",
-    "href": "reference/list_layers.html",
-    "title": "list_layers()",
+    "objectID": "reference/index.html",
+    "href": "reference/index.html",
+    "title": "API Reference",
     "section": "",
-    "text": "Return all layer IDs from a MapLibre GL style.\n\n\nUsage\n\n\nlist_layers(style_input)\n\n\nAlso prints a two-column table of id and type to stdout for interactive exploration.\n\n\nParameters\n\n\nstyle_input: str\n\nA MapLibre GL style URL or inline JSON string.\n\n\n\n\n\nReturns\n\n\n List[str]\n\nSorted list of layer id values.\n\n\n\n\n\nRaises\n\n\n BasemapError\n\nIf the style cannot be fetched or parsed.",
+    "text": "Basemap views\n\nCreate a view (basemap()), change it (set_view, set_bounds), read it (get_bounds, get_center, get_zoom, get_size) and render it (render_png, render_svg, render_array). The same functions and arguments exist in R.\n\n\nbasemap()\n\nCreate a basemap view.\n\nBasemap\n\nA map view rendered headlessly: one style, or several stacked.\n\n\n\n\nBasemap Methods\n\nMethods for the Basemap class\n\n\nBasemap.set_view()\n\nSet the centre (longitude, latitude) and/or the MapLibre zoom\n\nBasemap.set_bounds()\n\nFit the view to bounds (in crs, default EPSG:4326), keeping\n\nBasemap.get_bounds()\n\nThe view’s (xmin, ymin, xmax, ymax) in EPSG:3857 metres, or in\n\nBasemap.get_center()\n\n(longitude, latitude) of the view centre.\n\nBasemap.get_zoom()\n\nThe MapLibre zoom of the view.\n\nBasemap.get_size()\n\n(width, height) of rendered images in device pixels.\n\nBasemap.get_attribution()\n\nThe attribution text the view’s styles ask maps to show (see\n\nBasemap.__repr__()\n\n\n\nBasemap.render_array()\n\nRender to a (height, width, 4) uint8 RGBA array (device pixels).\n\nBasemap.render_png()\n\nRender a PNG, written to path when given. Returns the PNG bytes.\n\nBasemap.render_svg()\n\nRender a vector SVG (width x height user units;\n\n\n\n\nOne-shot rendering\n\nRender bounds to an RGBA array in one call.\n\n\nrender_basemap_raw()\n\nRender a basemap for bounds in one call.\n\n\n\n\nPlot integrations\n\nDrop a basemap layer into an existing plot, rendered at the output resolution. geom_basemap takes the same arguments in plotnine and ggplot2 (R).\n\n\nadd_basemap()\n\nRender a basemap beneath existing axes content.\n\ngeom_basemap\n\nRender a styled basemap beneath plotnine spatial layers.\n\n\n\n\nStyles\n\nNamed basemaps (leaflet-providers names, usable as style), styles for your own tile data, and OGC services. Tile data (tile URLs, TileJSON, PMTiles, ArcGIS services) also works as style directly.\n\n\nbasemap_provider()\n\nA named basemap’s style.\n\nlist_providers()\n\nThe basemaps :func:basemap_provider knows.\n\nproviders\n\nBasemap names for autocompletion: providers.CartoDB.Positron is the\n\ntile_style()\n\nA style for tile data, with overrides.\n\nwms_style()\n\nStyle for an OGC WMS GetMap endpoint, as 256 px tiles in EPSG:3857.\n\nwmts_style()\n\nStyle for an OGC WMTS GetTile (KVP) endpoint. A RESTful WMTS\n\n\n\n\nStyle layers and attribution\n\nA style’s layers with their features, for the layers and features filters, and the attribution text it asks maps to show.\n\n\nlist_layers()\n\nList a style’s layers, or preview a filter.\n\nget_attribution()\n\nThe attribution text a style asks maps to show.\n\n\n\n\nTile cache\n\n\n\n\ntile_cache()\n\nThe disk cache for map tiles.\n\n\n\n\nExceptions\n\n\n\n\nBasemapError\n\nBase exception for all basemapper errors.\n\nValidationError\n\nRaised for invalid bbox, dimensions, zoom, or layer filter.\n\nStyleError\n\nRaised when a style cannot be fetched or parsed.\n\nNetworkError\n\nRaised when tile or style network requests fail.",
     "crumbs": [
       "Reference",
-      "Layer utilities",
-      "[list_layers()]{.doc-object-name .doc-function .doc-label .doc-label-function}"
+      "API Index"
     ]
   },
   {
-    "objectID": "reference/render_basemap_raw.html",
-    "href": "reference/render_basemap_raw.html",
-    "title": "render_basemap_raw()",
+    "objectID": "reference/list_providers.html",
+    "href": "reference/list_providers.html",
+    "title": "list_providers()",
     "section": "",
-    "text": "Fetch and composite map tiles into a raw RGBA pixel buffer.\n\n\nUsage\n\n\nrender_basemap_raw(\n    bbox_3857,\n    width,\n    height,\n    style_input,\n    zoom=None,\n    tile_timeout_ms=10000,\n    max_tiles=256,\n    layers=None\n)\n\n\nParameters\n\n\nbbox_3857: List[float]\n\nBounding box as [xmin, ymin, xmax, ymax] in EPSG:3857 metres.\n\nwidth: int\n\nOutput width in pixels.\n\nheight: int\n\nOutput height in pixels.\n\nstyle_input: str\n\nTile style — a URL to a MapLibre GL Style JSON file, an inline JSON string, or a RasterProvider / VectorProvider / EsriVectorProvider / EsriRasterProvider object.\n\nzoom: Optional[int] = None\n\nTile zoom level (0–22). Auto-computed from bbox_3857 and width when None.\n\ntile_timeout_ms: int = 10000\n\nPer-tile HTTP timeout in milliseconds (default 10 000).\n\nmax_tiles: int = 256\n\nMaximum number of tiles fetched per render call (default 256).\n\nlayers: Optional[List[str]] = None\n\nOptional layer filter. Plain layer IDs -&gt; keep only those layers; minus-prefixed IDs (e.g. [\"-labels\"]) -&gt; exclude those layers. Mixing inclusion and exclusion in one list raises BasemapError.\n\n\n\n\n\nReturns\n\n\nbytes: bytes\n\nRGBA pixel data of length width * height * 4.\n\n\n\n\n\nRaises\n\n\n BasemapError\n\nOn any rendering or network failure.",
+    "text": "The basemaps :func:basemap_provider knows.\n\n\nUsage\n\n\nlist_providers(type=None)\n\n\nParameters\n\n\ntype: Optional[str] = None\n\n\"vector\" or \"raster\" to list only basemaps with that form; None lists all.\n\n\n\n\n\nReturns\n\n\n List[Dict[str, object]]\n\nOne dict per basemap: name, vector and raster (the forms\nit has), api_key_env (the environment variable its key is read\nfrom, or None when it needs none) and attribution.",
     "crumbs": [
       "Reference",
-      "Core rendering",
-      "[render_basemap_raw()]{.doc-object-name .doc-function .doc-label .doc-label-function}"
+      "Styles",
+      "list_providers"
+    ]
+  },
+  {
+    "objectID": "reference/providers.html",
+    "href": "reference/providers.html",
+    "title": "providers",
+    "section": "",
+    "text": "Basemap names for autocompletion: providers.CartoDB.Positron is the\n\n\nproviders=_providers_object()\n\n\nstring \"CartoDB.Positron\", usable as style or with :func:basemap_provider.",
+    "crumbs": [
+      "Reference",
+      "Styles",
+      "providers"
+    ]
+  },
+  {
+    "objectID": "reference/StyleError.html",
+    "href": "reference/StyleError.html",
+    "title": "StyleError",
+    "section": "",
+    "text": "Raised when a style cannot be fetched or parsed.\n\n\nUsage\n\n\nStyleError(message)",
+    "crumbs": [
+      "Reference",
+      "Exceptions",
+      "StyleError"
+    ]
+  },
+  {
+    "objectID": "reference/tile_style.html",
+    "href": "reference/tile_style.html",
+    "title": "tile_style()",
+    "section": "",
+    "text": "A style for tile data, with overrides.\n\n\nUsage\n\n\ntile_style(\n    source,\n    type=None,\n    tile_size=None,\n    scheme=None,\n    minzoom=None,\n    maxzoom=None,\n    attribution=None,\n    source_layers=None,\n    paint=None,\n    auth_token=None\n)\n\n\nsource is what you could pass as style directly; use this function to override what is detected, or to get the style JSON to edit:\n\na tile URL template ({z}/{x}/{y}, {quadkey}, {bbox-epsg-3857}, WMTS {TileMatrix}/{TileRow}/{TileCol});\na TileJSON URL or file;\na PMTiles archive: URL, local path or pmtiles:// URL;\nan ArcGIS .../MapServer (raster tiles) or .../VectorTileServer (its published style);\na style URL or file (returned with relative URLs made absolute).\n\nRaster tiles get one raster layer. Vector tiles get a default style drawing every source layer (polygons as translucent fills, lines and outlines, points as circles, a colour per source layer) over a transparent background.\n\n\nParameters\n\n\nsource: str\n\nThe tile data, as above.\n\ntype: Optional[str] = None\n\n\"raster\" or \"vector\"; detected when None (from the archive header, the TileJSON, the URL’s extension, or one fetched tile).\n\ntile_size: Optional[int] = None\n\nRaster tile size in px (default 256 for tile URLs and archives).\n\nscheme: Optional[str] = None\n\n\"xyz\" or \"tms\" (rows counted from the south).\n\nminzoom: Optional[int] = None\n\nMinimum zoom of the tiles.\n\nmaxzoom: Optional[int] = None\n\nMaximum zoom of the tiles (overzoomed beyond).\n\nattribution: Optional[str] = None\n\nAttribution text for the source.\n\nsource_layers: Optional[List[str]] = None\n\nVector tiles: the source layers to draw (default all).\n\npaint: Optional[Dict[str, object]] = None\n\nVector tiles: paint properties for the generated fill-*, line-* and circle-* layers, e.g. {\"fill-color\": \"#ccc\"}. Others are dropped with a warning.\n\nauth_token: Optional[str] = None\n\nOptional access token for the tile service.\n\n\n\n\n\nReturns\n\n\n str\n\nThe style JSON.\n\n\n\n\n\nRaises\n\n\n ValidationError\n\nIf the type cannot be detected or does not match the data, or source is not found.",
+    "crumbs": [
+      "Reference",
+      "Styles",
+      "tile_style"
+    ]
+  },
+  {
+    "objectID": "reference/wms_style.html",
+    "href": "reference/wms_style.html",
+    "title": "wms_style()",
+    "section": "",
+    "text": "Style for an OGC WMS GetMap endpoint, as 256 px tiles in EPSG:3857.\n\n\nUsage\n\n\nwms_style(\n    url,\n    layers,\n    styles=\"\",\n    version=\"1.3.0\",\n    format=\"image/png\",\n    transparent=False,\n    extra_params=None\n)\n\n\nParameters\n\n\nurl: str\n\nBase service URL without query parameters.\n\nlayers: str\n\nLAYERS parameter.\n\nstyles: str = \"\"\n\nSTYLES parameter.\n\nversion: str = \"1.3.0\"\n\nService version (1.1.x sends SRS, 1.3.0 CRS).\n\nformat: str = \"image/png\"\n\nImage MIME type.\n\ntransparent: bool = False\n\nRequest transparent images.\n\nextra_params: Optional[str] = None\n\nAdditional query parameters appended verbatim.",
+    "crumbs": [
+      "Reference",
+      "Styles",
+      "wms_style"
     ]
   }
 ]

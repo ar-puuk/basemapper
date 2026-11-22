@@ -1,163 +1,136 @@
-# Render a basemap and return raw RGBA bytes.
+# Render a basemap for bounds in one call
 
-Low-level wrapper around the Rust FFI. Reprojects `bbox` to EPSG:3857
-internally; all output attributes reflect the *input* CRS.
-
-Supports anti-meridian crossing bboxes (`xmin > xmax` in EPSG:3857): the
-render is split internally into west and east halves at proportional pixel
-widths, then stitched horizontally.
-
-Tile fetching uses an in-process LRU cache (512 tiles) shared across all
-render calls in a session.
+A one-shot render: fit `bounds` into a `width` x `height` CSS-pixel view
+and return the pixels.
+[`basemap()`](https://ar-puuk.github.io/basemapper/r/reference/basemap.md)
+with
+[`render_array()`](https://ar-puuk.github.io/basemapper/r/reference/render_png.md)
+gives the same result with a reusable view; plot integrations use this
+function. The same function exists in Python
+(`basemapper.render_basemap_raw()`).
 
 ## Usage
 
 ``` r
 render_basemap_raw(
-  bbox,
+  bounds,
   width,
   height,
-  style_input,
+  style,
   crs = NULL,
-  zoom = NULL,
+  pixel_ratio = 1,
+  tile_zoom = NULL,
+  layers = NULL,
+  labels = TRUE,
+  features = NULL,
+  auth_token = NULL,
   tile_timeout_ms = 10000L,
   max_tiles = 256L,
-  layers = NULL,
-  auth_token = NULL,
-  fail_on_tile_error = TRUE,
-  tile_concurrency = 16L
+  tile_concurrency = 16L,
+  fail_on_tile_error = FALSE
 )
 ```
 
 ## Arguments
 
-- bbox:
+- bounds:
 
-  Bounding box — one of:
+  Bounding box: `c(xmin, ymin, xmax, ymax)` in `crs` (default EPSG:4326,
+  with a message when the values look projected), an
+  [`sf::st_bbox()`](https://r-spatial.github.io/sf/reference/st_bbox.html)
+  result, or an `sf` / `sfc` / `sfg` object (CRS read from the object).
 
-  - Numeric vector of length 4: `c(xmin, ymin, xmax, ymax)` in the CRS
-    given by `crs` (defaults to EPSG:4326 / WGS-84).
-  - An `sf::st_bbox()` result; CRS is read from the object.
-  - An `sfc`, `sfg`, or `sf` data frame; bounding box and CRS are
-    extracted automatically.
+- width, height:
 
-  Anti-meridian crossing bboxes (where `xmin > xmax` in EPSG:3857) are
-  supported.
+  View size in CSS pixels.
 
-- width:
+- style:
 
-  Integer output pixel width.
-
-- height:
-
-  Integer output pixel height.
-
-- style_input:
-
-  Character: a MapLibre GL style URL or inline JSON string. Provider
-  helpers such as [`basemap_provider()`](basemap_provider.md),
-  [`raster_provider()`](raster_provider.md),
-  [`wms_provider()`](wms_provider.md),
-  [`wmts_provider()`](wmts_provider.md), and
-  [`pmtiles_provider()`](pmtiles_provider.md) all return values accepted
-  here.
+  A MapLibre GL style URL or JSON string (e.g. from
+  [`basemap_provider()`](https://ar-puuk.github.io/basemapper/r/reference/basemap_provider.md)),
+  or a character vector / list of those stacked bottom to top (e.g. a
+  basemap published as separate hillshade, base and label services).
 
 - crs:
 
-  CRS of `bbox` — anything accepted by `sf::st_crs()`, e.g. an integer
-  EPSG code, WKT string, or `crs` object. Ignored when `bbox` already
-  carries a CRS (e.g. an `st_bbox` result). Defaults to EPSG:4326
-  (WGS-84) with a message when coordinates appear to be in a projected
-  system.
+  CRS of `bounds` (anything
+  [`sf::st_crs()`](https://r-spatial.github.io/sf/reference/st_crs.html)
+  accepts).
 
-- zoom:
+- pixel_ratio:
 
-  Integer zoom level (0–22), or `NULL` for automatic selection. When
-  `NULL`, zoom is computed from the bbox width and output pixel width,
-  then clamped to the tile source's advertised `maxzoom`.
+  Device pixels per CSS pixel.
 
-- tile_timeout_ms:
+- tile_zoom:
 
-  Integer per-tile HTTP timeout in milliseconds (default `10000L`).
-
-- max_tiles:
-
-  Integer maximum tile downloads per render (default `256L`).
+  Tile detail override: the tile zoom on the 256 px grid (vector sources
+  use one less, their tiles being 512 px), or `NULL` to pick tiles as
+  MapLibre does for the view.
 
 - layers:
 
-  Character vector of layer IDs to filter. Plain IDs keep only those
-  layers; minus-prefixed IDs (e.g. `"-roads"`) exclude those layers.
-  Mixed positive/negative lists raise an error. `NULL` renders all layers.
+  Optional layer filter applied to every style: plain IDs keep only
+  those layers, minus-prefixed IDs drop them; `*` and `?` are wildcards
+  (`"-label_*"`). See
+  [`list_layers()`](https://ar-puuk.github.io/basemapper/r/reference/list_layers.md).
+  Names that match no layer of any style warn.
+
+- labels:
+
+  `TRUE` keeps every layer, `FALSE` drops the labels (text and icons),
+  `"only"` keeps only the labels on a transparent background, to stack
+  over another map. Catalogue raster basemaps switch to their label-free
+  or label-only tiles.
+
+- features:
+
+  Optional feature filter applied to every style: plain names keep those
+  features, minus-prefixed names drop them, e.g. `c("water", "roads")`
+  or `"-buildings"`. Features: background, water, landcover, parks,
+  buildings, roads, rail, boundaries, places, poi, terrain, other (the
+  `feature` column of
+  [`list_layers()`](https://ar-puuk.github.io/basemapper/r/reference/list_layers.md)).
+  Features no layer of any style belongs to warn.
 
 - auth_token:
 
-  Character authentication token, or `NULL`. Sent as
-  `Authorization: Bearer <token>` for raster sources; appended as
-  `?access_token=<token>` for Mapbox vector sources.
+  Optional access token for the tile service.
 
-- fail_on_tile_error:
+- tile_timeout_ms:
 
-  Logical. When `FALSE`, individual tile fetch failures are skipped (with
-  a warning) rather than aborting the render. Defaults to `TRUE`.
+  Per-tile HTTP timeout in milliseconds.
+
+- max_tiles:
+
+  Maximum tiles fetched per style.
 
 - tile_concurrency:
 
-  Integer maximum number of tiles fetched in parallel (default `16L`).
+  Parallel tile downloads.
+
+- fail_on_tile_error:
+
+  Abort on a failed tile instead of leaving it empty.
 
 ## Value
 
-A 3-D integer array `[height, width, 4]` (RGBA, row-major) with
-spatial-extent attributes `xmin`, `ymin`, `xmax`, `ymax` in the *input*
-CRS, and `crs_epsg` set to the input EPSG code (`NA_integer_` for
-non-EPSG CRS specifications).
+An integer array `[height * pixel_ratio, width * pixel_ratio, 4]` (RGBA,
+0–255) with the input extent as attributes `xmin`, `ymin`, `xmax`,
+`ymax` and `crs_epsg` (`NA` for a non-EPSG CRS).
 
 ## Examples
 
 ``` r
 if (FALSE) { # \dontrun{
-# WGS-84 bounding box (default CRS)
-m <- render_basemap_raw(
-  bbox        = c(-122.5, 37.7, -122.4, 37.8),
-  width       = 400L,
-  height      = 300L,
-  style_input = basemap_provider("OpenFreeMap.liberty")
-)
+# WGS-84 bounds (default CRS)
+a <- render_basemap_raw(c(-122.5, 37.7, -122.4, 37.8), 400, 300,
+                        "OpenFreeMap.Positron")
 
-# sf::st_bbox() result — CRS inferred automatically
-library(sf)
-nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-m <- render_basemap_raw(
-  bbox        = sf::st_bbox(nc),
-  width       = 400L,
-  height      = 300L,
-  style_input = basemap_provider("Carto.Positron")
-)
-
-# Explicit EPSG:3857 bbox
-m <- render_basemap_raw(
-  bbox        = c(-13700000, 4500000, -13600000, 4600000),
-  crs         = 3857L,
-  width       = 400L,
-  height      = 300L,
-  style_input = basemap_provider("OSM.Standard")
-)
-
-# Anti-meridian bbox (Pacific-centred view)
-m <- render_basemap_raw(
-  bbox        = c(15000000, -5000000, -15000000, 5000000),
-  crs         = 3857L,
-  width       = 800L,
-  height      = 400L,
-  style_input = basemap_provider("OSM.Standard")
-)
-
-# PMTiles archive
-m <- render_basemap_raw(
-  bbox        = c(-122.5, 37.7, -122.4, 37.8),
-  width       = 400L,
-  height      = 300L,
-  style_input = pmtiles_provider("https://example.com/tiles/world.pmtiles")
-)
+# sf object: CRS read from it; two styles stacked; 2x pixels
+nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
+a <- render_basemap_raw(nc, 400, 300,
+                        c("Esri.WorldShadedRelief",
+                          "OpenFreeMap.Positron"),
+                        pixel_ratio = 2)
 } # }
 ```

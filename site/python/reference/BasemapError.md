@@ -1,12 +1,12 @@
 ## BasemapError
 
 
-Raised when the Rust basemapper core returns an error.
+Base exception for all basemapper errors.
 
 
 Usage
 
 
 ``` python
-BasemapError()
+BasemapError(message)
 ```

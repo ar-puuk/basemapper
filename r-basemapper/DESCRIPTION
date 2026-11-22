@@ -10,6 +10,8 @@ Description: Renders MapLibre GL styled basemaps (vector and raster tiles)
     vector SVG; several styles can be stacked. Integrates with ggplot2 via
     geom_basemap() and with tmap v4 via tm_basemap(), rendering at the
     output device's resolution.
+URL: https://ar-puuk.github.io/basemapper/r/, https://github.com/ar-puuk/basemapper
+BugReports: https://github.com/ar-puuk/basemapper/issues
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

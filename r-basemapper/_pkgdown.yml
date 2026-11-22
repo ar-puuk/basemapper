@@ -39,6 +39,10 @@ navbar:
       aria-label: GitHub
 
 reference:
+  - title: Package
+    contents:
+      - basemapper-package
+
   - title: Basemap views
     desc: >
       Create a view (`basemap()`), change it (`set_view()`, `set_bounds()`),
