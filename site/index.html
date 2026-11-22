@@ -177,8 +177,8 @@
     <div class="lang-label">R</div>
     <h2>R documentation</h2>
     <p>
-      ggplot2, tmap, and sf integration. Installs with one
-      <code>remotes::install_github()</code> call.
+      ggplot2, tmap, and sf integration. Installs from GitHub with
+      <code>pak</code>, <code>remotes</code> or <code>devtools</code>.
     </p>
     <span class="go">Open R docs →</span>
   </a>
@@ -187,8 +187,8 @@
     <div class="lang-label">Python</div>
     <h2>Python documentation</h2>
     <p>
-      matplotlib and plotnine integration. Installs via
-      <code>pip install</code> from GitHub.
+      matplotlib and plotnine integration. Installs from GitHub with
+      pip, uv or conda.
     </p>
     <span class="go">Open Python docs →</span>
   </a>
@@ -198,7 +198,10 @@
   <h2>Install</h2>
 
   <p style="margin-bottom:10px"><strong>R</strong></p>
-  <pre>remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")</pre>
+  <pre>pak::pak("ar-puuk/basemapper/r-basemapper")
+# or
+remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
+devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper")</pre>
   <p class="note">
     Requires ggplot2 ≥ 3.4, sf ≥ 1.0, jsonlite ≥ 1.8, terra ≥ 1.7.
     Optional: tmap ≥ 4.0 for <code>tm_basemap()</code>.
@@ -207,7 +210,13 @@
 
   <h2 style="margin-top:28px"> </h2>
   <p style="margin-bottom:10px"><strong>Python</strong></p>
-  <pre>pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</pre>
+  <pre>pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+# or with uv
+uv add "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+# or in a conda environment (conda-forge's rust builds the extension)
+conda create -n basemapper -c conda-forge python numpy pyproj matplotlib xarray rust pip
+conda activate basemapper
+pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</pre>
   <p class="note">
     Requires numpy, pyproj, matplotlib, xarray.
     Optional: plotnine ≥ 0.12 for <code>geom_basemap()</code>.

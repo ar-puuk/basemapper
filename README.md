@@ -27,8 +27,10 @@ GL JS (see [How rendering works](docs/rendering-engine.md)).
 ### R
 
 ```r
-# Requires remotes (or devtools); compiles the Rust core from source.
+# Any one of these; each compiles the Rust core from source.
+pak::pak("ar-puuk/basemapper/r-basemapper")
 remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
+devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
 ```
 
 Building from source needs a [Rust toolchain](https://rustup.rs) and, on
@@ -43,12 +45,52 @@ Optional: `tmap (>= 4.0)` for `tm_basemap()`.
 
 ### Python
 
+With pip:
+
 ```sh
 pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
 ```
 
-Building from source needs a [Rust toolchain](https://rustup.rs); pip builds
-the extension with maturin automatically.
+With [uv](https://docs.astral.sh/uv/), into a project or the current
+environment:
+
+```sh
+uv add "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+uv pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+```
+
+With conda (or mamba), conda-forge provides the dependencies and the Rust
+toolchain, and pip builds basemapper from GitHub inside the environment:
+
+```sh
+conda create -n basemapper -c conda-forge python numpy pyproj matplotlib xarray rust pip
+conda activate basemapper
+pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+```
+
+or as an `environment.yml` (`conda env create -f environment.yml`):
+
+```yaml
+name: basemapper
+channels: [conda-forge]
+dependencies:
+  - python>=3.9
+  - numpy
+  - pyproj
+  - matplotlib
+  - xarray
+  - rust
+  - pip
+  - pip:
+      - "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+```
+
+For `geom_basemap()` in plotnine, install `basemapper[plotnine]` in place of
+`basemapper`.
+
+Building from source needs a [Rust toolchain](https://rustup.rs) (conda's
+`rust` package also works); pip and uv build the extension with maturin
+automatically.
 
 Depends on: `numpy`, `pyproj`, `matplotlib`, `xarray`.
 Optional: `plotnine >= 0.12` for `geom_basemap()`.

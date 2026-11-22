@@ -46,11 +46,50 @@ curl https://sh.rustup.rs -sSf | sh
 
 ### Install the package
 
-Install the development version from GitHub:
+Install the development version from GitHub.
 
-```bash
-pip install "git+https://github.com/ar-puuk/basemapper.git#subdirectory=py-basemapper"
+With pip:
+
+```sh
+pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
 ```
+
+With [uv](https://docs.astral.sh/uv/), into a project or the current
+environment:
+
+```sh
+uv add "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+uv pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+```
+
+With conda (or mamba), conda-forge provides the dependencies and the Rust
+toolchain, and pip builds basemapper from GitHub inside the environment:
+
+```sh
+conda create -n basemapper -c conda-forge python numpy pyproj matplotlib xarray rust pip
+conda activate basemapper
+pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+```
+
+or as an `environment.yml` (`conda env create -f environment.yml`):
+
+```yaml
+name: basemapper
+channels: [conda-forge]
+dependencies:
+  - python>=3.9
+  - numpy
+  - pyproj
+  - matplotlib
+  - xarray
+  - rust
+  - pip
+  - pip:
+      - "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+```
+
+For `geom_basemap()` in plotnine, install `basemapper[plotnine]` in place of
+`basemapper`.
 
 > A PyPI release is planned once the package stabilises.
 

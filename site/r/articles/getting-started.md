@@ -12,7 +12,10 @@ MapLibre.
 ## Installation
 
 \
-`remotes``::`[`install_github`](https://remotes.r-lib.org/reference/install_github.html)`(``"ar-puuk/basemapper"``, subdir ``=`` ``"r-basemapper"``)`
+`# Any one of these; each compiles the Rust core from source.`\
+`pak``::`[`pak`](https://pak.r-lib.org/reference/pak.html)`(``"ar-puuk/basemapper/r-basemapper"``)`\
+`remotes``::`[`install_github`](https://remotes.r-lib.org/reference/install_github.html)`(``"ar-puuk/basemapper"``, subdir ``=`` ``"r-basemapper"``)`\
+`devtools``::``install_github``(``"ar-puuk/basemapper"``, subdir ``=`` ``"r-basemapper"``)`
 
 ## Step 1 — Choose a style
 

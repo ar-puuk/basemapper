@@ -49,8 +49,10 @@ if not already present.
 ### Install the package
 
 ```r
-# install.packages("remotes")
+# Any one of these; each compiles the Rust core from source.
+pak::pak("ar-puuk/basemapper/r-basemapper")
 remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
+devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
 ```
 
 ## Quick example

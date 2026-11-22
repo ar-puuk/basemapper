@@ -289,8 +289,30 @@ section.level2:first-of-type > h2:first-child,
 </section>
 <section id="install-the-package" class="level3">
 <h3 class="anchored" data-anchor-id="install-the-package">Install the package</h3>
-<p>Install the development version from GitHub:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">"git+https://github.com/ar-puuk/basemapper.git#subdirectory=py-basemapper"</span></span></code></pre></div>
+<p>Install the development version from GitHub.</p>
+<p>With pip:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></span></code></pre></div>
+<p>With <a href="https://docs.astral.sh/uv/">uv</a>, into a project or the current environment:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> add <span class="st">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> pip install <span class="st">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></span></code></pre></div>
+<p>With conda (or mamba), conda-forge provides the dependencies and the Rust toolchain, and pip builds basemapper from GitHub inside the environment:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> create <span class="at">-n</span> basemapper <span class="at">-c</span> conda-forge python numpy pyproj matplotlib xarray rust pip</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> activate basemapper</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></span></code></pre></div>
+<p>or as an <code>environment.yml</code> (<code>conda env create -f environment.yml</code>):</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">name</span><span class="kw">:</span><span class="at"> basemapper</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">channels</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="at">conda-forge</span><span class="kw">]</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="fu">dependencies</span><span class="kw">:</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> python&gt;=3.9</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> numpy</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> pyproj</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> matplotlib</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> xarray</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> rust</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> pip</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">pip</span><span class="kw">:</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="st">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></span></code></pre></div>
+<p>For <a href="reference/geom_basemap.html#basemapper.geom_basemap" class="gdls-link gdls-code">geom_basemap()</a> in plotnine, install <code>basemapper[plotnine]</code> in place of <code>basemapper</code>.</p>
 <blockquote class="blockquote">
 <p>A PyPI release is planned once the package stabilises.</p>
 </blockquote>
@@ -298,33 +320,33 @@ section.level2:first-of-type > h2:first-child,
 </section>
 <section id="quick-example" class="level2">
 <h2 class="anchored" data-anchor-id="quick-example">Quick example</h2>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> basemapper</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> basemapper <span class="im">import</span> basemap_provider, tile_style, wms_style</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Built-in basemaps by leaflet name (list_providers(), basemapper.providers);</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co"># the name works as a style</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>style <span class="op">=</span> <span class="st">"OpenFreeMap.Liberty"</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>style <span class="op">=</span> basemap_provider(<span class="st">"Esri.WorldGrayCanvas"</span>, <span class="bu">type</span><span class="op">=</span><span class="st">"raster"</span>)   <span class="co"># pick the form</span></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>style <span class="op">=</span> basemap_provider(<span class="st">"OpenFreeMap.Liberty"</span>, tiles<span class="op">=</span><span class="st">"data/omt.pmtiles"</span>)   <span class="co"># your own tiles</span></span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Stack parts of basemaps: imagery under a vector basemap's labels</span></span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>hybrid <span class="op">=</span> [<span class="st">"Esri.WorldImagery"</span>, basemap_provider(<span class="st">"OpenFreeMap.Liberty"</span>, labels<span class="op">=</span><span class="st">"only"</span>)]</span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="co"># labels=False / "only", features=["water", "roads"] / ["-buildings"]</span></span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="co"># A view: centre + zoom, or bounds to fit</span></span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>m <span class="op">=</span> basemapper.basemap(style, <span class="dv">800</span>, <span class="dv">600</span>, center<span class="op">=</span>(<span class="op">-</span><span class="fl">122.45</span>, <span class="fl">37.75</span>), zoom<span class="op">=</span><span class="dv">12</span>, pixel_ratio<span class="op">=</span><span class="dv">2</span>)</span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>m.render_png(path<span class="op">=</span><span class="st">"sf.png"</span>)        <span class="co"># 1600 x 1200</span></span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>m.render_svg(path<span class="op">=</span><span class="st">"sf.svg"</span>)        <span class="co"># true vector</span></span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>m.set_view(zoom<span class="op">=</span><span class="dv">13</span>).get_bounds(lonlat<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="co"># One-shot render of bounds to a (height, width, 4) uint8 array</span></span>
-<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> basemapper.render_basemap_raw([<span class="op">-</span><span class="fl">122.5</span>, <span class="fl">37.7</span>, <span class="op">-</span><span class="fl">122.4</span>, <span class="fl">37.8</span>], <span class="dv">400</span>, <span class="dv">300</span>, style)</span>
-<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Your own tile data works as a style: tile URLs, TileJSON, PMTiles</span></span>
-<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="co"># archives (URL or local file), ArcGIS services</span></span>
-<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>m <span class="op">=</span> basemapper.basemap(<span class="st">"data/area.pmtiles"</span>, <span class="dv">800</span>, <span class="dv">600</span>, bounds<span class="op">=</span>[<span class="op">-</span><span class="fl">122.5</span>, <span class="fl">37.7</span>, <span class="op">-</span><span class="fl">122.4</span>, <span class="fl">37.8</span>])</span>
-<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>style <span class="op">=</span> tile_style(<span class="st">"https://example.com/</span><span class="sc">{z}</span><span class="st">/</span><span class="sc">{x}</span><span class="st">/</span><span class="sc">{y}</span><span class="st">.png"</span>, maxzoom<span class="op">=</span><span class="dv">16</span>)   <span class="co"># with overrides</span></span>
-<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>style <span class="op">=</span> wms_style(<span class="st">"https://gis.example.com/wms"</span>, layers<span class="op">=</span><span class="st">"imagery"</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> basemapper</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> basemapper <span class="im">import</span> basemap_provider, tile_style, wms_style</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Built-in basemaps by leaflet name (list_providers(), basemapper.providers);</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="co"># the name works as a style</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>style <span class="op">=</span> <span class="st">"OpenFreeMap.Liberty"</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>style <span class="op">=</span> basemap_provider(<span class="st">"Esri.WorldGrayCanvas"</span>, <span class="bu">type</span><span class="op">=</span><span class="st">"raster"</span>)   <span class="co"># pick the form</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>style <span class="op">=</span> basemap_provider(<span class="st">"OpenFreeMap.Liberty"</span>, tiles<span class="op">=</span><span class="st">"data/omt.pmtiles"</span>)   <span class="co"># your own tiles</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Stack parts of basemaps: imagery under a vector basemap's labels</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>hybrid <span class="op">=</span> [<span class="st">"Esri.WorldImagery"</span>, basemap_provider(<span class="st">"OpenFreeMap.Liberty"</span>, labels<span class="op">=</span><span class="st">"only"</span>)]</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="co"># labels=False / "only", features=["water", "roads"] / ["-buildings"]</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="co"># A view: centre + zoom, or bounds to fit</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>m <span class="op">=</span> basemapper.basemap(style, <span class="dv">800</span>, <span class="dv">600</span>, center<span class="op">=</span>(<span class="op">-</span><span class="fl">122.45</span>, <span class="fl">37.75</span>), zoom<span class="op">=</span><span class="dv">12</span>, pixel_ratio<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>m.render_png(path<span class="op">=</span><span class="st">"sf.png"</span>)        <span class="co"># 1600 x 1200</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>m.render_svg(path<span class="op">=</span><span class="st">"sf.svg"</span>)        <span class="co"># true vector</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>m.set_view(zoom<span class="op">=</span><span class="dv">13</span>).get_bounds(lonlat<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="co"># One-shot render of bounds to a (height, width, 4) uint8 array</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> basemapper.render_basemap_raw([<span class="op">-</span><span class="fl">122.5</span>, <span class="fl">37.7</span>, <span class="op">-</span><span class="fl">122.4</span>, <span class="fl">37.8</span>], <span class="dv">400</span>, <span class="dv">300</span>, style)</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Your own tile data works as a style: tile URLs, TileJSON, PMTiles</span></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="co"># archives (URL or local file), ArcGIS services</span></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>m <span class="op">=</span> basemapper.basemap(<span class="st">"data/area.pmtiles"</span>, <span class="dv">800</span>, <span class="dv">600</span>, bounds<span class="op">=</span>[<span class="op">-</span><span class="fl">122.5</span>, <span class="fl">37.7</span>, <span class="op">-</span><span class="fl">122.4</span>, <span class="fl">37.8</span>])</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>style <span class="op">=</span> tile_style(<span class="st">"https://example.com/</span><span class="sc">{z}</span><span class="st">/</span><span class="sc">{x}</span><span class="st">/</span><span class="sc">{y}</span><span class="st">.png"</span>, maxzoom<span class="op">=</span><span class="dv">16</span>)   <span class="co"># with overrides</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>style <span class="op">=</span> wms_style(<span class="st">"https://gis.example.com/wms"</span>, layers<span class="op">=</span><span class="st">"imagery"</span>)</span></code></pre></div>
 </section>
 <section id="get-started" class="level2">
 <h2 class="anchored" data-anchor-id="get-started">Get started</h2>

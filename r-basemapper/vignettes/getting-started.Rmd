@@ -26,7 +26,10 @@ port of MapLibre GL JS's renderer, so maps look as they do in MapLibre.
 ## Installation
 
 ```r
+# Any one of these; each compiles the Rust core from source.
+pak::pak("ar-puuk/basemapper/r-basemapper")
 remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
+devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
 ```
 
 ## Step 1 — Choose a style
