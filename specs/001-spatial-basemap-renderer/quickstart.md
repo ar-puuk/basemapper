@@ -15,8 +15,7 @@ Run these after completing the full implementation to validate all three user st
 - **Python** ≥ 3.9 with `pip`
 - **R** ≥ 4.1 with `rextendr`, `ggplot2`, `sf` packages
 - **Maturin** ≥ 1.4 — `pip install maturin`
-- A GPU **or** a Vulkan software renderer (Linux headless: install `mesa-vulkan-drivers`
-  or set `WGPU_BACKEND=gl` and start a virtual framebuffer with `Xvfb`)
+- No GPU or display is needed: rendering runs on the CPU.
 
 ### Build the workspace
 

@@ -95,6 +95,16 @@ attr(m, "crs_epsg") <- 3857L
 
 ---
 
+## Provider Helpers
+
+### `vector_provider(url_template, source_layer, paint = list())`
+
+`source_layer` is **required** — it names the layer within each MVT tile to render
+(the MapLibre GL `"source-layer"` property). This is tile-server specific (e.g.,
+`"water"`, `"roads"`, `"land"`). Omitting it stops with an error.
+
+---
+
 ## Return Value Conventions
 
 - `render_basemap_raw` returns a `raw` vector of exactly `width * height * 4` bytes.

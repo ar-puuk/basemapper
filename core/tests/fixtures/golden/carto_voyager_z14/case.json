@@ -1,0 +1,21 @@
+{
+  "attribution": "(c) OpenStreetMap contributors, (c) CARTO",
+  "bbox": [
+    -12457340.92570713,
+    4964887.305719653,
+    -12453519.07429287,
+    4967753.694280347
+  ],
+  "fonts_from": "carto_positron_z4",
+  "height": 600,
+  "layers": null,
+  "source_style": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+  "tiles_from": "carto_positron_z14",
+  "width": 800,
+  "zoom": 15,
+  "max_bad_pixel_frac": 0.00219,
+  "max_mean_diff": 0.098,
+  "svg": true,
+  "max_bad_pixel_frac_svg": 0.00051,
+  "max_mean_diff_svg": 0.733
+}

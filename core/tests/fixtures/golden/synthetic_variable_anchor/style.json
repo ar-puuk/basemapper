@@ -1,0 +1,7021 @@
+{
+ "glyphs": "{{BASE}}/fonts/{fontstack}/{range}.pbf",
+ "id": "voyager",
+ "layers": [
+  {
+   "id": "background",
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "background-color": "#fafaf8",
+    "background-opacity": 1
+   },
+   "type": "background"
+  },
+  {
+   "filter": [
+    "in",
+    [
+     "get",
+     "kind"
+    ],
+    [
+     "literal",
+     [
+      "wood",
+      "forest",
+      "grass",
+      "park",
+      "meadow",
+      "scrub",
+      "garden",
+      "recreation_ground",
+      "village_green",
+      "allotments",
+      "golf_course",
+      "grassland",
+      "heath"
+     ]
+    ]
+   ],
+   "id": "landcover",
+   "metadata": {
+    "carto:group": "land"
+   },
+   "minzoom": 7,
+   "paint": {
+    "fill-color": {
+     "stops": [
+      [
+       8,
+       "rgba(234, 241, 233, 0.5)"
+      ],
+      [
+       9,
+       "rgba(234, 241, 233, 0.5)"
+      ],
+      [
+       11,
+       "rgba(234, 241, 233, 0.5)"
+      ],
+      [
+       13,
+       "rgba(234, 241, 233, 0.5)"
+      ],
+      [
+       15,
+       "rgba(234, 241, 233, 0.5)"
+      ]
+     ]
+    },
+    "fill-opacity": 1
+   },
+   "source": "protomaps",
+   "source-layer": "landuse",
+   "type": "fill"
+  },
+  {
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind"
+    ],
+    "national_park"
+   ],
+   "id": "park_national_park",
+   "layout": {
+    "visibility": "visible"
+   },
+   "metadata": {
+    "carto:group": "land"
+   },
+   "minzoom": 9,
+   "paint": {
+    "fill-color": {
+     "stops": [
+      [
+       8,
+       "rgba(234, 241, 233, 0.5)"
+      ],
+      [
+       9,
+       "rgba(234, 241, 233, 0.5)"
+      ],
+      [
+       11,
+       "rgba(234, 241, 233, 0.5)"
+      ],
+      [
+       13,
+       "rgba(234, 241, 233, 0.5)"
+      ],
+      [
+       15,
+       "rgba(234, 241, 233, 0.5)"
+      ]
+     ]
+    },
+    "fill-opacity": 1,
+    "fill-translate-anchor": "map"
+   },
+   "source": "protomaps",
+   "source-layer": "landuse",
+   "type": "fill"
+  },
+  {
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind"
+    ],
+    "nature_reserve"
+   ],
+   "id": "park_nature_reserve",
+   "layout": {
+    "visibility": "visible"
+   },
+   "metadata": {
+    "carto:group": "land"
+   },
+   "minzoom": 0,
+   "paint": {
+    "fill-antialias": true,
+    "fill-color": {
+     "stops": [
+      [
+       8,
+       "rgba(234, 241, 233, 0.5)"
+      ],
+      [
+       9,
+       "rgba(234, 241, 233, 0.5)"
+      ],
+      [
+       11,
+       "rgba(234, 241, 233, 0.5)"
+      ],
+      [
+       13,
+       "rgba(234, 241, 233, 0.5)"
+      ],
+      [
+       15,
+       "rgba(234, 241, 233, 0.5)"
+      ]
+     ]
+    },
+    "fill-opacity": {
+     "stops": [
+      [
+       6,
+       0.7
+      ],
+      [
+       9,
+       0.9
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "landuse",
+   "type": "fill"
+  },
+  {
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind"
+    ],
+    "residential"
+   ],
+   "id": "landuse_residential",
+   "metadata": {
+    "carto:group": "land"
+   },
+   "minzoom": 6,
+   "paint": {
+    "fill-color": {
+     "stops": [
+      [
+       5,
+       "rgba(237, 237, 237, 0.5)"
+      ],
+      [
+       8,
+       "rgba(237, 237, 237, 0.45)"
+      ],
+      [
+       9,
+       "rgba(237, 237, 237, 0.4)"
+      ],
+      [
+       11,
+       "rgba(237, 237, 237, 0.35)"
+      ],
+      [
+       13,
+       "rgba(237, 237, 237, 0.3)"
+      ],
+      [
+       15,
+       "rgba(237, 237, 237, 0.25)"
+      ],
+      [
+       16,
+       "rgba(237, 237, 237, 0.25)"
+      ]
+     ]
+    },
+    "fill-opacity": {
+     "stops": [
+      [
+       6,
+       0.6
+      ],
+      [
+       9,
+       1
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "landuse",
+   "type": "fill"
+  },
+  {
+   "filter": [
+    "in",
+    [
+     "get",
+     "kind"
+    ],
+    [
+     "literal",
+     [
+      "cemetery",
+      "stadium"
+     ]
+    ]
+   ],
+   "id": "landuse",
+   "metadata": {
+    "carto:group": "land"
+   },
+   "paint": {
+    "fill-color": {
+     "stops": [
+      [
+       8,
+       "rgba(234, 241, 233, 0.5)"
+      ],
+      [
+       9,
+       "rgba(234, 241, 233, 0.5)"
+      ],
+      [
+       11,
+       "rgba(234, 241, 233, 0.5)"
+      ],
+      [
+       13,
+       "rgba(234, 241, 233, 0.5)"
+      ],
+      [
+       15,
+       "rgba(234, 241, 233, 0.5)"
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "landuse",
+   "type": "fill"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "geometry-type"
+     ],
+     "LineString"
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "river"
+     ],
+     [
+      "all",
+      [
+       "in",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "literal",
+        [
+         "stream",
+         "canal",
+         "drain",
+         "ditch"
+        ]
+       ]
+      ],
+      [
+       ">=",
+       [
+        "zoom"
+       ],
+       13
+      ]
+     ]
+    ]
+   ],
+   "id": "waterway",
+   "metadata": {
+    "carto:group": "water"
+   },
+   "paint": {
+    "line-color": "#d1dbdf",
+    "line-width": {
+     "stops": [
+      [
+       8,
+       0.5
+      ],
+      [
+       9,
+       1
+      ],
+      [
+       15,
+       2
+      ],
+      [
+       16,
+       3
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "water",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    6
+   ],
+   "id": "boundary_county",
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "boundaries"
+   },
+   "minzoom": 9,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       4,
+       "#ead5d7"
+      ],
+      [
+       5,
+       "#ead5d7"
+      ],
+      [
+       6,
+       "#e1c5c7"
+      ]
+     ]
+    },
+    "line-dasharray": {
+     "stops": [
+      [
+       6,
+       [
+        1,
+        0
+       ]
+      ],
+      [
+       7,
+       [
+        2,
+        2
+       ]
+      ]
+     ]
+    },
+    "line-width": {
+     "stops": [
+      [
+       4,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "boundaries",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "any",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      4
+     ],
+     [
+      ">=",
+      [
+       "zoom"
+      ],
+      6
+     ]
+    ],
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "macroregion"
+     ],
+     [
+      "<",
+      [
+       "zoom"
+      ],
+      6
+     ]
+    ]
+   ],
+   "id": "boundary_state",
+   "metadata": {
+    "carto:group": "boundaries"
+   },
+   "minzoom": 4,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       4,
+       "#ead5d7"
+      ],
+      [
+       5,
+       "#ead5d7"
+      ],
+      [
+       6,
+       "#e1c5c7"
+      ]
+     ]
+    },
+    "line-dasharray": {
+     "stops": [
+      [
+       6,
+       [
+        1,
+        0
+       ]
+      ],
+      [
+       7,
+       [
+        2,
+        2
+       ]
+      ]
+     ]
+    },
+    "line-width": {
+     "stops": [
+      [
+       4,
+       0.5
+      ],
+      [
+       7,
+       1
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       9,
+       1.2
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "boundaries",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "==",
+    [
+     "geometry-type"
+    ],
+    "Polygon"
+   ],
+   "id": "water",
+   "layout": {
+    "visibility": "visible"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "water"
+   },
+   "minzoom": 0,
+   "paint": {
+    "fill-antialias": true,
+    "fill-color": "#d4dadc",
+    "fill-opacity": 1,
+    "fill-translate-anchor": "map"
+   },
+   "source": "protomaps",
+   "source-layer": "water",
+   "type": "fill"
+  },
+  {
+   "filter": [
+    "==",
+    [
+     "geometry-type"
+    ],
+    "Polygon"
+   ],
+   "id": "water_shadow",
+   "layout": {
+    "visibility": "visible"
+   },
+   "metadata": {
+    "carto:group": "water"
+   },
+   "minzoom": 0,
+   "paint": {
+    "fill-antialias": true,
+    "fill-color": "transparent",
+    "fill-opacity": 1,
+    "fill-translate": {
+     "stops": [
+      [
+       0,
+       [
+        0,
+        2
+       ]
+      ],
+      [
+       6,
+       [
+        0,
+        1
+       ]
+      ],
+      [
+       14,
+       [
+        0,
+        1
+       ]
+      ],
+      [
+       17,
+       [
+        0,
+        2
+       ]
+      ]
+     ]
+    },
+    "fill-translate-anchor": "map"
+   },
+   "source": "protomaps",
+   "source-layer": "water",
+   "type": "fill"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "aeroway"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "runway"
+    ]
+   ],
+   "id": "aeroway-runway",
+   "layout": {
+    "line-cap": "square"
+   },
+   "metadata": {
+    "carto:group": "land"
+   },
+   "minzoom": 12,
+   "paint": {
+    "line-color": "#e8e8e8",
+    "line-width": {
+     "stops": [
+      [
+       11,
+       1
+      ],
+      [
+       13,
+       4
+      ],
+      [
+       14,
+       6
+      ],
+      [
+       15,
+       8
+      ],
+      [
+       16,
+       10
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "aeroway"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "taxiway"
+    ]
+   ],
+   "id": "aeroway-taxiway",
+   "metadata": {
+    "carto:group": "land"
+   },
+   "minzoom": 13,
+   "paint": {
+    "line-color": "#e8e8e8",
+    "line-width": {
+     "stops": [
+      [
+       13,
+       0.5
+      ],
+      [
+       14,
+       1
+      ],
+      [
+       15,
+       2
+      ],
+      [
+       16,
+       4
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "service"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ],
+   "id": "tunnel_service_case",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 15,
+   "paint": {
+    "line-color": "#ddd",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       15,
+       1
+      ],
+      [
+       16,
+       3
+      ],
+      [
+       17,
+       6
+      ],
+      [
+       18,
+       8
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!",
+      [
+       "in",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "literal",
+        [
+         "path",
+         "highway",
+         "major_road"
+        ]
+       ]
+      ]
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "residential",
+        "unclassified",
+        "living_street",
+        "road",
+        "alley",
+        "driveway",
+        "parking_aisle"
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ],
+   "id": "tunnel_minor_case",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "miter"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 13,
+   "paint": {
+    "line-color": "#ddd",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       11,
+       0.5
+      ],
+      [
+       12,
+       0.5
+      ],
+      [
+       14,
+       2
+      ],
+      [
+       15,
+       4
+      ],
+      [
+       16,
+       6
+      ],
+      [
+       17,
+       10
+      ],
+      [
+       18,
+       14
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "secondary",
+        "tertiary",
+        "secondary_link",
+        "tertiary_link"
+       ]
+      ]
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       ">=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       9
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ],
+   "id": "tunnel_sec_case",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 11,
+   "paint": {
+    "line-color": "#ddd",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       11,
+       0.5
+      ],
+      [
+       12,
+       1
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       5
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "primary"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "==",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       8
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ],
+   "id": "tunnel_pri_case",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 8,
+   "paint": {
+    "line-color": "#ddd",
+    "line-opacity": {
+     "stops": [
+      [
+       5,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.8
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       13,
+       4
+      ],
+      [
+       14,
+       6
+      ],
+      [
+       15,
+       8
+      ],
+      [
+       16,
+       10
+      ],
+      [
+       17,
+       14
+      ],
+      [
+       18,
+       18
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "trunk"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "<=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       7
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ],
+   "id": "tunnel_trunk_case",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 5,
+   "paint": {
+    "line-color": "#ddd",
+    "line-opacity": {
+     "stops": [
+      [
+       5,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.8
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       13,
+       4
+      ],
+      [
+       14,
+       6
+      ],
+      [
+       15,
+       8
+      ],
+      [
+       16,
+       10
+      ],
+      [
+       17,
+       14
+      ],
+      [
+       18,
+       18
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "motorway"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "highway"
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ],
+   "id": "tunnel_mot_case",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 5,
+   "paint": {
+    "line-color": "#ddd",
+    "line-opacity": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.8
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       12,
+       4
+      ],
+      [
+       13,
+       5
+      ],
+      [
+       14,
+       7
+      ],
+      [
+       15,
+       9
+      ],
+      [
+       16,
+       11
+      ],
+      [
+       17,
+       13
+      ],
+      [
+       18,
+       22
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "path"
+     ],
+     [
+      "!",
+      [
+       "in",
+       [
+        "get",
+        "kind_detail"
+       ],
+       [
+        "literal",
+        [
+         "pier",
+         "track"
+        ]
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ],
+   "id": "tunnel_path",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 15,
+   "paint": {
+    "line-color": "#d5d5d5",
+    "line-dasharray": {
+     "stops": [
+      [
+       15,
+       [
+        2,
+        2
+       ]
+      ],
+      [
+       18,
+       [
+        3,
+        3
+       ]
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       15,
+       0.5
+      ],
+      [
+       16,
+       1
+      ],
+      [
+       18,
+       3
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "service"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ],
+   "id": "tunnel_service_fill",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 15,
+   "paint": {
+    "line-color": "#eee",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       15,
+       2
+      ],
+      [
+       16,
+       2
+      ],
+      [
+       17,
+       4
+      ],
+      [
+       18,
+       6
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!",
+      [
+       "in",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "literal",
+        [
+         "path",
+         "highway",
+         "major_road"
+        ]
+       ]
+      ]
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "residential",
+        "unclassified",
+        "living_street",
+        "road",
+        "alley",
+        "driveway",
+        "parking_aisle"
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ],
+   "id": "tunnel_minor_fill",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 15,
+   "paint": {
+    "line-color": "rgba(238, 238, 238, 1)",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       15,
+       3
+      ],
+      [
+       16,
+       4
+      ],
+      [
+       17,
+       8
+      ],
+      [
+       18,
+       12
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "secondary",
+        "tertiary",
+        "secondary_link",
+        "tertiary_link"
+       ]
+      ]
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       ">=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       9
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ],
+   "id": "tunnel_sec_fill",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 13,
+   "paint": {
+    "line-color": "#eee",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       11,
+       2
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       3
+      ],
+      [
+       15,
+       4
+      ],
+      [
+       16,
+       6
+      ],
+      [
+       17,
+       10
+      ],
+      [
+       18,
+       14
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "primary"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "==",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       8
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ],
+   "id": "tunnel_pri_fill",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 11,
+   "paint": {
+    "line-color": "#eee",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       11,
+       1
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "trunk"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "<=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       7
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ],
+   "id": "tunnel_trunk_fill",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 11,
+   "paint": {
+    "line-color": "#eee",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       11,
+       1
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "motorway"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "highway"
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ]
+   ],
+   "id": "tunnel_mot_fill",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 10,
+   "paint": {
+    "line-color": "#eee",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       10,
+       1
+      ],
+      [
+       12,
+       2
+      ],
+      [
+       13,
+       3
+      ],
+      [
+       14,
+       5
+      ],
+      [
+       15,
+       7
+      ],
+      [
+       16,
+       9
+      ],
+      [
+       17,
+       11
+      ],
+      [
+       18,
+       20
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "rail"
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "rail",
+        "narrow_gauge",
+        "preserved",
+        "funicular"
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ],
+    [
+     "any",
+     [
+      "!",
+      [
+       "has",
+       "service"
+      ]
+     ],
+     [
+      ">=",
+      [
+       "zoom"
+      ],
+      14
+     ]
+    ]
+   ],
+   "id": "tunnel_rail",
+   "layout": {
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 13,
+   "paint": {
+    "line-color": "#dddddd",
+    "line-opacity": 0.5,
+    "line-width": {
+     "base": 1.3,
+     "stops": [
+      [
+       13,
+       0.5
+      ],
+      [
+       14,
+       1
+      ],
+      [
+       15,
+       1
+      ],
+      [
+       16,
+       3
+      ],
+      [
+       21,
+       7
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "rail"
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "rail",
+        "narrow_gauge",
+        "preserved",
+        "funicular"
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_tunnel"
+     ],
+     true
+    ],
+    [
+     "any",
+     [
+      "!",
+      [
+       "has",
+       "service"
+      ]
+     ],
+     [
+      ">=",
+      [
+       "zoom"
+      ],
+      14
+     ]
+    ]
+   ],
+   "id": "tunnel_rail_dash",
+   "layout": {
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 15,
+   "paint": {
+    "line-color": "#ffffff",
+    "line-dasharray": {
+     "stops": [
+      [
+       15,
+       [
+        5,
+        5
+       ]
+      ],
+      [
+       16,
+       [
+        6,
+        6
+       ]
+      ]
+     ]
+    },
+    "line-opacity": 0.5,
+    "line-width": {
+     "base": 1.3,
+     "stops": [
+      [
+       15,
+       0.5
+      ],
+      [
+       16,
+       1
+      ],
+      [
+       20,
+       5
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "service"
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ],
+   "id": "road_service_case",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 15,
+   "paint": {
+    "line-color": "#ddd",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       15,
+       1
+      ],
+      [
+       16,
+       3
+      ],
+      [
+       17,
+       6
+      ],
+      [
+       18,
+       8
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!",
+      [
+       "in",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "literal",
+        [
+         "path",
+         "highway",
+         "major_road"
+        ]
+       ]
+      ]
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "residential",
+        "unclassified",
+        "living_street",
+        "road",
+        "alley",
+        "driveway",
+        "parking_aisle"
+       ]
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ],
+   "id": "road_minor_case",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 13,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       13,
+       "#e6e6e6"
+      ],
+      [
+       15.7,
+       "#e6e6e6"
+      ],
+      [
+       16,
+       "#ddd"
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       11,
+       0.5
+      ],
+      [
+       12,
+       0.5
+      ],
+      [
+       14,
+       2
+      ],
+      [
+       15,
+       3
+      ],
+      [
+       16,
+       4.3
+      ],
+      [
+       17,
+       10
+      ],
+      [
+       18,
+       14
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    "primary_link"
+   ],
+   "id": "road_pri_case_ramp",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 12,
+   "paint": {
+    "line-color": "#ddd",
+    "line-opacity": {
+     "stops": [
+      [
+       5,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-width": {
+     "stops": [
+      [
+       12,
+       2
+      ],
+      [
+       13,
+       3
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       5
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       10
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    "trunk_link"
+   ],
+   "id": "road_trunk_case_ramp",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 12,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       12,
+       "#e6e6e6"
+      ],
+      [
+       14,
+       "#ddd"
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       12,
+       2
+      ],
+      [
+       13,
+       3
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       5
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       10
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    "motorway_link"
+   ],
+   "id": "road_mot_case_ramp",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 12,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       12,
+       "#e6e6e6"
+      ],
+      [
+       14,
+       "#ddd"
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       12,
+       2
+      ],
+      [
+       13,
+       3
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       5
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       10
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "secondary",
+        "tertiary",
+        "secondary_link",
+        "tertiary_link"
+       ]
+      ]
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       ">=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       9
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ],
+   "id": "road_sec_case_noramp",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 11,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       11,
+       "#e6e6e6"
+      ],
+      [
+       12.99,
+       "#e6e6e6"
+      ],
+      [
+       13,
+       "#ddd"
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       11,
+       0.5
+      ],
+      [
+       12,
+       1.5
+      ],
+      [
+       13,
+       3
+      ],
+      [
+       14,
+       5
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "primary"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "==",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       8
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ],
+   "id": "road_pri_case_noramp",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 7,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       7,
+       "#e6e6e6"
+      ],
+      [
+       12,
+       "#ddd"
+      ]
+     ]
+    },
+    "line-opacity": {
+     "stops": [
+      [
+       5,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.8
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       13,
+       4
+      ],
+      [
+       14,
+       6
+      ],
+      [
+       15,
+       8
+      ],
+      [
+       16,
+       10
+      ],
+      [
+       17,
+       14
+      ],
+      [
+       18,
+       18
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "trunk"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "<=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       7
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ],
+   "id": "road_trunk_case_noramp",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 5,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       5,
+       "#e6e6e6"
+      ],
+      [
+       12,
+       "#ddd"
+      ]
+     ]
+    },
+    "line-opacity": {
+     "stops": [
+      [
+       5,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.8
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       13,
+       4
+      ],
+      [
+       14,
+       6
+      ],
+      [
+       15,
+       8
+      ],
+      [
+       16,
+       10
+      ],
+      [
+       17,
+       14
+      ],
+      [
+       18,
+       18
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "motorway"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "highway"
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ],
+   "id": "road_mot_case_noramp",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 5,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       5,
+       "#e6e6e6"
+      ],
+      [
+       12,
+       "#ddd"
+      ]
+     ]
+    },
+    "line-opacity": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.7
+      ],
+      [
+       8,
+       0.8
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       12,
+       4
+      ],
+      [
+       13,
+       5
+      ],
+      [
+       14,
+       7
+      ],
+      [
+       15,
+       9
+      ],
+      [
+       16,
+       11
+      ],
+      [
+       17,
+       13
+      ],
+      [
+       18,
+       22
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "path"
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "kind_detail"
+       ],
+       "pier"
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ],
+   "id": "road_path",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 15,
+   "paint": {
+    "line-color": "#d5d5d5",
+    "line-dasharray": {
+     "stops": [
+      [
+       15,
+       [
+        2,
+        2
+       ]
+      ],
+      [
+       18,
+       [
+        3,
+        3
+       ]
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       15,
+       0.5
+      ],
+      [
+       16,
+       1
+      ],
+      [
+       18,
+       3
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "geometry-type"
+     ],
+     "Polygon"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "kind"
+     ],
+     "pedestrian"
+    ]
+   ],
+   "id": "road_path_areas",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 15,
+   "paint": {
+    "line-color": "#d5d5d5",
+    "line-dasharray": {
+     "stops": [
+      [
+       15,
+       [
+        2,
+        2
+       ]
+      ],
+      [
+       18,
+       [
+        3,
+        3
+       ]
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       15,
+       0.5
+      ],
+      [
+       16,
+       1
+      ],
+      [
+       18,
+       3
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "landuse",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "service"
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ],
+   "id": "road_service_fill",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 15,
+   "paint": {
+    "line-color": "#fdfdfd",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       15,
+       2
+      ],
+      [
+       16,
+       2
+      ],
+      [
+       17,
+       4
+      ],
+      [
+       18,
+       6
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!",
+      [
+       "in",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "literal",
+        [
+         "path",
+         "highway",
+         "major_road"
+        ]
+       ]
+      ]
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "residential",
+        "unclassified",
+        "living_street",
+        "road",
+        "alley",
+        "driveway",
+        "parking_aisle"
+       ]
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ],
+   "id": "road_minor_fill",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 15,
+   "paint": {
+    "line-color": "#fdfdfd",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       15,
+       3
+      ],
+      [
+       16,
+       4
+      ],
+      [
+       17,
+       8
+      ],
+      [
+       18,
+       12
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    "primary_link"
+   ],
+   "id": "road_pri_fill_ramp",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 12,
+   "paint": {
+    "line-color": "#fff",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       12,
+       1
+      ],
+      [
+       13,
+       1.5
+      ],
+      [
+       14,
+       2
+      ],
+      [
+       15,
+       3
+      ],
+      [
+       16,
+       6
+      ],
+      [
+       17,
+       8
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    "trunk_link"
+   ],
+   "id": "road_trunk_fill_ramp",
+   "layout": {
+    "line-cap": "square",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 12,
+   "paint": {
+    "line-color": "#fff",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       12,
+       1
+      ],
+      [
+       13,
+       1.5
+      ],
+      [
+       14,
+       2
+      ],
+      [
+       15,
+       3
+      ],
+      [
+       16,
+       6
+      ],
+      [
+       17,
+       8
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    "motorway_link"
+   ],
+   "id": "road_mot_fill_ramp",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 12,
+   "paint": {
+    "line-color": "#fff",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       12,
+       1
+      ],
+      [
+       13,
+       1.5
+      ],
+      [
+       14,
+       2
+      ],
+      [
+       15,
+       3
+      ],
+      [
+       16,
+       6
+      ],
+      [
+       17,
+       8
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "secondary",
+        "tertiary",
+        "secondary_link",
+        "tertiary_link"
+       ]
+      ]
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       ">=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       9
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ],
+   "id": "road_sec_fill_noramp",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 13,
+   "paint": {
+    "line-color": "#fff",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       11,
+       2
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       3
+      ],
+      [
+       15,
+       4
+      ],
+      [
+       16,
+       6
+      ],
+      [
+       17,
+       10
+      ],
+      [
+       18,
+       14
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "primary"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "==",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       8
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ],
+   "id": "road_pri_fill_noramp",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 10,
+   "paint": {
+    "line-color": "#fff",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       10,
+       0.3
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "trunk"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "<=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       7
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ],
+   "id": "road_trunk_fill_noramp",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 10,
+   "paint": {
+    "line-color": "#fff",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       11,
+       1
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "motorway"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "highway"
+      ]
+     ]
+    ],
+    [
+     "all",
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_bridge"
+       ],
+       true
+      ]
+     ],
+     [
+      "!",
+      [
+       "==",
+       [
+        "get",
+        "is_tunnel"
+       ],
+       true
+      ]
+     ]
+    ]
+   ],
+   "id": "road_mot_fill_noramp",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 10,
+   "paint": {
+    "line-color": "#fff",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       10,
+       1
+      ],
+      [
+       12,
+       2
+      ],
+      [
+       13,
+       3
+      ],
+      [
+       14,
+       5
+      ],
+      [
+       15,
+       7
+      ],
+      [
+       16,
+       9
+      ],
+      [
+       17,
+       11
+      ],
+      [
+       18,
+       20
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "rail"
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "rail",
+        "narrow_gauge",
+        "preserved",
+        "funicular"
+       ]
+      ]
+     ]
+    ],
+    [
+     "!",
+     [
+      "==",
+      [
+       "get",
+       "is_tunnel"
+      ],
+      true
+     ]
+    ],
+    [
+     "any",
+     [
+      "!",
+      [
+       "has",
+       "service"
+      ]
+     ],
+     [
+      ">=",
+      [
+       "zoom"
+      ],
+      14
+     ]
+    ]
+   ],
+   "id": "rail",
+   "layout": {
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 13,
+   "paint": {
+    "line-color": "#dddddd",
+    "line-width": {
+     "base": 1.3,
+     "stops": [
+      [
+       13,
+       0.5
+      ],
+      [
+       14,
+       1
+      ],
+      [
+       15,
+       1
+      ],
+      [
+       16,
+       3
+      ],
+      [
+       21,
+       7
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "rail"
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "rail",
+        "narrow_gauge",
+        "preserved",
+        "funicular"
+       ]
+      ]
+     ]
+    ],
+    [
+     "!",
+     [
+      "==",
+      [
+       "get",
+       "is_tunnel"
+      ],
+      true
+     ]
+    ],
+    [
+     "any",
+     [
+      "!",
+      [
+       "has",
+       "service"
+      ]
+     ],
+     [
+      ">=",
+      [
+       "zoom"
+      ],
+      14
+     ]
+    ]
+   ],
+   "id": "rail_dash",
+   "layout": {
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 15,
+   "paint": {
+    "line-color": "#ffffff",
+    "line-dasharray": {
+     "stops": [
+      [
+       15,
+       [
+        5,
+        5
+       ]
+      ],
+      [
+       16,
+       [
+        6,
+        6
+       ]
+      ]
+     ]
+    },
+    "line-width": {
+     "base": 1.3,
+     "stops": [
+      [
+       15,
+       0.5
+      ],
+      [
+       16,
+       1
+      ],
+      [
+       20,
+       5
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "service"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ],
+   "id": "bridge_service_case",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 15,
+   "paint": {
+    "line-color": "#ddd",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       15,
+       1
+      ],
+      [
+       16,
+       3
+      ],
+      [
+       17,
+       6
+      ],
+      [
+       18,
+       8
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!",
+      [
+       "in",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "literal",
+        [
+         "path",
+         "highway",
+         "major_road"
+        ]
+       ]
+      ]
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "residential",
+        "unclassified",
+        "living_street",
+        "road",
+        "alley",
+        "driveway",
+        "parking_aisle"
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ],
+   "id": "bridge_minor_case",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "miter"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 13,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       13,
+       "#e6e6e6"
+      ],
+      [
+       15.7,
+       "#e6e6e6"
+      ],
+      [
+       16,
+       "#ddd"
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       11,
+       0.5
+      ],
+      [
+       12,
+       0.5
+      ],
+      [
+       14,
+       2
+      ],
+      [
+       15,
+       3
+      ],
+      [
+       16,
+       4.3
+      ],
+      [
+       17,
+       10
+      ],
+      [
+       18,
+       14
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "secondary",
+        "tertiary",
+        "secondary_link",
+        "tertiary_link"
+       ]
+      ]
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       ">=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       9
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ],
+   "id": "bridge_sec_case",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "miter"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 11,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       11,
+       "#e6e6e6"
+      ],
+      [
+       12.99,
+       "#e6e6e6"
+      ],
+      [
+       13,
+       "#ddd"
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       11,
+       0.5
+      ],
+      [
+       12,
+       1.5
+      ],
+      [
+       13,
+       3
+      ],
+      [
+       14,
+       5
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "primary"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "==",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       8
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ],
+   "id": "bridge_pri_case",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 8,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       8,
+       "#e6e6e6"
+      ],
+      [
+       12,
+       "#ddd"
+      ]
+     ]
+    },
+    "line-opacity": {
+     "stops": [
+      [
+       5,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.8
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       13,
+       4
+      ],
+      [
+       14,
+       6
+      ],
+      [
+       15,
+       8
+      ],
+      [
+       16,
+       10
+      ],
+      [
+       17,
+       14
+      ],
+      [
+       18,
+       18
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "trunk"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "<=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       7
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ],
+   "id": "bridge_trunk_case",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 5,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       5,
+       "#e6e6e6"
+      ],
+      [
+       12,
+       "#ddd"
+      ]
+     ]
+    },
+    "line-opacity": {
+     "stops": [
+      [
+       5,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.8
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       13,
+       4
+      ],
+      [
+       14,
+       6
+      ],
+      [
+       15,
+       8
+      ],
+      [
+       16,
+       10
+      ],
+      [
+       17,
+       14
+      ],
+      [
+       18,
+       18
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "motorway"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "highway"
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ],
+   "id": "bridge_mot_case",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 5,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       5,
+       "#e6e6e6"
+      ],
+      [
+       10,
+       "#ddd"
+      ]
+     ]
+    },
+    "line-opacity": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       1
+      ]
+     ]
+    },
+    "line-width": {
+     "stops": [
+      [
+       6,
+       0.5
+      ],
+      [
+       7,
+       0.8
+      ],
+      [
+       8,
+       1
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       12,
+       4
+      ],
+      [
+       13,
+       5
+      ],
+      [
+       14,
+       7
+      ],
+      [
+       15,
+       9
+      ],
+      [
+       16,
+       11
+      ],
+      [
+       17,
+       13
+      ],
+      [
+       18,
+       22
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "kind"
+      ],
+      "path"
+     ],
+     [
+      "!",
+      [
+       "in",
+       [
+        "get",
+        "kind_detail"
+       ],
+       [
+        "literal",
+        [
+         "pier",
+         "track"
+        ]
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ],
+   "id": "bridge_path",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 15,
+   "paint": {
+    "line-color": "#d5d5d5",
+    "line-dasharray": {
+     "stops": [
+      [
+       15,
+       [
+        2,
+        2
+       ]
+      ],
+      [
+       18,
+       [
+        3,
+        3
+       ]
+      ]
+     ]
+    },
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       15,
+       0.5
+      ],
+      [
+       16,
+       1
+      ],
+      [
+       18,
+       3
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "get",
+      "kind_detail"
+     ],
+     "service"
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ],
+   "id": "bridge_service_fill",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 15,
+   "paint": {
+    "line-color": "#fdfdfd",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       15,
+       2
+      ],
+      [
+       16,
+       2
+      ],
+      [
+       17,
+       4
+      ],
+      [
+       18,
+       6
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!",
+      [
+       "in",
+       [
+        "get",
+        "kind"
+       ],
+       [
+        "literal",
+        [
+         "path",
+         "highway",
+         "major_road"
+        ]
+       ]
+      ]
+     ],
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "residential",
+        "unclassified",
+        "living_street",
+        "road",
+        "alley",
+        "driveway",
+        "parking_aisle"
+       ]
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ],
+   "id": "bridge_minor_fill",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 15,
+   "paint": {
+    "line-color": "#fdfdfd",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       15,
+       3
+      ],
+      [
+       16,
+       4
+      ],
+      [
+       17,
+       8
+      ],
+      [
+       18,
+       12
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "in",
+      [
+       "get",
+       "kind_detail"
+      ],
+      [
+       "literal",
+       [
+        "secondary",
+        "tertiary",
+        "secondary_link",
+        "tertiary_link"
+       ]
+      ]
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       ">=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       9
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ],
+   "id": "bridge_sec_fill",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 13,
+   "paint": {
+    "line-color": "#fff",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       11,
+       2
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       3
+      ],
+      [
+       15,
+       4
+      ],
+      [
+       16,
+       6
+      ],
+      [
+       17,
+       10
+      ],
+      [
+       18,
+       14
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "primary"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "==",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       8
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ],
+   "id": "bridge_pri_fill",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 11,
+   "paint": {
+    "line-color": "#fff",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       11,
+       1
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "trunk"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "major_road"
+      ],
+      [
+       "<=",
+       [
+        "coalesce",
+        [
+         "get",
+         "min_zoom"
+        ],
+        0
+       ],
+       7
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ],
+   "id": "bridge_trunk_fill",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 11,
+   "paint": {
+    "line-color": "#fff",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       11,
+       1
+      ],
+      [
+       13,
+       2
+      ],
+      [
+       14,
+       4
+      ],
+      [
+       15,
+       6
+      ],
+      [
+       16,
+       8
+      ],
+      [
+       17,
+       12
+      ],
+      [
+       18,
+       16
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "all",
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "kind_detail"
+      ],
+      "motorway"
+     ],
+     [
+      "all",
+      [
+       "all",
+       [
+        "in",
+        [
+         "get",
+         "kind"
+        ],
+        [
+         "literal",
+         [
+          "highway",
+          "major_road"
+         ]
+        ]
+       ],
+       [
+        "!",
+        [
+         "in",
+         [
+          "get",
+          "kind_detail"
+         ],
+         [
+          "literal",
+          [
+           "motorway",
+           "motorway_link",
+           "trunk",
+           "trunk_link",
+           "primary",
+           "primary_link",
+           "secondary",
+           "secondary_link",
+           "tertiary",
+           "tertiary_link"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       "==",
+       [
+        "get",
+        "kind"
+       ],
+       "highway"
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "is_bridge"
+     ],
+     true
+    ]
+   ],
+   "id": "bridge_mot_fill",
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "roads"
+   },
+   "minzoom": 10,
+   "paint": {
+    "line-color": "#fff",
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       10,
+       1
+      ],
+      [
+       12,
+       2
+      ],
+      [
+       13,
+       3
+      ],
+      [
+       14,
+       5
+      ],
+      [
+       15,
+       7
+      ],
+      [
+       16,
+       9
+      ],
+      [
+       17,
+       11
+      ],
+      [
+       18,
+       20
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "roads",
+   "type": "line"
+  },
+  {
+   "filter": [
+    ">=",
+    [
+     "coalesce",
+     [
+      "get",
+      "layer"
+     ],
+     0
+    ],
+    0
+   ],
+   "id": "building",
+   "layout": {
+    "visibility": "visible"
+   },
+   "metadata": {
+    "carto:group": "buildings"
+   },
+   "minzoom": 13,
+   "paint": {
+    "fill-antialias": true,
+    "fill-color": {
+     "base": 1,
+     "stops": [
+      [
+       15.5,
+       "#dfdfdf"
+      ],
+      [
+       16,
+       "#dfdfdf"
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "buildings",
+   "type": "fill"
+  },
+  {
+   "filter": [
+    ">=",
+    [
+     "coalesce",
+     [
+      "get",
+      "layer"
+     ],
+     0
+    ],
+    0
+   ],
+   "id": "building-top",
+   "layout": {
+    "visibility": "visible"
+   },
+   "metadata": {
+    "carto:group": "buildings"
+   },
+   "minzoom": 13,
+   "paint": {
+    "fill-color": "#ededed",
+    "fill-opacity": {
+     "base": 1,
+     "stops": [
+      [
+       13,
+       0
+      ],
+      [
+       16,
+       1
+      ]
+     ]
+    },
+    "fill-outline-color": "#dfdfdf",
+    "fill-translate": {
+     "base": 1,
+     "stops": [
+      [
+       14,
+       [
+        0,
+        0
+       ]
+      ],
+      [
+       16,
+       [
+        -2,
+        -2
+       ]
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "buildings",
+   "type": "fill"
+  },
+  {
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    2
+   ],
+   "id": "boundary_country_outline",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "maxzoom": 24,
+   "metadata": {
+    "carto:group": "boundaries"
+   },
+   "minzoom": 6,
+   "paint": {
+    "line-color": "#f3efed",
+    "line-offset": 0,
+    "line-opacity": 0.5,
+    "line-width": 8
+   },
+   "source": "protomaps",
+   "source-layer": "boundaries",
+   "type": "line"
+  },
+  {
+   "filter": [
+    "==",
+    [
+     "get",
+     "kind_detail"
+    ],
+    2
+   ],
+   "id": "boundary_country_inner",
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round"
+   },
+   "metadata": {
+    "carto:group": "boundaries"
+   },
+   "minzoom": 0,
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       4,
+       "#f2e6e7"
+      ],
+      [
+       5,
+       "#ebd6d8"
+      ],
+      [
+       6,
+       "#ebd6d8"
+      ]
+     ]
+    },
+    "line-offset": 0,
+    "line-opacity": 1,
+    "line-width": {
+     "stops": [
+      [
+       3,
+       1
+      ],
+      [
+       6,
+       1.5
+      ]
+     ]
+    }
+   },
+   "source": "protomaps",
+   "source-layer": "boundaries",
+   "type": "line"
+  },
+  {
+   "id": "places-radial",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "places",
+   "filter": [
+    "has",
+    "name"
+   ],
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name:en"
+     ],
+     [
+      "get",
+      "name"
+     ]
+    ],
+    "text-font": [
+     "Montserrat Medium",
+     "Open Sans Regular",
+     "Noto Sans Regular",
+     "Noto Sans CJK JP Regular"
+    ],
+    "text-size": 12,
+    "text-max-width": 6,
+    "text-justify": "auto",
+    "text-variable-anchor": [
+     "top",
+     "bottom",
+     "left",
+     "right"
+    ],
+    "text-radial-offset": 0.8,
+    "icon-image": "plain",
+    "icon-size": 0.6
+   },
+   "paint": {
+    "text-color": "#333",
+    "text-halo-color": "#fff",
+    "text-halo-width": 1
+   }
+  },
+  {
+   "id": "pois-anchor-offset",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "pois",
+   "filter": [
+    "has",
+    "name"
+   ],
+   "layout": {
+    "text-field": [
+     "get",
+     "name"
+    ],
+    "text-font": [
+     "Montserrat Medium",
+     "Open Sans Regular",
+     "Noto Sans Regular",
+     "Noto Sans CJK JP Regular"
+    ],
+    "text-size": 10,
+    "text-justify": "auto",
+    "text-max-width": 8,
+    "text-variable-anchor-offset": [
+     "right",
+     [
+      0.6,
+      0
+     ],
+     "left",
+     [
+      0.6,
+      0
+     ],
+     "top",
+     [
+      0,
+      0.6
+     ],
+     "bottom",
+     [
+      0,
+      0.6
+     ]
+    ]
+   },
+   "paint": {
+    "text-color": "#225",
+    "text-halo-color": "#fff",
+    "text-halo-width": 1
+   }
+  },
+  {
+   "id": "roads-diagonal",
+   "type": "symbol",
+   "source": "protomaps",
+   "source-layer": "roads",
+   "filter": [
+    "all",
+    [
+     "has",
+     "name"
+    ],
+    [
+     "match",
+     [
+      "get",
+      "kind"
+     ],
+     [
+      "major_road"
+     ],
+     true,
+     false
+    ]
+   ],
+   "layout": {
+    "symbol-placement": "point",
+    "text-field": [
+     "get",
+     "name"
+    ],
+    "text-font": [
+     "Montserrat Medium",
+     "Open Sans Regular",
+     "Noto Sans Regular",
+     "Noto Sans CJK JP Regular"
+    ],
+    "text-size": 9,
+    "text-variable-anchor": [
+     "top-left",
+     "bottom-right"
+    ],
+    "text-offset": [
+     1,
+     1
+    ]
+   },
+   "paint": {
+    "text-color": "#7a3b10"
+   }
+  }
+ ],
+ "metadata": {},
+ "name": "Positron (Protomaps)",
+ "owner": "Carto",
+ "sources": {
+  "protomaps": {
+   "maxzoom": 15,
+   "tiles": [
+    "{{BASE}}/tiles/{z}/{x}/{y}"
+   ],
+   "type": "vector"
+  }
+ },
+ "sprite": "{{BASE}}/sprites/sprite",
+ "version": 8
+}

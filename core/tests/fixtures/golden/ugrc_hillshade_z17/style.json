@@ -1,0 +1,398 @@
+{
+  "glyphs": "{{BASE}}/fonts/{fontstack}/{range}.pbf",
+  "layers": [
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        0
+      ],
+      "id": "Hillshade/Utah/Mask/1",
+      "layout": {},
+      "paint": {
+        "fill-color": "#FFFFFF"
+      },
+      "source": "esri",
+      "source-layer": "Utah",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        1
+      ],
+      "id": "Hillshade/Utah/Utah/1",
+      "layout": {},
+      "paint": {
+        "fill-color": "#F7F7F7"
+      },
+      "source": "esri",
+      "source-layer": "Utah",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        3
+      ],
+      "id": "Hillshade/ShadePolygons_90Meter_dissolved/175",
+      "layout": {},
+      "maxzoom": 11,
+      "paint": {
+        "fill-color": "#E6E4E1"
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_90Meter_dissolved",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        2
+      ],
+      "id": "Hillshade/ShadePolygons_90Meter_dissolved/165",
+      "layout": {},
+      "maxzoom": 11,
+      "paint": {
+        "fill-color": "#D9D8D4"
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_90Meter_dissolved",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        1
+      ],
+      "id": "Hillshade/ShadePolygons_90Meter_dissolved/130",
+      "layout": {},
+      "maxzoom": 11,
+      "paint": {
+        "fill-color": "#BFBEBB"
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_90Meter_dissolved",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        0
+      ],
+      "id": "Hillshade/ShadePolygons_90Meter_dissolved/80",
+      "layout": {},
+      "maxzoom": 11,
+      "paint": {
+        "fill-color": "#A6A4A2"
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_90Meter_dissolved",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        3
+      ],
+      "id": "Hillshade/ShadePolygons_30Meter/175",
+      "layout": {},
+      "maxzoom": 13,
+      "minzoom": 11,
+      "paint": {
+        "fill-color": "#E6E4E1",
+        "fill-opacity": 0.8
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_30Meter",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        2
+      ],
+      "id": "Hillshade/ShadePolygons_30Meter/160",
+      "layout": {},
+      "maxzoom": 13,
+      "minzoom": 11,
+      "paint": {
+        "fill-color": "#D9D8D4",
+        "fill-opacity": 0.8
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_30Meter",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        1
+      ],
+      "id": "Hillshade/ShadePolygons_30Meter/100",
+      "layout": {},
+      "maxzoom": 13,
+      "minzoom": 11,
+      "paint": {
+        "fill-color": "#BFBEBB",
+        "fill-opacity": 0.8
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_30Meter",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        0
+      ],
+      "id": "Hillshade/ShadePolygons_30Meter/45",
+      "layout": {},
+      "maxzoom": 13,
+      "minzoom": 11,
+      "paint": {
+        "fill-color": "#A6A4A2",
+        "fill-opacity": 0.8
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_30Meter",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        3
+      ],
+      "id": "Hillshade/ShadePolygons_10Meter/170",
+      "layout": {},
+      "maxzoom": 18,
+      "minzoom": 15,
+      "paint": {
+        "fill-color": "rgba(230,228,225,0.5)",
+        "fill-opacity": 0.8
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_10Meter",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        3
+      ],
+      "id": "Hillshade/ShadePolygons_10Meter/170_2",
+      "layout": {},
+      "maxzoom": 14,
+      "minzoom": 13,
+      "paint": {
+        "fill-color": "#E6E4E1",
+        "fill-opacity": 0.8
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_10Meter",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        3
+      ],
+      "id": "Hillshade/ShadePolygons_10Meter/170_1",
+      "layout": {},
+      "maxzoom": 15,
+      "minzoom": 14,
+      "paint": {
+        "fill-color": "rgba(230,228,225,0.7)",
+        "fill-opacity": 0.8
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_10Meter",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        2
+      ],
+      "id": "Hillshade/ShadePolygons_10Meter/140",
+      "layout": {},
+      "maxzoom": 18,
+      "minzoom": 15,
+      "paint": {
+        "fill-color": "rgba(217,216,212,0.3)",
+        "fill-opacity": 0.8
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_10Meter",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        2
+      ],
+      "id": "Hillshade/ShadePolygons_10Meter/140_2",
+      "layout": {},
+      "maxzoom": 14,
+      "minzoom": 13,
+      "paint": {
+        "fill-color": "#D9D8D4",
+        "fill-opacity": 0.8
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_10Meter",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        2
+      ],
+      "id": "Hillshade/ShadePolygons_10Meter/140_1",
+      "layout": {},
+      "maxzoom": 15,
+      "minzoom": 14,
+      "paint": {
+        "fill-color": "rgba(217,216,212,0.5)",
+        "fill-opacity": 0.8
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_10Meter",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        1
+      ],
+      "id": "Hillshade/ShadePolygons_10Meter/100",
+      "layout": {},
+      "maxzoom": 18,
+      "minzoom": 15,
+      "paint": {
+        "fill-color": "rgba(191,190,187,0.3)",
+        "fill-opacity": 0.8
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_10Meter",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        1
+      ],
+      "id": "Hillshade/ShadePolygons_10Meter/100_2",
+      "layout": {},
+      "maxzoom": 14,
+      "minzoom": 13,
+      "paint": {
+        "fill-color": "#BFBEBB",
+        "fill-opacity": 0.8
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_10Meter",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        1
+      ],
+      "id": "Hillshade/ShadePolygons_10Meter/100_1",
+      "layout": {},
+      "maxzoom": 15,
+      "minzoom": 14,
+      "paint": {
+        "fill-color": "rgba(191,190,187,0.5)",
+        "fill-opacity": 0.8
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_10Meter",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        0
+      ],
+      "id": "Hillshade/ShadePolygons_10Meter/40",
+      "layout": {},
+      "maxzoom": 18,
+      "minzoom": 15,
+      "paint": {
+        "fill-color": "rgba(166,164,162,0.3)",
+        "fill-opacity": 0.8
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_10Meter",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        0
+      ],
+      "id": "Hillshade/ShadePolygons_10Meter/40_2",
+      "layout": {},
+      "maxzoom": 14,
+      "minzoom": 13,
+      "paint": {
+        "fill-color": "#A6A4A2",
+        "fill-opacity": 0.8
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_10Meter",
+      "type": "fill"
+    },
+    {
+      "filter": [
+        "==",
+        "_symbol",
+        0
+      ],
+      "id": "Hillshade/ShadePolygons_10Meter/40_1",
+      "layout": {},
+      "maxzoom": 15,
+      "minzoom": 14,
+      "paint": {
+        "fill-color": "rgba(166,164,162,0.5)",
+        "fill-opacity": 0.8
+      },
+      "source": "esri",
+      "source-layer": "ShadePolygons_10Meter",
+      "type": "fill"
+    }
+  ],
+  "sources": {
+    "esri": {
+      "maxzoom": 19,
+      "tiles": [
+        "{{BASE}}/tiles/{z}/{x}/{y}"
+      ],
+      "type": "vector"
+    }
+  },
+  "sprite": "{{BASE}}/sprites/sprite",
+  "version": 8
+}

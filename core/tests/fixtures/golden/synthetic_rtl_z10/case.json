@@ -1,0 +1,18 @@
+{
+  "note": "Synthetic: right-to-left labels as MapLibre draws them with the mapbox-gl-rtl-text plugin: Arabic shaping (contextual forms, tashkeel, lam-alef ligatures, Persian and Urdu letters, ZWNJ), bidi reordering (Hebrew, LTR text with RTL runs, numbers, mirrored brackets, a two-paragraph label), wrapped multi-line RTL labels with left / center / right justification, and line-placed Arabic and Hebrew labels; Noto Sans glyphs from OpenFreeMap.",
+  "bbox": [
+    -12482638.767142119,
+    4954184.063622078,
+    -12428436.882576643,
+    4999827.755887743
+  ],
+  "width": 760,
+  "height": 640,
+  "zoom": 10.1,
+  "attribution": "Synthetic labels; Noto Sans (OFL) glyphs from OpenFreeMap",
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.005,
+  "svg": true,
+  "max_bad_pixel_frac_svg": 0.0007,
+  "max_mean_diff_svg": 0.113
+}

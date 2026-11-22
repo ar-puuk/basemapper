@@ -1,0 +1,19 @@
+{
+  "note": "Synthetic: hillshade, multidirectional method: four light sources with per-light altitudes and colors at a fractional zoom.",
+  "tiles_from": "synthetic_hillshade_standard",
+  "bbox": [
+    -12508535.518451324,
+    4900840.999717851,
+    -12360238.724765992,
+    5012063.59498185
+  ],
+  "width": 640,
+  "height": 480,
+  "zoom": 8.4,
+  "attribution": "Terrain Tiles (Mapzen, AWS Open Data): SRTM, GMTED, NED and others",
+  "svg": true,
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.107,
+  "max_bad_pixel_frac_svg": 5e-05,
+  "max_mean_diff_svg": 0.318
+}

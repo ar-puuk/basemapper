@@ -1,8 +1,8 @@
 #' ggproto class for basemap rendering inside a ggplot2 panel.
 #'
 #' Tile fetching is deferred to actual draw time via a custom grob so that
-#' the viewport pixel dimensions are available when `render_basemap_raw` is
-#' called.  This also means `coord_sf()` has already established the panel's
+#' the viewport pixel dimensions are available when the basemap is
+#' rendered.  This also means `coord_sf()` has already established the panel's
 #' spatial extent before any fetching begins.
 #'
 #' @keywords internal
@@ -13,7 +13,8 @@ GeomBasemap <- ggplot2::ggproto(
   default_aes   = ggplot2::aes(),
 
   draw_panel = function(data, panel_params, coord,
-                        style_url, zoom, tile_timeout, max_tiles, alpha, layers) {
+                        style, tile_zoom, alpha, layers, labels, features, pixel_ratio, auth_token,
+                        tile_timeout_ms, max_tiles, attribution) {
     # Extract panel extent and reproject to EPSG:3857.
     x_range <- panel_params$x.range %||% panel_params$x_range
     y_range <- panel_params$y.range %||% panel_params$y_range
@@ -25,50 +26,70 @@ GeomBasemap <- ggplot2::ggproto(
     # Return a lazy gTree.  makeContent.BasemapGrob is called at actual draw
     # time (inside an active viewport), where npc→px conversion is valid.
     grid::gTree(
-      bbox_3857    = bbox_3857,
-      style_url    = style_url,
-      zoom         = zoom,
-      tile_timeout = tile_timeout,
-      max_tiles    = max_tiles,
-      alpha        = alpha,
-      layers       = layers,
-      cl           = "BasemapGrob"
+      bbox_3857       = bbox_3857,
+      style           = style,
+      tile_zoom       = tile_zoom,
+      alpha           = alpha,
+      layers          = layers,
+      labels          = labels,
+      features        = features,
+      pixel_ratio     = pixel_ratio,
+      auth_token      = auth_token,
+      tile_timeout_ms = tile_timeout_ms,
+      max_tiles       = max_tiles,
+      attribution     = attribution,
+      cl              = "BasemapGrob"
     )
   }
 )
 
+#' Output resolution of the current graphics device, in dpi.
+#'
+#' Raster devices report their resolution (e.g. `ggsave(dpi = 300)`); vector
+#' devices (PDF, SVG, PostScript) have none, so their embedded basemap is
+#' rendered at 300 dpi.
+#' @keywords internal
+device_dpi <- function() {
+  dev <- tolower(names(grDevices::dev.cur()))
+  if (any(startsWith(dev, c("pdf", "svg", "cairo_pdf", "cairo_ps", "postscript", "devsvg", "svglite")))) {
+    return(300)
+  }
+  tryCatch({
+    d <- grDevices::dev.size("px")[1] / grDevices::dev.size("in")[1]
+    if (is.finite(d) && d > 0) d else 96
+  }, error = function(e) 96)
+}
+
 #' makeContent method for BasemapGrob.
 #'
-#' Called by grid at draw time (inside an active viewport).  Converts npc
-#' to pixel dimensions, fetches tiles, and returns a rasterGrob child.
+#' Called by grid at draw time (inside an active viewport). Renders the
+#' basemap for the panel's size at the device's resolution and returns a
+#' rasterGrob child.
 #'
+#' @param x A `BasemapGrob` created by [geom_basemap()].
+#' @return A gTree with the rendered basemap as its rasterGrob child.
+#' @keywords internal
 #' @exportS3Method grid::makeContent
 makeContent.BasemapGrob <- function(x) {
-  dpi <- tryCatch(
-    round(grDevices::dev.size("px")[1] / grDevices::dev.size("in")[1]),
-    error = function(e) 96L
-  )
-  width_px  <- max(1L, round(
-    grid::convertWidth(grid::unit(1, "npc"), "in", valueOnly = TRUE) * dpi
-  ))
-  height_px <- max(1L, round(
-    grid::convertHeight(grid::unit(1, "npc"), "in", valueOnly = TRUE) * dpi
-  ))
+  dpi   <- device_dpi()
+  # CSS px are 1/96 in: by default render at the device resolution with map
+  # symbols at their physical size (pixel_ratio = dpi / 96).
+  ratio <- x$pixel_ratio %||% (dpi / 96)
+  w_in  <- grid::convertWidth(grid::unit(1, "npc"), "in", valueOnly = TRUE)
+  h_in  <- grid::convertHeight(grid::unit(1, "npc"), "in", valueOnly = TRUE)
+  css_w <- max(1L, as.integer(round(w_in * dpi / ratio)))
+  css_h <- max(1L, as.integer(round(h_in * dpi / ratio)))
 
-  m <- render_basemap_raw(
-    bbox            = x$bbox_3857,
-    crs             = 3857L,
-    width           = width_px,
-    height          = height_px,
-    style_input     = x$style_url,
-    zoom            = x$zoom,
-    tile_timeout_ms = x$tile_timeout,
-    max_tiles       = x$max_tiles,
-    layers          = x$layers
+  px <- render_styles_3857(
+    x$bbox_3857, css_w, css_h, x$style, ratio,
+    tile_zoom = x$tile_zoom,
+    options   = list(layers = x$layers, labels = x$labels, features = x$features,
+                     auth_token = x$auth_token, tile_timeout_ms = x$tile_timeout_ms,
+                     max_tiles = x$max_tiles)
   )
 
   img <- grid::rasterGrob(
-    as.raster(m / 255),
+    grDevices::as.raster(pixels_to_array(px) / 255),
     x             = 0.5,
     y             = 0.5,
     width         = grid::unit(1, "npc"),
@@ -78,7 +99,8 @@ makeContent.BasemapGrob <- function(x) {
     gp            = grid::gpar(alpha = x$alpha)
   )
 
-  grid::setChildren(x, grid::gList(img))
+  credit <- attribution_grob(attribution_text(x$attribution, x$style, x$auth_token), w_in)
+  grid::setChildren(x, if (is.null(credit)) grid::gList(img) else grid::gList(img, credit))
 }
 
 #' Add a styled basemap layer to a ggplot2 spatial plot.
@@ -86,13 +108,26 @@ makeContent.BasemapGrob <- function(x) {
 #' Wraps a lazy `GeomBasemap` ggproto layer that defers tile fetching until
 #' `coord_sf()` has established the panel's geographic extent.
 #'
-#' @param style_url Character: a MapLibre GL style URL or inline JSON string.
-#' @param zoom Integer zoom level (0–22), or `NULL` for automatic selection.
-#' @param tile_timeout Integer per-tile HTTP timeout in milliseconds.
-#' @param max_tiles Integer maximum tile downloads per render.
-#' @param alpha Numeric opacity of the basemap layer (0–1).
-#' @param layers Character vector of layer IDs to filter. Plain IDs keep only
-#'   those layers; minus-prefixed IDs exclude those layers. `NULL` renders all.
+#' The basemap is rendered when the plot is drawn, for the panel's size at
+#' the device's resolution: `ggsave(dpi = 300)` gets a basemap rendered
+#' natively at 300 dpi (and PDF / SVG output at 300 dpi), not an upscaled
+#' screen image. Python (plotnine): `basemapper.geom_basemap()`, with the same
+#' arguments.
+#'
+#' @param style A MapLibre GL style URL or JSON string (e.g. from
+#'   [basemap_provider()]), or a vector / list of styles stacked bottom to
+#'   top.
+#' @inheritParams render_basemap_raw
+#' @param alpha Opacity of the basemap layer (0--1).
+#' @param pixel_ratio Device pixels per CSS pixel (MapLibre's
+#'   devicePixelRatio). Default: device dpi / 96, so lines and labels keep
+#'   their physical size at any resolution. Larger values draw map symbols
+#'   smaller.
+#' @param attribution The credit line the basemap's providers ask for, drawn
+#'   small in the bottom-right corner of each panel: `TRUE` (the default)
+#'   for the styles' own (see [get_attribution()]), `FALSE` for none, or
+#'   your own text. It is drawn with the basemap, so later layers can cover
+#'   it.
 #' @param ... Additional arguments passed to `ggplot2::layer()`.
 #'
 #' @return A ggplot2 layer object.
@@ -104,19 +139,25 @@ makeContent.BasemapGrob <- function(x) {
 #' library(sf)
 #' nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
 #' ggplot(nc) +
-#'   geom_basemap(style_url = "https://demotiles.maplibre.org/style.json") +
+#'   geom_basemap("OpenFreeMap.Positron") +
 #'   geom_sf(fill = NA, color = "steelblue") +
 #'   coord_sf()
 #' }
 geom_basemap <- function(
-    style_url,
-    zoom        = NULL,
-    tile_timeout = 10000L,
-    max_tiles   = 256L,
-    alpha       = 1,
-    layers      = NULL,
+    style,
+    tile_zoom       = NULL,
+    alpha           = 1,
+    layers          = NULL,
+    labels          = TRUE,
+    features        = NULL,
+    pixel_ratio     = NULL,
+    auth_token      = NULL,
+    tile_timeout_ms = 10000L,
+    max_tiles       = 256L,
+    attribution     = TRUE,
     ...
 ) {
+  labels <- labels_arg(labels)
   ggplot2::layer(
     geom        = GeomBasemap,
     mapping     = NULL,
@@ -126,12 +167,17 @@ geom_basemap <- function(
     show.legend = FALSE,
     inherit.aes = FALSE,
     params      = list(
-      style_url    = style_url,
-      zoom         = zoom,
-      tile_timeout = tile_timeout,
-      max_tiles    = max_tiles,
-      alpha        = alpha,
-      layers       = layers,
+      style           = style,
+      tile_zoom       = tile_zoom,
+      alpha           = alpha,
+      layers          = layers,
+      labels          = labels,
+      features        = features,
+      pixel_ratio     = pixel_ratio,
+      auth_token      = auth_token,
+      tile_timeout_ms = tile_timeout_ms,
+      max_tiles       = max_tiles,
+      attribution     = attribution,
       ...
     )
   )

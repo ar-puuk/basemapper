@@ -26,6 +26,9 @@ r-basemapper/src/*.so
 r-basemapper/src/*.o
 r-basemapper/src/libR.dll.a
 
+# Node (tools/reference-render)
+node_modules/
+
 # Environment / editor
 .env
 .env.*
@@ -49,9 +52,21 @@ Thumbs.db
 # Contains mutation testing data
 **/mutants.out*/
 
+# Claude Code ephemeral worktrees (agent scratch space)
+.claude/worktrees/
+
 # RustRover
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# Diagnostic MapLibre references (tools/reference-render NO_SYMBOLS=1)
+reference-maplibre-gl-nosymbols.png
+
+# Local golden-image comparison viewer (written by core/tests/golden.rs)
+check/
+
+# R graphics output from tests run without an open device
+Rplots.pdf

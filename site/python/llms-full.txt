@@ -3,32 +3,205 @@ This is the API documentation for the basemapper library.
 ----------------------------------------------------------------------
 
 
-## Core rendering
+## Basemap views
 
-Low-level tile fetch and composite.
+Create a view (`basemap()`), change it (`set_view`, `set_bounds`), read it (`get_bounds`, `get_center`, `get_zoom`, `get_size`) and render it (`render_png`, `render_svg`, `render_array`). The same functions and arguments exist in R.
 
 
-render_basemap_raw(bbox_3857: List[float], width: int, height: int, style_input: str, zoom: Optional[int] = None, tile_timeout_ms: int = 10000, max_tiles: int = 256, layers: Optional[List[str]] = None) -> bytes
 
-Fetch and composite map tiles into a raw RGBA pixel buffer.
+basemap(style: 'Union[StyleLike, Sequence[StyleLike]]', width: 'int' = 800, height: 'int' = 600, *, center: 'Optional[Tuple[float, float]]' = None, zoom: 'Optional[float]' = None, bounds: 'Optional[Any]' = None, crs: 'Optional[Any]' = None, pixel_ratio: 'float' = 1.0, layers: 'Optional[List[str]]' = None, labels: 'Union[bool, str]' = True, features: 'Optional[List[str]]' = None, auth_token: 'Optional[str]' = None, tile_timeout_ms: 'int' = 10000, max_tiles: 'int' = 256, tile_concurrency: 'int' = 16, fail_on_tile_error: 'bool' = False) -> 'Basemap'
+
+Create a basemap view.
+
+The view is a centre and MapLibre zoom (512 px tiles; fractional zooms are
+rendered natively, not resampled), or bounds to fit. ``width`` and
+``height`` are CSS pixels; images are ``pixel_ratio`` times larger with
+the same view and label layout (MapLibre's ``devicePixelRatio``):
+``pixel_ratio=2`` gives a sharp 2x image, ``pixel_ratio=dpi / 96`` matches
+a print resolution. The same function exists in R (``basemap()``) and
+Rust (``Basemap::new()``), with the same arguments.
 
 Args:
-    bbox_3857: Bounding box as ``[xmin, ymin, xmax, ymax]`` in EPSG:3857 metres.
-    width: Output width in pixels.
-    height: Output height in pixels.
-    style_input: Tile style — a URL to a MapLibre GL Style JSON file, an
-        inline JSON string, or a :class:`RasterProvider` / :class:`VectorProvider`
-        / :class:`EsriVectorProvider` / :class:`EsriRasterProvider` object.
-    zoom: Tile zoom level (0–22). Auto-computed from *bbox_3857* and *width*
-        when ``None``.
-    tile_timeout_ms: Per-tile HTTP timeout in milliseconds (default 10 000).
-    max_tiles: Maximum number of tiles fetched per render call (default 256).
-    layers: Optional layer filter. Plain layer IDs -> keep only those layers;
-        minus-prefixed IDs (e.g. ``["-labels"]``) -> exclude those layers.
-        Mixing inclusion and exclusion in one list raises :class:`BasemapError`.
+    style: A MapLibre GL style URL or JSON string (e.g. from
+        :func:`basemap_provider`), or a list of those stacked bottom to
+        top (e.g. a basemap published as separate hillshade, base and
+        label services).
+    width: View width in CSS pixels.
+    height: View height in CSS pixels.
+    center: ``(longitude, latitude)`` of the view centre.
+    zoom: MapLibre zoom (0-22, fractional allowed).
+    bounds: Bounds to fit instead of ``center``/``zoom``: a
+        ``[xmin, ymin, xmax, ymax]`` sequence (in ``crs``, default
+        EPSG:4326), a dict, or a GeoDataFrame / GeoSeries.
+    crs: CRS of ``bounds`` (anything ``pyproj.CRS`` accepts).
+    pixel_ratio: Device pixels per CSS pixel.
+    layers: Optional layer filter applied to every style: plain IDs keep
+        only those layers, ``-`` prefixed IDs drop them; ``*`` and ``?``
+        are wildcards (``"-label_*"``). See :func:`list_layers`.
+    labels: ``True`` keeps every layer, ``False`` drops the labels (text
+        and icons), ``"only"`` keeps only the labels on a transparent
+        background, to stack over another map. Catalogue raster
+        basemaps switch to their label-free or label-only tiles.
+    features: Optional feature filter applied to every style: plain
+        names keep those features, ``-`` prefixed names drop them, e.g.
+        ``["water", "roads"]`` or ``["-buildings"]``. Features:
+        background, water, landcover, parks, buildings, roads, rail,
+        boundaries, places, poi, terrain, other (see the ``feature``
+        of :func:`list_layers`).
+    auth_token: Optional access token for the tile service.
+    tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
+    max_tiles: Maximum tiles fetched per style.
+    tile_concurrency: Parallel tile downloads.
+    fail_on_tile_error: Abort on a failed tile instead of leaving it empty.
 
 Returns:
-    bytes: RGBA pixel data of length ``width * height * 4``.
+    A :class:`Basemap`.
+
+Example:
+    >>> import basemapper
+    >>> ugrc = "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services"
+    >>> m = basemapper.basemap(
+    ...     [f"{ugrc}/{s}/VectorTileServer/resources/styles/root.json"
+    ...      for s in ("VectorHillshade", "LiteBase", "LiteLabels")],
+    ...     800, 600, center=(-111.8887, 40.7556), zoom=12.4, pixel_ratio=2,
+    ... )
+    >>> m.render_png("slc.png")   # 1600 x 1200
+    >>> m.render_svg("slc.svg")   # vector
+
+Basemap(style: 'Union[StyleLike, Sequence[StyleLike]]', width: 'int' = 800, height: 'int' = 600, *, center: 'Optional[Tuple[float, float]]' = None, zoom: 'Optional[float]' = None, bounds: 'Optional[Any]' = None, crs: 'Optional[Any]' = None, pixel_ratio: 'float' = 1.0, layers: 'Optional[List[str]]' = None, labels: 'Union[bool, str]' = True, features: 'Optional[List[str]]' = None, auth_token: 'Optional[str]' = None, tile_timeout_ms: 'int' = 10000, max_tiles: 'int' = 256, tile_concurrency: 'int' = 16, fail_on_tile_error: 'bool' = False) -> 'None'
+
+A map view rendered headlessly: one style, or several stacked.
+
+Create one with :func:`basemap`; see there for the arguments. Change the
+view with :meth:`set_view` / :meth:`set_bounds` (which return the view, so
+calls chain), read it with the ``get_*`` methods, and render it with
+:meth:`render_png`, :meth:`render_svg` or :meth:`render_array`.
+
+
+## Basemap Methods
+
+Methods for the Basemap class
+
+
+set_view(self, center: 'Optional[Tuple[float, float]]' = None, zoom: 'Optional[float]' = None) -> "'Basemap'"
+
+Set the centre ``(longitude, latitude)`` and/or the MapLibre zoom
+(0-22, fractional allowed); ``None`` keeps the current value.
+
+set_bounds(self, bounds: 'Any', crs: 'Optional[Any]' = None) -> "'Basemap'"
+
+Fit the view to ``bounds`` (in ``crs``, default EPSG:4326), keeping
+the view's size.
+
+get_bounds(self, lonlat: 'bool' = False) -> 'Tuple[float, float, float, float]'
+
+The view's ``(xmin, ymin, xmax, ymax)`` in EPSG:3857 metres, or in
+degrees with ``lonlat=True``.
+
+get_center(self) -> 'Tuple[float, float]'
+
+``(longitude, latitude)`` of the view centre.
+
+get_zoom(self) -> 'float'
+
+The MapLibre zoom of the view.
+
+get_size(self) -> 'Tuple[int, int]'
+
+``(width, height)`` of rendered images in device pixels.
+
+get_attribution(self) -> 'str'
+
+The attribution text the view's styles ask maps to show (see
+:func:`get_attribution`), e.g. for a caption.
+
+__repr__(self) -> 'str'
+
+render_array(self) -> 'np.ndarray'
+
+Render to a ``(height, width, 4)`` uint8 RGBA array (device pixels).
+
+render_png(self, path: 'Optional[str]' = None) -> 'bytes'
+
+Render a PNG, written to ``path`` when given. Returns the PNG bytes.
+
+render_svg(self, path: 'Optional[str]' = None, text: 'str' = 'editable', embed_fonts: 'str' = 'subset', font_dirs: 'Optional[List[str]]' = None) -> 'str'
+
+Render a vector SVG (``width`` x ``height`` user units;
+``pixel_ratio`` does not apply), written to ``path`` when given.
+Returns the SVG text.
+
+Args:
+    path: Output file, or None.
+    text: ``"editable"``: labels are ``<text>`` elements (editable,
+        selectable) at MapLibre's glyph positions, halos as strokes,
+        with the style's fonts embedded; labels whose font file is not
+        available fall back to ``"bitmap"``. ``"bitmap"``: every label
+        drawn from the style's own glyph bitmaps, thresholded by SVG
+        filters as MapLibre's shader does (MapLibre's look at any
+        zoom; not editable). ``"paths"``: glyph outlines traced from
+        those bitmaps (plain paths, no filters).
+    embed_fonts: ``"subset"`` (only the glyphs used), ``"full"``
+        (whole fonts, for retyping labels) or ``"none"`` (fonts by
+        name only). Fonts come from ``font_dirs``, the
+        ``BASEMAPPER_FONT_DIRS`` folders, a local cache, then Google
+        Fonts for open fonts; others are referenced by name.
+    font_dirs: Folders of .ttf / .otf files to use first.
+
+
+## One-shot rendering
+
+Render bounds to an RGBA array in one call.
+
+
+render_basemap_raw(bounds: 'Any', width: 'int', height: 'int', style: 'Any', crs: 'Optional[Any]' = None, pixel_ratio: 'float' = 1.0, tile_zoom: 'Optional[int]' = None, layers: 'Optional[List[str]]' = None, labels: 'Union[bool, str]' = True, features: 'Optional[List[str]]' = None, auth_token: 'Optional[str]' = None, tile_timeout_ms: 'int' = 10000, max_tiles: 'int' = 256, tile_concurrency: 'int' = 16, fail_on_tile_error: 'bool' = False) -> 'np.ndarray'
+
+Render a basemap for bounds in one call.
+
+A one-shot render: fit ``bounds`` into a ``width`` x ``height`` CSS-pixel
+view and return the pixels. :func:`basemap` with
+:meth:`Basemap.render_array` gives the same result with a reusable view.
+The same function exists in R (``render_basemap_raw()``).
+
+Args:
+    bounds: Bounding box: a ``[xmin, ymin, xmax, ymax]`` sequence in
+        ``crs`` (default EPSG:4326, with a warning when the values look
+        projected), a dict with ``xmin``/``ymin``/``xmax``/``ymax`` (and
+        optionally ``crs``) keys, or a GeoDataFrame / GeoSeries (CRS read
+        from it).
+    width: View width in CSS pixels.
+    height: View height in CSS pixels.
+    style: A MapLibre GL style URL or JSON string (e.g. from
+        :func:`basemap_provider`), or a list of those stacked bottom to
+        top.
+    crs: CRS of ``bounds`` (anything ``pyproj.CRS`` accepts).
+    pixel_ratio: Device pixels per CSS pixel; the image is
+        ``width * pixel_ratio`` by ``height * pixel_ratio``.
+    tile_zoom: Tile detail override: the tile zoom on the 256 px grid
+        (vector sources use one less, their tiles being 512 px), or
+        ``None`` to pick tiles as MapLibre does for the view.
+    layers: Optional layer filter: plain IDs keep only those layers,
+        ``-`` prefixed IDs drop them; ``*`` and ``?`` are wildcards
+        (``"-label_*"``).
+    labels: ``True`` keeps every layer, ``False`` drops the labels (text
+        and icons), ``"only"`` keeps only the labels on a transparent
+        background, to stack over another map. Catalogue raster
+        basemaps switch to their label-free or label-only tiles.
+    features: Optional feature filter applied to every style: plain
+        names keep those features, ``-`` prefixed names drop them, e.g.
+        ``["water", "roads"]`` or ``["-buildings"]``. Features:
+        background, water, landcover, parks, buildings, roads, rail,
+        boundaries, places, poi, terrain, other (see the ``feature``
+        of :func:`list_layers`).
+    auth_token: Optional access token for the tile service.
+    tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
+    max_tiles: Maximum tiles fetched per style.
+    tile_concurrency: Parallel tile downloads.
+    fail_on_tile_error: Abort on a failed tile instead of leaving it empty.
+
+Returns:
+    numpy.ndarray: ``(height * pixel_ratio, width * pixel_ratio, 4)``
+    uint8 RGBA pixels.
 
 Raises:
     BasemapError: On any rendering or network failure.
@@ -36,120 +209,335 @@ Raises:
 
 ## Plot integrations
 
-Drop a basemap layer into an existing spatial plot. `geom_basemap` works in both ggplot2 (R) and plotnine (Python).
+Drop a basemap layer into an existing plot, rendered at the output resolution. `geom_basemap` takes the same arguments in plotnine and ggplot2 (R).
 
 
 
-add_basemap(ax: "'matplotlib.axes.Axes'", style_url: 'str', zoom: 'Optional[int]' = None, tile_timeout_ms: 'int' = 10000, max_tiles: 'int' = 256, alpha: 'float' = 1.0, layers: 'Optional[List[str]]' = None) -> 'np.ndarray'
+add_basemap(ax: "'matplotlib.axes.Axes'", style: 'Union[str, Any, Sequence[Any]]', tile_zoom: 'Optional[int]' = None, alpha: 'float' = 1.0, layers: 'Optional[List[str]]' = None, labels: 'Union[bool, str]' = True, features: 'Optional[List[str]]' = None, pixel_ratio: 'Optional[float]' = None, auth_token: 'Optional[str]' = None, tile_timeout_ms: 'int' = 10000, max_tiles: 'int' = 256, attribution: 'Union[bool, str]' = True, crs: 'Optional[object]' = None) -> "'xr.DataArray'"
 
-Render a basemap and composite it beneath existing axes content.
+Render a basemap beneath existing axes content.
 
-Extracts the geographic bounding box and CRS directly from *ax*, reprojects
-to EPSG:3857, calls the Rust core, and injects the result via imshow.
+The basemap is an artist that renders when the figure is drawn, at the
+output resolution: on screen at the canvas dpi, and natively at the
+requested resolution in ``savefig(dpi=...)`` or PDF / SVG output. Takes
+the same arguments as :class:`geom_basemap` (and R's ``geom_basemap()``).
 
 Args:
-    ax: An existing matplotlib Axes with a recognized geographic projection.
-    style_url: MapLibre GL style URL or inline JSON string.
-    zoom: Tile zoom level override (0–22). Auto-computed when None.
-    tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
-    max_tiles: Maximum tile downloads per render.
+    ax: An existing matplotlib Axes.
+    style: A MapLibre GL style URL or JSON string (e.g. from
+        :func:`basemap_provider`), or a list of those stacked bottom to
+        top.
+    tile_zoom: Tile detail override: the tile zoom on the 256 px grid
+        (vector sources use one less), or None to pick tiles as MapLibre
+        does for the view.
     alpha: Opacity of the basemap layer (0.0–1.0).
     layers: Optional layer filter. Plain IDs keep only those layers;
-            minus-prefixed IDs exclude those layers.
+        minus-prefixed IDs drop those layers; ``*`` and ``?`` are
+        wildcards.
+    labels: ``True`` keeps every layer, ``False`` drops the labels (text
+        and icons), ``"only"`` keeps only the labels on a transparent
+        background, to stack over another map. Catalogue raster
+        basemaps switch to their label-free or label-only tiles.
+    features: Optional feature filter applied to every style: plain
+        names keep those features, ``-`` prefixed names drop them, e.g.
+        ``["water", "roads"]`` or ``["-buildings"]``. Features:
+        background, water, landcover, parks, buildings, roads, rail,
+        boundaries, places, poi, terrain, other (see the ``feature``
+        of :func:`list_layers`).
+    pixel_ratio: Device pixels per CSS pixel (MapLibre's
+        devicePixelRatio). Default: output dpi / 96, so lines and labels
+        keep their physical size at any dpi. Larger values draw map
+        symbols smaller.
+    auth_token: Optional access token for the tile service.
+    tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
+    max_tiles: Maximum tile downloads per style.
+    attribution: The credit line the basemap's providers ask for, drawn
+        small in the bottom-right corner over the plot: ``True`` (the
+        default) for the styles' own (see :func:`get_attribution`),
+        ``False`` for none, or your own text.
+    crs: CRS of the axes data coordinates (anything ``pyproj.CRS``
+        accepts, e.g. ``"EPSG:4326"``, ``gdf.crs``). Required for plain
+        matplotlib axes and GeoDataFrame plots, whose axes carry no CRS;
+        detected automatically for cartopy axes when omitted.
 
 Returns:
-    numpy.ndarray of shape (height, width, 4) with spatial bounds in .attrs.
+    xarray.DataArray of shape (height, width, 4) holding the first render
+    (at the figure's current dpi), with spatial bounds and CRS in
+    ``.attrs``. The live artist is ``ax.images[-1]``.
 
 Raises:
     BasemapError: If CRS detection fails, the render fails, or the network
         is unreachable.
 
-geom_basemap(style_url: 'str', zoom: 'Optional[int]' = None, alpha: 'float' = 1.0, layers: 'Optional[List[str]]' = None, **kwargs: 'object') -> 'None'
+geom_basemap(style: 'Any', tile_zoom: 'Optional[int]' = None, alpha: 'float' = 1.0, layers: 'Optional[List[str]]' = None, labels: 'Union[bool, str]' = True, features: 'Optional[List[str]]' = None, pixel_ratio: 'Optional[float]' = None, auth_token: 'Optional[str]' = None, tile_timeout_ms: 'int' = 10000, max_tiles: 'int' = 256, attribution: 'Union[bool, str]' = True, crs: 'object' = 'EPSG:4326', **kwargs: 'object') -> 'None'
 
 Render a styled basemap beneath plotnine spatial layers.
 
 Defers all tile fetching to draw time so that the plot's coordinate system
 has been established. Uses the same injection logic as :func:`add_basemap`.
 
+The basemap renders when the plot is drawn, at the output resolution
+(natively at ``save(dpi=...)``), like :func:`add_basemap`. The same
+layer exists in R (ggplot2 ``geom_basemap()``), with the same arguments.
+
 Args:
-    style_url: MapLibre GL style URL or inline JSON string.
-    zoom: Tile zoom level override (0–22). Auto-computed when None.
+    style: A MapLibre GL style URL or JSON string (e.g. from
+        :func:`basemap_provider`), or a list of those stacked bottom to
+        top.
+    tile_zoom: Tile detail override: the tile zoom on the 256 px grid
+        (vector sources use one less), or None to pick tiles as MapLibre
+        does for the view.
     alpha: Opacity of the basemap layer (0.0–1.0).
     layers: Optional layer filter list — plain IDs keep only those layers;
-            minus-prefixed IDs exclude those layers.
+        minus-prefixed IDs drop those layers; ``*`` and ``?`` are
+        wildcards.
+    labels: ``True`` keeps every layer, ``False`` drops the labels (text
+        and icons), ``"only"`` keeps only the labels on a transparent
+        background, to stack over another map. Catalogue raster
+        basemaps switch to their label-free or label-only tiles.
+    features: Optional feature filter applied to every style: plain
+        names keep those features, ``-`` prefixed names drop them, e.g.
+        ``["water", "roads"]`` or ``["-buildings"]``. Features:
+        background, water, landcover, parks, buildings, roads, rail,
+        boundaries, places, poi, terrain, other (see the ``feature``
+        of :func:`list_layers`).
+    pixel_ratio: Device pixels per CSS pixel; default output dpi / 96.
+    auth_token: Optional access token for the tile service.
+    tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
+    max_tiles: Maximum tile downloads per style.
+    attribution: The credit line the basemap's providers ask for, drawn
+        small in the bottom-right corner over the plot: ``True`` (the
+        default) for the styles' own (see :func:`get_attribution`),
+        ``False`` for none, or your own text.
+    crs: CRS of the plot's x/y data (anything ``pyproj.CRS`` accepts).
+        plotnine has no spatial coordinate system to read it from, so it
+        defaults to ``"EPSG:4326"`` (longitude/latitude). Pass e.g.
+        ``crs=gdf.crs`` or ``crs="EPSG:3857"`` for projected data.
 
 Example:
-    >>> from plotnine import ggplot, geom_sf
-    >>> from basemapper import geom_basemap
-    >>> (ggplot(gdf) + geom_basemap(style_url="https://...") + geom_sf())
+    >>> import pandas as pd
+    >>> from plotnine import ggplot, aes, geom_point
+    >>> from basemapper import basemap_provider, geom_basemap
+    >>> df = pd.DataFrame({"lon": [-111.95, -111.80], "lat": [40.68, 40.80]})
+    >>> (ggplot(df, aes("lon", "lat"))
+    ...  + geom_basemap("OpenFreeMap.Positron")
+    ...  + geom_point())
 
 
-## Layer utilities
+## Styles
 
-Inspect and filter layers inside a MapLibre GL style.
+Named basemaps (leaflet-providers names, usable as `style`), styles for your own tile data, and OGC services. Tile data (tile URLs, TileJSON, PMTiles, ArcGIS services) also works as `style` directly.
 
 
-list_layers(style_input: 'str') -> 'List[str]'
 
-Return all layer IDs from a MapLibre GL style.
+basemap_provider(name: 'str', type: 'Optional[str]' = None, api_key: 'Optional[str]' = None, tiles: 'Optional[str]' = None, labels: 'Union[bool, str]' = True, features: 'Optional[List[str]]' = None) -> 'str'
 
-Also prints a two-column table of ``id`` and ``type`` to stdout for
-interactive exploration.
+A named basemap's style.
+
+Names follow leaflet-providers (``"CartoDB.Positron"``,
+``"Esri.WorldImagery"``, ``"OpenStreetMap.HOT"``); see
+:func:`list_providers` or the :data:`providers` object. A name also works
+as ``style`` directly; this function picks the form, passes a key, or
+swaps in your own tiles.
 
 Args:
-    style_input: A MapLibre GL style URL or inline JSON string.
+    name: Basemap name (case-insensitive).
+    type: ``"vector"`` (a MapLibre style) or ``"raster"`` (tiles). By
+        default the vector form when there is one, else raster. Asking
+        for a form a basemap lacks is an error, never a silent fallback.
+    api_key: API key for CARTO, MapTiler and Stadia; by default read
+        from ``CARTO_API_KEY``, ``MAPTILER_API_KEY`` or
+        ``STADIA_API_KEY``. The keys are free for moderate use;
+        :func:`list_providers` shows which basemaps need one.
+    tiles: Your own tile data to draw with this basemap's style: a
+        ``.pmtiles`` archive (URL or path), tile URL or TileJSON. It must
+        use the same schema as the provider's tiles (OpenMapTiles for
+        OpenFreeMap and Stadia).
+    labels: ``True`` keeps every layer, ``False`` drops the labels,
+        ``"only"`` keeps only the labels, to stack this basemap's labels
+        over another map. Raster tiles switch to the provider's
+        label-free or label-only tiles (an error when it has none).
+    features: Vector form: features to keep (``["water", "roads"]``)
+        or drop (``["-buildings"]``); see :func:`list_layers`.
 
 Returns:
-    Sorted list of layer ``id`` values.
+    A style URL, or inline style JSON (the raster form, or with
+    ``tiles``, ``labels`` or ``features``).
 
 Raises:
-    BasemapError: If the style cannot be fetched or parsed.
+    ValidationError: For an unknown name (with suggestions), a form the
+        basemap lacks, or a missing API key.
 
+list_providers(type: 'Optional[str]' = None) -> 'List[Dict[str, object]]'
 
-## Tile style helpers
-
-Convert bare tile URLs to MapLibre GL Style JSON.
-
-
-RasterProvider(url_template: 'str', tile_size: 'int' = 256) -> 'None'
-
-Generate a MapLibre GL Style JSON string for an XYZ raster tile source.
-
-Cast to ``str`` to obtain the inline MapLibre GL Style JSON.
+The basemaps :func:`basemap_provider` knows.
 
 Args:
-    url_template: Slippy-map tile URL with ``{z}``, ``{x}``, ``{y}`` placeholders.
-    tile_size: Tile size in pixels (default 256).
+    type: ``"vector"`` or ``"raster"`` to list only basemaps with that
+        form; None lists all.
 
-VectorProvider(url_template: 'str', paint: 'Optional[Dict[str, object]]' = None) -> 'None'
+Returns:
+    One dict per basemap: ``name``, ``vector`` and ``raster`` (the forms
+    it has), ``api_key_env`` (the environment variable its key is read
+    from, or None when it needs none) and ``attribution``.
 
-Generate a MapLibre GL Style JSON string for an MVT vector tile source.
+providers
 
-Accepted paint keys: ``fill-color``, ``fill-opacity``, ``fill-outline-color``,
-``line-color``, ``line-width``, ``line-opacity``. Unrecognised keys are dropped
-with a warning. Omitting ``paint`` applies a light-grey default style.
+Basemap names of one provider, as attributes.
+
+tile_style(source: 'str', type: 'Optional[str]' = None, tile_size: 'Optional[int]' = None, scheme: 'Optional[str]' = None, minzoom: 'Optional[int]' = None, maxzoom: 'Optional[int]' = None, attribution: 'Optional[str]' = None, source_layers: 'Optional[List[str]]' = None, paint: 'Optional[Dict[str, object]]' = None, auth_token: 'Optional[str]' = None) -> 'str'
+
+A style for tile data, with overrides.
+
+``source`` is what you could pass as ``style`` directly; use this function
+to override what is detected, or to get the style JSON to edit:
+
+* a tile URL template (``{z}/{x}/{y}``, ``{quadkey}``,
+  ``{bbox-epsg-3857}``, WMTS ``{TileMatrix}/{TileRow}/{TileCol}``);
+* a TileJSON URL or file;
+* a PMTiles archive: URL, local path or ``pmtiles://`` URL;
+* an ArcGIS ``.../MapServer`` (raster tiles) or ``.../VectorTileServer``
+  (its published style);
+* a style URL or file (returned with relative URLs made absolute).
+
+Raster tiles get one raster layer. Vector tiles get a default style
+drawing every source layer (polygons as translucent fills, lines and
+outlines, points as circles, a colour per source layer) over a
+transparent background.
 
 Args:
-    url_template: MVT tile URL with ``{z}``, ``{x}``, ``{y}`` placeholders.
-    paint: Optional dict of MapLibre GL paint properties.
+    source: The tile data, as above.
+    type: ``"raster"`` or ``"vector"``; detected when None (from the
+        archive header, the TileJSON, the URL's extension, or one fetched
+        tile).
+    tile_size: Raster tile size in px (default 256 for tile URLs and
+        archives).
+    scheme: ``"xyz"`` or ``"tms"`` (rows counted from the south).
+    minzoom: Minimum zoom of the tiles.
+    maxzoom: Maximum zoom of the tiles (overzoomed beyond).
+    attribution: Attribution text for the source.
+    source_layers: Vector tiles: the source layers to draw (default all).
+    paint: Vector tiles: paint properties for the generated ``fill-*``,
+        ``line-*`` and ``circle-*`` layers, e.g. ``{"fill-color": "#ccc"}``.
+        Others are dropped with a warning.
+    auth_token: Optional access token for the tile service.
 
-EsriVectorProvider(base_url: 'str') -> 'None'
+Returns:
+    The style JSON.
 
-Return the root.json style endpoint URL for an ArcGIS VectorTileServer.
+Raises:
+    ValidationError: If the type cannot be detected or does not match the
+        data, or ``source`` is not found.
 
-The Rust core fetches this URL to obtain the full, ESRI-published MapLibre
-GL style JSON. Cast to ``str`` to get the URL string (not inline JSON).
+wms_style(url: 'str', layers: 'str', styles: 'str' = '', version: 'str' = '1.3.0', format: 'str' = 'image/png', transparent: 'bool' = False, extra_params: 'Optional[str]' = None) -> 'str'
+
+Style for an OGC WMS GetMap endpoint, as 256 px tiles in EPSG:3857.
 
 Args:
-    base_url: Base ArcGIS VectorTileServer URL (trailing slashes stripped).
+    url: Base service URL without query parameters.
+    layers: ``LAYERS`` parameter.
+    styles: ``STYLES`` parameter.
+    version: Service version (1.1.x sends ``SRS``, 1.3.0 ``CRS``).
+    format: Image MIME type.
+    transparent: Request transparent images.
+    extra_params: Additional query parameters appended verbatim.
 
-EsriRasterProvider(url_template: 'str', tile_size: 'int' = 256) -> 'None'
+wmts_style(url: 'str', layer: 'str', tilematrixset: 'str' = 'GoogleMapsCompatible', format: 'str' = 'image/png', style: 'str' = 'default', version: 'str' = '1.0.0', extra_params: 'Optional[str]' = None) -> 'str'
 
-Generate a MapLibre GL Style JSON string for an ArcGIS MapServer raster source.
+Style for an OGC WMTS GetTile (KVP) endpoint. A RESTful WMTS
+template (``{TileMatrix}/{TileRow}/{TileCol}``) needs no builder: pass it
+as ``style``.
 
 Args:
-    url_template: ArcGIS MapServer tile URL (e.g., ``.../MapServer/tile/{z}/{y}/{x}``).
-    tile_size: Tile size in pixels (default 256).
+    url: Base service URL without query parameters.
+    layer: ``LAYER`` parameter.
+    tilematrixset: Tile matrix set (a Web Mercator one).
+    format: Image MIME type.
+    style: ``STYLE`` parameter.
+    version: Service version.
+    extra_params: Additional query parameters appended verbatim.
+
+
+## Style layers and attribution
+
+A style's layers with their features, for the `layers` and `features` filters, and the attribution text it asks maps to show.
+
+
+
+list_layers(style: 'Any', auth_token: 'Optional[str]' = None, layers: 'Optional[List[str]]' = None, labels: 'Union[bool, str]' = True, features: 'Optional[List[str]]' = None) -> 'List[Dict[str, Optional[str]]]'
+
+List a style's layers, or preview a filter.
+
+The layers of a style in drawing order: their ``id`` (what ``layers``
+matches), ``type`` (``symbol`` layers are the labels ``labels`` keeps or
+drops), ``source_layer`` (the vector tile layer drawn, None for
+background and raster layers) and ``feature`` (what ``features``
+matches). With ``layers``, ``labels`` or ``features``, the layers a
+render with those filters draws; an empty list when they leave nothing.
+The same function exists in R (``list_layers()``, returning a data
+frame).
+
+A layer's feature comes from its source layer, with tables for the
+OpenMapTiles (OpenFreeMap, Stadia, MapTiler), Protomaps (CARTO) and
+Shortbread (VersaTiles) schemas, and keywords for others (Esri's
+descriptive names, layer ids). It is a convenience: check it here, and
+use ``layers`` for exact control.
+
+Args:
+    style: A style (anything :func:`basemap` takes).
+    auth_token: Optional access token for the style URL.
+    layers: Layer filter to preview: plain IDs keep, ``-`` prefixed IDs
+        drop; ``*`` and ``?`` are wildcards.
+    labels: ``True``, ``False`` or ``"only"``, as the renderers take it.
+    features: Feature filter to preview, as the renderers take it.
+
+Returns:
+    A list of ``{"id", "type", "source_layer", "feature"}`` dicts
+    (``pandas.DataFrame(...)`` turns it into a table).
+
+Raises:
+    BasemapError: If the style cannot be fetched or parsed, or a filter
+        is invalid.
+
+get_attribution(style: 'Any', auth_token: 'Optional[str]' = None) -> 'str'
+
+The attribution text a style asks maps to show.
+
+Every source the style's layers draw from contributes its attribution
+(from the style, the source's TileJSON or PMTiles metadata), as MapLibre's
+attribution control collects it, as plain text without duplicates, joined
+with ``" | "``. Use it for a caption or a credit line, e.g.
+``ax.annotate(get_attribution(style), ...)``. :meth:`Basemap.get_attribution`
+gives a view's. The same function exists in R (``get_attribution()``).
+
+Args:
+    style: A style (anything :func:`basemap` takes), or a list of
+        styles stacked bottom to top.
+    auth_token: Optional access token for the tile service.
+
+Returns:
+    The attribution; an empty string when the styles give none.
+
+
+## Tile cache
+
+
+tile_cache(dir: 'Optional[str]' = None, clear: 'bool' = False) -> 'Optional[str]'
+
+The disk cache for map tiles.
+
+Tiles are kept as long as the server's caching headers allow (a day when
+they say nothing), so repeated renders of an area do not download them
+again. The cache starts in ``BASEMAPPER_CACHE_DIR`` when set (``off``
+disables it), else in the platform cache directory.
+
+Args:
+    dir: Move the cache to this directory; ``False`` or ``""`` turns it
+        off. None leaves it as it is.
+    clear: Delete every cached tile.
+
+Returns:
+    The cache directory, or None when the cache is off.
 
 
 ## Exceptions
@@ -157,4 +545,19 @@ Args:
 
 BasemapError(message: str) -> None
 
-Raised when the Rust basemapper core returns an error.
+Base exception for all basemapper errors.
+
+ValidationError(message: str) -> None
+
+Raised for invalid bbox, dimensions, zoom, or layer filter.
+
+Subclasses both :class:`BasemapError` and :class:`ValueError` so that
+callers that catch the built-in ``ValueError`` continue to work unchanged.
+
+StyleError(message: str) -> None
+
+Raised when a style cannot be fetched or parsed.
+
+NetworkError(message: str) -> None
+
+Raised when tile or style network requests fail.

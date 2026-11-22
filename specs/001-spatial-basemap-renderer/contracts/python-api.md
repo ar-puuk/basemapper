@@ -88,15 +88,42 @@ def render_basemap_raw(
 
 ---
 
+## Provider Helpers
+
+### `VectorProvider(url_template, source_layer, paint=None)`
+
+```python
+class VectorProvider:
+    def __init__(self, url_template: str, source_layer: str, paint: dict | None = None) -> None: ...
+    def to_style_json(self) -> str: ...
+    def __str__(self) -> str: ...
+```
+
+`source_layer` is **required** — it names the layer within each MVT tile to render
+(the MapLibre GL `"source-layer"` property). This is tile-server specific (e.g.,
+`"water"`, `"roads"`, `"land"`). Omitting it raises `TypeError`.
+
+---
+
 ## Exception Class
 
 ```python
 class BasemapError(RuntimeError):
-    """
-    Raised by render_basemap_raw on any failure.
-    The string representation includes the failure stage and detail.
-    """
+    """Base exception for all basemapper errors."""
+
+class ValidationError(BasemapError, ValueError):
+    """Raised for invalid bbox, dimensions, zoom, or layer filter.
+    Also subclasses ValueError for backward compatibility."""
+
+class StyleError(BasemapError):
+    """Raised when a style cannot be fetched or parsed."""
+
+class NetworkError(BasemapError):
+    """Raised when tile fetch requests fail."""
 ```
+
+The Rust FFI layer maps errors to the typed hierarchy via `BasemapError::kind()`.
+`normalize_bbox` and `detect_crs_from_axes` raise `ValidationError`.
 
 ---
 

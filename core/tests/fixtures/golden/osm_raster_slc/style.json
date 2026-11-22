@@ -1,0 +1,20 @@
+{
+  "layers": [
+    {
+      "id": "osm",
+      "source": "osm",
+      "type": "raster"
+    }
+  ],
+  "sources": {
+    "osm": {
+      "maxzoom": 19,
+      "tileSize": 256,
+      "tiles": [
+        "{{BASE}}/tiles/{z}/{x}/{y}"
+      ],
+      "type": "raster"
+    }
+  },
+  "version": 8
+}

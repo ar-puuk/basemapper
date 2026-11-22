@@ -1,0 +1,21 @@
+{
+  "attribution": "Esri, HERE, Garmin, OpenStreetMap contributors",
+  "bbox": [
+    -12701401.704896197,
+    4905878.423225446,
+    -12456803.214383632,
+    5089327.291109869
+  ],
+  "fonts_from": null,
+  "height": 600,
+  "layers": null,
+  "source_style": "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer/resources/styles/root.json",
+  "tiles_from": null,
+  "width": 800,
+  "zoom": 9,
+  "svg": true,
+  "max_bad_pixel_frac": 0.00085,
+  "max_mean_diff": 0.047,
+  "max_bad_pixel_frac_svg": 0.00437,
+  "max_mean_diff_svg": 0.198
+}

@@ -5,8 +5,12 @@ class BasemapError(RuntimeError):
         super().__init__(message)
 
 
-class ValidationError(BasemapError):
-    """Raised for invalid bbox, dimensions, zoom, or layer filter."""
+class ValidationError(BasemapError, ValueError):
+    """Raised for invalid bbox, dimensions, zoom, or layer filter.
+
+    Subclasses both :class:`BasemapError` and :class:`ValueError` so that
+    callers that catch the built-in ``ValueError`` continue to work unchanged.
+    """
 
 
 class StyleError(BasemapError):

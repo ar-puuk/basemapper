@@ -3,6 +3,7 @@
 
 use basemapper_core::{
     style::{filter_style_layers, validate_maplibre_style},
+    tile_fetcher::{expand_url, TileCoord, TileSource, TileUrls},
     BasemapError,
 };
 
@@ -60,4 +61,70 @@ fn filter_preserves_sources_and_sprite() {
     assert!(v.get("sources").is_some(), "sources must be preserved");
     assert!(v.get("sprite").is_some(), "sprite must be preserved");
     assert!(v.get("glyphs").is_some(), "glyphs must be preserved");
+}
+
+// ──────────────────────────── Tile URL expansion ────────────────────────────
+
+#[test]
+fn expand_url_substitutes_zxy() {
+    let tpl = "https://tile.example.com/{z}/{x}/{y}.png";
+    let coord = TileCoord { z: 5, x: 3, y: 7 };
+    assert_eq!(
+        expand_url(tpl, coord),
+        "https://tile.example.com/5/3/7.png"
+    );
+}
+
+#[test]
+fn expand_url_wms_bbox_substitution() {
+    // MapLibre's {bbox-epsg-3857}: the z0 tile covers the whole world.
+    let tpl = "https://wms.example.com/?BBOX={bbox-epsg-3857}";
+    let coord = TileCoord { z: 0, x: 0, y: 0 };
+    assert_eq!(
+        expand_url(tpl, coord),
+        "https://wms.example.com/?BBOX=-20037508.342789244,-20037508.342789244,20037508.342789244,20037508.342789244"
+    );
+}
+
+#[test]
+fn expand_url_no_bbox_placeholders_is_cheap() {
+    // A template without bbox placeholders must not modify the string.
+    let tpl = "https://tile.example.com/{z}/{x}/{y}.pbf";
+    let coord = TileCoord { z: 10, x: 512, y: 256 };
+    let expanded = expand_url(tpl, coord);
+    assert_eq!(expanded, "https://tile.example.com/10/512/256.pbf");
+    assert!(!expanded.contains('{'), "no unresolved placeholders should remain");
+}
+
+#[test]
+fn wms_style_json_is_valid_maplibre() {
+    let style = basemapper_core::providers::wms_style(
+        "https://wms.example.com/", "base", "", "1.3.0", "image/png", false, None,
+    );
+    assert!(style.contains("BBOX={bbox-epsg-3857}"));
+    assert!(
+        validate_maplibre_style(&style).is_ok(),
+        "WMS style must pass MapLibre validation"
+    );
+}
+
+// ──────────────────────── Tile cache (unit smoke test) ──────────────────────
+
+#[test]
+fn tile_source_maxzoom_arm_pmtiles() {
+    let src = TileSource::PMTiles {
+        url: "https://example.com/tiles.pmtiles".into(),
+        maxzoom: Some(14),
+    };
+    assert_eq!(src.maxzoom(), Some(14));
+}
+
+#[test]
+fn tile_source_maxzoom_arm_raster() {
+    let src = TileSource::XyzRaster {
+        urls: TileUrls::xyz("https://tile.example.com/{z}/{x}/{y}.png"),
+        auth_header: None,
+        maxzoom: Some(18),
+    };
+    assert_eq!(src.maxzoom(), Some(18));
 }

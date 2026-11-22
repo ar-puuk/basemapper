@@ -1,0 +1,34 @@
+{
+ "pill": {
+  "x": 0,
+  "y": 0,
+  "width": 24,
+  "height": 18,
+  "pixelRatio": 1,
+  "stretchX": [
+   [
+    6,
+    18
+   ]
+  ],
+  "stretchY": [
+   [
+    6,
+    12
+   ]
+  ],
+  "content": [
+   5,
+   4,
+   19,
+   14
+  ]
+ },
+ "plain": {
+  "x": 24,
+  "y": 0,
+  "width": 16,
+  "height": 14,
+  "pixelRatio": 1
+ }
+}

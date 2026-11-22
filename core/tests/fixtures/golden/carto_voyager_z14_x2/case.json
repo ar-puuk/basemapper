@@ -1,0 +1,19 @@
+{
+  "fixture_from": "carto_voyager_z14",
+  "note": "carto_voyager_z14 at pixel ratio 2 (MapLibre devicePixelRatio): same view, image twice the size.",
+  "pixel_ratio": 2,
+  "bbox": [
+    -12457340.92570713,
+    4964887.305719653,
+    -12453519.07429287,
+    4967753.694280347
+  ],
+  "width": 800,
+  "height": 600,
+  "zoom": 15,
+  "attribution": "(c) OpenStreetMap contributors, (c) CARTO",
+  "fonts_from": "carto_positron_z4",
+  "tiles_from": "carto_positron_z14",
+  "max_bad_pixel_frac": 7e-05,
+  "max_mean_diff": 0.008
+}

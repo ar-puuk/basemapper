@@ -1,0 +1,18 @@
+{
+  "note": "Synthetic: vertical text: point labels with text-writing-mode vertical (CJK upright, verticalized fullwidth punctuation, mixed Latin, a wrapped label, anchors, a Latin-only label left horizontal), a crowded layer trying horizontal then vertical, and CJK line labels switching to their vertical shaping on vertical, upward (flipped), steep and wavy lines; Noto Sans glyphs from OpenFreeMap.",
+  "bbox": [
+    -12482638.767142119,
+    4954184.063622078,
+    -12428436.882576643,
+    4999827.755887743
+  ],
+  "width": 760,
+  "height": 640,
+  "zoom": 10.1,
+  "attribution": "Synthetic labels; Noto Sans (OFL) glyphs from OpenFreeMap",
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.006,
+  "svg": true,
+  "max_bad_pixel_frac_svg": 0.00071,
+  "max_mean_diff_svg": 0.102
+}

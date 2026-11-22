@@ -1,0 +1,21 @@
+{
+  "attribution": "MapLibre demotiles, Natural Earth",
+  "bbox": [
+    -15045524.927528381,
+    2686339.600041298,
+    -7218373.231126332,
+    8556703.372342834
+  ],
+  "fonts_from": null,
+  "height": 600,
+  "layers": null,
+  "source_style": "https://demotiles.maplibre.org/style.json",
+  "tiles_from": null,
+  "width": 800,
+  "zoom": 4,
+  "svg": true,
+  "max_bad_pixel_frac": 0.00061,
+  "max_mean_diff": 0.022,
+  "max_bad_pixel_frac_svg": 0.01712,
+  "max_mean_diff_svg": 0.5
+}

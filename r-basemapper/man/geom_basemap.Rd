@@ -5,28 +5,64 @@
 \title{Add a styled basemap layer to a ggplot2 spatial plot.}
 \usage{
 geom_basemap(
-  style_url,
-  zoom = NULL,
-  tile_timeout = 10000L,
-  max_tiles = 256L,
+  style,
+  tile_zoom = NULL,
   alpha = 1,
   layers = NULL,
+  labels = TRUE,
+  features = NULL,
+  pixel_ratio = NULL,
+  auth_token = NULL,
+  tile_timeout_ms = 10000L,
+  max_tiles = 256L,
+  attribution = TRUE,
   ...
 )
 }
 \arguments{
-\item{style_url}{Character: a MapLibre GL style URL or inline JSON string.}
+\item{style}{A MapLibre GL style URL or JSON string (e.g. from
+\code{\link[=basemap_provider]{basemap_provider()}}), or a vector / list of styles stacked bottom to
+top.}
 
-\item{zoom}{Integer zoom level (0–22), or \code{NULL} for automatic selection.}
+\item{tile_zoom}{Tile detail override: the tile zoom on the 256 px grid
+(vector sources use one less, their tiles being 512 px), or \code{NULL} to
+pick tiles as MapLibre does for the view.}
 
-\item{tile_timeout}{Integer per-tile HTTP timeout in milliseconds.}
+\item{alpha}{Opacity of the basemap layer (0--1).}
 
-\item{max_tiles}{Integer maximum tile downloads per render.}
+\item{layers}{Optional layer filter applied to every style: plain IDs keep
+only those layers, minus-prefixed IDs drop them; \code{*} and \verb{?} are
+wildcards (\code{"-label_*"}). See \code{\link[=list_layers]{list_layers()}}. Names that match no
+layer of any style warn.}
 
-\item{alpha}{Numeric opacity of the basemap layer (0–1).}
+\item{labels}{\code{TRUE} keeps every layer, \code{FALSE} drops the labels (text and
+icons), \code{"only"} keeps only the labels on a transparent background, to
+stack over another map. Catalogue raster basemaps switch to their
+label-free or label-only tiles.}
 
-\item{layers}{Character vector of layer IDs to filter. Plain IDs keep only
-those layers; minus-prefixed IDs exclude those layers. \code{NULL} renders all.}
+\item{features}{Optional feature filter applied to every style: plain
+names keep those features, minus-prefixed names drop them, e.g.
+\code{c("water", "roads")} or \code{"-buildings"}. Features: background, water,
+landcover, parks, buildings, roads, rail, boundaries, places, poi,
+terrain, other (the \code{feature} column of \code{\link[=list_layers]{list_layers()}}). Features no
+layer of any style belongs to warn.}
+
+\item{pixel_ratio}{Device pixels per CSS pixel (MapLibre's
+devicePixelRatio). Default: device dpi / 96, so lines and labels keep
+their physical size at any resolution. Larger values draw map symbols
+smaller.}
+
+\item{auth_token}{Optional access token for the tile service.}
+
+\item{tile_timeout_ms}{Per-tile HTTP timeout in milliseconds.}
+
+\item{max_tiles}{Maximum tiles fetched per style.}
+
+\item{attribution}{The credit line the basemap's providers ask for, drawn
+small in the bottom-right corner of each panel: \code{TRUE} (the default)
+for the styles' own (see \code{\link[=get_attribution]{get_attribution()}}), \code{FALSE} for none, or
+your own text. It is drawn with the basemap, so later layers can cover
+it.}
 
 \item{...}{Additional arguments passed to \code{ggplot2::layer()}.}
 }
@@ -37,13 +73,20 @@ A ggplot2 layer object.
 Wraps a lazy \code{GeomBasemap} ggproto layer that defers tile fetching until
 \code{coord_sf()} has established the panel's geographic extent.
 }
+\details{
+The basemap is rendered when the plot is drawn, for the panel's size at
+the device's resolution: \code{ggsave(dpi = 300)} gets a basemap rendered
+natively at 300 dpi (and PDF / SVG output at 300 dpi), not an upscaled
+screen image. Python (plotnine): \code{basemapper.geom_basemap()}, with the same
+arguments.
+}
 \examples{
 \dontrun{
 library(ggplot2)
 library(sf)
 nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
 ggplot(nc) +
-  geom_basemap(style_url = "https://demotiles.maplibre.org/style.json") +
+  geom_basemap("OpenFreeMap.Positron") +
   geom_sf(fill = NA, color = "steelblue") +
   coord_sf()
 }

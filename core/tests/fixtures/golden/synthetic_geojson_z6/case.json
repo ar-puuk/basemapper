@@ -1,0 +1,20 @@
+{
+  "note": "The same GeoJSON inline at zoom 6: geojson-vt simplification at a low zoom.",
+  "tiles_from": "carto_positron_z6",
+  "fonts_from": "carto_positron_z4",
+  "bbox": [
+    -12944626.981025128,
+    4599422.764231154,
+    -11966233.018974872,
+    5333218.235768846
+  ],
+  "width": 800,
+  "height": 600,
+  "zoom": 7,
+  "attribution": "Synthetic GeoJSON; © OpenStreetMap contributors, © CARTO",
+  "svg": true,
+  "max_bad_pixel_frac": 0.00056,
+  "max_mean_diff": 0.025,
+  "max_bad_pixel_frac_svg": 0.00521,
+  "max_mean_diff_svg": 0.422
+}

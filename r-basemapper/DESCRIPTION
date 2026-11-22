@@ -3,25 +3,37 @@ Title: Headless Spatial Basemap Renderer
 Version: 0.1.0
 Authors@R: person("Pukar", "Bhandari", email = "arpuuuk@gmail.com",
   role = c("aut", "cre"))
-Description: Renders styled spatial basemaps headlessly using a Rust core
-    (maplibre-rs + wgpu) and exposes the result as raw RGBA pixel arrays to
-    R. Integrates with ggplot2 via a lazy GeomBasemap ggproto layer and with
-    tmap v4 via tm_basemap().
-License: MIT
+Description: Renders MapLibre GL styled basemaps (vector and raster tiles)
+    headlessly with a Rust core: a software port of MapLibre GL JS's
+    renderer, tested pixel by pixel against MapLibre GL JS. Renders at any
+    fractional zoom and pixel ratio to PNG, rasters and arrays, or to true
+    vector SVG; several styles can be stacked. Integrates with ggplot2 via
+    geom_basemap() and with tmap v4 via tm_basemap(), rendering at the
+    output device's resolution.
+URL: https://ar-puuk.github.io/basemapper/r/, https://github.com/ar-puuk/basemapper
+BugReports: https://github.com/ar-puuk/basemapper/issues
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-SystemRequirements: Cargo (Rust package manager)
+SystemRequirements: Cargo (Rust package manager), GNU make
+Depends:
+    R (>= 4.1.0)
 Imports:
     ggplot2 (>= 3.4),
+    grDevices,
     grid,
+    stats,
+    tools,
     sf (>= 1.0),
     jsonlite (>= 1.8),
-    httr2 (>= 1.0)
+    terra (>= 1.7)
 Suggests:
     roxygen2 (>= 7.3),
     testthat (>= 3.0),
     rextendr (>= 0.3),
     tmap (>= 4.0),
-    terra (>= 1.7)
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
 Config/testthat/edition: 3
-Config/roxygen2/version: 8.0.0
+Config/roxygen2/version: 8.1.1

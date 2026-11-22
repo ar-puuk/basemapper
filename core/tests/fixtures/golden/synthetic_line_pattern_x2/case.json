@@ -1,0 +1,16 @@
+{
+  "note": "Synthetic: line-pattern at pixel ratio 2 (@2x sprite) and a fractional zoom below the widths' stops.",
+  "bbox": [
+    -12457890.45036803,
+    4975241.440623423,
+    -12453185.199350731,
+    4978770.378886398
+  ],
+  "width": 400,
+  "height": 300,
+  "zoom": 12.7,
+  "attribution": "Synthetic lines",
+  "max_bad_pixel_frac": 0.00044,
+  "max_mean_diff": 0.024,
+  "pixel_ratio": 2
+}

@@ -1,0 +1,18 @@
+{
+  "attribution": "(c) OpenStreetMap contributors, (c) CARTO",
+  "bbox": [
+    -12455668.865713391,
+    4966141.350714956,
+    -12455191.134286609,
+    4966499.649285044
+  ],
+  "fonts_from": "carto_positron_z4",
+  "height": 600,
+  "layers": null,
+  "source_style": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+  "tiles_from": "carto_positron_z17",
+  "width": 800,
+  "zoom": 18,
+  "max_bad_pixel_frac": 7e-05,
+  "max_mean_diff": 0.006
+}

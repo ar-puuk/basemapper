@@ -1,0 +1,17 @@
+{
+  "note": "Synthetic: vertical text at pixel ratio 2 and a fractional zoom.",
+  "bbox": [
+    -12469590.601528272,
+    4965655.590137729,
+    -12441485.04819049,
+    4988356.229372092
+  ],
+  "width": 520,
+  "height": 420,
+  "zoom": 10.5,
+  "attribution": "Synthetic labels; Noto Sans (OFL) glyphs from OpenFreeMap",
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.005,
+  "fonts_from": "synthetic_vertical_z10",
+  "pixel_ratio": 2
+}

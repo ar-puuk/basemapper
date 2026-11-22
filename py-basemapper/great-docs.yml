@@ -71,34 +71,61 @@ include_in_header:
       </script>
 
 reference:
-  - title: Core rendering
-    desc: Low-level tile fetch and composite.
+  - title: Basemap views
+    desc: >
+      Create a view (`basemap()`), change it (`set_view`, `set_bounds`), read
+      it (`get_bounds`, `get_center`, `get_zoom`, `get_size`) and render it
+      (`render_png`, `render_svg`, `render_array`). The same functions and
+      arguments exist in R.
+    contents:
+      - basemap
+      - Basemap
+
+  - title: One-shot rendering
+    desc: Render bounds to an RGBA array in one call.
     contents:
       - render_basemap_raw
 
   - title: Plot integrations
     desc: >
-      Drop a basemap layer into an existing spatial plot.
-      `geom_basemap` works in both ggplot2 (R) and plotnine (Python).
+      Drop a basemap layer into an existing plot, rendered at the output
+      resolution. `geom_basemap` takes the same arguments in plotnine and
+      ggplot2 (R).
     contents:
       - add_basemap
       - geom_basemap
 
-  - title: Layer utilities
-    desc: Inspect and filter layers inside a MapLibre GL style.
+  - title: Styles
+    desc: >
+      Named basemaps (leaflet-providers names, usable as `style`), styles
+      for your own tile data, and OGC services. Tile
+      data (tile URLs, TileJSON, PMTiles, ArcGIS services) also works as
+      `style` directly.
+    contents:
+      - basemap_provider
+      - list_providers
+      - providers
+      - tile_style
+      - wms_style
+      - wmts_style
+
+  - title: Style layers and attribution
+    desc: >
+      A style's layers with their features, for the `layers` and `features`
+      filters, and the attribution text it asks maps to show.
     contents:
       - list_layers
+      - get_attribution
 
-  - title: Tile style helpers
-    desc: Convert bare tile URLs to MapLibre GL Style JSON.
+  - title: Tile cache
     contents:
-      - RasterProvider
-      - VectorProvider
-      - EsriVectorProvider
-      - EsriRasterProvider
+      - tile_cache
 
   - title: Exceptions
     contents:
       - BasemapError
+      - ValidationError
+      - StyleError
+      - NetworkError
 
 jupyter: python3

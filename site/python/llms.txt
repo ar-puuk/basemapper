@@ -6,31 +6,65 @@
 
 ### API Reference
 
-#### Core rendering
-> Low-level tile fetch and composite.
+#### Basemap views
+> Create a view (`basemap()`), change it (`set_view`, `set_bounds`), read it (`get_bounds`, `get_center`, `get_zoom`, `get_size`) and render it (`render_png`, `render_svg`, `render_array`). The same functions and arguments exist in R.
 
-- [render_basemap_raw](https://ar-puuk.github.io/basemapper/python/reference/render_basemap_raw.html): Fetch and composite map tiles into a raw RGBA pixel buffer
+
+- [basemap](https://ar-puuk.github.io/basemapper/python/reference/basemap.html): Create a basemap view
+- [Basemap](https://ar-puuk.github.io/basemapper/python/reference/Basemap.html): A map view rendered headlessly: one style, or several stacked
+
+#### Basemap Methods
+> Methods for the Basemap class
+
+- [Basemap.set_view](https://ar-puuk.github.io/basemapper/python/reference/Basemap.set_view.html)
+- [Basemap.set_bounds](https://ar-puuk.github.io/basemapper/python/reference/Basemap.set_bounds.html)
+- [Basemap.get_bounds](https://ar-puuk.github.io/basemapper/python/reference/Basemap.get_bounds.html)
+- [Basemap.get_center](https://ar-puuk.github.io/basemapper/python/reference/Basemap.get_center.html)
+- [Basemap.get_zoom](https://ar-puuk.github.io/basemapper/python/reference/Basemap.get_zoom.html)
+- [Basemap.get_size](https://ar-puuk.github.io/basemapper/python/reference/Basemap.get_size.html)
+- [Basemap.get_attribution](https://ar-puuk.github.io/basemapper/python/reference/Basemap.get_attribution.html)
+- [Basemap.__repr__](https://ar-puuk.github.io/basemapper/python/reference/Basemap.__repr__.html)
+- [Basemap.render_array](https://ar-puuk.github.io/basemapper/python/reference/Basemap.render_array.html)
+- [Basemap.render_png](https://ar-puuk.github.io/basemapper/python/reference/Basemap.render_png.html)
+- [Basemap.render_svg](https://ar-puuk.github.io/basemapper/python/reference/Basemap.render_svg.html)
+
+#### One-shot rendering
+> Render bounds to an RGBA array in one call.
+
+- [render_basemap_raw](https://ar-puuk.github.io/basemapper/python/reference/render_basemap_raw.html): Render a basemap for bounds in one call
 
 #### Plot integrations
-> Drop a basemap layer into an existing spatial plot. `geom_basemap` works in both ggplot2 (R) and plotnine (Python).
+> Drop a basemap layer into an existing plot, rendered at the output resolution. `geom_basemap` takes the same arguments in plotnine and ggplot2 (R).
 
 
-- [add_basemap](https://ar-puuk.github.io/basemapper/python/reference/add_basemap.html): Render a basemap and composite it beneath existing axes content
+- [add_basemap](https://ar-puuk.github.io/basemapper/python/reference/add_basemap.html): Render a basemap beneath existing axes content
 - [geom_basemap](https://ar-puuk.github.io/basemapper/python/reference/geom_basemap.html): Render a styled basemap beneath plotnine spatial layers
 
-#### Layer utilities
-> Inspect and filter layers inside a MapLibre GL style.
+#### Styles
+> Named basemaps (leaflet-providers names, usable as `style`), styles for your own tile data, and OGC services. Tile data (tile URLs, TileJSON, PMTiles, ArcGIS services) also works as `style` directly.
 
-- [list_layers](https://ar-puuk.github.io/basemapper/python/reference/list_layers.html): Return all layer IDs from a MapLibre GL style
 
-#### Tile style helpers
-> Convert bare tile URLs to MapLibre GL Style JSON.
+- [basemap_provider](https://ar-puuk.github.io/basemapper/python/reference/basemap_provider.html): A named basemap's style
+- [list_providers](https://ar-puuk.github.io/basemapper/python/reference/list_providers.html): The basemaps :func:`basemap_provider` knows
+- [providers](https://ar-puuk.github.io/basemapper/python/reference/providers.html): Basemap names of one provider, as attributes
+- [tile_style](https://ar-puuk.github.io/basemapper/python/reference/tile_style.html): A style for tile data, with overrides
+- [wms_style](https://ar-puuk.github.io/basemapper/python/reference/wms_style.html): Style for an OGC WMS GetMap endpoint, as 256 px tiles in EPSG:3857
+- [wmts_style](https://ar-puuk.github.io/basemapper/python/reference/wmts_style.html): Style for an OGC WMTS GetTile (KVP) endpoint. A RESTful WMTS
 
-- [RasterProvider](https://ar-puuk.github.io/basemapper/python/reference/RasterProvider.html): Generate a MapLibre GL Style JSON string for an XYZ raster tile source
-- [VectorProvider](https://ar-puuk.github.io/basemapper/python/reference/VectorProvider.html): Generate a MapLibre GL Style JSON string for an MVT vector tile source
-- [EsriVectorProvider](https://ar-puuk.github.io/basemapper/python/reference/EsriVectorProvider.html): Return the root.json style endpoint URL for an ArcGIS VectorTileServer
-- [EsriRasterProvider](https://ar-puuk.github.io/basemapper/python/reference/EsriRasterProvider.html): Generate a MapLibre GL Style JSON string for an ArcGIS MapServer raster source
+#### Style layers and attribution
+> A style's layers with their features, for the `layers` and `features` filters, and the attribution text it asks maps to show.
+
+
+- [list_layers](https://ar-puuk.github.io/basemapper/python/reference/list_layers.html): List a style's layers, or preview a filter
+- [get_attribution](https://ar-puuk.github.io/basemapper/python/reference/get_attribution.html): The attribution text a style asks maps to show
+
+#### Tile cache
+
+- [tile_cache](https://ar-puuk.github.io/basemapper/python/reference/tile_cache.html): The disk cache for map tiles
 
 #### Exceptions
 
-- [BasemapError](https://ar-puuk.github.io/basemapper/python/reference/BasemapError.html): Raised when the Rust basemapper core returns an error
+- [BasemapError](https://ar-puuk.github.io/basemapper/python/reference/BasemapError.html): Base exception for all basemapper errors
+- [ValidationError](https://ar-puuk.github.io/basemapper/python/reference/ValidationError.html): Raised for invalid bbox, dimensions, zoom, or layer filter
+- [StyleError](https://ar-puuk.github.io/basemapper/python/reference/StyleError.html): Raised when a style cannot be fetched or parsed
+- [NetworkError](https://ar-puuk.github.io/basemapper/python/reference/NetworkError.html): Raised when tile or style network requests fail

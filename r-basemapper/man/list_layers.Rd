@@ -2,23 +2,50 @@
 % Please edit documentation in R/layer_utils.R
 \name{list_layers}
 \alias{list_layers}
-\title{List all layer IDs from a MapLibre GL style.}
+\title{List a style's layers, or preview a filter}
 \usage{
-list_layers(style_input)
+list_layers(
+  style,
+  auth_token = NULL,
+  layers = NULL,
+  labels = TRUE,
+  features = NULL
+)
 }
 \arguments{
-\item{style_input}{Character: a MapLibre GL style URL or inline JSON string.}
+\item{style}{A style (anything \code{\link[=basemap]{basemap()}} takes).}
+
+\item{auth_token}{Optional access token for the style URL.}
+
+\item{layers, labels, features}{Filters to preview, as the renderers take
+them (see \code{\link[=basemap]{basemap()}}).}
 }
 \value{
-A character vector of all layer \code{id} values.
+A data frame with columns \code{id}, \code{type}, \code{source_layer} and
+\code{feature}.
 }
 \description{
-Fetches (if URL) or parses (if inline JSON) a MapLibre GL style and returns
-all layer \code{id} values. Also prints a two-column data.frame of id and type to
-the console for interactive exploration.
+The layers of a style in drawing order: their \code{id} (what \code{layers}
+matches), \code{type} (\code{symbol} layers are the labels \code{labels} keeps or
+drops), \code{source_layer} (the vector tile layer drawn; \code{NA} for background
+and raster layers) and \code{feature} (what \code{features} matches). With
+\code{layers}, \code{labels} or \code{features}, the layers a render with those filters
+draws; no rows when they leave nothing. Python:
+\code{basemapper.list_layers()}.
+}
+\details{
+A layer's feature comes from its source layer, with tables for the
+OpenMapTiles (OpenFreeMap, Stadia, MapTiler), Protomaps (CARTO) and
+Shortbread (VersaTiles) schemas and keywords for others (Esri's
+descriptive names, layer ids). The features are background, water,
+landcover, parks, buildings, roads, rail, boundaries, places, poi,
+terrain and other. They are a convenience: check them here, and use
+\code{layers} for exact control.
 }
 \examples{
 \dontrun{
-ids <- list_layers("https://demotiles.maplibre.org/style.json")
+list_layers("OpenFreeMap.Positron")
+list_layers("OpenFreeMap.Positron", labels = "only")      # what would be drawn
+list_layers("OpenFreeMap.Positron", layers = "highway_*")
 }
 }

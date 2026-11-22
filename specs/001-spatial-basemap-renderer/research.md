@@ -2,6 +2,11 @@
 
 **Branch**: `001-spatial-basemap-renderer` | **Date**: 2026-06-08
 
+> **Superseded 2026-11-20:** this records the original design. The
+> `maplibre-rs` + `wgpu` engine (R1) was replaced by an in-house CPU port of
+> MapLibre GL JS; see [plan.md](plan.md) and
+> [docs/rendering-engine.md](../../docs/rendering-engine.md).
+
 ---
 
 ## R1 — Rendering Engine: maplibre-rs + wgpu

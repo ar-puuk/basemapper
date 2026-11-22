@@ -177,8 +177,8 @@
     <div class="lang-label">R</div>
     <h2>R documentation</h2>
     <p>
-      ggplot2, tmap, and sf integration. Installs with one
-      <code>remotes::install_github()</code> call.
+      ggplot2, tmap, and sf integration. Installs from GitHub with
+      <code>pak</code>, <code>remotes</code> or <code>devtools</code>.
     </p>
     <span class="go">Open R docs →</span>
   </a>
@@ -187,8 +187,8 @@
     <div class="lang-label">Python</div>
     <h2>Python documentation</h2>
     <p>
-      matplotlib and plotnine integration. Installs via
-      <code>pip install</code> from GitHub.
+      matplotlib and plotnine integration. Installs from GitHub with
+      pip, uv or conda.
     </p>
     <span class="go">Open Python docs →</span>
   </a>
@@ -198,18 +198,27 @@
   <h2>Install</h2>
 
   <p style="margin-bottom:10px"><strong>R</strong></p>
-  <pre>remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")</pre>
+  <pre>pak::pak("ar-puuk/basemapper/r-basemapper")
+# or
+remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
+devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper")</pre>
   <p class="note">
-    Requires ggplot2 ≥ 3.4, sf ≥ 1.0, jsonlite ≥ 1.8.
-    Optional: tmap ≥ 4.0, stars ≥ 0.6 for <code>tm_basemap()</code>.
+    Requires ggplot2 ≥ 3.4, sf ≥ 1.0, jsonlite ≥ 1.8, terra ≥ 1.7.
+    Optional: tmap ≥ 4.0 for <code>tm_basemap()</code>.
     CRAN and R-Universe packages planned after extended testing.
   </p>
 
   <h2 style="margin-top:28px"> </h2>
   <p style="margin-bottom:10px"><strong>Python</strong></p>
-  <pre>pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</pre>
+  <pre>pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+# or with uv
+uv add "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+# or in a conda environment (conda-forge's rust builds the extension)
+conda create -n basemapper -c conda-forge python numpy pyproj matplotlib xarray rust pip
+conda activate basemapper
+pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</pre>
   <p class="note">
-    Requires numpy, pyproj, matplotlib, requests.
+    Requires numpy, pyproj, matplotlib, xarray.
     Optional: plotnine ≥ 0.12 for <code>geom_basemap()</code>.
     PyPI and conda packages planned after extended testing.
   </p>
@@ -217,35 +226,52 @@
 
 <div class="api-section">
   <h2>Key functions</h2>
+  <p class="note">The same functions and argument names in both languages:
+    R's <code>verb(m, ...)</code> is Python's <code>m.verb(...)</code>.</p>
   <table>
     <thead>
       <tr><th>What you want</th><th>R</th><th>Python</th></tr>
     </thead>
     <tbody>
-      <tr><td>Raw RGBA render</td>
+      <tr><td>A map view (centre + zoom, or bounds)</td>
+          <td><code>basemap()</code></td>
+          <td><code>basemap()</code></td></tr>
+      <tr><td>Change / read the view</td>
+          <td><code>set_view()</code>, <code>set_bounds()</code>, <code>get_bounds()</code>, <code>get_center()</code>, <code>get_zoom()</code>, <code>get_size()</code></td>
+          <td><code>m.set_view()</code>, <code>m.set_bounds()</code>, <code>m.get_bounds()</code>, <code>…</code></td></tr>
+      <tr><td>PNG / vector SVG / array</td>
+          <td><code>render_png()</code>, <code>render_svg()</code>, <code>render_array()</code></td>
+          <td><code>m.render_png()</code>, <code>m.render_svg()</code>, <code>m.render_array()</code></td></tr>
+      <tr><td>terra raster</td>
+          <td><code>render_raster()</code></td>
+          <td>—</td></tr>
+      <tr><td>One-shot render of bounds</td>
           <td><code>render_basemap_raw()</code></td>
           <td><code>render_basemap_raw()</code></td></tr>
       <tr><td>ggplot2 / plotnine layer</td>
           <td><code>geom_basemap()</code></td>
           <td><code>geom_basemap()</code></td></tr>
-      <tr><td>matplotlib inject</td>
+      <tr><td>matplotlib layer</td>
           <td>—</td>
           <td><code>add_basemap()</code></td></tr>
       <tr><td>tmap layer</td>
           <td><code>tm_basemap()</code></td>
           <td>—</td></tr>
-      <tr><td>OSM / raster style</td>
-          <td><code>raster_provider()</code></td>
-          <td><code>RasterProvider</code></td></tr>
-      <tr><td>MVT vector style</td>
-          <td><code>vector_provider()</code></td>
-          <td><code>VectorProvider</code></td></tr>
-      <tr><td>ESRI vector style</td>
-          <td><code>esri_vector_provider()</code></td>
-          <td><code>EsriVectorProvider</code></td></tr>
-      <tr><td>ESRI raster style</td>
-          <td><code>esri_raster_provider()</code></td>
-          <td><code>EsriRasterProvider</code></td></tr>
+      <tr><td>Named basemaps (leaflet names, usable as <code>style</code>)</td>
+          <td><code>basemap_provider()</code>, <code>list_providers()</code>, <code>providers</code></td>
+          <td><code>basemap_provider()</code>, <code>list_providers()</code>, <code>providers</code></td></tr>
+      <tr><td>Tile cache</td>
+          <td><code>tile_cache()</code></td>
+          <td><code>tile_cache()</code></td></tr>
+      <tr><td>Your own tile data / OGC services</td>
+          <td><code>tile_style()</code> (or pass tile data as <code>style</code>), <code>wms_style()</code>, <code>wmts_style()</code></td>
+          <td>same names</td></tr>
+      <tr><td>Attribution text</td>
+          <td><code>get_attribution()</code></td>
+          <td><code>get_attribution()</code>, <code>m.get_attribution()</code></td></tr>
+      <tr><td>Labels / features (stack parts of basemaps)</td>
+          <td><code>labels =</code>, <code>features =</code></td>
+          <td><code>labels=</code>, <code>features=</code></td></tr>
       <tr><td>Inspect style layers</td>
           <td><code>list_layers()</code></td>
           <td><code>list_layers()</code></td></tr>

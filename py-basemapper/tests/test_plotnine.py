@@ -1,4 +1,4 @@
-"""Tests for the plotnine geom_basemap integration (US7)."""
+"""Tests for the plotnine geom_basemap integration."""
 
 import sys
 
@@ -6,7 +6,7 @@ import pytest
 
 
 def test_import_basemapper_without_plotnine():
-    """Scenario T057: base package importable when plotnine is absent."""
+    """The base package imports when plotnine is absent."""
     saved = sys.modules.pop("plotnine", None)
     try:
         import importlib
@@ -28,13 +28,14 @@ def test_geom_basemap_importable_when_plotnine_available():
 def test_geom_basemap_has_correct_attributes():
     pytest.importorskip("plotnine")
     from basemapper import geom_basemap
-    g = geom_basemap(style_url="https://example.com/style.json", alpha=0.5)
+    g = geom_basemap("https://example.com/style.json", alpha=0.5, tile_zoom=10, pixel_ratio=2)
     assert g.alpha == 0.5
-    assert g.style_url == "https://example.com/style.json"
+    assert g.style == "https://example.com/style.json"
+    assert g.tile_zoom == 10 and g.pixel_ratio == 2
 
 
 def test_geom_basemap_layers_parameter():
     pytest.importorskip("plotnine")
     from basemapper import geom_basemap
-    g = geom_basemap(style_url="https://example.com/style.json", layers=["water"])
+    g = geom_basemap("https://example.com/style.json", layers=["water"])
     assert g.layers == ["water"]

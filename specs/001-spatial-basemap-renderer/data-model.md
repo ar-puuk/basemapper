@@ -114,7 +114,7 @@ All errors are represented as variants of this enum, returned in `Result<RenderR
 | `StyleParseError(String)` | Style JSON is invalid or missing required fields |
 | `TileFetchFailed { url, status }` | HTTP error fetching one or more tiles |
 | `TileDecodeError(String)` | Tile bytes cannot be decoded (corrupt PNG/MVT) |
-| `RenderError(String)` | `wgpu` pipeline failure (GPU initialization or draw failure) |
+| `RenderError(String)` | Rendering failure (e.g. an unrenderable style or tile) |
 | `MaxTilesExceeded { requested, limit }` | Tile count at computed zoom exceeds `max_tiles` |
 
 ---
@@ -178,7 +178,7 @@ Idle
       → ValidatingStyle  (MapLibre GL schema check)
         → ComputingZoom  (formula or explicit override)
           → FetchingTiles (concurrent HTTP, max_tiles guard)
-            → Rendering  (wgpu pipeline → offscreen texture)
+            → Rendering  (CPU renderer → RGBA framebuffer)
               → Done     (Vec<u8> + SpatialBounds returned)
 ```
 

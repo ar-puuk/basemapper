@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.38">
+<meta name="generator" content="quarto-1.11.9">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,10 +12,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -71,14 +74,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/scrollable-regions/scrollable-regions.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-63b5708e65d6cd79cd7618c58d0c21e7.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-54660e341cb0033737839121e0616329.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-653588d2c95361f950ce041430bad3f3.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -153,9 +157,14 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
 </script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script>document.head.appendChild(Object.assign(document.createElement('link'),{rel:'stylesheet',href:(document.querySelector('meta[name="quarto:offset"]')||{content:''}).content+'termshow.css'}));</script>
+<script>document.head.appendChild(Object.assign(document.createElement('link'),{rel:'stylesheet',href:(document.querySelector('meta[name="quarto:offset"]')||{content:''}).content+'gd-lightbox.css'}));</script>
+<script>(function(){var s=document.createElement('script');var m=document.querySelector('meta[name="quarto:offset"]');s.src=(m?m.content:'')+'gd-lightbox.js';s.defer=true;document.head.appendChild(s);})();</script>
+<script>document.head.appendChild(Object.assign(document.createElement('link'),{rel:'stylesheet',href:(document.querySelector('meta[name="quarto:offset"]')||{content:''}).content+'gd-lightbox-compare.css'}));</script>
+<script>(function(){var s=document.createElement('script');var m=document.querySelector('meta[name="quarto:offset"]');s.src=(m?m.content:'')+'gd-lightbox-compare.js';s.defer=true;document.head.appendChild(s);})();</script>
+<script>document.head.appendChild(Object.assign(document.createElement('link'),{rel:'stylesheet',href:(document.querySelector('meta[name="quarto:offset"]')||{content:''}).content+'gd-lightbox-annotate.css'}));</script>
+<script>(function(){var s=document.createElement('script');var m=document.querySelector('meta[name="quarto:offset"]');s.src=(m?m.content:'')+'gd-lightbox-annotate.js';s.defer=true;document.head.appendChild(s);})();</script>
 <link rel="icon" type="image/svg+xml" href="https://ar-puuk.github.io/basemapper/python/favicon.svg">
 <script src="theme-init.js"></script>
-<script>document.addEventListener('DOMContentLoaded',function(){document.body.setAttribute('data-gd-ref-sections','api,mcp');});</script>
 
 
   <meta name="description" content="Headless spatial basemap renderer for Python">
@@ -181,11 +190,11 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
   <meta name="twitter:description" content="Headless spatial basemap renderer for Python">
 </head>
 
-<body class="nav-fixed gd-homepage quarto-light">
+<body class="nav-fixed gd-homepage quarto-light"><a id="quarto-skip-link" class="visually-hidden-focusable" href="#quarto-document-content">Skip to main content</a>
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
-    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark" aria-label="Site">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="./index.html" class="navbar-brand navbar-brand-logo">
@@ -193,8 +202,7 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
     <img src="./logo.svg" alt="python" class="navbar-logo dark-content">
     </a>
   </div>
-            <div id="quarto-search" class=""></div>
-          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
   <span class="navbar-toggler-icon"></span>
 </button>
           <div class="collapse navbar-collapse" id="navbarCollapse">
@@ -207,6 +215,7 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
           </div> <!-- /navcollapse -->
             <div class="quarto-navbar-tools">
 </div>
+            <div id="quarto-search" class=""></div>
       </div> <!-- /container-fluid -->
     </nav>
 </header>
@@ -217,7 +226,7 @@ a:not(.navbar-brand):not(.nav-link):not(.btn):hover { color: #D96E34; }
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
     </div>
 <!-- main -->
-<main class="content page-columns page-full" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"></header>
+<main class="content page-columns page-full" id="quarto-document-content" tabindex="-1"><header id="title-block-header" class="quarto-title-block"></header>
 
 
 
@@ -240,7 +249,7 @@ section.level2:first-of-type > h2:first-child,
 <div class="no-row-height column-margin column-container"><div class="">
 <section id="links" class="level3">
 <h3 class="anchored" data-anchor-id="links">Links</h3>
-<p><a href="https://pypi.org/project/basemapper/">View on PyPI</a><br></p>
+<p><a href="https://pypi.org/project/basemapper/">View on PyPI<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -0.05em; margin-left: 0em; margin-top: 0.1em;" viewbox="0 0 24 24"><path d="M7 7h10v10"></path><path d="M7 17 17 7"></path></svg></a><br></p>
 </section>
 <section id="ai-agents" class="level3">
 <h3 class="anchored" data-anchor-id="ai-agents">AI / Agents</h3>
@@ -248,13 +257,13 @@ section.level2:first-of-type > h2:first-child,
 </section>
 <section id="meta" class="level3">
 <h3 class="anchored" data-anchor-id="meta">Meta</h3>
-<p><strong>Requires:</strong> Python <code>&gt;=3.9</code><br> <strong>Provides-Extra:</strong> <code>plotnine</code>, <code>dev</code></p>
+<p><strong>Requires:</strong> Python <code>&gt;=3.9</code><br> <strong>Provides-Extra:</strong> <code>plotnine</code>, <code>dev</code><br> <a href="package-info.html">Package Info</a></p>
 </section>
 </div></div><section id="basemapper" class="level1">
 <h1>basemapper <img src="logo.svg" align="right" height="139" alt=""></h1>
-<p><strong>basemapper</strong> is a headless spatial basemap renderer for Python. It fetches and composites styled map tiles (raster or MapLibre GL vector styles) into georeferenced RGBA arrays using a Rust core, and exposes the result through native integrations with matplotlib, plotnine, and NumPy.</p>
+<p><strong>basemapper</strong> renders MapLibre GL basemaps (vector and raster styles) headlessly with a Rust core: to PNG, NumPy arrays or true vector SVG, at any fractional zoom and pixel ratio, and as matplotlib and plotnine layers that render at the output resolution.</p>
 <blockquote class="blockquote">
-<p><strong>Also available for R</strong> — same Rust core, extendr bindings. <a href="https://ar-puuk.github.io/basemapper/r/">R documentation</a></p>
+<p><strong>Also available for R</strong> — the same Rust core, and the same functions and argument names (R’s <code>verb(m, ...)</code> is <code>m.verb(...)</code> here). <a href="https://ar-puuk.github.io/basemapper/r/">R documentation</a></p>
 </blockquote>
 <section id="installation" class="level2">
 <h2 class="anchored" data-anchor-id="installation">Installation</h2>
@@ -280,12 +289,64 @@ section.level2:first-of-type > h2:first-child,
 </section>
 <section id="install-the-package" class="level3">
 <h3 class="anchored" data-anchor-id="install-the-package">Install the package</h3>
-<p>Install the development version from GitHub:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">"git+https://github.com/ar-puuk/basemapper.git#subdirectory=py-basemapper"</span></span></code></pre></div>
+<p>Install the development version from GitHub.</p>
+<p>With pip:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></span></code></pre></div>
+<p>With <a href="https://docs.astral.sh/uv/">uv</a>, into a project or the current environment:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> add <span class="st">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> pip install <span class="st">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></span></code></pre></div>
+<p>With conda (or mamba), conda-forge provides the dependencies and the Rust toolchain, and pip builds basemapper from GitHub inside the environment:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> create <span class="at">-n</span> basemapper <span class="at">-c</span> conda-forge python numpy pyproj matplotlib xarray rust pip</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> activate basemapper</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></span></code></pre></div>
+<p>or as an <code>environment.yml</code> (<code>conda env create -f environment.yml</code>):</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">name</span><span class="kw">:</span><span class="at"> basemapper</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">channels</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="at">conda-forge</span><span class="kw">]</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="fu">dependencies</span><span class="kw">:</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> python&gt;=3.9</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> numpy</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> pyproj</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> matplotlib</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> xarray</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> rust</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> pip</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">pip</span><span class="kw">:</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="st">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></span></code></pre></div>
+<p>For <a href="reference/geom_basemap.html#basemapper.geom_basemap" class="gdls-link gdls-code">geom_basemap()</a> in plotnine, install <code>basemapper[plotnine]</code> in place of <code>basemapper</code>.</p>
 <blockquote class="blockquote">
 <p>A PyPI release is planned once the package stabilises.</p>
 </blockquote>
 </section>
+</section>
+<section id="quick-example" class="level2">
+<h2 class="anchored" data-anchor-id="quick-example">Quick example</h2>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> basemapper</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> basemapper <span class="im">import</span> basemap_provider, tile_style, wms_style</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Built-in basemaps by leaflet name (list_providers(), basemapper.providers);</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="co"># the name works as a style</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>style <span class="op">=</span> <span class="st">"OpenFreeMap.Liberty"</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>style <span class="op">=</span> basemap_provider(<span class="st">"Esri.WorldGrayCanvas"</span>, <span class="bu">type</span><span class="op">=</span><span class="st">"raster"</span>)   <span class="co"># pick the form</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>style <span class="op">=</span> basemap_provider(<span class="st">"OpenFreeMap.Liberty"</span>, tiles<span class="op">=</span><span class="st">"data/omt.pmtiles"</span>)   <span class="co"># your own tiles</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Stack parts of basemaps: imagery under a vector basemap's labels</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>hybrid <span class="op">=</span> [<span class="st">"Esri.WorldImagery"</span>, basemap_provider(<span class="st">"OpenFreeMap.Liberty"</span>, labels<span class="op">=</span><span class="st">"only"</span>)]</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="co"># labels=False / "only", features=["water", "roads"] / ["-buildings"]</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="co"># A view: centre + zoom, or bounds to fit</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>m <span class="op">=</span> basemapper.basemap(style, <span class="dv">800</span>, <span class="dv">600</span>, center<span class="op">=</span>(<span class="op">-</span><span class="fl">122.45</span>, <span class="fl">37.75</span>), zoom<span class="op">=</span><span class="dv">12</span>, pixel_ratio<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>m.render_png(path<span class="op">=</span><span class="st">"sf.png"</span>)        <span class="co"># 1600 x 1200</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>m.render_svg(path<span class="op">=</span><span class="st">"sf.svg"</span>)        <span class="co"># true vector</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>m.set_view(zoom<span class="op">=</span><span class="dv">13</span>).get_bounds(lonlat<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="co"># One-shot render of bounds to a (height, width, 4) uint8 array</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> basemapper.render_basemap_raw([<span class="op">-</span><span class="fl">122.5</span>, <span class="fl">37.7</span>, <span class="op">-</span><span class="fl">122.4</span>, <span class="fl">37.8</span>], <span class="dv">400</span>, <span class="dv">300</span>, style)</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Your own tile data works as a style: tile URLs, TileJSON, PMTiles</span></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="co"># archives (URL or local file), ArcGIS services</span></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>m <span class="op">=</span> basemapper.basemap(<span class="st">"data/area.pmtiles"</span>, <span class="dv">800</span>, <span class="dv">600</span>, bounds<span class="op">=</span>[<span class="op">-</span><span class="fl">122.5</span>, <span class="fl">37.7</span>, <span class="op">-</span><span class="fl">122.4</span>, <span class="fl">37.8</span>])</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>style <span class="op">=</span> tile_style(<span class="st">"https://example.com/</span><span class="sc">{z}</span><span class="st">/</span><span class="sc">{x}</span><span class="st">/</span><span class="sc">{y}</span><span class="st">.png"</span>, maxzoom<span class="op">=</span><span class="dv">16</span>)   <span class="co"># with overrides</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>style <span class="op">=</span> wms_style(<span class="st">"https://gis.example.com/wms"</span>, layers<span class="op">=</span><span class="st">"imagery"</span>)</span></code></pre></div>
 </section>
 <section id="get-started" class="level2">
 <h2 class="anchored" data-anchor-id="get-started">Get started</h2>
@@ -318,7 +379,8 @@ section.level2:first-of-type > h2:first-child,
           return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
       }
       // Inspect non-navigation links and adorn them if external
-     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      window.quartoDecorateExternalLinks = function (root) {
+     var links = (root || window.document).querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
       for (var i=0; i<links.length; i++) {
         const link = links[i];
         if (!isInternal(link.href)) {
@@ -327,8 +389,69 @@ section.level2:first-of-type > h2:first-child,
           if (link.dataset.originalHref !== undefined) {
             link.href = link.dataset.originalHref;
           }
+          if (!link.classList.contains('no-external-icon')) {
+          }
         }
       }
+      };
+      window.quartoDecorateExternalLinks(window.document);
+    // Esc closes the popup (WCAG 1.4.13) and focus leaving both trigger and
+    // popup closes it (WCAG 2.4.11); tippy handles neither for interactive popups.
+    const hideOnEscAndFocusOut = {
+      name: 'hideOnEscAndFocusOut',
+      defaultValue: true,
+      fn(instance) {
+        const dismiss = () => {
+          // A show scheduled by the trigger delay would otherwise reopen it
+          instance.clearDelayTimeouts();
+          instance.hide();
+        };
+        const onKeyDown = (event) => {
+          if (event.key !== 'Escape') {
+            return;
+          }
+          // Keep Esc from also reaching page handlers (e.g. reveal.js overview),
+          // except an open reveal.js slide menu, which Esc should close too.
+          // The menu handles keys only when its keyboard option is on.
+          const menuHandlesEsc = window.Reveal?.getPlugin?.('menu')?.isOpen() &&
+            window.Reveal.getConfig().menu?.keyboard !== false;
+          if (!menuHandlesEsc) {
+            event.stopPropagation();
+          }
+          if (instance.popper.contains(window.document.activeElement)) {
+            // Disabled while refocusing so the focus trigger does not reopen it
+            instance.disable();
+            instance.reference.focus();
+            instance.enable();
+          }
+          dismiss();
+        };
+        const onFocusOut = (event) => {
+          const target = event.relatedTarget;
+          if (target && !instance.reference.contains(target) &&
+              !instance.popper.contains(target)) {
+            dismiss();
+          }
+        };
+        // On the trigger too: a click trigger (code-annotations: select) has no
+        // blur handling. Attached for the instance's lifetime so leaving the
+        // trigger also cancels a show still pending on the trigger delay.
+        instance.reference.addEventListener('focusout', onFocusOut);
+        return {
+          onShow() {
+            window.document.addEventListener('keydown', onKeyDown, true);
+            instance.popper.addEventListener('focusout', onFocusOut);
+          },
+          onHide() {
+            window.document.removeEventListener('keydown', onKeyDown, true);
+            instance.popper.removeEventListener('focusout', onFocusOut);
+          },
+          onDestroy() {
+            instance.reference.removeEventListener('focusout', onFocusOut);
+          },
+        };
+      },
+    };
     function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
       const config = {
         allowHTML: true,
@@ -342,6 +465,7 @@ section.level2:first-of-type > h2:first-child,
         interactiveBorder: 10,
         theme: 'quarto',
         placement: 'bottom-start',
+        plugins: [hideOnEscAndFocusOut],
       };
       if (contentFn) {
         config.content = contentFn;
@@ -504,44 +628,54 @@ section.level2:first-of-type > h2:first-child,
           const lineIds = lines.map((line) => {
             return targetCell + "-" + line;
           })
-          let top = null;
-          let height = null;
-          let parent = null;
+          // Each band is positioned against its own containing block, which is
+          // not the offsetParent of the lines, so place it from client rects.
+          const placeBand = (band, firstEl, lastEl, codeBlock) => {
+            const container = band.offsetParent;
+            if (container === null) {
+              return;
+            }
+            const containerRect = container.getBoundingClientRect();
+            // Reveal.js scales slides with a transform, so convert client
+            // pixels back to the CSS pixels of the container.
+            const scale = containerRect.height / container.offsetHeight || 1;
+            const firstRect = firstEl.getBoundingClientRect();
+            const lastRect = lastEl.getBoundingClientRect();
+            const top = (firstRect.top - containerRect.top) / scale - container.clientTop + container.scrollTop;
+            const height = (lastRect.bottom - firstRect.top) / scale;
+            band.style.top = top - 2 + "px";
+            band.style.height = height + 4 + "px";
+            if (codeBlock) {
+              // Without the copy button wrapper, the containing block is wider
+              // than the code block, so span the code block explicitly.
+              const blockRect = codeBlock.getBoundingClientRect();
+              band.style.left = (blockRect.left - containerRect.left) / scale - container.clientLeft + container.scrollLeft + "px";
+              band.style.width = blockRect.width / scale + "px";
+            }
+          };
           if (lineIds.length > 0) {
-              //compute the position of the single el (top and bottom and make a div)
-              const el = window.document.getElementById(lineIds[0]);
-              top = el.offsetTop;
-              height = el.offsetHeight;
-              parent = el.parentElement.parentElement;
-            if (lineIds.length > 1) {
-              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
-              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
-              height = bottom - top;
+            const el = window.document.getElementById(lineIds[0]);
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const parent = el.parentElement.parentElement;
+            // cook up a div (if necessary) and position it
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
             }
-            if (top !== null && height !== null && parent !== null) {
-              // cook up a div (if necessary) and position it 
-              let div = window.document.getElementById("code-annotation-line-highlight");
-              if (div === null) {
-                div = window.document.createElement("div");
-                div.setAttribute("id", "code-annotation-line-highlight");
-                div.style.position = 'absolute';
-                parent.appendChild(div);
-              }
-              div.style.top = top - 2 + "px";
-              div.style.height = height + 4 + "px";
-              div.style.left = 0;
-              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
-              if (gutterDiv === null) {
-                gutterDiv = window.document.createElement("div");
-                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
-                gutterDiv.style.position = 'absolute';
-                const codeCell = window.document.getElementById(targetCell);
-                const gutter = codeCell.querySelector('.code-annotation-gutter');
-                gutter.appendChild(gutterDiv);
-              }
-              gutterDiv.style.top = top - 2 + "px";
-              gutterDiv.style.height = height + 4 + "px";
+            placeBand(div, el, lastEl, parent.closest("div.sourceCode") || parent);
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
             }
+            placeBand(gutterDiv, el, lastEl);
             selectedAnnoteEl = annoteEl;
           }
         };
@@ -640,6 +774,9 @@ section.level2:first-of-type > h2:first-child,
     }
   });
   </script>
+  <script type="application/javascript">
+  window.quartoScrollableRegionsLabels = {"code":"Scrollable code","output":"Scrollable output"};
+  </script>
 </div> <!-- /content -->
 <footer class="footer">
   <div class="nav-footer">
@@ -658,11 +795,10 @@ section.level2:first-of-type > h2:first-child,
 <script src="copy-code.js"></script>
 <script src="details.js"></script>
 <script src="mermaid-renderer.js"></script>
-<script src="reference-switcher.js"></script>
 <script src="tooltips.js"></script>
-<script>(function(){var s=document.createElement('script');s.src=(document.querySelector('link[rel="canonical"]')||{href:location.href}).href.replace(/\/[^\/]*$/,'').replace(/\/[^\/]*$/,'')+'/color-swatch.js';var h=document.currentScript;h.parentNode.insertBefore(s,h.nextSibling);})()</script>
+<script>(function(){var s=document.createElement('script');var m=document.querySelector('meta[name="quarto:offset"]');s.src=(m?m.content:'')+'color-swatch.js';document.body.appendChild(s);})();</script>
 <script src="responsive-tables.js"></script>
-<script src="video-embed.js"></script>
+<script>(function(){var s=document.createElement('script');var m=document.querySelector('meta[name="quarto:offset"]');s.src=(m?m.content:'')+'video-embed.js';document.body.appendChild(s);})();</script>
 <script>(function(){var s=document.createElement('script');var m=document.querySelector('meta[name="quarto:offset"]');s.src=(m?m.content:'')+'termshow.js';document.body.appendChild(s);})();</script>
 <script src="navbar-widgets.js"></script>
 <style>
@@ -676,164 +812,220 @@ html.quarto-dark, :root[data-bs-theme='dark'] {
 </style>
 <style>
 /* Great Docs: navbar_color overrides */
-html.quarto-light, :root[data-bs-theme='light'] {
+html.quarto-light,
+:root[data-bs-theme='light'] {
     --gd-navbar-bg: #0e171e;
     --gd-navbar-text: #FFFFFF;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar {
+html.quarto-light .navbar,
+:root[data-bs-theme='light'] .navbar {
     background: #0e171e !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.15);
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .navbar-title,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-link {
+html.quarto-light .navbar .navbar-title,
+:root[data-bs-theme='light'] .navbar .navbar-title,
+html.quarto-light .navbar .nav-link,
+:root[data-bs-theme='light'] .navbar .nav-link {
     color: #FFFFFF !important;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-link:hover {
+html.quarto-light .navbar .nav-link:hover,
+:root[data-bs-theme='light'] .navbar .nav-link:hover {
     background-color: rgba(255, 255, 255, 0.15) !important;
     color: #FFFFFF !important;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-item:has(#github-widget) .nav-link:hover {
+html.quarto-light .navbar .nav-item:has(#github-widget) .nav-link:hover,
+:root[data-bs-theme='light'] .navbar .nav-item:has(#github-widget) .nav-link:hover {
     background-color: transparent !important;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-link.active {
+html.quarto-light .navbar .nav-link.active,
+:root[data-bs-theme='light'] .navbar .nav-link.active {
     text-decoration-color: rgba(255, 255, 255, 0.75) !important;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .dark-mode-toggle,
-html.quarto-light, :root[data-bs-theme='light'] #quarto-search .aa-DetachedSearchButton {
+html.quarto-light .navbar .dark-mode-toggle,
+:root[data-bs-theme='light'] .navbar .dark-mode-toggle,
+html.quarto-light #quarto-search .aa-DetachedSearchButton,
+:root[data-bs-theme='light'] #quarto-search .aa-DetachedSearchButton {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.15);
     color: #FFFFFF;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .dark-mode-toggle:hover,
-html.quarto-light, :root[data-bs-theme='light'] #quarto-search .aa-DetachedSearchButton:hover {
+html.quarto-light .navbar .dark-mode-toggle:hover,
+:root[data-bs-theme='light'] .navbar .dark-mode-toggle:hover,
+html.quarto-light #quarto-search .aa-DetachedSearchButton:hover,
+:root[data-bs-theme='light'] #quarto-search .aa-DetachedSearchButton:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .gh-widget-trigger {
+html.quarto-light .navbar .gh-widget-trigger,
+:root[data-bs-theme='light'] .navbar .gh-widget-trigger {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.15);
     color: #FFFFFF;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .gh-widget-trigger:hover {
+html.quarto-light .navbar .gh-widget-trigger:hover,
+:root[data-bs-theme='light'] .navbar .gh-widget-trigger:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .quarto-navbar-tools button,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .quarto-navbar-tools .quarto-navigation-tool {
+html.quarto-light .navbar .quarto-navbar-tools button,
+:root[data-bs-theme='light'] .navbar .quarto-navbar-tools button,
+html.quarto-light .navbar .quarto-navbar-tools .quarto-navigation-tool,
+:root[data-bs-theme='light'] .navbar .quarto-navbar-tools .quarto-navigation-tool {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.15);
     color: #FFFFFF;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .quarto-navbar-tools button:hover,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .quarto-navbar-tools .quarto-navigation-tool:hover {
+html.quarto-light .navbar .quarto-navbar-tools button:hover,
+:root[data-bs-theme='light'] .navbar .quarto-navbar-tools button:hover,
+html.quarto-light .navbar .quarto-navbar-tools .quarto-navigation-tool:hover,
+:root[data-bs-theme='light'] .navbar .quarto-navbar-tools .quarto-navigation-tool:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-item.compact .nav-link,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .gd-navbar-icon {
+html.quarto-light .navbar .nav-item.compact .nav-link,
+:root[data-bs-theme='light'] .navbar .nav-item.compact .nav-link,
+html.quarto-light .navbar .gd-navbar-icon,
+:root[data-bs-theme='light'] .navbar .gd-navbar-icon {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 6px;
     color: #FFFFFF;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .nav-item.compact .nav-link:hover,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .gd-navbar-icon:hover {
+html.quarto-light .navbar .nav-item.compact .nav-link:hover,
+:root[data-bs-theme='light'] .navbar .nav-item.compact .nav-link:hover,
+html.quarto-light .navbar .gd-navbar-icon:hover,
+:root[data-bs-theme='light'] .navbar .gd-navbar-icon:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .navbar-toggler-icon {
+html.quarto-light .navbar .navbar-toggler-icon,
+:root[data-bs-theme='light'] .navbar .navbar-toggler-icon {
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%23e0e0e0' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .bi,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .aa-SubmitIcon,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .aa-SearchIcon,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .aa-DetachedSearchButtonIcon,
-html.quarto-light, :root[data-bs-theme='light'] .navbar .aa-DetachedSearchButtonIcon svg {
+html.quarto-light .navbar .bi,
+:root[data-bs-theme='light'] .navbar .bi,
+html.quarto-light .navbar .aa-SubmitIcon,
+:root[data-bs-theme='light'] .navbar .aa-SubmitIcon,
+html.quarto-light .navbar .aa-SearchIcon,
+:root[data-bs-theme='light'] .navbar .aa-SearchIcon,
+html.quarto-light .navbar .aa-DetachedSearchButtonIcon,
+:root[data-bs-theme='light'] .navbar .aa-DetachedSearchButtonIcon,
+html.quarto-light .navbar .aa-DetachedSearchButtonIcon svg,
+:root[data-bs-theme='light'] .navbar .aa-DetachedSearchButtonIcon svg {
     color: #FFFFFF !important;
     fill: #FFFFFF !important;
 }
-html.quarto-light, :root[data-bs-theme='light'] .navbar .version-badge {
+html.quarto-light .navbar .version-badge,
+:root[data-bs-theme='light'] .navbar .version-badge {
     color: #FFFFFF;
     opacity: 0.75;
     background-color: rgba(255, 255, 255, 0.08);
 }
-html.quarto-dark, :root[data-bs-theme='dark'] {
+html.quarto-dark,
+:root[data-bs-theme='dark'] {
     --gd-navbar-bg: #0e171e;
     --gd-navbar-text: #FFFFFF;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar {
+html.quarto-dark .navbar,
+:root[data-bs-theme='dark'] .navbar {
     background: #0e171e !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.15);
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .navbar-title,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-link {
+html.quarto-dark .navbar .navbar-title,
+:root[data-bs-theme='dark'] .navbar .navbar-title,
+html.quarto-dark .navbar .nav-link,
+:root[data-bs-theme='dark'] .navbar .nav-link {
     color: #FFFFFF !important;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-link:hover {
+html.quarto-dark .navbar .nav-link:hover,
+:root[data-bs-theme='dark'] .navbar .nav-link:hover {
     background-color: rgba(255, 255, 255, 0.15) !important;
     color: #FFFFFF !important;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-item:has(#github-widget) .nav-link:hover {
+html.quarto-dark .navbar .nav-item:has(#github-widget) .nav-link:hover,
+:root[data-bs-theme='dark'] .navbar .nav-item:has(#github-widget) .nav-link:hover {
     background-color: transparent !important;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-link.active {
+html.quarto-dark .navbar .nav-link.active,
+:root[data-bs-theme='dark'] .navbar .nav-link.active {
     text-decoration-color: rgba(255, 255, 255, 0.75) !important;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .dark-mode-toggle,
-html.quarto-dark, :root[data-bs-theme='dark'] #quarto-search .aa-DetachedSearchButton {
+html.quarto-dark .navbar .dark-mode-toggle,
+:root[data-bs-theme='dark'] .navbar .dark-mode-toggle,
+html.quarto-dark #quarto-search .aa-DetachedSearchButton,
+:root[data-bs-theme='dark'] #quarto-search .aa-DetachedSearchButton {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.15);
     color: #FFFFFF;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .dark-mode-toggle:hover,
-html.quarto-dark, :root[data-bs-theme='dark'] #quarto-search .aa-DetachedSearchButton:hover {
+html.quarto-dark .navbar .dark-mode-toggle:hover,
+:root[data-bs-theme='dark'] .navbar .dark-mode-toggle:hover,
+html.quarto-dark #quarto-search .aa-DetachedSearchButton:hover,
+:root[data-bs-theme='dark'] #quarto-search .aa-DetachedSearchButton:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .gh-widget-trigger {
+html.quarto-dark .navbar .gh-widget-trigger,
+:root[data-bs-theme='dark'] .navbar .gh-widget-trigger {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.15);
     color: #FFFFFF;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .gh-widget-trigger:hover {
+html.quarto-dark .navbar .gh-widget-trigger:hover,
+:root[data-bs-theme='dark'] .navbar .gh-widget-trigger:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .quarto-navbar-tools button,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .quarto-navbar-tools .quarto-navigation-tool {
+html.quarto-dark .navbar .quarto-navbar-tools button,
+:root[data-bs-theme='dark'] .navbar .quarto-navbar-tools button,
+html.quarto-dark .navbar .quarto-navbar-tools .quarto-navigation-tool,
+:root[data-bs-theme='dark'] .navbar .quarto-navbar-tools .quarto-navigation-tool {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.15);
     color: #FFFFFF;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .quarto-navbar-tools button:hover,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .quarto-navbar-tools .quarto-navigation-tool:hover {
+html.quarto-dark .navbar .quarto-navbar-tools button:hover,
+:root[data-bs-theme='dark'] .navbar .quarto-navbar-tools button:hover,
+html.quarto-dark .navbar .quarto-navbar-tools .quarto-navigation-tool:hover,
+:root[data-bs-theme='dark'] .navbar .quarto-navbar-tools .quarto-navigation-tool:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-item.compact .nav-link,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .gd-navbar-icon {
+html.quarto-dark .navbar .nav-item.compact .nav-link,
+:root[data-bs-theme='dark'] .navbar .nav-item.compact .nav-link,
+html.quarto-dark .navbar .gd-navbar-icon,
+:root[data-bs-theme='dark'] .navbar .gd-navbar-icon {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 6px;
     color: #FFFFFF;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .nav-item.compact .nav-link:hover,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .gd-navbar-icon:hover {
+html.quarto-dark .navbar .nav-item.compact .nav-link:hover,
+:root[data-bs-theme='dark'] .navbar .nav-item.compact .nav-link:hover,
+html.quarto-dark .navbar .gd-navbar-icon:hover,
+:root[data-bs-theme='dark'] .navbar .gd-navbar-icon:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .navbar-toggler-icon {
+html.quarto-dark .navbar .navbar-toggler-icon,
+:root[data-bs-theme='dark'] .navbar .navbar-toggler-icon {
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%23e0e0e0' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .bi,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .aa-SubmitIcon,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .aa-SearchIcon,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .aa-DetachedSearchButtonIcon,
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .aa-DetachedSearchButtonIcon svg {
+html.quarto-dark .navbar .bi,
+:root[data-bs-theme='dark'] .navbar .bi,
+html.quarto-dark .navbar .aa-SubmitIcon,
+:root[data-bs-theme='dark'] .navbar .aa-SubmitIcon,
+html.quarto-dark .navbar .aa-SearchIcon,
+:root[data-bs-theme='dark'] .navbar .aa-SearchIcon,
+html.quarto-dark .navbar .aa-DetachedSearchButtonIcon,
+:root[data-bs-theme='dark'] .navbar .aa-DetachedSearchButtonIcon,
+html.quarto-dark .navbar .aa-DetachedSearchButtonIcon svg,
+:root[data-bs-theme='dark'] .navbar .aa-DetachedSearchButtonIcon svg {
     color: #FFFFFF !important;
     fill: #FFFFFF !important;
 }
-html.quarto-dark, :root[data-bs-theme='dark'] .navbar .version-badge {
+html.quarto-dark .navbar .version-badge,
+:root[data-bs-theme='dark'] .navbar .version-badge {
     color: #FFFFFF;
     opacity: 0.75;
     background-color: rgba(255, 255, 255, 0.08);

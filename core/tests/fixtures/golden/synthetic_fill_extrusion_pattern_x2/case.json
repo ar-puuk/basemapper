@@ -1,0 +1,16 @@
+{
+  "note": "Synthetic: fill-extrusion-pattern at pixel ratio 2 (@2x sprite) and a fractional zoom.",
+  "bbox": [
+    -12457201.382310139,
+    4975758.241666841,
+    -12453874.267408622,
+    4978253.57784298
+  ],
+  "width": 400,
+  "height": 300,
+  "zoom": 13.2,
+  "attribution": "Synthetic buildings",
+  "max_bad_pixel_frac": 0.00012,
+  "max_mean_diff": 0.06,
+  "pixel_ratio": 2
+}

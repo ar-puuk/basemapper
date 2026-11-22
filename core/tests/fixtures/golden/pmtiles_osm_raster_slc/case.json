@@ -1,0 +1,23 @@
+{
+  "note": "PMTiles raster source in a raster-only style (the raster pipeline): the osm_raster_slc view from an archive with max zoom 19.",
+  "tiles_from": "osm_raster_slc",
+  "pmtiles": {
+    "osm.pmtiles": {
+      "tiles": "tiles",
+      "type": "png",
+      "max_zoom": 19
+    }
+  },
+  "bbox": [
+    -12459252.0,
+    4963454.0,
+    -12451608.0,
+    4969187.0
+  ],
+  "width": 800,
+  "height": 600,
+  "zoom": 14,
+  "attribution": "(c) OpenStreetMap contributors, ODbL",
+  "max_bad_pixel_frac": 0.0,
+  "max_mean_diff": 0.0
+}

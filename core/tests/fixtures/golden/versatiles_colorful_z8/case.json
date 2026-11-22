@@ -1,0 +1,21 @@
+{
+  "attribution": "VersaTiles, OpenStreetMap contributors",
+  "bbox": [
+    -12577837.070115661,
+    4885281.475812699,
+    -12333238.579603096,
+    5068730.343697122
+  ],
+  "fonts_from": null,
+  "height": 600,
+  "layers": null,
+  "source_style": "https://tiles.versatiles.org/assets/styles/colorful/style.json",
+  "tiles_from": null,
+  "width": 800,
+  "zoom": 9,
+  "svg": true,
+  "max_bad_pixel_frac": 0.00065,
+  "max_mean_diff": 0.028,
+  "max_bad_pixel_frac_svg": 0.00043,
+  "max_mean_diff_svg": 0.309
+}

@@ -1,0 +1,18 @@
+{
+  "fixture_from": "ugrc_litelabels_z12_4",
+  "note": "ugrc_litelabels_z12_4 at pixel ratio 2 (MapLibre devicePixelRatio): same view, image twice the size.",
+  "pixel_ratio": 2,
+  "bbox": [
+    -12461222.843503334,
+    4961975.8673725,
+    -12449637.156496666,
+    4970665.1326275
+  ],
+  "width": 800,
+  "height": 600,
+  "zoom": 13,
+  "attribution": "Utah Geospatial Resource Center (UGRC), State of Utah",
+  "fonts_from": "ugrc_litelabels_slc",
+  "max_bad_pixel_frac": 0.00019,
+  "max_mean_diff": 0.015
+}

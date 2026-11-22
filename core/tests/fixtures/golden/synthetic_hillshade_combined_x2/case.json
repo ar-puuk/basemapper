@@ -1,0 +1,17 @@
+{
+  "note": "Synthetic: hillshade, combined method with translucent colors, an exaggeration expression and accent, at pixel ratio 2.",
+  "tiles_from": "synthetic_hillshade_standard",
+  "bbox": [
+    -12446804.353487654,
+    4947139.373440603,
+    -12421969.889729662,
+    4965765.2212590985
+  ],
+  "width": 400,
+  "height": 300,
+  "zoom": 10.3,
+  "attribution": "Terrain Tiles (Mapzen, AWS Open Data): SRTM, GMTED, NED and others",
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.104,
+  "pixel_ratio": 2
+}

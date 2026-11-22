@@ -2,91 +2,97 @@
 % Please edit documentation in R/render_basemap_raw.R
 \name{render_basemap_raw}
 \alias{render_basemap_raw}
-\title{Render a basemap and return raw RGBA bytes.}
+\title{Render a basemap for bounds in one call}
 \usage{
 render_basemap_raw(
-  bbox,
+  bounds,
   width,
   height,
-  style_input,
+  style,
   crs = NULL,
-  zoom = NULL,
+  pixel_ratio = 1,
+  tile_zoom = NULL,
+  layers = NULL,
+  labels = TRUE,
+  features = NULL,
+  auth_token = NULL,
   tile_timeout_ms = 10000L,
   max_tiles = 256L,
-  layers = NULL
+  tile_concurrency = 16L,
+  fail_on_tile_error = FALSE
 )
 }
 \arguments{
-\item{bbox}{Bounding box — one of:
-\itemize{
-\item Numeric vector of length 4: \code{c(xmin, ymin, xmax, ymax)} in
-the CRS given by \code{crs} (defaults to EPSG:4326 / WGS-84).
-\item An \code{\link[sf]{st_bbox}} result; CRS is read from the object.
-\item An \code{sfc}, \code{sfg}, or \code{sf} data frame; bounding box
-and CRS are extracted automatically.
-}}
+\item{bounds}{Bounding box: \code{c(xmin, ymin, xmax, ymax)} in \code{crs} (default
+EPSG:4326, with a message when the values look projected), an
+\code{\link[sf:st_bbox]{sf::st_bbox()}} result, or an \code{sf} / \code{sfc} / \code{sfg} object (CRS read from
+the object).}
 
-\item{width}{Integer output pixel width.}
+\item{width, height}{View size in CSS pixels.}
 
-\item{height}{Integer output pixel height.}
+\item{style}{A MapLibre GL style URL or JSON string (e.g. from
+\code{\link[=basemap_provider]{basemap_provider()}}), or a character vector / list of those stacked
+bottom to top (e.g. a basemap published as separate hillshade, base and
+label services).}
 
-\item{style_input}{Character: a MapLibre GL style URL or inline JSON string.}
+\item{crs}{CRS of \code{bounds} (anything \code{\link[sf:st_crs]{sf::st_crs()}} accepts).}
 
-\item{crs}{CRS of \code{bbox} — anything accepted by \code{sf::st_crs()},
-e.g.\ an integer EPSG code, WKT string, or \code{crs} object.  Ignored
-when \code{bbox} already carries a CRS (e.g.\ an \code{st_bbox} result).
-Defaults to EPSG:4326 (WGS-84) with a message when coordinates appear to
-be in a projected system.}
+\item{pixel_ratio}{Device pixels per CSS pixel.}
 
-\item{zoom}{Integer zoom level (0--22), or \code{NULL} for automatic
-selection.}
+\item{tile_zoom}{Tile detail override: the tile zoom on the 256 px grid
+(vector sources use one less, their tiles being 512 px), or \code{NULL} to
+pick tiles as MapLibre does for the view.}
 
-\item{tile_timeout_ms}{Integer per-tile HTTP timeout in milliseconds.}
+\item{layers}{Optional layer filter applied to every style: plain IDs keep
+only those layers, minus-prefixed IDs drop them; \code{*} and \verb{?} are
+wildcards (\code{"-label_*"}). See \code{\link[=list_layers]{list_layers()}}. Names that match no
+layer of any style warn.}
 
-\item{max_tiles}{Integer maximum tile downloads per render.}
+\item{labels}{\code{TRUE} keeps every layer, \code{FALSE} drops the labels (text and
+icons), \code{"only"} keeps only the labels on a transparent background, to
+stack over another map. Catalogue raster basemaps switch to their
+label-free or label-only tiles.}
 
-\item{layers}{Character vector of layer IDs to filter. Plain IDs keep only
-those layers; minus-prefixed IDs (e.g. \code{"-roads"}) exclude those
-layers.  Mixed positive/negative lists raise an error.  \code{NULL}
-renders all layers.}
+\item{features}{Optional feature filter applied to every style: plain
+names keep those features, minus-prefixed names drop them, e.g.
+\code{c("water", "roads")} or \code{"-buildings"}. Features: background, water,
+landcover, parks, buildings, roads, rail, boundaries, places, poi,
+terrain, other (the \code{feature} column of \code{\link[=list_layers]{list_layers()}}). Features no
+layer of any style belongs to warn.}
+
+\item{auth_token}{Optional access token for the tile service.}
+
+\item{tile_timeout_ms}{Per-tile HTTP timeout in milliseconds.}
+
+\item{max_tiles}{Maximum tiles fetched per style.}
+
+\item{tile_concurrency}{Parallel tile downloads.}
+
+\item{fail_on_tile_error}{Abort on a failed tile instead of leaving it
+empty.}
 }
 \value{
-A 3-D integer array \code{[height, width, 4]} (RGBA, row-major) with
-spatial-extent attributes \code{xmin}, \code{ymin}, \code{xmax},
-\code{ymax} in the \emph{input} CRS, and \code{crs_epsg} set to the input
-EPSG code (\code{NA_integer_} for non-EPSG CRS specifications).
+An integer array \verb{[height * pixel_ratio, width * pixel_ratio, 4]}
+(RGBA, 0--255) with the input extent as attributes \code{xmin}, \code{ymin},
+\code{xmax}, \code{ymax} and \code{crs_epsg} (\code{NA} for a non-EPSG CRS).
 }
 \description{
-Low-level wrapper around the Rust FFI.  Reprojects \code{bbox} to
-EPSG:3857 internally; all output attributes reflect the \emph{input} CRS.
+A one-shot render: fit \code{bounds} into a \code{width} x \code{height} CSS-pixel view
+and return the pixels. \code{\link[=basemap]{basemap()}} with \code{\link[=render_array]{render_array()}} gives the same
+result with a reusable view; plot integrations use this function. The
+same function exists in Python (\code{basemapper.render_basemap_raw()}).
 }
 \examples{
 \dontrun{
-# WGS-84 bounding box (default CRS)
-m <- render_basemap_raw(
-  bbox        = c(-122.5, 37.7, -122.4, 37.8),
-  width       = 400L,
-  height      = 300L,
-  style_input = "https://demotiles.maplibre.org/style.json"
-)
+# WGS-84 bounds (default CRS)
+a <- render_basemap_raw(c(-122.5, 37.7, -122.4, 37.8), 400, 300,
+                        "OpenFreeMap.Positron")
 
-# sf::st_bbox() result — CRS inferred automatically
-library(sf)
-nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-m <- render_basemap_raw(
-  bbox        = sf::st_bbox(nc),
-  width       = 400L,
-  height      = 300L,
-  style_input = "https://demotiles.maplibre.org/style.json"
-)
-
-# Explicit EPSG:3857 bbox
-m <- render_basemap_raw(
-  bbox        = c(-13700000, 4500000, -13600000, 4600000),
-  crs         = 3857L,
-  width       = 400L,
-  height      = 300L,
-  style_input = "https://demotiles.maplibre.org/style.json"
-)
+# sf object: CRS read from it; two styles stacked; 2x pixels
+nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
+a <- render_basemap_raw(nc, 400, 300,
+                        c("Esri.WorldShadedRelief",
+                          "OpenFreeMap.Positron"),
+                        pixel_ratio = 2)
 }
 }

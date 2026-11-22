@@ -1,0 +1,23 @@
+{
+ "brick": {
+  "x": 0,
+  "y": 0,
+  "width": 32,
+  "height": 16,
+  "pixelRatio": 2
+ },
+ "windows": {
+  "x": 34,
+  "y": 0,
+  "width": 24,
+  "height": 24,
+  "pixelRatio": 2
+ },
+ "stripes": {
+  "x": 60,
+  "y": 0,
+  "width": 20,
+  "height": 20,
+  "pixelRatio": 2
+ }
+}

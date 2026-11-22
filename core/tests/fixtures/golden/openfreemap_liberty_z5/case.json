@@ -1,0 +1,21 @@
+{
+  "attribution": "OpenFreeMap, OpenMapTiles, OpenStreetMap contributors",
+  "bbox": [
+    -13390517.185500259,
+    4059751.987567114,
+    -11433729.261399748,
+    5527342.930642499
+  ],
+  "fonts_from": null,
+  "height": 600,
+  "layers": null,
+  "source_style": "https://tiles.openfreemap.org/styles/liberty",
+  "tiles_from": null,
+  "width": 800,
+  "zoom": 6,
+  "svg": true,
+  "max_bad_pixel_frac": 0.00111,
+  "max_mean_diff": 0.157,
+  "max_bad_pixel_frac_svg": 0.05885,
+  "max_mean_diff_svg": 2.327
+}
