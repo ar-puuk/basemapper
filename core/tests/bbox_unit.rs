@@ -10,7 +10,7 @@ fn base_request() -> RenderRequest {
         width: 800,
         height: 600,
         style_input: StyleInput::InlineJson(r#"{"version":8,"sources":{},"layers":[]}"#.into()),
-        zoom: None,
+        tile_zoom: None,
         tile_timeout_ms: 5_000,
         max_tiles: 256,
         tile_concurrency: 4,
@@ -46,7 +46,7 @@ fn zero_width_returns_invalid_dimensions() {
 #[test]
 fn zoom_23_returns_invalid_bbox() {
     let mut req = base_request();
-    req.zoom = Some(23);
+    req.tile_zoom = Some(23);
     assert!(matches!(req.validate(), Err(BasemapError::InvalidBbox(_))));
 }
 

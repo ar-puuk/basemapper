@@ -5,34 +5,47 @@
 \title{Add a styled basemap layer to a tmap v4 pipeline.}
 \usage{
 tm_basemap(
-  style_input,
-  zoom = NULL,
+  style,
+  tile_zoom = NULL,
   alpha = 1,
   layers = NULL,
-  width_px = NULL,
-  height_px = NULL,
-  ratio = NULL,
+  pixel_ratio = NULL,
+  auth_token = NULL,
+  tile_timeout_ms = 10000L,
+  max_tiles = 256L,
+  width = NULL,
+  height = NULL,
   ...
 )
 }
 \arguments{
-\item{style_input}{Character: a MapLibre GL style URL or inline JSON
-string, or a vector / list of styles stacked bottom to top.}
+\item{style}{A MapLibre GL style URL or JSON string (e.g. from
+\code{\link[=basemap_provider]{basemap_provider()}}), or a vector / list of styles stacked bottom to
+top.}
 
-\item{zoom}{Integer zoom level (0–22), or \code{NULL} for automatic.}
+\item{tile_zoom}{Tile detail override: the tile zoom on the 256 px grid
+(vector sources use one less, their tiles being 512 px), or \code{NULL} to
+pick tiles as MapLibre does for the view.}
 
-\item{alpha}{Numeric opacity (0–1).}
+\item{alpha}{Opacity of the basemap layer (0--1).}
 
-\item{layers}{Character vector of layer IDs to filter. See \code{render_basemap_raw()}.}
+\item{layers}{Optional layer filter applied to every style: plain IDs keep
+only those layers, minus-prefixed IDs drop them (see \code{\link[=list_layers]{list_layers()}}).}
 
-\item{width_px, height_px}{View size in CSS pixels (sets the zoom). By
-default the map panel's size is estimated from the device size, margins
-and facet layout, at 96 CSS px per inch.}
+\item{pixel_ratio}{Device pixels per CSS pixel: the basemap raster is
+\code{width * pixel_ratio} by \code{height * pixel_ratio} pixels with the same zoom
+and label layout. Default: device dpi / 96 (300 dpi for PDF / SVG
+devices), so \code{tmap_save(dpi = 300)} gets a basemap rendered at 300 dpi.}
 
-\item{ratio}{Device pixels per CSS pixel: the basemap raster is
-\code{width_px * ratio} by \code{height_px * ratio} pixels with the same zoom and
-label layout. Default: device dpi / 96 (300 dpi for PDF / SVG devices),
-so \code{tmap_save(dpi = 300)} gets a basemap rendered at 300 dpi.}
+\item{auth_token}{Optional access token for the tile service.}
+
+\item{tile_timeout_ms}{Per-tile HTTP timeout in milliseconds.}
+
+\item{max_tiles}{Maximum tiles fetched per style.}
+
+\item{width, height}{View size in CSS pixels (sets the zoom). By default
+the map panel's size is estimated from the device size, margins and
+facet layout, at 96 CSS px per inch.}
 
 \item{...}{Reserved for future use.}
 }
@@ -44,14 +57,14 @@ so it renders behind subsequent layers.
 Returns a deferred tmap element that renders tiles at draw time using the
 bounding box resolved from the active \code{tm_shape()} — no explicit \code{bbox}
 argument is needed. This mirrors how tmap's own \code{tm_basemap()} works.
+Takes the same arguments as \code{\link[=geom_basemap]{geom_basemap()}}, plus the view size.
 }
 \examples{
 \dontrun{
 library(tmap)
 library(sf)
 nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-style <- basemapper::raster_provider("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
-basemapper::tm_basemap(style) +
+basemapper::tm_basemap(basemapper::basemap_provider("Carto.Positron")) +
   tm_shape(nc) +
   tm_sf(fill = NA, col = "steelblue")
 }

@@ -1,41 +1,19 @@
-#' List all layer IDs from a MapLibre GL style.
+#' List a style's layers
 #'
-#' Fetches (if URL) or parses (if inline JSON) a MapLibre GL style and returns
-#' all layer `id` values. Also prints a two-column data.frame of id and type to
-#' the console for interactive exploration.
+#' The layers of a style in drawing order, with their types: the IDs are
+#' what the `layers` filter of [basemap()] and the renderers accepts (plain
+#' IDs keep, minus-prefixed IDs drop). Python: `basemapper.list_layers()`.
 #'
-#' @param style_input Character: a MapLibre GL style URL or inline JSON string.
-#' @return A character vector of all layer `id` values.
+#' @param style A MapLibre GL style URL or JSON string.
+#' @param auth_token Optional access token for the style URL.
+#' @return A data frame with columns `id` and `type`.
 #' @export
 #' @examples
 #' \dontrun{
-#' ids <- list_layers("https://demotiles.maplibre.org/style.json")
+#' list_layers(basemap_provider("Carto.Positron"))
 #' }
-list_layers <- function(style_input) {
-  style_json <- if (startsWith(trimws(style_input), "{")) {
-    style_input
-  } else {
-    resp <- httr2::request(style_input) |>
-      httr2::req_timeout(10) |>
-      httr2::req_perform()
-    httr2::resp_body_string(resp)
-  }
-
-  style <- jsonlite::fromJSON(style_json, simplifyVector = FALSE)
-  layers <- style[["layers"]]
-
-  if (is.null(layers) || length(layers) == 0) {
-    message("No layers found in style.")
-    return(character(0))
-  }
-
-  ids   <- vapply(layers, function(l) l[["id"]]   %||% "", character(1))
-  types <- vapply(layers, function(l) l[["type"]] %||% "", character(1))
-
-  # Print in style-definition order (not sorted) for readability.
-  # Return value is also in style-definition order so callers see consistent ordering.
-  df <- data.frame(id = ids, type = types, stringsAsFactors = FALSE)
-  print(df)
-
-  invisible(ids)
+list_layers <- function(style, auth_token = NULL) {
+  ids <- .Call("wrap__list_layers_raw", as.character(style)[1L],
+               if (is.null(auth_token)) NULL else as.character(auth_token), PACKAGE = "basemapper")
+  data.frame(id = as.character(ids), type = attr(ids, "type"), stringsAsFactors = FALSE)
 }

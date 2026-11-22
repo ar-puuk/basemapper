@@ -15,11 +15,13 @@ knitr::opts_chunk$set(
 )
 ```
 
-> **Python user?** See the equivalent guide in the
-> [Python documentation](../../python/articles/getting-started.html).
+> **Python user?** The Python package has the same functions and arguments;
+> R's `verb(m, ...)` is `m.verb(...)` there. See the
+> [Python documentation](../../python/).
 
-basemapper renders styled map tiles into RGBA pixel arrays using a Rust core.
-It works headlessly — no browser, no display server, no GDAL required.
+basemapper renders MapLibre GL basemaps headlessly with a Rust core: no
+browser, display server, GPU or GDAL. Vector styles are drawn by a software
+port of MapLibre GL JS's renderer, so maps look as they do in MapLibre.
 
 ## Installation
 
@@ -27,125 +29,133 @@ It works headlessly — no browser, no display server, no GDAL required.
 remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
 ```
 
-## Step 1 — Choose a tile style
+## Step 1 — Choose a style
 
-Every rendering function takes a `style_input` argument: either a MapLibre GL
-style URL or an inline JSON string.  The helper functions build the JSON for
-common tile sources:
+Every function takes a `style`: a MapLibre GL style URL or JSON string, or a
+vector of styles stacked bottom to top. `basemap_provider()` names 25 common
+basemaps; the other providers build styles for tile services:
 
 ```r
 library(basemapper)
 
-# OpenStreetMap raster tiles
-osm_style <- raster_provider("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+list_providers()
+positron <- basemap_provider("Carto.Positron")
 
-# ArcGIS Online vector tile basemap
-esri_style <- esri_vector_provider(
+# XYZ raster tiles
+osm <- raster_provider("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+
+# An ArcGIS vector tile service's published style
+esri <- esri_vector_provider(
   "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer"
 )
 
-# Custom MVT source with paint overrides
-mvt_style <- vector_provider(
-  "https://example.com/tiles/{z}/{x}/{y}.mvt",
+# One layer of an MVT source, with paint overrides
+mvt <- vector_provider(
+  "https://example.com/tiles/{z}/{x}/{y}.mvt", source_layer = "land",
   paint = list("fill-color" = "#e8e0d8", "line-color" = "#aaaaaa")
 )
 ```
 
-Use `list_layers()` to inspect a style before rendering:
+`list_layers()` lists a style's layers (id and type) in drawing order:
 
 ```r
-list_layers(osm_style)
+list_layers(positron)
 ```
 
-## Step 2 — Render with {ggplot2}
+## Step 2 — A map on its own
 
-`geom_basemap()` is a lazy ggproto layer: it defers tile fetching until
-`coord_sf()` has established the panel's geographic extent, so you never have
-to compute a bounding box manually.
+`basemap()` creates a view: a centre and MapLibre zoom, or bounds to fit.
+`width` and `height` are CSS pixels; `pixel_ratio` makes the image larger
+with the same view and label layout (`pixel_ratio = 2` for a sharp 2x image,
+`dpi / 96` for print).
+
+```r
+m <- basemap(positron, 800, 600, center = c(-111.8887, 40.7556), zoom = 12.4,
+             pixel_ratio = 2)
+m
+#> <basemap> 1 style, 800 x 600 @ 2x (1600 x 1200 px), center (-111.88870, 40.75560), zoom 12.400
+
+render_png(m, path = "slc.png")
+render_svg(m, path = "slc.svg")   # true vector, labels as editable text
+r <- render_raster(m)             # terra SpatRaster in EPSG:3857
+a <- render_array(m)              # [1200, 1600, 4] integer array
+```
+
+Change the view with `set_view()` and `set_bounds()`, and read it with
+`get_bounds()`, `get_center()`, `get_zoom()` and `get_size()`:
+
+```r
+nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
+m <- set_bounds(m, nc)            # fit an sf object's extent
+get_zoom(m)
+get_bounds(m, lonlat = TRUE)
+m <- set_view(m, zoom = get_zoom(m) + 1)
+```
+
+## Step 3 — Render with {ggplot2}
+
+`geom_basemap()` renders when the plot is drawn, for the panel's extent and
+at the device's resolution, so `ggsave(dpi = 300)` gets a basemap rendered at
+300 dpi:
 
 ```r
 library(ggplot2)
-library(sf)
-
-nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
 
 ggplot(nc) +
-  geom_basemap(style_url = osm_style) +
+  geom_basemap(positron) +
   geom_sf(fill = NA, colour = "steelblue", linewidth = 0.4) +
   coord_sf() +
   theme_void()
 ```
 
-Key parameters shared across all high-level functions:
+## Step 4 — Render with {tmap}
 
-| Parameter | Default | Description |
-|---|---|---|
-| `zoom` | `NULL` (auto) | Tile zoom level 0–22 |
-| `alpha` | `1` | Basemap opacity |
-| `layers` | `NULL` (all) | Layer filter — see below |
-| `tile_timeout_ms` | `10000` | Per-tile HTTP timeout |
-| `max_tiles` | `256` | Cap on tiles fetched per render |
-
-## Step 3 — Render with {tmap}
-
-`tm_basemap()` returns a composable {tmap} v4 element that defers tile
-fetching to draw time, deriving the map extent from the active `tm_shape()`
-— no explicit bounding box is needed:
+`tm_basemap()` is a {tmap} v4 element that takes its extent from the active
+`tm_shape()`:
 
 ```r
 library(tmap)
 
-basemapper::tm_basemap(osm_style) +
-  tm_shape(nc) +
-  tm_sf(fill = NA, col = "steelblue")
+tm_shape(nc) +
+  tm_basemap(positron) +
+  tm_borders(col = "steelblue")
 ```
 
-## Step 4 — Filter layers
+The plot layers share these arguments (in Python too):
 
-Pass a character vector to `layers` to keep only specific layers, or prefix
-IDs with `"-"` to exclude them.  Positive and negative filters cannot be mixed.
-
-```r
-# Keep only water and roads
-render_basemap_raw(
-  bbox_3857   = c(-13700000, 4500000, -13600000, 4600000),
-  width       = 512L,
-  height      = 512L,
-  style_input = osm_style,
-  layers      = c("water", "roads")
-)
-
-# Exclude POI labels
-geom_basemap(style_url = osm_style, layers = c("-poi"))
-```
-
-## Step 5 — Low-level access
-
-`render_basemap_raw()` gives direct access to the pixel array for custom
-compositing or export:
-
-```r
-m <- render_basemap_raw(
-  bbox_3857   = c(-13700000, 4500000, -13600000, 4600000),
-  width       = 800L,
-  height      = 600L,
-  style_input = osm_style
-)
-
-# m is an integer array [height × width × 4] with spatial attrs
-dim(m)           # 600 800 4
-attr(m, "xmin")  # -13700000
-attr(m, "crs_epsg")  # 3857
-
-# Save with png package
-png::writePNG(m / 255, "basemap.png")
-```
-
-## Provider reference
-
-| Helper | Source type | Output |
+| Argument | Default | Description |
 |---|---|---|
-| `raster_provider(url)` | XYZ raster (OSM, Stadia, …) | Inline JSON |
-| `vector_provider(url, paint)` | MVT vector | Inline JSON |
-| `esri_vector_provider(base_url)` | ArcGIS VectorTileServer | Style URL |
-| `esri_raster_provider(url)` | ArcGIS MapServer | Inline JSON |
+| `style` | — | Style URL / JSON, or a vector stacked bottom to top |
+| `tile_zoom` | `NULL` (as MapLibre) | Tile detail override on the 256 px grid |
+| `alpha` | `1` | Basemap opacity |
+| `layers` | `NULL` (all) | Layer filter — see below |
+| `pixel_ratio` | device dpi / 96 | Device pixels per CSS pixel |
+| `auth_token` | `NULL` | Access token for the tile service |
+| `tile_timeout_ms` | `10000` | Per-tile HTTP timeout |
+| `max_tiles` | `256` | Cap on tiles fetched per style |
+
+## Step 5 — Filter layers
+
+Pass layer IDs to `layers` to keep only those layers, or prefix IDs with
+`"-"` to drop them. Keeping and dropping cannot be mixed.
+
+```r
+# Without town and village labels
+render_png(basemap(positron, 800, 600, bounds = nc, layers = c("-place_town", "-place_villages")),
+           path = "nc.png")
+
+ggplot(nc) + geom_basemap(positron, layers = c("background", "water"))
+```
+
+## Step 6 — One-shot rendering
+
+`render_basemap_raw()` renders bounds in one call and returns the pixels with
+their extent, for custom compositing or export:
+
+```r
+a <- render_basemap_raw(nc, 800, 600, positron)
+
+dim(a)                # 600 800 4
+attr(a, "crs_epsg")   # 4267, the CRS of `nc`
+png::writePNG(a / 255, "basemap.png")
+```

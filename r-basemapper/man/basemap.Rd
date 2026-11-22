@@ -12,7 +12,7 @@ basemap(
   zoom = NULL,
   bounds = NULL,
   crs = NULL,
-  ratio = 1,
+  pixel_ratio = 1,
   layers = NULL,
   auth_token = NULL,
   tile_timeout_ms = 10000L,
@@ -22,8 +22,8 @@ basemap(
 )
 }
 \arguments{
-\item{style}{A MapLibre GL style URL or JSON string (or a provider such as
-\code{\link[=raster_provider]{raster_provider()}}), or a character vector / list of those stacked
+\item{style}{A MapLibre GL style URL or JSON string (e.g. from
+\code{\link[=basemap_provider]{basemap_provider()}}), or a character vector / list of those stacked
 bottom to top (e.g. a basemap published as separate hillshade, base and
 label services).}
 
@@ -38,10 +38,10 @@ an \code{sf} / \code{sfc} object.}
 
 \item{crs}{CRS of \code{bounds} (anything \code{\link[sf:st_crs]{sf::st_crs()}} accepts).}
 
-\item{ratio}{Device pixels per CSS pixel.}
+\item{pixel_ratio}{Device pixels per CSS pixel.}
 
 \item{layers}{Optional layer filter applied to every style: plain IDs keep
-only those layers, minus-prefixed IDs drop them.}
+only those layers, minus-prefixed IDs drop them (see \code{\link[=list_layers]{list_layers()}}).}
 
 \item{auth_token}{Optional access token for the tile service.}
 
@@ -55,19 +55,21 @@ only those layers, minus-prefixed IDs drop them.}
 empty.}
 }
 \value{
-A \code{basemapper_map} object.
+A \code{basemap} object.
 }
 \description{
 A map view to render headlessly: one style, or several stacked. The view
 is a centre and MapLibre zoom (512 px tiles; fractional zooms are rendered
 natively, not resampled), or bounds to fit. \code{width} and \code{height} are CSS
-pixels; images are \code{ratio} times larger with the same view and label
-layout (MapLibre's \code{devicePixelRatio}): \code{ratio = 2} gives a sharp 2x
-image, \code{ratio = dpi / 96} matches a print resolution.
+pixels; images are \code{pixel_ratio} times larger with the same view and label
+layout (MapLibre's \code{devicePixelRatio}): \code{pixel_ratio = 2} gives a sharp 2x
+image, \code{pixel_ratio = dpi / 96} matches a print resolution.
 }
 \details{
 Render it with \code{\link[=render_png]{render_png()}}, \code{\link[=render_svg]{render_svg()}}, \code{\link[=render_raster]{render_raster()}} or
-\code{\link[=render_array]{render_array()}}.
+\code{\link[=render_array]{render_array()}}. The same function exists in Python
+(\code{basemapper.basemap()}) and Rust (\code{Basemap::new()}), with the same
+arguments.
 }
 \examples{
 \dontrun{
@@ -75,14 +77,13 @@ ugrc <- "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services"
 styles <- sprintf("\%s/\%s/VectorTileServer/resources/styles/root.json", ugrc,
                   c("VectorHillshade", "LiteBase", "LiteLabels"))
 m <- basemap(styles, 800, 600, center = c(-111.8887, 40.7556), zoom = 12.4,
-             ratio = 2)
+             pixel_ratio = 2)
 render_png(m, "slc.png")   # 1600 x 1200
 render_svg(m, "slc.svg")   # vector
 r <- render_raster(m)      # terra SpatRaster in EPSG:3857
 
 # Fit a layer's extent
 nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-m <- basemap("https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-             bounds = nc)
+m <- basemap(basemap_provider("Carto.Positron"), bounds = nc)
 }
 }

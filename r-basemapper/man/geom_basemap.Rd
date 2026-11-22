@@ -5,34 +5,41 @@
 \title{Add a styled basemap layer to a ggplot2 spatial plot.}
 \usage{
 geom_basemap(
-  style_url,
-  zoom = NULL,
-  tile_timeout = 10000L,
-  max_tiles = 256L,
+  style,
+  tile_zoom = NULL,
   alpha = 1,
   layers = NULL,
-  ratio = NULL,
+  pixel_ratio = NULL,
+  auth_token = NULL,
+  tile_timeout_ms = 10000L,
+  max_tiles = 256L,
   ...
 )
 }
 \arguments{
-\item{style_url}{Character: a MapLibre GL style URL or inline JSON string,
-or a vector / list of styles stacked bottom to top.}
+\item{style}{A MapLibre GL style URL or JSON string (e.g. from
+\code{\link[=basemap_provider]{basemap_provider()}}), or a vector / list of styles stacked bottom to
+top.}
 
-\item{zoom}{Integer zoom level (0–22), or \code{NULL} for automatic selection.}
+\item{tile_zoom}{Tile detail override: the tile zoom on the 256 px grid
+(vector sources use one less, their tiles being 512 px), or \code{NULL} to
+pick tiles as MapLibre does for the view.}
 
-\item{tile_timeout}{Integer per-tile HTTP timeout in milliseconds.}
+\item{alpha}{Opacity of the basemap layer (0--1).}
 
-\item{max_tiles}{Integer maximum tile downloads per render.}
+\item{layers}{Optional layer filter applied to every style: plain IDs keep
+only those layers, minus-prefixed IDs drop them (see \code{\link[=list_layers]{list_layers()}}).}
 
-\item{alpha}{Numeric opacity of the basemap layer (0–1).}
+\item{pixel_ratio}{Device pixels per CSS pixel (MapLibre's
+devicePixelRatio). Default: device dpi / 96, so lines and labels keep
+their physical size at any resolution. Larger values draw map symbols
+smaller.}
 
-\item{layers}{Character vector of layer IDs to filter. Plain IDs keep only
-those layers; minus-prefixed IDs exclude those layers. \code{NULL} renders all.}
+\item{auth_token}{Optional access token for the tile service.}
 
-\item{ratio}{Device pixels per CSS pixel (MapLibre's devicePixelRatio).
-Default: device dpi / 96, so lines and labels keep their physical size at
-any resolution. Larger values draw map symbols smaller.}
+\item{tile_timeout_ms}{Per-tile HTTP timeout in milliseconds.}
+
+\item{max_tiles}{Maximum tiles fetched per style.}
 
 \item{...}{Additional arguments passed to \code{ggplot2::layer()}.}
 }
@@ -47,7 +54,8 @@ Wraps a lazy \code{GeomBasemap} ggproto layer that defers tile fetching until
 The basemap is rendered when the plot is drawn, for the panel's size at
 the device's resolution: \code{ggsave(dpi = 300)} gets a basemap rendered
 natively at 300 dpi (and PDF / SVG output at 300 dpi), not an upscaled
-screen image.
+screen image. Python (plotnine): \code{basemapper.geom_basemap()}, with the same
+arguments.
 }
 \examples{
 \dontrun{
@@ -55,7 +63,7 @@ library(ggplot2)
 library(sf)
 nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
 ggplot(nc) +
-  geom_basemap(style_url = "https://demotiles.maplibre.org/style.json") +
+  geom_basemap(basemap_provider("Carto.Positron")) +
   geom_sf(fill = NA, color = "steelblue") +
   coord_sf()
 }

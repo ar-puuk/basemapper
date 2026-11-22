@@ -71,34 +71,53 @@ include_in_header:
       </script>
 
 reference:
-  - title: Core rendering
-    desc: Low-level tile fetch and composite.
+  - title: Basemap views
+    desc: >
+      Create a view (`basemap()`), change it (`set_view`, `set_bounds`), read
+      it (`get_bounds`, `get_center`, `get_zoom`, `get_size`) and render it
+      (`render_png`, `render_svg`, `render_array`). The same functions and
+      arguments exist in R.
+    contents:
+      - basemap
+      - Basemap
+
+  - title: One-shot rendering
+    desc: Render bounds to an RGBA array in one call.
     contents:
       - render_basemap_raw
 
   - title: Plot integrations
     desc: >
-      Drop a basemap layer into an existing spatial plot.
-      `geom_basemap` works in both ggplot2 (R) and plotnine (Python).
+      Drop a basemap layer into an existing plot, rendered at the output
+      resolution. `geom_basemap` takes the same arguments in plotnine and
+      ggplot2 (R).
     contents:
       - add_basemap
       - geom_basemap
 
-  - title: Layer utilities
-    desc: Inspect and filter layers inside a MapLibre GL style.
+  - title: Styles
+    desc: Styles for named basemaps and common tile services.
+    contents:
+      - basemap_provider
+      - list_providers
+      - raster_provider
+      - vector_provider
+      - esri_raster_provider
+      - esri_vector_provider
+      - wms_provider
+      - wmts_provider
+      - pmtiles_provider
+
+  - title: Style layers
+    desc: The layers of a style, for the `layers` filter.
     contents:
       - list_layers
-
-  - title: Tile style helpers
-    desc: Convert bare tile URLs to MapLibre GL Style JSON.
-    contents:
-      - RasterProvider
-      - VectorProvider
-      - EsriVectorProvider
-      - EsriRasterProvider
 
   - title: Exceptions
     contents:
       - BasemapError
+      - ValidationError
+      - StyleError
+      - NetworkError
 
 jupyter: python3

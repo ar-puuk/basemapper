@@ -1,69 +1,61 @@
-//! CLI example: render a basemap tile mosaic and write it to a PNG file.
+//! CLI example: render a basemap view to a PNG file with [`Basemap`], the
+//! Rust counterpart of R's and Python's `basemap()`.
 //!
 //! Usage:
 //!   cargo run --example headless_render -- \
-//!     --bbox "-13700000,4500000,-13600000,4600000" \
-//!     --width 800 --height 600 \
-//!     --style "https://demotiles.maplibre.org/style.json" \
-//!     --output /tmp/basemap.png
+//!     --bounds "-111.95,40.70,-111.80,40.80" --crs EPSG:4326 \
+//!     --width 800 --height 600 --pixel-ratio 2 \
+//!     --style "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json" \
+//!     --path /tmp/basemap.png
+//!
+//! The same render in R and Python:
+//!   m <- basemap(style, 800, 600, bounds = c(-111.95, 40.70, -111.80, 40.80), pixel_ratio = 2)
+//!   render_png(m, path = "/tmp/basemap.png")
+//!
+//!   m = basemapper.basemap(style, 800, 600, bounds=[-111.95, 40.70, -111.80, 40.80], pixel_ratio=2)
+//!   m.render_png(path="/tmp/basemap.png")
 
-use basemapper_core::{render, RenderRequest, StyleInput};
+use basemapper_core::{Basemap, Crs};
 use clap::Parser;
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(about = "Render a headless basemap tile mosaic to a PNG file")]
+#[command(about = "Render a headless basemap view to a PNG file")]
 struct Args {
-    #[arg(long, help = "xmin,ymin,xmax,ymax in EPSG:3857", allow_hyphen_values = true)]
-    bbox: String,
+    #[arg(long, help = "xmin,ymin,xmax,ymax in --crs", allow_hyphen_values = true)]
+    bounds: String,
+    #[arg(long, default_value = "EPSG:4326", help = "CRS of --bounds (EPSG:4326 or EPSG:3857)")]
+    crs: String,
     #[arg(long, default_value = "800")]
     width: u32,
     #[arg(long, default_value = "600")]
     height: u32,
+    #[arg(long, default_value = "1")]
+    pixel_ratio: f64,
     #[arg(long, help = "Style URL or inline JSON")]
     style: String,
-    #[arg(long, help = "Override zoom level (auto-computed if omitted)")]
-    zoom: Option<u8>,
     #[arg(long, default_value = "basemap.png")]
-    output: PathBuf,
+    path: PathBuf,
 }
 
 fn main() {
     let args = Args::parse();
 
     let parts: Vec<f64> = args
-        .bbox
+        .bounds
         .split(',')
-        .map(|s| s.trim().parse().expect("invalid bbox value"))
+        .map(|s| s.trim().parse().expect("invalid bounds value"))
         .collect();
-    assert_eq!(parts.len(), 4, "bbox must have 4 comma-separated values");
+    assert_eq!(parts.len(), 4, "bounds must have 4 comma-separated values");
+    let crs = Crs::parse(&args.crs).expect("unsupported crs");
 
-    let request = RenderRequest {
-        bbox: [parts[0], parts[1], parts[2], parts[3]],
-        width: args.width,
-        height: args.height,
-        style_input: StyleInput::detect(&args.style),
-        zoom: args.zoom,
-        tile_timeout_ms: 10_000,
-        max_tiles: 256,
-        tile_concurrency: 16,
-        layers: None,
-        auth_token: None,
-        fail_on_tile_error: false,
-        pixel_ratio: 1.0,
-    };
+    let m = Basemap::new(args.style)
+        .size(args.width, args.height)
+        .pixel_ratio(args.pixel_ratio)
+        .bounds([parts[0], parts[1], parts[2], parts[3]], crs)
+        .expect("invalid bounds");
+    m.render_png(Some(&args.path)).expect("render failed");
 
-    let result = render(request).expect("render failed");
-
-    let img = image::RgbaImage::from_raw(result.width, result.height, result.pixels)
-        .expect("pixel buffer size mismatch");
-    img.save(&args.output).expect("failed to save PNG");
-
-    println!(
-        "Saved {}×{} px basemap to {} (zoom {})",
-        result.width,
-        result.height,
-        args.output.display(),
-        result.zoom_used
-    );
+    let (w, h) = m.get_size();
+    println!("Saved {w}×{h} px basemap to {} (zoom {:.3})", args.path.display(), m.get_zoom());
 }

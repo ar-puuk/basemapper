@@ -22,9 +22,9 @@ an \code{sf} / \code{sfc} object.}
 \item{crs}{CRS of \code{bounds} (anything \code{\link[sf:st_crs]{sf::st_crs()}} accepts).}
 }
 \value{
-The modified \code{basemapper_map}.
+The modified \code{basemap}.
 }
 \description{
 \code{set_view()} sets the centre and/or zoom; \code{set_bounds()} fits bounds
-(keeping the view's aspect ratio).
+(keeping the view's size). Python: \code{m.set_view()}, \code{m.set_bounds()}.
 }

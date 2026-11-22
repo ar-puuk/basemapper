@@ -99,20 +99,16 @@ def test_render_matches_maplibre(name):
     server, style, case = _serve(name)
     try:
         w, h = case["width"], case["height"]
-        raw = render_basemap_raw(
-            bbox=case["bbox"],
+        ours = render_basemap_raw(
+            case["bbox"], w, h, style,
             crs=3857,
-            width=w,
-            height=h,
-            style_input=style,
             layers=case.get("layers"),
-            fail_on_tile_error=False,
         )
     finally:
         server.shutdown()
 
-    assert len(raw) == w * h * 4
-    ours = np.frombuffer(raw, dtype=np.uint8).reshape(h, w, 4).astype(np.int16)
+    assert ours.shape == (h, w, 4) and ours.dtype == np.uint8
+    ours = ours.astype(np.int16)
     ref = _reference(name)
     assert ref.shape == ours.shape
 
@@ -166,7 +162,7 @@ def test_plotnine_geom_basemap_renders():
         xmin, ymin, xmax, ymax = case["bbox"]
         (lon0, lat0), (lon1, lat1) = to_ll.transform(xmin, ymin), to_ll.transform(xmax, ymax)
         df = pd.DataFrame({"lon": [lon0, lon1], "lat": [lat0, lat1]})
-        plot = ggplot(df, aes("lon", "lat")) + geom_basemap(style_url=style) + geom_point(color="red")
+        plot = ggplot(df, aes("lon", "lat")) + geom_basemap(style) + geom_point(color="red")
         fig = plot.draw()
         from matplotlib.backends.backend_agg import FigureCanvasAgg
 

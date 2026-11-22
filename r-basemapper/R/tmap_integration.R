@@ -3,19 +3,16 @@
 #' Returns a deferred tmap element that renders tiles at draw time using the
 #' bounding box resolved from the active `tm_shape()` — no explicit `bbox`
 #' argument is needed. This mirrors how tmap's own `tm_basemap()` works.
+#' Takes the same arguments as [geom_basemap()], plus the view size.
 #'
-#' @param style_input Character: a MapLibre GL style URL or inline JSON
-#'   string, or a vector / list of styles stacked bottom to top.
-#' @param zoom Integer zoom level (0–22), or `NULL` for automatic.
-#' @param alpha Numeric opacity (0–1).
-#' @param layers Character vector of layer IDs to filter. See `render_basemap_raw()`.
-#' @param width_px,height_px View size in CSS pixels (sets the zoom). By
-#'   default the map panel's size is estimated from the device size, margins
-#'   and facet layout, at 96 CSS px per inch.
-#' @param ratio Device pixels per CSS pixel: the basemap raster is
-#'   `width_px * ratio` by `height_px * ratio` pixels with the same zoom and
-#'   label layout. Default: device dpi / 96 (300 dpi for PDF / SVG devices),
-#'   so `tmap_save(dpi = 300)` gets a basemap rendered at 300 dpi.
+#' @inheritParams geom_basemap
+#' @param width,height View size in CSS pixels (sets the zoom). By default
+#'   the map panel's size is estimated from the device size, margins and
+#'   facet layout, at 96 CSS px per inch.
+#' @param pixel_ratio Device pixels per CSS pixel: the basemap raster is
+#'   `width * pixel_ratio` by `height * pixel_ratio` pixels with the same zoom
+#'   and label layout. Default: device dpi / 96 (300 dpi for PDF / SVG
+#'   devices), so `tmap_save(dpi = 300)` gets a basemap rendered at 300 dpi.
 #' @param ... Reserved for future use.
 #'
 #' @return A composable tmap element (class `"tmap"`). Put it before `tm_shape()`
@@ -26,19 +23,21 @@
 #' library(tmap)
 #' library(sf)
 #' nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-#' style <- basemapper::raster_provider("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
-#' basemapper::tm_basemap(style) +
+#' basemapper::tm_basemap(basemapper::basemap_provider("Carto.Positron")) +
 #'   tm_shape(nc) +
 #'   tm_sf(fill = NA, col = "steelblue")
 #' }
 tm_basemap <- function(
-    style_input,
-    zoom      = NULL,
-    alpha     = 1,
-    layers    = NULL,
-    width_px  = NULL,
-    height_px = NULL,
-    ratio     = NULL,
+    style,
+    tile_zoom       = NULL,
+    alpha           = 1,
+    layers          = NULL,
+    pixel_ratio     = NULL,
+    auth_token      = NULL,
+    tile_timeout_ms = 10000L,
+    max_tiles       = 256L,
+    width           = NULL,
+    height          = NULL,
     ...
 ) {
   if (!requireNamespace("tmap", quietly = TRUE)) stop("Package 'tmap' is required.")
@@ -46,13 +45,16 @@ tm_basemap <- function(
   tmap::tm_element_list(
     tmap::tm_element(
       args = list(
-        style_input = style_input,
-        zoom        = zoom,
-        alpha       = alpha,
-        layers      = layers,
-        width_px    = width_px,
-        height_px   = height_px,
-        ratio       = ratio
+        style           = style,
+        tile_zoom       = tile_zoom,
+        alpha           = alpha,
+        layers          = layers,
+        pixel_ratio     = pixel_ratio,
+        auth_token      = auth_token,
+        tile_timeout_ms = tile_timeout_ms,
+        max_tiles       = max_tiles,
+        width           = width,
+        height          = height
       ),
       mapping.fun   = "tm_basemap_rust",
       zindex        = 0,
@@ -79,24 +81,25 @@ tmapGridAuxPrepare.tm_basemap_rust <- function(a, bs, id, o) {
   crs_is_3857 <- isTRUE(crs == sf::st_crs("EPSG:3857"))
 
   dpi <- device_dpi()
-  ratio <- as.numeric(a$ratio %||% (dpi / 96))
+  ratio <- as.numeric(a$pixel_ratio %||% (dpi / 96))
 
   xs <- lapply(bs, function(b) {
     b_3857 <- sf::st_bbox(sf::st_transform(sf::st_as_sfc(b), crs = "EPSG:3857"))
 
     # CSS size: given, or the estimated panel size at the device resolution.
     panel_in <- tmap_panel_inches(o, b_3857)
-    w <- as.integer(a$width_px  %||% max(1L, round(panel_in[1] * dpi / ratio)))
-    h <- as.integer(a$height_px %||% max(1L, round(panel_in[2] * dpi / ratio)))
+    w <- as.integer(a$width  %||% max(1L, round(panel_in[1] * dpi / ratio)))
+    h <- as.integer(a$height %||% max(1L, round(panel_in[2] * dpi / ratio)))
     m <- tryCatch(
       pixels_to_array(render_styles_3857(
         unname(c(b_3857["xmin"], b_3857["ymin"], b_3857["xmax"], b_3857["ymax"])),
-        w, h, a$style_input, ratio,
-        zoom    = a$zoom,
-        options = list(layers = a$layers)
+        w, h, a$style, ratio,
+        tile_zoom = a$tile_zoom,
+        options   = list(layers = a$layers, auth_token = a$auth_token,
+                         tile_timeout_ms = a$tile_timeout_ms, max_tiles = a$max_tiles)
       )),
       error = function(e) {
-        warning("basemapper: render_basemap_raw failed: ", conditionMessage(e))
+        warning("basemapper: basemap render failed: ", conditionMessage(e))
         NULL
       }
     )
@@ -179,7 +182,7 @@ tmapGridAuxPrepare.tm_basemap_rust <- function(a, bs, id, o) {
   .BASEMAPPER_TMAP$bmaps_shpTHs[[key]] <- shpTMs
   .BASEMAPPER_TMAP$bmaps_dts[[key]]    <- ds
 
-  style_strings(a$style_input)[1L]
+  style_strings(a$style)[1L]
 }
 
 #' @exportS3Method tmap::tmapGridAuxPlot

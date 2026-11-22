@@ -3,13 +3,14 @@
 <!-- badges: start -->
 <!-- badges: end -->
 
-> **Also available for Python** — same Rust core, PyO3 bindings.
+> **Also available for Python** — the same Rust core, and the same functions
+> and argument names (`verb(m, ...)` here is `m.verb(...)` in Python).
 > [Python documentation →](https://ar-puuk.github.io/basemapper/python/)
 
-**basemapper** is a headless spatial basemap renderer for R. It fetches and
-composites styled map tiles (raster or MapLibre GL vector styles) into
-georeferenced RGBA arrays using a Rust core, and exposes the result through
-native integrations with {ggplot2}, {tmap} v4, and {sf}.
+**basemapper** renders MapLibre GL basemaps (vector and raster styles)
+headlessly with a Rust core: to PNG, arrays, {terra} rasters or true vector
+SVG, at any fractional zoom and pixel ratio, and as {ggplot2} and {tmap} v4
+layers that render at the output device's resolution.
 
 ## Installation
 
@@ -57,24 +58,21 @@ remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
 ```r
 library(basemapper)
 
-# 25 built-in providers — no tile URL needed
+# 25 built-in providers (list_providers()) — no tile URL needed
 style <- basemap_provider("OpenFreeMap.liberty")
-style <- basemap_provider("Carto.DarkMatter")
-style <- basemap_provider("OSM.Standard")
 
-# OGC WMS source
+# A view: centre + zoom, or bounds to fit
+m <- basemap(style, 800, 600, center = c(-122.45, 37.75), zoom = 12, pixel_ratio = 2)
+render_png(m, path = "sf.png")     # 1600 x 1200
+render_svg(m, path = "sf.svg")     # true vector
+get_bounds(set_view(m, zoom = 13), lonlat = TRUE)
+
+# One-shot render of bounds to a georeferenced [height, width, 4] array
+a <- render_basemap_raw(c(-122.5, 37.7, -122.4, 37.8), 400, 300, style)
+
+# Other sources
 style <- wms_provider("https://gis.example.com/wms", layers = "imagery")
-
-# PMTiles archive (HTTP range requests — no tile server required)
 style <- pmtiles_provider("https://example.com/world.pmtiles")
-
-# Render — anti-meridian bboxes (xmin > xmax) are handled automatically
-m <- render_basemap_raw(
-  bbox        = c(-122.5, 37.7, -122.4, 37.8),
-  width       = 400L,
-  height      = 300L,
-  style_input = style
-)
 ```
 
 ## Get started

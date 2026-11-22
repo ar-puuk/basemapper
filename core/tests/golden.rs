@@ -262,7 +262,7 @@ fn render_fixture(dir: &Path, case: &Value, svg: bool) -> Result<(RgbaImage, Opt
         style_input: StyleInput::InlineJson(style),
         // Automatic zoom, as users get by default (case.json "zoom" records
         // the capture zoom only).
-        zoom: None,
+        tile_zoom: None,
         tile_timeout_ms: 10_000,
         max_tiles: 256,
         tile_concurrency: 8,

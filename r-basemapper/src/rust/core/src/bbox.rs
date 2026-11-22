@@ -19,7 +19,10 @@ pub struct RenderRequest {
     pub width: u32,
     pub height: u32,
     pub style_input: StyleInput,
-    pub zoom: Option<u8>,
+    /// Tile detail override: the tile zoom on the 256 px grid (vector
+    /// sources use one less, their 512 px tiles), instead of the zoom the
+    /// view implies. `None` (the default) picks tiles as MapLibre does.
+    pub tile_zoom: Option<u8>,
     pub tile_timeout_ms: u32,
     pub max_tiles: u32,
     pub tile_concurrency: u32,
@@ -42,20 +45,20 @@ pub struct RenderRequest {
 impl RenderRequest {
     /// A request with default settings: automatic zoom, pixel ratio 1, all
     /// layers, 10 s tile timeout, at most 256 tiles, 16 parallel fetches,
-    /// failing on tile errors.
+    /// failed tiles left empty.
     pub fn new(bbox: [f64; 4], width: u32, height: u32, style_input: crate::StyleInput) -> Self {
         RenderRequest {
             bbox,
             width,
             height,
             style_input,
-            zoom: None,
+            tile_zoom: None,
             tile_timeout_ms: 10_000,
             max_tiles: 256,
             tile_concurrency: 16,
             layers: None,
             auth_token: None,
-            fail_on_tile_error: true,
+            fail_on_tile_error: false,
             pixel_ratio: 1.0,
         }
     }
@@ -108,7 +111,7 @@ impl RenderRequest {
         if dw.round() > 16_384.0 || dh.round() > 16_384.0 {
             return Err(BasemapError::InvalidDimensions(dw.round() as u32, dh.round() as u32));
         }
-        if let Some(z) = self.zoom {
+        if let Some(z) = self.tile_zoom {
             if z > 22 {
                 return Err(BasemapError::InvalidBbox(format!(
                     "zoom {z} out of range 0–22"

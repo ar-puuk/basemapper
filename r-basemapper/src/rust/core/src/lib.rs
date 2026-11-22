@@ -1,10 +1,13 @@
+pub mod basemap;
 pub mod bbox;
 pub mod error;
+pub mod providers;
 pub mod renderer;
 pub mod style;
 pub mod tile_fetcher;
 pub mod vector;
 
+pub use basemap::{Basemap, Crs};
 pub use bbox::{bbox_from_center, compute_zoom, fit_bounds, RenderRequest, RenderResult, SpatialBounds};
 pub use error::BasemapError;
 pub use style::{filter_style_layers, StyleInput};
@@ -72,6 +75,30 @@ fn composite_over(dst: &mut [u8], src: &[u8]) {
     }
 }
 
+/// A style's layers in drawing order, as (id, type) pairs. `style` is a
+/// style URL or style JSON (the same strings `Basemap` takes); the ids are
+/// what the `layers` filter accepts.
+pub fn list_layers(style: &str, auth_token: Option<&str>) -> Result<Vec<(String, String)>, BasemapError> {
+    let json = RUNTIME.block_on(async {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .use_rustls_tls()
+            .user_agent(concat!("basemapper/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .map_err(|e| BasemapError::RenderError(e.to_string()))?;
+        StyleInput::detect(style).resolve(&client, auth_token).await
+    })?;
+    let v: serde_json::Value = serde_json::from_str(&json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
+    Ok(v["layers"]
+        .as_array()
+        .map(|ls| {
+            ls.iter()
+                .map(|l| (l["id"].as_str().unwrap_or("").to_owned(), l["type"].as_str().unwrap_or("").to_owned()))
+                .collect()
+        })
+        .unwrap_or_default())
+}
+
 /// Encode straight-alpha RGBA pixels as a PNG file.
 pub fn encode_png(pixels: &[u8], width: u32, height: u32) -> Result<Vec<u8>, BasemapError> {
     use image::ImageEncoder;
@@ -127,7 +154,7 @@ async fn render_async(request: RenderRequest) -> Result<RenderResult, BasemapErr
 
     // Compute zoom for the full bbox — handles anti-meridian via compute_zoom.
     let zoom = {
-        let raw = request.zoom.unwrap_or_else(|| {
+        let raw = request.tile_zoom.unwrap_or_else(|| {
             let mut z = bbox::raster_tile_zoom(request.bbox, request.width, raster_tile_size(&style_val));
             while z > 0 && bbox::tile_count(request.bbox, z) > request.max_tiles {
                 z -= 1;
@@ -730,7 +757,7 @@ async fn fetch_vector_inputs(
     }
     let sz = vector::render::scale_zoom(bbox, width);
     let vector_tz = |maxzoom: Option<u8>, minzoom: u8| -> Option<u8> {
-        let tz = match request.zoom {
+        let tz = match request.tile_zoom {
             Some(z) => z.saturating_sub(1),
             None => vector::render::tile_zoom(sz, None),
         };

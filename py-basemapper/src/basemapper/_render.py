@@ -1,126 +1,90 @@
-"""Python wrapper around the compiled Rust render core."""
+"""One-shot rendering: :func:`render_basemap_raw`."""
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple
+
+import numpy as np
+
+
+def _render_buffer(
+    bounds: Any,
+    width: int,
+    height: int,
+    style: Any,
+    crs: Optional[Any] = None,
+    pixel_ratio: float = 1.0,
+    tile_zoom: Optional[int] = None,
+    **options: Any,
+) -> Tuple[bytes, int, int]:
+    """Render over bounds; returns ``(bytes, width, height)`` in device px."""
+    from ._basemap import _bounds_to_3857, _check_pixel_ratio, _style_strings
+    from ._basemapper import render_raw
+
+    _check_pixel_ratio(pixel_ratio)
+    return render_raw(
+        _bounds_to_3857(bounds, crs), int(width), int(height), _style_strings(style), float(pixel_ratio),
+        tile_zoom=tile_zoom, **options,
+    )
 
 
 def render_basemap_raw(
-    bbox: Any,
+    bounds: Any,
     width: int,
     height: int,
-    style_input: str,
+    style: Any,
     crs: Optional[Any] = None,
-    zoom: Optional[int] = None,
-    tile_timeout_ms: int = 10_000,
-    max_tiles: int = 256,
+    pixel_ratio: float = 1.0,
+    tile_zoom: Optional[int] = None,
     layers: Optional[List[str]] = None,
     auth_token: Optional[str] = None,
-    fail_on_tile_error: bool = True,
+    tile_timeout_ms: int = 10_000,
+    max_tiles: int = 256,
     tile_concurrency: int = 16,
-) -> bytes:
-    """Fetch and composite map tiles into a raw RGBA pixel buffer.
+    fail_on_tile_error: bool = False,
+) -> np.ndarray:
+    """Render a basemap for bounds in one call.
+
+    A one-shot render: fit ``bounds`` into a ``width`` x ``height`` CSS-pixel
+    view and return the pixels. :func:`basemap` with
+    :meth:`Basemap.render_array` gives the same result with a reusable view.
+    The same function exists in R (``render_basemap_raw()``).
 
     Args:
-        bbox: Bounding box — one of:
-
-            * A ``[xmin, ymin, xmax, ymax]`` list or tuple in the CRS given by
-              *crs* (defaults to EPSG:4326 / WGS-84 when *crs* is omitted).
-            * A ``dict`` with keys ``"xmin"``, ``"ymin"``, ``"xmax"``,
-              ``"ymax"``, and an optional ``"crs"`` key.
-            * A ``geopandas.GeoDataFrame`` or ``GeoSeries``; CRS is read from
-              ``.crs`` automatically.
-
-        width: Output width in pixels.
-        height: Output height in pixels.
-        style_input: Tile style — a URL to a MapLibre GL Style JSON file, an
-            inline JSON string, or a :class:`RasterProvider` /
-            :class:`VectorProvider` / :class:`EsriVectorProvider` /
-            :class:`EsriRasterProvider` object.
-        crs: CRS of the input *bbox* — an EPSG integer, WKT/PROJ string, or
-            :class:`pyproj.CRS` object.  Ignored when *bbox* carries its own
-            CRS.  Defaults to EPSG:4326 (WGS-84) with a warning if coordinates
-            appear projected.
-        zoom: Tile zoom level (0–22). Auto-computed from *bbox* and *width*
-            when ``None``.
-        tile_timeout_ms: Per-tile HTTP timeout in milliseconds (default 10 000).
-        max_tiles: Maximum number of tiles fetched per render call (default 256).
-        layers: Optional layer filter. Plain layer IDs -> keep only those
-            layers; minus-prefixed IDs (e.g. ``["-labels"]``) -> exclude those
-            layers.  Mixing inclusion and exclusion raises :class:`BasemapError`.
-        auth_token: Optional authentication token. Sent as
-            ``Authorization: Bearer <token>`` for raster sources; appended as
-            ``?access_token=<token>`` for Mapbox vector sources.
-        fail_on_tile_error: When ``False``, individual tile fetch failures are
-            skipped (with a warning) rather than aborting the render.
-            Default ``True``.
-        tile_concurrency: Maximum number of tiles fetched in parallel.
-            Default 16.
+        bounds: Bounding box: a ``[xmin, ymin, xmax, ymax]`` sequence in
+            ``crs`` (default EPSG:4326, with a warning when the values look
+            projected), a dict with ``xmin``/``ymin``/``xmax``/``ymax`` (and
+            optionally ``crs``) keys, or a GeoDataFrame / GeoSeries (CRS read
+            from it).
+        width: View width in CSS pixels.
+        height: View height in CSS pixels.
+        style: A MapLibre GL style URL or JSON string (e.g. from
+            :func:`basemap_provider`), or a list of those stacked bottom to
+            top.
+        crs: CRS of ``bounds`` (anything ``pyproj.CRS`` accepts).
+        pixel_ratio: Device pixels per CSS pixel; the image is
+            ``width * pixel_ratio`` by ``height * pixel_ratio``.
+        tile_zoom: Tile detail override: the tile zoom on the 256 px grid
+            (vector sources use one less, their tiles being 512 px), or
+            ``None`` to pick tiles as MapLibre does for the view.
+        layers: Optional layer filter: plain IDs keep only those layers,
+            ``-`` prefixed IDs drop them.
+        auth_token: Optional access token for the tile service.
+        tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
+        max_tiles: Maximum tiles fetched per style.
+        tile_concurrency: Parallel tile downloads.
+        fail_on_tile_error: Abort on a failed tile instead of leaving it empty.
 
     Returns:
-        bytes: RGBA pixel data of length ``width * height * 4``.
+        numpy.ndarray: ``(height * pixel_ratio, width * pixel_ratio, 4)``
+        uint8 RGBA pixels.
 
     Raises:
         BasemapError: On any rendering or network failure.
     """
-    import pyproj
-
-    from .bbox_utils import normalize_bbox, reproject_bbox_to_3857
-    from ._basemapper import render_basemap_raw as _impl
-
-    xmin, ymin, xmax, ymax, source_crs = normalize_bbox(bbox, crs)
-
-    crs_3857 = pyproj.CRS.from_epsg(3857)
-    if source_crs == crs_3857:
-        bbox_3857 = [xmin, ymin, xmax, ymax]
-    else:
-        bbox_3857 = list(reproject_bbox_to_3857(xmin, ymin, xmax, ymax, source_crs))
-
-    return _impl(
-        bbox_3857, width, height, style_input,
-        zoom, tile_timeout_ms, max_tiles, layers,
-        auth_token, fail_on_tile_error, tile_concurrency,
+    buf, w, h = _render_buffer(
+        bounds, width, height, style, crs=crs, pixel_ratio=pixel_ratio, tile_zoom=tile_zoom,
+        layers=layers, auth_token=auth_token, tile_timeout_ms=tile_timeout_ms, max_tiles=max_tiles,
+        tile_concurrency=tile_concurrency, fail_on_tile_error=fail_on_tile_error,
     )
-
-
-def render_styles_raw(
-    bbox: Any,
-    width: int,
-    height: int,
-    styles: Any,
-    crs: Optional[Any] = None,
-    pixel_ratio: float = 1.0,
-    zoom: Optional[int] = None,
-    tile_timeout_ms: int = 10_000,
-    max_tiles: int = 256,
-    layers: Optional[List[str]] = None,
-    auth_token: Optional[str] = None,
-    fail_on_tile_error: bool = False,
-    tile_concurrency: int = 16,
-) -> "tuple[bytes, int, int]":
-    """Render one style or a list (stacked bottom to top) over *bbox*.
-
-    Like :func:`render_basemap_raw`, but *width* / *height* are CSS pixels and
-    the image is *pixel_ratio* times larger (MapLibre's devicePixelRatio).
-
-    Returns:
-        ``(bytes, width, height)``: straight-alpha RGBA pixels and their size
-        in device pixels.
-    """
-    import pyproj
-
-    from ._basemapper import render_raw
-    from .bbox_utils import normalize_bbox, reproject_bbox_to_3857
-    from .map import _style_strings
-
-    xmin, ymin, xmax, ymax, source_crs = normalize_bbox(bbox, crs)
-    if source_crs == pyproj.CRS.from_epsg(3857):
-        bbox_3857 = [xmin, ymin, xmax, ymax]
-    else:
-        bbox_3857 = list(reproject_bbox_to_3857(xmin, ymin, xmax, ymax, source_crs))
-    return render_raw(
-        bbox_3857, int(width), int(height), _style_strings(styles), float(pixel_ratio),
-        zoom=zoom, tile_timeout_ms=tile_timeout_ms, max_tiles=max_tiles, layers=layers,
-        auth_token=auth_token, fail_on_tile_error=fail_on_tile_error,
-        tile_concurrency=tile_concurrency,
-    )
+    return np.frombuffer(buf, dtype=np.uint8).reshape(h, w, 4).copy()

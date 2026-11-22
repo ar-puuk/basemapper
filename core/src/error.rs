@@ -20,6 +20,8 @@ pub enum BasemapError {
     MaxTilesExceeded { requested: u32, limit: u32 },
     #[error("invalid layer filter: {0}")]
     InvalidLayerFilter(String),
+    #[error("invalid input: {0}")]
+    InvalidInput(String),
 }
 
 impl BasemapError {
@@ -35,6 +37,7 @@ impl BasemapError {
             BasemapError::InvalidBbox(_)
             | BasemapError::InvalidDimensions(_, _)
             | BasemapError::InvalidLayerFilter(_)
+            | BasemapError::InvalidInput(_)
             | BasemapError::MaxTilesExceeded { .. } => "validation",
             BasemapError::StyleFetchFailed { .. } | BasemapError::StyleParseError(_) => "style",
             BasemapError::TileFetchFailed { .. } => "network",

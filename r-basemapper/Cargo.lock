@@ -1625,6 +1625,7 @@ version = "0.1.0"
 dependencies = [
  "basemapper-core",
  "extendr-api",
+ "serde_json",
 ]
 
 [[package]]

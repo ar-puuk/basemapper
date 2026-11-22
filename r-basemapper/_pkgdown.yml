@@ -39,36 +39,41 @@ navbar:
       aria-label: GitHub
 
 reference:
-  - title: Core rendering
-    desc: Low-level tile fetch and composite — returns a georeferenced RGBA array.
+  - title: Basemap views
+    desc: >
+      Create a view (`basemap()`), change it (`set_view()`, `set_bounds()`),
+      read it (`get_bounds()`, `get_center()`, `get_zoom()`, `get_size()`)
+      and render it (`render_png()`, `render_svg()`, `render_array()`,
+      `render_raster()`). The same functions and arguments exist in Python.
+    contents:
+      - basemap
+      - set_view
+      - get_bounds
+      - render_png
+
+  - title: One-shot rendering
+    desc: Render bounds to a georeferenced RGBA array in one call.
     contents:
       - render_basemap_raw
 
-  - title: ggplot2 integration
+  - title: Plot integrations
     desc: >
-      Lazy ggproto layer that defers tile fetching until `coord_sf()` has
-      established the panel's geographic extent.
+      Drop a basemap layer into an existing plot, rendered at the output
+      resolution. `geom_basemap()` takes the same arguments in ggplot2 and
+      plotnine (Python).
     contents:
       - geom_basemap
       - GeomBasemap
-
-  - title: tmap integration
-    desc: Composable tmap v4 element wrapping a georeferenced `stars` raster.
-    contents:
       - tm_basemap
 
-  - title: Tile style helpers
-    desc: >
-      Convert bare tile URLs to MapLibre GL Style JSON strings accepted by
-      all rendering functions.
+  - title: Styles
+    desc: Styles for named basemaps and common tile services.
     contents:
-      - raster_provider
-      - vector_provider
-      - esri_vector_provider
-      - esri_raster_provider
+      - providers
+      - list_providers
 
-  - title: Layer utilities
-    desc: Inspect and filter layers inside a MapLibre GL style.
+  - title: Style layers
+    desc: The layers of a style, for the `layers` filter.
     contents:
       - list_layers
 

@@ -2,23 +2,25 @@
 % Please edit documentation in R/layer_utils.R
 \name{list_layers}
 \alias{list_layers}
-\title{List all layer IDs from a MapLibre GL style.}
+\title{List a style's layers}
 \usage{
-list_layers(style_input)
+list_layers(style, auth_token = NULL)
 }
 \arguments{
-\item{style_input}{Character: a MapLibre GL style URL or inline JSON string.}
+\item{style}{A MapLibre GL style URL or JSON string.}
+
+\item{auth_token}{Optional access token for the style URL.}
 }
 \value{
-A character vector of all layer \code{id} values.
+A data frame with columns \code{id} and \code{type}.
 }
 \description{
-Fetches (if URL) or parses (if inline JSON) a MapLibre GL style and returns
-all layer \code{id} values. Also prints a two-column data.frame of id and type to
-the console for interactive exploration.
+The layers of a style in drawing order, with their types: the IDs are
+what the \code{layers} filter of \code{\link[=basemap]{basemap()}} and the renderers accepts (plain
+IDs keep, minus-prefixed IDs drop). Python: \code{basemapper.list_layers()}.
 }
 \examples{
 \dontrun{
-ids <- list_layers("https://demotiles.maplibre.org/style.json")
+list_layers(basemap_provider("Carto.Positron"))
 }
 }

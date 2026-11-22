@@ -55,7 +55,7 @@ fn main() {
         width: args.width,
         height: args.height,
         style_input: StyleInput::detect(style),
-        zoom: None,
+        tile_zoom: None,
         tile_timeout_ms: 15_000,
         max_tiles: 256,
         tile_concurrency: 16,

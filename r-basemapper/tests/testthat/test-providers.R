@@ -57,3 +57,29 @@ test_that("esri_raster_provider returns parseable JSON with tileSize 256", {
   expect_equal(style$sources[["esri-raster-source"]]$tileSize, 256L)
   expect_equal(style$sources[["esri-raster-source"]]$tiles[[1]], url)
 })
+
+test_that("basemap_provider resolves every listed provider", {
+  p <- list_providers()
+  expect_true(length(p) >= 20)
+  expect_true(all(c("OpenFreeMap.liberty", "Carto.Positron", "ESRI.WorldImagery") %in% p))
+  for (name in p) {
+    key <- if (startsWith(name, "MapTiler.")) "KEY" else NULL
+    s <- basemap_provider(name, api_key = key)
+    expect_type(s, "character")
+    expect_length(s, 1L)
+  }
+  expect_match(basemap_provider("Carto.Positron"), "positron-gl-style")
+  expect_error(basemap_provider("MapTiler.Streets"), "api_key")
+  expect_error(basemap_provider("Nope"), "list_providers")
+})
+
+test_that("wms / wmts / pmtiles providers build raster styles", {
+  w <- jsonlite::fromJSON(wms_provider("https://x.com/wms", layers = "a b"), simplifyVector = FALSE)
+  tile <- w$sources[[1]]$tiles[[1]]
+  expect_match(tile, "LAYERS=a%20b", fixed = TRUE)
+  expect_match(tile, "BBOX={xmin},{ymin},{xmax},{ymax}", fixed = TRUE)
+  t <- jsonlite::fromJSON(wmts_provider("https://x.com/wmts", "lyr"), simplifyVector = FALSE)
+  expect_match(t$sources[[1]]$tiles[[1]], "LAYER=lyr", fixed = TRUE)
+  p <- jsonlite::fromJSON(pmtiles_provider("https://x.com/a.pmtiles"), simplifyVector = FALSE)
+  expect_equal(p$sources[[1]]$tiles[[1]], "pmtiles://https://x.com/a.pmtiles")
+})

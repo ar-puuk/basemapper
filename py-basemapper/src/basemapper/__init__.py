@@ -1,22 +1,25 @@
-"""basemapper — headless spatial basemap renderer."""
+"""basemapper — render MapLibre GL basemaps headlessly, as images or SVG.
+
+The API matches the R package and the Rust core: the same function and
+argument names, with R's ``verb(m, ...)`` written ``m.verb(...)`` here.
+"""
 
 from .exceptions import BasemapError, NetworkError, StyleError, ValidationError
-from .matplotlib_integration import add_basemap
+from ._basemap import Basemap, basemap
+from ._render import render_basemap_raw
 from .layer_utils import list_layers
-from .map import Map
+from .matplotlib_integration import add_basemap
 from .providers import (
-    EsriRasterProvider,
-    EsriVectorProvider,
-    RasterProvider,
-    VectorProvider,
     basemap_provider,
+    esri_raster_provider,
+    esri_vector_provider,
+    list_providers,
     pmtiles_provider,
+    raster_provider,
+    vector_provider,
     wms_provider,
     wmts_provider,
 )
-
-# Core Rust FFI binding — thin Python wrapper so doc tools can do static analysis.
-from ._render import render_basemap_raw, render_styles_raw
 
 # plotnine integration is optional — base package usable without plotnine installed.
 try:
@@ -26,22 +29,23 @@ except ImportError:
     __all_plotnine__ = []
 
 __all__ = [
+    "basemap",
+    "Basemap",
+    "render_basemap_raw",
+    "list_layers",
+    "basemap_provider",
+    "list_providers",
+    "raster_provider",
+    "vector_provider",
+    "esri_raster_provider",
+    "esri_vector_provider",
+    "wms_provider",
+    "wmts_provider",
+    "pmtiles_provider",
+    "add_basemap",
+    *__all_plotnine__,
     "BasemapError",
     "ValidationError",
     "StyleError",
     "NetworkError",
-    "add_basemap",
-    "Map",
-    "render_basemap_raw",
-    "render_styles_raw",
-    "list_layers",
-    "RasterProvider",
-    "VectorProvider",
-    "EsriVectorProvider",
-    "EsriRasterProvider",
-    "basemap_provider",
-    "wms_provider",
-    "wmts_provider",
-    "pmtiles_provider",
-    *__all_plotnine__,
 ]

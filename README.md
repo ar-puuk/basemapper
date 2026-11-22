@@ -36,7 +36,7 @@ Windows, [RTools45](https://cran.r-project.org/bin/windows/Rtools/) plus the
 GNU target: `rustup target add x86_64-pc-windows-gnu`.
 
 Depends on: `ggplot2 (>= 3.4)`, `sf (>= 1.0)`, `jsonlite (>= 1.8)`,
-`httr2 (>= 1.0)`, `terra (>= 1.7)`, `grid`.
+`terra (>= 1.7)`, `grid`.
 Optional: `tmap (>= 4.0)` for `tm_basemap()`.
 
 > CRAN and R-Universe packages are planned after an extended testing period.
@@ -50,7 +50,7 @@ pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory
 Building from source needs a [Rust toolchain](https://rustup.rs); pip builds
 the extension with maturin automatically.
 
-Depends on: `numpy`, `pyproj`, `matplotlib`, `requests`, `xarray`.
+Depends on: `numpy`, `pyproj`, `matplotlib`, `xarray`.
 Optional: `plotnine >= 0.12` for `geom_basemap()`.
 
 > PyPI and conda packages are planned after an extended testing period.
@@ -58,6 +58,11 @@ Optional: `plotnine >= 0.12` for `geom_basemap()`.
 ---
 
 ## Quick start
+
+The R, Python and Rust APIs are the same: the same functions, the same
+argument names and defaults. R calls `verb(m, ...)` where Python and Rust
+call `m.verb(...)`. See the [API reference](docs/api.md) for the full
+side-by-side list.
 
 ### A map on its own
 
@@ -67,11 +72,12 @@ ugrc <- "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services"
 styles <- sprintf("%s/%s/VectorTileServer/resources/styles/root.json", ugrc,
                   c("VectorHillshade", "LiteBase", "LiteLabels"))   # bottom to top
 
-m <- basemap(styles, width = 800, height = 600,
-             center = c(-111.8887, 40.7556), zoom = 12.4, ratio = 2)
-render_png(m, "slc.png")    # 1600 x 1200, rendered natively at zoom 12.4
-render_svg(m, "slc.svg")    # true vector; labels as editable text, fonts embedded
-r <- render_raster(m)       # terra SpatRaster (EPSG:3857)
+m <- basemap(styles, 800, 600, center = c(-111.8887, 40.7556), zoom = 12.4,
+             pixel_ratio = 2)
+render_png(m, path = "slc.png")   # 1600 x 1200, rendered natively at zoom 12.4
+render_svg(m, path = "slc.svg")   # true vector; labels as editable text, fonts embedded
+a <- render_array(m)              # [1200, 1600, 4] integer array
+r <- render_raster(m)             # terra SpatRaster (EPSG:3857)
 ```
 
 ```python
@@ -80,17 +86,30 @@ ugrc = "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services"
 styles = [f"{ugrc}/{s}/VectorTileServer/resources/styles/root.json"
           for s in ("VectorHillshade", "LiteBase", "LiteLabels")]
 
-m = basemapper.Map(styles, width=800, height=600, ratio=2,
-                   center=(-111.8887, 40.7556), zoom=12.4)
-m.render_png("slc.png")
-m.render_svg("slc.svg")      # text="paths" for traced glyph outlines
-arr = m.render_array()      # (1200, 1600, 4) uint8
+m = basemapper.basemap(styles, 800, 600, center=(-111.8887, 40.7556), zoom=12.4,
+                       pixel_ratio=2)
+m.render_png(path="slc.png")
+m.render_svg(path="slc.svg")      # text="paths" for traced glyph outlines
+a = m.render_array()              # (1200, 1600, 4) uint8
 ```
 
-`width` / `height` are CSS pixels and set the view; images are `ratio`
-times larger with the same layout (MapLibre's devicePixelRatio). Fit an
-extent instead of a centre with `bounds =` (R: a bbox, `sf` object; Python: a
-bbox, GeoDataFrame).
+```rust
+use basemapper_core::Basemap;
+
+let m = Basemap::stack(styles)
+    .size(800, 600)
+    .center(-111.8887, 40.7556)
+    .zoom(12.4)
+    .pixel_ratio(2.0);
+m.render_png(Some("slc.png".as_ref()))?;
+```
+
+`width` / `height` are CSS pixels and set the view; images are
+`pixel_ratio` times larger with the same layout (MapLibre's
+devicePixelRatio). Fit an extent instead of a centre with `bounds =` (R: a
+bbox or `sf` object; Python: a bbox or GeoDataFrame). Move the view with
+`set_view()` / `set_bounds()` and read it with `get_bounds()`,
+`get_center()`, `get_zoom()` and `get_size()`.
 
 ### R — ggplot2
 
@@ -100,10 +119,9 @@ library(sf)
 library(basemapper)
 
 nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-style <- raster_provider("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
 
 ggplot(nc) +
-  geom_basemap(style_url = style) +
+  geom_basemap(basemap_provider("Carto.Positron")) +
   geom_sf(fill = NA, colour = "steelblue") +
   coord_sf()
 ```
@@ -116,10 +134,9 @@ library(sf)
 library(basemapper)
 
 nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-style <- raster_provider("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
 
 tm_shape(nc) +
-  tm_basemap(style) +
+  tm_basemap(basemap_provider("Carto.Positron")) +
   tm_sf()
 ```
 
@@ -128,7 +145,7 @@ tm_shape(nc) +
 ```python
 import geopandas as gpd
 import matplotlib.pyplot as plt
-from basemapper import add_basemap, RasterProvider
+from basemapper import add_basemap, basemap_provider
 
 world = gpd.read_file(
     "https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_countries.zip"
@@ -137,9 +154,8 @@ europe = world[world.CONTINENT == "Europe"].cx[-25:45, 34:72]
 fig, ax = plt.subplots(figsize=(10, 6))
 europe.plot(ax=ax, facecolor="none", edgecolor="black")
 
-style = str(RasterProvider("https://tile.openstreetmap.org/{z}/{x}/{y}.png"))
 # Axes from a GeoDataFrame plot carry no CRS: pass it explicitly.
-add_basemap(ax, style_url=style, crs=europe.crs)
+add_basemap(ax, basemap_provider("Carto.Positron"), crs=europe.crs)
 plt.show()
 ```
 
@@ -148,41 +164,43 @@ plt.show()
 ```python
 import pandas as pd
 from plotnine import ggplot, aes, geom_point
-from basemapper import geom_basemap
+from basemapper import basemap_provider, geom_basemap
 
 cities = pd.DataFrame({"lon": [-111.89, -111.98], "lat": [40.76, 40.66]})
-style = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
 
 (
     ggplot(cities, aes("lon", "lat"))
-    + geom_basemap(style_url=style)          # data CRS defaults to EPSG:4326
+    + geom_basemap(basemap_provider("Carto.Positron"))   # data CRS defaults to EPSG:4326
     + geom_point(colour="red", size=3)
 )
 ```
+
+The plot layers (`geom_basemap`, `tm_basemap`, `add_basemap`) share the
+arguments `style`, `tile_zoom`, `alpha`, `layers`, `pixel_ratio`,
+`auth_token`, `tile_timeout_ms` and `max_tiles`, and render at the output
+resolution (`ggsave(dpi = 300)`, `savefig(dpi=300)`).
 
 ---
 
 ## Key functions
 
-| What you want | R | Python |
-|---|---|---|
-| A map view (centre + zoom, or bounds) | `basemap()`, `set_view()`, `set_bounds()` | `Map(...)`, `.set_center()`, `.set_bounds()` |
-| PNG | `render_png()` | `Map.render_png()` |
-| Vector SVG | `render_svg()` | `Map.render_svg()` |
-| Array / raster | `render_array()`, `render_raster()` | `Map.render_array()` |
-| Raw RGBA render of a bbox | `render_basemap_raw()` | `render_basemap_raw()`, `render_styles_raw()` |
-| ggplot2 / plotnine layer (renders at the output dpi) | `geom_basemap()` | `geom_basemap()` |
-| matplotlib layer (renders at the output dpi) | — | `add_basemap()` |
-| tmap layer | `tm_basemap()` | — |
-| Named provider (25 sources) | `basemap_provider()` | `basemap_provider()` |
-| OSM / raster style | `raster_provider()` | `RasterProvider` |
-| MVT vector style | `vector_provider()` | `VectorProvider` |
-| ESRI vector style | `esri_vector_provider()` | `EsriVectorProvider` |
-| ESRI raster style | `esri_raster_provider()` | `EsriRasterProvider` |
-| OGC WMS GetMap | `wms_provider()` | `wms_provider()` |
-| OGC WMTS GetTile | `wmts_provider()` | `wmts_provider()` |
-| PMTiles HTTP archive | `pmtiles_provider()` | `pmtiles_provider()` |
-| Inspect style layers | `list_layers()` | `list_layers()` |
+| What you want | R | Python | Rust (`basemapper_core`) |
+|---|---|---|---|
+| A map view (centre + zoom, or bounds) | `basemap()` | `basemap()` → `Basemap` | `Basemap::new()` |
+| Change the view | `set_view()`, `set_bounds()` | `m.set_view()`, `m.set_bounds()` | `m.set_view()`, `m.set_bounds()` |
+| Read the view | `get_bounds()`, `get_center()`, `get_zoom()`, `get_size()` | `m.get_bounds()`, … | `m.get_bounds()`, … |
+| PNG | `render_png()` | `m.render_png()` | `m.render_png()` |
+| Vector SVG | `render_svg()` | `m.render_svg()` | `m.render_svg()` |
+| Array | `render_array()` | `m.render_array()` | `m.render_array()` |
+| terra raster | `render_raster()` | — | — |
+| One-shot render of bounds | `render_basemap_raw()` | `render_basemap_raw()` | `render()`, `render_stack()` |
+| ggplot2 / plotnine layer | `geom_basemap()` | `geom_basemap()` | — |
+| matplotlib layer | — | `add_basemap()` | — |
+| tmap layer | `tm_basemap()` | — | — |
+| Named basemap (25 sources) | `basemap_provider()`, `list_providers()` | `basemap_provider()`, `list_providers()` | `providers::basemap_provider()`, `providers::PROVIDER_NAMES` |
+| XYZ raster / MVT / ESRI styles | `raster_provider()`, `vector_provider()`, `esri_raster_provider()`, `esri_vector_provider()` | same names | `providers::…`, same names |
+| OGC WMS / WMTS, PMTiles | `wms_provider()`, `wmts_provider()`, `pmtiles_provider()` | same names | `providers::…`, same names |
+| Inspect style layers | `list_layers()` | `list_layers()` | `list_layers()` |
 
 ---
 
@@ -196,22 +214,14 @@ draw it directly on one canvas.
 
 ```r
 # R — Pacific-centred map crossing the date line
-render_basemap_raw(
-  bbox        = c(15000000, -5000000, -15000000, 5000000),
-  crs         = 3857L,
-  width       = 800L, height = 400L,
-  style_input = basemap_provider("OSM.Standard")
-)
+render_basemap_raw(c(15000000, -5000000, -15000000, 5000000), 800, 400,
+                   basemap_provider("OSM.Standard"), crs = 3857)
 ```
 
 ```python
 # Python — same
-render_basemap_raw(
-    bbox=[15_000_000, -5_000_000, -15_000_000, 5_000_000],
-    width=800, height=400,
-    style_input=basemap_provider("OSM.Standard"),
-    crs=3857,
-)
+render_basemap_raw([15_000_000, -5_000_000, -15_000_000, 5_000_000], 800, 400,
+                   basemap_provider("OSM.Standard"), crs=3857)
 ```
 
 ---
@@ -219,7 +229,7 @@ render_basemap_raw(
 ## Layer filtering
 
 Pass a character vector / list to `layers` on any function to keep or
-exclude specific layers:
+exclude specific layers (`list_layers(style)` lists a style's layers):
 
 ```r
 # R — keep only roads and labels
@@ -278,7 +288,7 @@ supported yet, and how fidelity is verified.
 | What | Command | Notes |
 |---|---|---|
 | Rust core: unit, integration and golden-image tests | `cargo test -p basemapper-core` | 168 golden cases (incl. pixel ratio 2) compared with MapLibre GL JS references, run in parallel; `"svg": true` cases also score the SVG output (rasterised with resvg) |
-| Python | build the wheel with `maturin build`, install it with `pytest responses plotnine`, then run `pytest` in `py-basemapper/` | Includes end-to-end renders against the golden fixtures |
+| Python | build the wheel with `maturin build`, install it with `pytest plotnine`, then run `pytest` in `py-basemapper/` | Includes end-to-end renders against the golden fixtures |
 | R | `R CMD INSTALL r-basemapper`, then `testthat::test_dir("r-basemapper/tests/testthat")` | |
 | Visual comparison | open `check/index.html` after `cargo test` | Overview grid, side-by-side, swipe, blink and diff views |
 | Re-render MapLibre references | `cd tools/reference-render`, `npm install`, `npx playwright install chromium`, `node render.mjs` | Needed after adding or re-capturing fixtures |

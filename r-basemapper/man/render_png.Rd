@@ -7,11 +7,11 @@
 \alias{render_raster}
 \title{Render a basemap view}
 \usage{
-render_png(m, file = NULL)
+render_png(m, path = NULL)
 
 render_svg(
   m,
-  file = NULL,
+  path = NULL,
   text = c("editable", "bitmap", "paths"),
   embed_fonts = c("subset", "full", "none"),
   font_dirs = NULL
@@ -24,7 +24,7 @@ render_raster(m)
 \arguments{
 \item{m}{A \code{\link[=basemap]{basemap()}} object.}
 
-\item{file}{Output path, or \code{NULL} to return the result.}
+\item{path}{Output file, or \code{NULL} to return the result.}
 
 \item{text}{For \code{render_svg()}: \code{"editable"} writes labels as \verb{<text>}
 elements (editable, selectable) at MapLibre's glyph positions, halos as
@@ -51,14 +51,14 @@ first.}
 \itemize{
 \item \code{render_png()} writes or returns a PNG.
 \item \code{render_svg()} writes or returns a vector SVG document (\code{width} x
-\code{height} user units; \code{ratio} does not apply): fills and lines are paths,
-labels are glyph outlines.
-\item \code{render_raster()} returns a \code{\link[terra:rast]{terra::rast()}} (EPSG:3857, layers red,
-green, blue, alpha).
+\code{height} user units; \code{pixel_ratio} does not apply).
 \item \code{render_array()} returns an integer array \verb{[height, width, 4]} (RGBA,
 0--255) with the extent as attributes, like \code{\link[=render_basemap_raw]{render_basemap_raw()}}.
+\item \code{render_raster()} (R only) returns a \code{\link[terra:rast]{terra::rast()}} (EPSG:3857, layers
+red, green, blue, alpha).
 }
 }
 \details{
-Image sizes are \code{width * ratio} by \code{height * ratio} device pixels.
+Image sizes are \code{width * pixel_ratio} by \code{height * pixel_ratio} device
+pixels. Python: \code{m.render_png()}, \code{m.render_svg()}, \code{m.render_array()}.
 }

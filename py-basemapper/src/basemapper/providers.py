@@ -1,289 +1,81 @@
-"""Provider Generator Helpers — convert bare tile URLs to MapLibre GL Style JSON."""
+"""Styles for common tile services.
+
+Each function returns a style for :func:`basemap` and the other renderers'
+``style`` argument: a style URL (named GL styles, ArcGIS vector tile servers)
+or inline MapLibre GL style JSON. They are implemented once in the Rust core,
+so Python and R (``raster_provider()``, ...) return the same style for the
+same call.
+"""
 
 from __future__ import annotations
 
 import json
 import warnings
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
-_FILL_KEYS = {"fill-color", "fill-opacity", "fill-outline-color"}
-_LINE_KEYS = {"line-color", "line-width", "line-opacity"}
-_KNOWN_KEYS = _FILL_KEYS | _LINE_KEYS
+from . import _basemapper as _core
 
 
-class RasterProvider:
-    """Generate a MapLibre GL Style JSON string for an XYZ raster tile source.
-
-    Cast to ``str`` to obtain the inline MapLibre GL Style JSON.
-
-    Args:
-        url_template: Slippy-map tile URL with ``{z}``, ``{x}``, ``{y}`` placeholders.
-        tile_size: Tile size in pixels (default 256).
-    """
-
-    def __init__(self, url_template: str, tile_size: int = 256) -> None:
-        self.url_template = url_template
-        self.tile_size = tile_size
-
-    def to_style_json(self) -> str:
-        """Return a MapLibre GL Style JSON string."""
-        style = {
-            "version": 8,
-            "sources": {
-                "raster-source": {
-                    "type": "raster",
-                    "tiles": [self.url_template],
-                    "tileSize": self.tile_size,
-                }
-            },
-            "layers": [
-                {
-                    "id": "raster-layer",
-                    "type": "raster",
-                    "source": "raster-source",
-                }
-            ],
-        }
-        return json.dumps(style)
-
-    def __str__(self) -> str:
-        return self.to_style_json()
-
-
-class VectorProvider:
-    """Generate a MapLibre GL Style JSON string for an MVT vector tile source.
-
-    Accepted paint keys: ``fill-color``, ``fill-opacity``, ``fill-outline-color``,
-    ``line-color``, ``line-width``, ``line-opacity``. Unrecognised keys are dropped
-    with a warning. Omitting ``paint`` applies a light-grey default style.
-
-    Args:
-        url_template: MVT tile URL with ``{z}``, ``{x}``, ``{y}`` placeholders.
-        source_layer: The name of the layer within each MVT tile to render.
-            This is tile-server specific (e.g. ``"water"``, ``"roads"``); it
-            maps to the MapLibre GL ``"source-layer"`` property and is required
-            for vector sources.
-        paint: Optional dict of MapLibre GL paint properties.
-    """
-
-    def __init__(self, url_template: str, source_layer: str, paint: Optional[Dict[str, object]] = None) -> None:
-        self.url_template = url_template
-        self.source_layer = source_layer
-        self.paint = paint or {}
-
-    def to_style_json(self) -> str:
-        paint = dict(self.paint)
-        unknown = set(paint.keys()) - _KNOWN_KEYS
-        for key in unknown:
-            warnings.warn(
-                f"VectorProvider: unrecognised paint key '{key}' dropped.",
-                stacklevel=2,
-            )
-            del paint[key]
-
-        fill_paint: Dict[str, object] = {
-            k: paint[k] for k in _FILL_KEYS if k in paint
-        }
-        line_paint: Dict[str, object] = {
-            k: paint[k] for k in _LINE_KEYS if k in paint
-        }
-
-        if "fill-color" not in fill_paint:
-            fill_paint["fill-color"] = "#e8e0d8"
-        if "fill-opacity" not in fill_paint:
-            fill_paint["fill-opacity"] = 1
-        if "line-color" not in line_paint:
-            line_paint["line-color"] = "#aaaaaa"
-        if "line-width" not in line_paint:
-            line_paint["line-width"] = 1
-
-        style = {
-            "version": 8,
-            "sources": {
-                "vector-source": {
-                    "type": "vector",
-                    "tiles": [self.url_template],
-                }
-            },
-            "layers": [
-                {
-                    "id": "vector-fill",
-                    "type": "fill",
-                    "source": "vector-source",
-                    "source-layer": self.source_layer,
-                    "paint": fill_paint,
-                },
-                {
-                    "id": "vector-line",
-                    "type": "line",
-                    "source": "vector-source",
-                    "source-layer": self.source_layer,
-                    "paint": line_paint,
-                },
-            ],
-        }
-        return json.dumps(style)
-
-    def __str__(self) -> str:
-        return self.to_style_json()
-
-
-class EsriVectorProvider:
-    """Return the root.json style endpoint URL for an ArcGIS VectorTileServer.
-
-    The Rust core fetches this URL to obtain the full, ESRI-published MapLibre
-    GL style JSON. Cast to ``str`` to get the URL string (not inline JSON).
-
-    Args:
-        base_url: Base ArcGIS VectorTileServer URL (trailing slashes stripped).
-    """
-
-    def __init__(self, base_url: str) -> None:
-        self.base_url = base_url.rstrip("/")
-
-    def __str__(self) -> str:
-        return f"{self.base_url}/resources/styles/root.json"
-
-
-class EsriRasterProvider:
-    """Generate a MapLibre GL Style JSON string for an ArcGIS MapServer raster source.
-
-    Args:
-        url_template: ArcGIS MapServer tile URL (e.g., ``.../MapServer/tile/{z}/{y}/{x}``).
-        tile_size: Tile size in pixels (default 256).
-    """
-
-    def __init__(self, url_template: str, tile_size: int = 256) -> None:
-        self.url_template = url_template
-        self.tile_size = tile_size
-
-    def to_style_json(self) -> str:
-        style = {
-            "version": 8,
-            "sources": {
-                "esri-raster-source": {
-                    "type": "raster",
-                    "tiles": [self.url_template],
-                    "tileSize": self.tile_size,
-                }
-            },
-            "layers": [
-                {
-                    "id": "esri-raster-layer",
-                    "type": "raster",
-                    "source": "esri-raster-source",
-                }
-            ],
-        }
-        return json.dumps(style)
-
-    def __str__(self) -> str:
-        return self.to_style_json()
-
-
-def basemap_provider(name: str, api_key: str | None = None) -> str:
-    """Return a style URL or inline MapLibre GL JSON for a named basemap provider.
+def basemap_provider(name: str, api_key: Optional[str] = None) -> str:
+    """A named basemap's style.
 
     Args:
         name: Provider name, e.g. ``"OpenFreeMap.liberty"`` or
-            ``"Carto.DarkMatter"``.  See the list below for all available names.
-        api_key: API key required by some providers (e.g. MapTiler).
-            Ignored for providers that do not use a key.  Stadia providers
-            work without a key at low volume; supply one to lift rate limits.
+            ``"Carto.Positron"``; see :func:`list_providers`.
+        api_key: API key, required by MapTiler; optional for Stadia (lifts
+            rate limits); ignored by the others.
 
     Returns:
-        str: A MapLibre GL style URL or inline JSON string, ready to pass to
-            :func:`render_basemap_raw`.
-
-    Available provider names:
-
-    * **Vector GL styles** (no key): ``"OpenFreeMap.liberty"``,
-      ``"OpenFreeMap.bright"``, ``"OpenFreeMap.positron"``,
-      ``"Carto.Positron"``, ``"Carto.DarkMatter"``, ``"Carto.Voyager"``,
-      ``"ESRI.WorldBasemap"``
-    * **MapTiler** (require ``api_key``): ``"MapTiler.Streets"``,
-      ``"MapTiler.Satellite"``, ``"MapTiler.Topo"``, ``"MapTiler.Outdoor"``
-    * **ESRI raster** (no key): ``"ESRI.WorldImagery"``,
-      ``"ESRI.WorldStreetMap"``, ``"ESRI.WorldTopoMap"``,
-      ``"ESRI.WorldShadedRelief"``, ``"ESRI.WorldGrayCanvas"``,
-      ``"ESRI.NatGeoWorldMap"``
-    * **OSM raster** (no key): ``"OSM.Standard"``, ``"OSM.CyclOSM"``
-    * **Stadia/Stamen** (key optional): ``"Stadia.AlidadeSmooth"``,
-      ``"Stadia.AlidadeSmoothDark"``, ``"Stadia.OSMBright"``,
-      ``"Stadia.StamenToner"``, ``"Stadia.StamenTerrain"``,
-      ``"Stadia.StamenWatercolor"``
+        A style URL or inline style JSON.
 
     Raises:
-        ValueError: For unknown provider names or when a required ``api_key``
-            is missing.
+        ValidationError: For an unknown name, or a MapTiler style without a key.
     """
-    # --- Vector GL styles (return style URL directly) ---
-    _PLAIN_URLS = {
-        "OpenFreeMap.liberty":   "https://tiles.openfreemap.org/styles/liberty",
-        "OpenFreeMap.bright":    "https://tiles.openfreemap.org/styles/bright",
-        "OpenFreeMap.positron":  "https://tiles.openfreemap.org/styles/positron",
-        "Carto.Positron":        "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-        "Carto.DarkMatter":      "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-        "Carto.Voyager":         "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
-    }
-    if name in _PLAIN_URLS:
-        return _PLAIN_URLS[name]
+    return _core.basemap_provider(name, api_key)
 
-    # --- MapTiler GL styles (require api_key; embed key in URL) ---
-    _MAPTILER_BASE = {
-        "MapTiler.Streets":   "https://api.maptiler.com/maps/streets-v2/style.json?key=",
-        "MapTiler.Satellite": "https://api.maptiler.com/maps/satellite/style.json?key=",
-        "MapTiler.Topo":      "https://api.maptiler.com/maps/topo-v2/style.json?key=",
-        "MapTiler.Outdoor":   "https://api.maptiler.com/maps/outdoor-v2/style.json?key=",
-    }
-    if name in _MAPTILER_BASE:
-        if api_key is None:
-            raise ValueError(f"Provider '{name}' requires an api_key argument")
-        return _MAPTILER_BASE[name] + api_key
 
-    # --- ESRI raster tile services ---
-    _ESRI_RASTER = {
-        "ESRI.WorldImagery":      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        "ESRI.WorldStreetMap":    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
-        "ESRI.WorldTopoMap":      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-        "ESRI.WorldShadedRelief": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}",
-        "ESRI.WorldGrayCanvas":   "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
-        "ESRI.NatGeoWorldMap":    "https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}",
-    }
-    if name in _ESRI_RASTER:
-        return str(EsriRasterProvider(_ESRI_RASTER[name]))
+def list_providers() -> List[str]:
+    """The names :func:`basemap_provider` accepts."""
+    return list(_core.list_providers())
 
-    # --- ESRI vector tile services ---
-    if name == "ESRI.WorldBasemap":
-        return str(EsriVectorProvider("https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer"))
 
-    # --- OSM raster ---
-    _OSM = {
-        "OSM.Standard": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-        "OSM.CyclOSM":  "https://tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
-    }
-    if name in _OSM:
-        return str(RasterProvider(_OSM[name]))
+def raster_provider(url_template: str, tile_size: int = 256) -> str:
+    """Style for an XYZ raster tile URL with ``{z}``, ``{x}``, ``{y}``
+    placeholders."""
+    return _core.raster_provider(url_template, int(tile_size))
 
-    # --- Stadia (Stamen successors; key optional for low-volume use) ---
-    _STADIA = {
-        "Stadia.AlidadeSmooth":     "alidade_smooth",
-        "Stadia.AlidadeSmoothDark": "alidade_smooth_dark",
-        "Stadia.OSMBright":         "osm_bright",
-        "Stadia.StamenToner":       "stamen_toner",
-        "Stadia.StamenTerrain":     "stamen_terrain",
-        "Stadia.StamenWatercolor":  "stamen_watercolor",
-    }
-    if name in _STADIA:
-        tile_name = _STADIA[name]
-        url = f"https://tiles.stadiamaps.com/tiles/{tile_name}/{{z}}/{{x}}/{{y}}.png"
-        if api_key is not None:
-            url = f"{url}?api_key={api_key}"
-        return str(RasterProvider(url))
 
-    raise ValueError(
-        f"Unknown provider: '{name}'. See help(basemap_provider) for available names."
-    )
+def vector_provider(url_template: str, source_layer: str, paint: Optional[Dict[str, object]] = None) -> str:
+    """Style drawing one layer of an MVT tile URL as a fill and a line layer.
+
+    Args:
+        url_template: MVT tile URL with ``{z}``, ``{x}``, ``{y}`` placeholders.
+        source_layer: Layer within each vector tile to draw (MapLibre's
+            ``source-layer``), e.g. ``"water"``.
+        paint: Paint properties: ``fill-color``, ``fill-opacity``,
+            ``fill-outline-color``, ``line-color``, ``line-width``,
+            ``line-opacity``. Others are dropped with a warning; unset ones
+            default to a light grey style.
+    """
+    style, dropped = _core.vector_provider(url_template, source_layer, json.dumps(paint or {}))
+    if dropped:
+        warnings.warn(
+            f"vector_provider: unrecognised paint key(s) dropped: {', '.join(dropped)}",
+            UserWarning,
+            stacklevel=2,
+        )
+    return style
+
+
+def esri_raster_provider(url_template: str, tile_size: int = 256) -> str:
+    """Style for ArcGIS MapServer raster tiles
+    (``.../MapServer/tile/{z}/{y}/{x}``)."""
+    return _core.esri_raster_provider(url_template, int(tile_size))
+
+
+def esri_vector_provider(base_url: str) -> str:
+    """The published style URL of an ArcGIS VectorTileServer."""
+    return _core.esri_vector_provider(base_url)
 
 
 def wms_provider(
@@ -295,51 +87,18 @@ def wms_provider(
     transparent: bool = False,
     extra_params: Optional[str] = None,
 ) -> str:
-    """Build a MapLibre GL Style JSON string for a WMS GetMap endpoint.
-
-    The Rust tile engine substitutes ``{xmin}``, ``{ymin}``, ``{xmax}``,
-    ``{ymax}`` with EPSG:3857 coordinates for each 256×256 tile.
+    """Style for an OGC WMS GetMap endpoint, as 256 px tiles in EPSG:3857.
 
     Args:
-        url: Base WMS URL (without query parameters).
-        layers: Value for the ``LAYERS`` parameter.
-        styles: Value for the ``STYLES`` parameter.
-        version: WMS version string.
+        url: Base service URL without query parameters.
+        layers: ``LAYERS`` parameter.
+        styles: ``STYLES`` parameter.
+        version: Service version.
         format: Image MIME type.
-        transparent: Request transparent PNG tiles.
+        transparent: Request transparent images.
         extra_params: Additional query parameters appended verbatim.
-
-    Returns:
-        MapLibre GL Style JSON string.
     """
-    from urllib.parse import quote
-
-    bbox = "{xmin},{ymin},{xmax},{ymax}"
-    tile_url = (
-        f"{url}?SERVICE=WMS&VERSION={version}&REQUEST=GetMap"
-        f"&LAYERS={quote(layers, safe='')}"
-        f"&STYLES={quote(styles, safe='')}"
-        f"&CRS=EPSG:3857"
-        f"&BBOX={bbox}"
-        f"&WIDTH=256&HEIGHT=256"
-        f"&FORMAT={quote(format, safe='')}"
-        f"&TRANSPARENT={'TRUE' if transparent else 'FALSE'}"
-    )
-    if extra_params:
-        tile_url = f"{tile_url}&{extra_params}"
-
-    style: Dict = {
-        "version": 8,
-        "sources": {
-            "wms": {
-                "type": "raster",
-                "tiles": [tile_url],
-                "tileSize": 256,
-            }
-        },
-        "layers": [{"id": "wms-layer", "type": "raster", "source": "wms"}],
-    }
-    return json.dumps(style)
+    return _core.wms_provider(url, layers, styles, version, format, bool(transparent), extra_params)
 
 
 def wmts_provider(
@@ -351,68 +110,20 @@ def wmts_provider(
     version: str = "1.0.0",
     extra_params: Optional[str] = None,
 ) -> str:
-    """Build a MapLibre GL Style JSON string for a WMTS GetTile KVP endpoint.
+    """Style for an OGC WMTS GetTile (KVP) endpoint.
 
     Args:
-        url: Base WMTS URL (without query parameters).
-        layer: Value for the ``LAYER`` parameter.
-        tilematrixset: Tile matrix set identifier.
+        url: Base service URL without query parameters.
+        layer: ``LAYER`` parameter.
+        tilematrixset: Tile matrix set.
         format: Image MIME type.
-        style: Style identifier.
-        version: WMTS version string.
+        style: ``STYLE`` parameter.
+        version: Service version.
         extra_params: Additional query parameters appended verbatim.
-
-    Returns:
-        MapLibre GL Style JSON string.
     """
-    from urllib.parse import quote
-
-    tile_url = (
-        f"{url}?SERVICE=WMTS&REQUEST=GetTile&VERSION={version}"
-        f"&LAYER={quote(layer, safe='')}"
-        f"&STYLE={quote(style, safe='')}"
-        f"&FORMAT={quote(format, safe='')}"
-        f"&TILEMATRIXSET={quote(tilematrixset, safe='')}"
-        f"&TILEMATRIX={{z}}&TILEROW={{y}}&TILECOL={{x}}"
-    )
-    if extra_params:
-        tile_url = f"{tile_url}&{extra_params}"
-
-    style_obj: Dict = {
-        "version": 8,
-        "sources": {
-            "wmts": {
-                "type": "raster",
-                "tiles": [tile_url],
-                "tileSize": 256,
-            }
-        },
-        "layers": [{"id": "wmts-layer", "type": "raster", "source": "wmts"}],
-    }
-    return json.dumps(style_obj)
+    return _core.wmts_provider(url, layer, tilematrixset, format, style, version, extra_params)
 
 
 def pmtiles_provider(url: str) -> str:
-    """Build a MapLibre GL Style JSON string for a PMTiles raster archive.
-
-    The Rust core detects the ``pmtiles://`` scheme in the ``tiles`` array
-    and routes tile fetching through the PMTiles HTTP range-request pipeline.
-
-    Args:
-        url: HTTPS URL of the ``.pmtiles`` archive file.
-
-    Returns:
-        MapLibre GL Style JSON string.
-    """
-    style: Dict = {
-        "version": 8,
-        "sources": {
-            "pmtiles": {
-                "type": "raster",
-                "tiles": [f"pmtiles://{url}"],
-                "tileSize": 256,
-            }
-        },
-        "layers": [{"id": "pmtiles-layer", "type": "raster", "source": "pmtiles"}],
-    }
-    return json.dumps(style)
+    """Style for a raster PMTiles archive served over HTTP."""
+    return _core.pmtiles_provider(url)

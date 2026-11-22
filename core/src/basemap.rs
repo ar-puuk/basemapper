@@ -1,0 +1,310 @@
+//! `Basemap`: a map view to render, the Rust counterpart of R's
+//! `basemap()` and Python's `basemapper.basemap()` / `Basemap`.
+//!
+//! The same verbs exist in all three languages: R `verb(m, ...)`, Python
+//! `m.verb(...)`, Rust `m.verb(...)`:
+//!
+//! | Task | Rust |
+//! |---|---|
+//! | create | `Basemap::new(style)` + `.size()`, `.center()`, `.zoom()`, `.bounds()`, `.pixel_ratio()`, ... |
+//! | change the view | `set_view(center, zoom)`, `set_bounds(bounds, crs)` |
+//! | read the view | `get_bounds(lonlat)`, `get_center()`, `get_zoom()`, `get_size()` |
+//! | render | `render_array()`, `render_png(path)`, `render_svg(path, options)` |
+
+use crate::bbox::{bbox_from_center, fit_bounds, RenderRequest, RenderResult};
+use crate::{encode_png, render, render_stack, render_svg_stack_with, BasemapError, StyleInput, SvgOptions};
+use std::path::Path;
+
+const EARTH_HALF: f64 = 20_037_508.342_789_244;
+
+/// A map view: one style, or several stacked bottom to top, a size in CSS
+/// pixels, a centre and MapLibre zoom (512 px tiles, fractional allowed),
+/// and a device pixel ratio (images are `pixel_ratio` times larger with the
+/// same view and label layout).
+#[derive(Clone, Debug)]
+pub struct Basemap {
+    styles: Vec<String>,
+    width: u32,
+    height: u32,
+    center: (f64, f64),
+    zoom: f64,
+    pixel_ratio: f64,
+    layers: Option<Vec<String>>,
+    auth_token: Option<String>,
+    tile_timeout_ms: u32,
+    max_tiles: u32,
+    tile_concurrency: u32,
+    fail_on_tile_error: bool,
+}
+
+/// Coordinate reference system of bounds given to [`Basemap::set_bounds`]:
+/// the core reads longitude/latitude and Web Mercator (R and Python
+/// reproject other CRSs before calling it).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Crs {
+    /// EPSG:4326 longitude/latitude degrees.
+    LonLat,
+    /// EPSG:3857 Web Mercator metres.
+    WebMercator,
+}
+
+impl Crs {
+    /// `"EPSG:4326"` / `4326` / `"WGS84"` or `"EPSG:3857"` / `3857`.
+    pub fn parse(s: &str) -> Result<Crs, BasemapError> {
+        match s.trim().to_ascii_uppercase().as_str() {
+            "EPSG:4326" | "4326" | "WGS84" | "CRS84" | "OGC:CRS84" => Ok(Crs::LonLat),
+            "EPSG:3857" | "3857" | "EPSG:900913" => Ok(Crs::WebMercator),
+            other => Err(BasemapError::InvalidInput(format!(
+                "unsupported crs '{other}': the Rust core reads EPSG:4326 or EPSG:3857"
+            ))),
+        }
+    }
+}
+
+fn lonlat_to_3857(lon: f64, lat: f64) -> (f64, f64) {
+    let lat = lat.clamp(-85.051_128_779_806_59, 85.051_128_779_806_59);
+    let r = EARTH_HALF / std::f64::consts::PI;
+    (lon.to_radians() * r, (std::f64::consts::FRAC_PI_4 + lat.to_radians() / 2.0).tan().ln() * r)
+}
+
+fn mercator_to_lonlat(x: f64, y: f64) -> (f64, f64) {
+    let r = EARTH_HALF / std::f64::consts::PI;
+    ((x / r).to_degrees(), (2.0 * (y / r).exp().atan() - std::f64::consts::FRAC_PI_2).to_degrees())
+}
+
+impl Basemap {
+    /// A view of one style (a URL or style JSON, e.g. from
+    /// [`crate::providers`]): 800 x 600 CSS pixels at zoom 0.
+    pub fn new(style: impl Into<String>) -> Self {
+        Self::stack(vec![style.into()])
+    }
+
+    /// A view of several styles drawn bottom to top (e.g. a basemap published
+    /// as separate hillshade, base and label services).
+    pub fn stack(styles: Vec<String>) -> Self {
+        Basemap {
+            styles,
+            width: 800,
+            height: 600,
+            center: (0.0, 0.0),
+            zoom: 0.0,
+            pixel_ratio: 1.0,
+            layers: None,
+            auth_token: None,
+            tile_timeout_ms: 10_000,
+            max_tiles: 256,
+            tile_concurrency: 16,
+            fail_on_tile_error: false,
+        }
+    }
+
+    // ── Builder (the constructor arguments of R / Python) ───────────────────
+
+    /// View size in CSS pixels.
+    pub fn size(mut self, width: u32, height: u32) -> Self {
+        self.width = width;
+        self.height = height;
+        self
+    }
+
+    /// View centre as (longitude, latitude).
+    pub fn center(mut self, longitude: f64, latitude: f64) -> Self {
+        self.center = (longitude, latitude);
+        self
+    }
+
+    /// MapLibre zoom (0-22, fractional allowed).
+    pub fn zoom(mut self, zoom: f64) -> Self {
+        self.zoom = zoom;
+        self
+    }
+
+    /// Fit `bounds` (`[xmin, ymin, xmax, ymax]` in `crs`) instead of a
+    /// centre and zoom. Apply after [`size`](Self::size).
+    pub fn bounds(mut self, bounds: [f64; 4], crs: Crs) -> Result<Self, BasemapError> {
+        self.set_bounds(bounds, crs)?;
+        Ok(self)
+    }
+
+    /// Device pixels per CSS pixel (MapLibre's `devicePixelRatio`).
+    pub fn pixel_ratio(mut self, pixel_ratio: f64) -> Self {
+        self.pixel_ratio = pixel_ratio;
+        self
+    }
+
+    /// Layer filter applied to every style: plain IDs keep only those
+    /// layers, `-`-prefixed IDs drop them.
+    pub fn layers(mut self, layers: Vec<String>) -> Self {
+        self.layers = Some(layers);
+        self
+    }
+
+    /// Access token for the tile service.
+    pub fn auth_token(mut self, token: impl Into<String>) -> Self {
+        self.auth_token = Some(token.into());
+        self
+    }
+
+    /// Per-tile HTTP timeout in milliseconds.
+    pub fn tile_timeout_ms(mut self, ms: u32) -> Self {
+        self.tile_timeout_ms = ms;
+        self
+    }
+
+    /// Maximum tiles fetched per style.
+    pub fn max_tiles(mut self, n: u32) -> Self {
+        self.max_tiles = n;
+        self
+    }
+
+    /// Parallel tile downloads.
+    pub fn tile_concurrency(mut self, n: u32) -> Self {
+        self.tile_concurrency = n;
+        self
+    }
+
+    /// Abort on a failed tile instead of leaving it empty.
+    pub fn fail_on_tile_error(mut self, fail: bool) -> Self {
+        self.fail_on_tile_error = fail;
+        self
+    }
+
+    // ── View ────────────────────────────────────────────────────────────────
+
+    /// Set the centre and/or zoom (`None` keeps the current value).
+    pub fn set_view(&mut self, center: Option<(f64, f64)>, zoom: Option<f64>) -> Result<&mut Self, BasemapError> {
+        if let Some(z) = zoom {
+            if !(0.0..=22.0).contains(&z) {
+                return Err(BasemapError::InvalidInput("zoom must be between 0 and 22".into()));
+            }
+            self.zoom = z;
+        }
+        if let Some(c) = center {
+            self.center = c;
+        }
+        Ok(self)
+    }
+
+    /// Fit the view to `bounds` in `crs`, keeping its size.
+    pub fn set_bounds(&mut self, bounds: [f64; 4], crs: Crs) -> Result<&mut Self, BasemapError> {
+        let b = match crs {
+            Crs::WebMercator => bounds,
+            Crs::LonLat => {
+                let (x0, y0) = lonlat_to_3857(bounds[0], bounds[1]);
+                let (x1, y1) = lonlat_to_3857(bounds[2], bounds[3]);
+                [x0, y0, x1, y1]
+            }
+        };
+        if !(b[2] > b[0] && b[3] > b[1]) {
+            return Err(BasemapError::InvalidBbox("bounds must have xmin < xmax and ymin < ymax".into()));
+        }
+        let (lon, lat, zoom) = fit_bounds(b, self.width, self.height);
+        self.center = (lon, lat);
+        self.zoom = zoom.clamp(0.0, 22.0);
+        Ok(self)
+    }
+
+    /// The view's `[xmin, ymin, xmax, ymax]`: EPSG:3857 metres, or degrees
+    /// with `lonlat`.
+    pub fn get_bounds(&self, lonlat: bool) -> [f64; 4] {
+        let b = bbox_from_center(self.center.0, self.center.1, self.zoom, self.width, self.height);
+        if !lonlat {
+            return b;
+        }
+        let (w, s) = mercator_to_lonlat(b[0], b[1]);
+        let (e, n) = mercator_to_lonlat(b[2], b[3]);
+        [w, s, e, n]
+    }
+
+    /// The view centre as (longitude, latitude).
+    pub fn get_center(&self) -> (f64, f64) {
+        self.center
+    }
+
+    /// The view's MapLibre zoom.
+    pub fn get_zoom(&self) -> f64 {
+        self.zoom
+    }
+
+    /// Size of rendered images in device pixels (`width`, `height` times
+    /// `pixel_ratio`).
+    pub fn get_size(&self) -> (u32, u32) {
+        (crate::vector::render::device_px(self.width, self.pixel_ratio), crate::vector::render::device_px(self.height, self.pixel_ratio))
+    }
+
+    // ── Rendering ───────────────────────────────────────────────────────────
+
+    fn requests(&self) -> Vec<RenderRequest> {
+        let bbox = self.get_bounds(false);
+        self.styles
+            .iter()
+            .map(|s| RenderRequest {
+                layers: self.layers.clone(),
+                auth_token: self.auth_token.clone(),
+                tile_timeout_ms: self.tile_timeout_ms,
+                max_tiles: self.max_tiles,
+                tile_concurrency: self.tile_concurrency,
+                fail_on_tile_error: self.fail_on_tile_error,
+                pixel_ratio: self.pixel_ratio,
+                ..RenderRequest::new(bbox, self.width, self.height, StyleInput::detect(s))
+            })
+            .collect()
+    }
+
+    /// Render to straight-alpha RGBA pixels (device pixels).
+    pub fn render_array(&self) -> Result<RenderResult, BasemapError> {
+        let mut requests = self.requests();
+        if requests.len() == 1 {
+            render(requests.remove(0))
+        } else {
+            render_stack(requests)
+        }
+    }
+
+    /// Render a PNG, written to `path` when given; returns its bytes.
+    pub fn render_png(&self, path: Option<&Path>) -> Result<Vec<u8>, BasemapError> {
+        let r = self.render_array()?;
+        let png = encode_png(&r.pixels, r.width, r.height)?;
+        if let Some(p) = path {
+            std::fs::write(p, &png).map_err(|e| BasemapError::RenderError(format!("writing {}: {e}", p.display())))?;
+        }
+        Ok(png)
+    }
+
+    /// Render a vector SVG (`width` x `height` user units; `pixel_ratio`
+    /// does not apply), written to `path` when given; returns the document.
+    pub fn render_svg(&self, path: Option<&Path>, options: &SvgOptions) -> Result<String, BasemapError> {
+        let svg = render_svg_stack_with(self.requests(), options)?;
+        if let Some(p) = path {
+            std::fs::write(p, &svg).map_err(|e| BasemapError::RenderError(format!("writing {}: {e}", p.display())))?;
+        }
+        Ok(svg)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn view_round_trips() {
+        let mut m = Basemap::new("https://example.com/style.json").size(800, 600).pixel_ratio(2.0);
+        m.set_view(Some((-111.89, 40.76)), Some(12.5)).unwrap();
+        assert_eq!(m.get_center(), (-111.89, 40.76));
+        assert_eq!(m.get_zoom(), 12.5);
+        assert_eq!(m.get_size(), (1600, 1200));
+        let b = m.get_bounds(true);
+        assert!(b[0] < -111.89 && b[2] > -111.89 && b[1] < 40.76 && b[3] > 40.76);
+        // Fitting the view's own bounds gives the same view back.
+        let mut n = Basemap::new("x").size(800, 600);
+        n.set_bounds(m.get_bounds(false), Crs::WebMercator).unwrap();
+        assert!((n.get_zoom() - 12.5).abs() < 1e-9);
+        assert!((n.get_center().0 + 111.89).abs() < 1e-9 && (n.get_center().1 - 40.76).abs() < 1e-9);
+        let mut l = Basemap::new("x").size(800, 600);
+        l.set_bounds(m.get_bounds(true), Crs::LonLat).unwrap();
+        assert!((l.get_zoom() - 12.5).abs() < 1e-6);
+        assert!(m.set_view(None, Some(23.0)).is_err());
+        assert_eq!(Crs::parse("epsg:3857").unwrap(), Crs::WebMercator);
+        assert!(Crs::parse("EPSG:2163").is_err());
+    }
+}

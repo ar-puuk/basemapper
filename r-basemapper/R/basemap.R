@@ -3,15 +3,17 @@
 #' A map view to render headlessly: one style, or several stacked. The view
 #' is a centre and MapLibre zoom (512 px tiles; fractional zooms are rendered
 #' natively, not resampled), or bounds to fit. `width` and `height` are CSS
-#' pixels; images are `ratio` times larger with the same view and label
-#' layout (MapLibre's `devicePixelRatio`): `ratio = 2` gives a sharp 2x
-#' image, `ratio = dpi / 96` matches a print resolution.
+#' pixels; images are `pixel_ratio` times larger with the same view and label
+#' layout (MapLibre's `devicePixelRatio`): `pixel_ratio = 2` gives a sharp 2x
+#' image, `pixel_ratio = dpi / 96` matches a print resolution.
 #'
 #' Render it with [render_png()], [render_svg()], [render_raster()] or
-#' [render_array()].
+#' [render_array()]. The same function exists in Python
+#' (`basemapper.basemap()`) and Rust (`Basemap::new()`), with the same
+#' arguments.
 #'
-#' @param style A MapLibre GL style URL or JSON string (or a provider such as
-#'   [raster_provider()]), or a character vector / list of those stacked
+#' @param style A MapLibre GL style URL or JSON string (e.g. from
+#'   [basemap_provider()]), or a character vector / list of those stacked
 #'   bottom to top (e.g. a basemap published as separate hillshade, base and
 #'   label services).
 #' @param width,height View size in CSS pixels.
@@ -21,9 +23,9 @@
 #'   xmax, ymax)` in `crs` (default EPSG:4326), an [sf::st_bbox()] result, or
 #'   an `sf` / `sfc` object.
 #' @param crs CRS of `bounds` (anything [sf::st_crs()] accepts).
-#' @param ratio Device pixels per CSS pixel.
+#' @param pixel_ratio Device pixels per CSS pixel.
 #' @param layers Optional layer filter applied to every style: plain IDs keep
-#'   only those layers, minus-prefixed IDs drop them.
+#'   only those layers, minus-prefixed IDs drop them (see [list_layers()]).
 #' @param auth_token Optional access token for the tile service.
 #' @param tile_timeout_ms Per-tile HTTP timeout in milliseconds.
 #' @param max_tiles Maximum tiles fetched per style.
@@ -31,7 +33,7 @@
 #' @param fail_on_tile_error Abort on a failed tile instead of leaving it
 #'   empty.
 #'
-#' @return A `basemapper_map` object.
+#' @return A `basemap` object.
 #' @export
 #' @examples
 #' \dontrun{
@@ -39,15 +41,14 @@
 #' styles <- sprintf("%s/%s/VectorTileServer/resources/styles/root.json", ugrc,
 #'                   c("VectorHillshade", "LiteBase", "LiteLabels"))
 #' m <- basemap(styles, 800, 600, center = c(-111.8887, 40.7556), zoom = 12.4,
-#'              ratio = 2)
+#'              pixel_ratio = 2)
 #' render_png(m, "slc.png")   # 1600 x 1200
 #' render_svg(m, "slc.svg")   # vector
 #' r <- render_raster(m)      # terra SpatRaster in EPSG:3857
 #'
 #' # Fit a layer's extent
 #' nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-#' m <- basemap("https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-#'              bounds = nc)
+#' m <- basemap(basemap_provider("Carto.Positron"), bounds = nc)
 #' }
 basemap <- function(
     style,
@@ -57,7 +58,7 @@ basemap <- function(
     zoom               = NULL,
     bounds             = NULL,
     crs                = NULL,
-    ratio              = 1,
+    pixel_ratio        = 1,
     layers             = NULL,
     auth_token         = NULL,
     tile_timeout_ms    = 10000L,
@@ -72,12 +73,10 @@ basemap <- function(
       width < 1L || height < 1L) {
     stop("width and height must be positive integers.", call. = FALSE)
   }
-  if (!is.numeric(ratio) || length(ratio) != 1L || !(ratio > 0)) {
-    stop("ratio must be a single number > 0.", call. = FALSE)
-  }
+  check_pixel_ratio(pixel_ratio)
   m <- structure(
     list(
-      styles = styles, width = width, height = height, ratio = as.numeric(ratio),
+      styles = styles, width = width, height = height, pixel_ratio = as.numeric(pixel_ratio),
       center = c(0, 0), zoom = 0,
       options = list(
         layers = layers, auth_token = auth_token,
@@ -86,7 +85,7 @@ basemap <- function(
         fail_on_tile_error = isTRUE(fail_on_tile_error)
       )
     ),
-    class = "basemapper_map"
+    class = "basemap"
   )
   if (!is.null(bounds)) {
     if (!is.null(center) || !is.null(zoom)) {
@@ -100,16 +99,16 @@ basemap <- function(
 #' Change a basemap view
 #'
 #' `set_view()` sets the centre and/or zoom; `set_bounds()` fits bounds
-#' (keeping the view's aspect ratio).
+#' (keeping the view's size). Python: `m.set_view()`, `m.set_bounds()`.
 #'
 #' @param m A [basemap()] object.
 #' @param center `c(longitude, latitude)`, or `NULL` to keep it.
 #' @param zoom MapLibre zoom, or `NULL` to keep it.
 #' @inheritParams basemap
-#' @return The modified `basemapper_map`.
+#' @return The modified `basemap`.
 #' @export
 set_view <- function(m, center = NULL, zoom = NULL) {
-  stopifnot(inherits(m, "basemapper_map"))
+  check_basemap(m)
   if (!is.null(center)) {
     if (!is.numeric(center) || length(center) != 2L) {
       stop("center must be c(longitude, latitude).", call. = FALSE)
@@ -128,7 +127,7 @@ set_view <- function(m, center = NULL, zoom = NULL) {
 #' @rdname set_view
 #' @export
 set_bounds <- function(m, bounds, crs = NULL) {
-  stopifnot(inherits(m, "basemapper_map"))
+  check_basemap(m)
   b <- bounds_3857(bounds, crs)
   v <- .Call("wrap__fit_bounds_raw", as.numeric(b), m$width, m$height, PACKAGE = "basemapper")
   m$center <- v[1:2]
@@ -136,14 +135,23 @@ set_bounds <- function(m, bounds, crs = NULL) {
   m
 }
 
-#' The extent of a basemap view
+#' Read a basemap view
+#'
+#' * `get_bounds()`: the view's extent, `c(xmin, ymin, xmax, ymax)` in
+#'   EPSG:3857 metres, or degrees with `lonlat = TRUE`.
+#' * `get_center()`: `c(longitude, latitude)` of the centre.
+#' * `get_zoom()`: the MapLibre zoom.
+#' * `get_size()`: `c(width, height)` of rendered images in device pixels.
+#'
+#' Python: `m.get_bounds()`, `m.get_center()`, `m.get_zoom()`,
+#' `m.get_size()`.
 #'
 #' @param m A [basemap()] object.
 #' @param lonlat Return degrees (EPSG:4326) instead of EPSG:3857 metres.
-#' @return Named numeric `c(xmin, ymin, xmax, ymax)`.
+#' @return A named numeric vector.
 #' @export
-basemap_bounds <- function(m, lonlat = FALSE) {
-  stopifnot(inherits(m, "basemapper_map"))
+get_bounds <- function(m, lonlat = FALSE) {
+  check_basemap(m)
   b <- .Call("wrap__bbox_from_center_raw", m$center[1], m$center[2], m$zoom,
              m$width, m$height, PACKAGE = "basemapper")
   names(b) <- c("xmin", "ymin", "xmax", "ymax")
@@ -153,13 +161,34 @@ basemap_bounds <- function(m, lonlat = FALSE) {
     xmax = unname(bb["xmax"]), ymax = unname(bb["ymax"]))
 }
 
+#' @rdname get_bounds
 #' @export
-print.basemapper_map <- function(x, ...) {
+get_center <- function(m) {
+  check_basemap(m)
+  c(longitude = m$center[1], latitude = m$center[2])
+}
+
+#' @rdname get_bounds
+#' @export
+get_zoom <- function(m) {
+  check_basemap(m)
+  m$zoom
+}
+
+#' @rdname get_bounds
+#' @export
+get_size <- function(m) {
+  check_basemap(m)
+  c(width = device_px(m$width, m$pixel_ratio), height = device_px(m$height, m$pixel_ratio))
+}
+
+#' @export
+print.basemap <- function(x, ...) {
   n <- length(x$styles)
+  s <- get_size(x)
   cat(sprintf(
-    "<basemapper_map> %d style%s, %d x %d @ %gx (%d x %d px), center (%.5f, %.5f), zoom %.3f\n",
-    n, if (n == 1L) "" else "s", x$width, x$height, x$ratio,
-    as.integer(round(x$width * x$ratio)), as.integer(round(x$height * x$ratio)),
+    "<basemap> %d style%s, %d x %d @ %gx (%d x %d px), center (%.5f, %.5f), zoom %.3f\n",
+    n, if (n == 1L) "" else "s", x$width, x$height, x$pixel_ratio, s[["width"]], s[["height"]],
     x$center[1], x$center[2], x$zoom
   ))
   invisible(x)
@@ -169,17 +198,17 @@ print.basemapper_map <- function(x, ...) {
 #'
 #' * `render_png()` writes or returns a PNG.
 #' * `render_svg()` writes or returns a vector SVG document (`width` x
-#'   `height` user units; `ratio` does not apply): fills and lines are paths,
-#'   labels are glyph outlines.
-#' * `render_raster()` returns a [terra::rast()] (EPSG:3857, layers red,
-#'   green, blue, alpha).
+#'   `height` user units; `pixel_ratio` does not apply).
 #' * `render_array()` returns an integer array `[height, width, 4]` (RGBA,
 #'   0--255) with the extent as attributes, like [render_basemap_raw()].
+#' * `render_raster()` (R only) returns a [terra::rast()] (EPSG:3857, layers
+#'   red, green, blue, alpha).
 #'
-#' Image sizes are `width * ratio` by `height * ratio` device pixels.
+#' Image sizes are `width * pixel_ratio` by `height * pixel_ratio` device
+#' pixels. Python: `m.render_png()`, `m.render_svg()`, `m.render_array()`.
 #'
 #' @param m A [basemap()] object.
-#' @param file Output path, or `NULL` to return the result.
+#' @param path Output file, or `NULL` to return the result.
 #' @param text For `render_svg()`: `"editable"` writes labels as `<text>`
 #'   elements (editable, selectable) at MapLibre's glyph positions, halos as
 #'   strokes, with the style's fonts embedded, and falls back to `"bitmap"`
@@ -197,25 +226,25 @@ print.basemapper_map <- function(x, ...) {
 #' @return `render_png()`: the PNG as a raw vector (invisibly when written).
 #'   `render_svg()`: the SVG as a string (invisibly when written).
 #' @export
-render_png <- function(m, file = NULL) {
+render_png <- function(m, path = NULL) {
   px  <- render_pixels(m)
   png <- .Call("wrap__encode_png_raw", px$pixels, px$width, px$height, PACKAGE = "basemapper")
-  if (is.null(file)) return(png)
-  writeBin(png, file)
+  if (is.null(path)) return(png)
+  writeBin(png, path)
   invisible(png)
 }
 
 #' @rdname render_png
 #' @export
-render_svg <- function(m, file = NULL, text = c("editable", "bitmap", "paths"),
+render_svg <- function(m, path = NULL, text = c("editable", "bitmap", "paths"),
                        embed_fonts = c("subset", "full", "none"), font_dirs = NULL) {
   text <- match.arg(text)
   embed_fonts <- match.arg(embed_fonts)
-  stopifnot(inherits(m, "basemapper_map"))
+  check_basemap(m)
   o <- m$options
   svg <- .Call(
     "wrap__render_svg_raw",
-    as.numeric(basemap_bounds(m)), m$width, m$height, m$styles,
+    as.numeric(get_bounds(m)), m$width, m$height, m$styles,
     NULL, o$tile_timeout_ms, o$max_tiles,
     if (is.null(o$layers)) NULL else as.character(o$layers),
     if (is.null(o$auth_token)) NULL else as.character(o$auth_token),
@@ -224,8 +253,8 @@ render_svg <- function(m, file = NULL, text = c("editable", "bitmap", "paths"),
     if (is.null(font_dirs)) NULL else normalizePath(as.character(font_dirs), mustWork = FALSE),
     PACKAGE = "basemapper"
   )
-  if (is.null(file)) return(svg)
-  writeLines(svg, file, useBytes = TRUE, sep = "")
+  if (is.null(path)) return(svg)
+  writeLines(svg, path, useBytes = TRUE, sep = "")
   invisible(svg)
 }
 
@@ -233,21 +262,14 @@ render_svg <- function(m, file = NULL, text = c("editable", "bitmap", "paths"),
 #' @export
 render_array <- function(m) {
   px <- render_pixels(m)
-  a  <- pixels_to_array(px)
-  b  <- basemap_bounds(m)
-  attr(a, "xmin") <- unname(b["xmin"])
-  attr(a, "ymin") <- unname(b["ymin"])
-  attr(a, "xmax") <- unname(b["xmax"])
-  attr(a, "ymax") <- unname(b["ymax"])
-  attr(a, "crs_epsg") <- 3857L
-  a
+  with_extent(pixels_to_array(px), get_bounds(m), 3857L)
 }
 
 #' @rdname render_png
 #' @export
 render_raster <- function(m) {
   px <- render_pixels(m)
-  b  <- basemap_bounds(m)
+  b  <- get_bounds(m)
   r  <- terra::rast(
     nrows = px$height, ncols = px$width, nlyrs = 4L,
     xmin = unname(b["xmin"]), xmax = unname(b["xmax"]),
@@ -263,6 +285,22 @@ render_raster <- function(m) {
 }
 
 # ── Internals ─────────────────────────────────────────────────────────────────
+
+check_basemap <- function(m) {
+  if (!inherits(m, "basemap")) stop("`m` must be a basemap() object.", call. = FALSE)
+}
+
+check_pixel_ratio <- function(pixel_ratio) {
+  if (!is.numeric(pixel_ratio) || length(pixel_ratio) != 1L || !(pixel_ratio > 0)) {
+    stop("pixel_ratio must be a single number > 0.", call. = FALSE)
+  }
+}
+
+# Device pixels for a CSS size, as the core rounds them (halves away from
+# zero; R's round() would round them to even).
+device_px <- function(css, pixel_ratio) {
+  max(1L, as.integer(floor(css * pixel_ratio + 0.5)))
+}
 
 # One style or a vector / list of styles as character strings.
 style_strings <- function(style) {
@@ -283,14 +321,14 @@ bounds_3857 <- function(bounds, crs = NULL) {
 }
 
 render_pixels <- function(m) {
-  stopifnot(inherits(m, "basemapper_map"))
-  render_styles_3857(basemap_bounds(m), m$width, m$height, m$styles, m$ratio,
-                     zoom = NULL, options = m$options)
+  check_basemap(m)
+  render_styles_3857(get_bounds(m), m$width, m$height, m$styles, m$pixel_ratio,
+                     tile_zoom = NULL, options = m$options)
 }
 
 # Render styles over an EPSG:3857 bbox; width/height in CSS px.
-render_styles_3857 <- function(bbox_3857, width, height, styles, ratio,
-                               zoom = NULL, options = list()) {
+render_styles_3857 <- function(bbox_3857, width, height, styles, pixel_ratio,
+                               tile_zoom = NULL, options = list()) {
   o <- utils::modifyList(
     list(layers = NULL, auth_token = NULL, tile_timeout_ms = 10000L, max_tiles = 256L,
          tile_concurrency = 16L, fail_on_tile_error = FALSE),
@@ -299,8 +337,8 @@ render_styles_3857 <- function(bbox_3857, width, height, styles, ratio,
   raw <- .Call(
     "wrap__render_raw",
     as.numeric(bbox_3857), as.integer(width), as.integer(height), style_strings(styles),
-    as.numeric(ratio),
-    if (is.null(zoom)) NULL else as.integer(zoom),
+    as.numeric(pixel_ratio),
+    if (is.null(tile_zoom)) NULL else as.integer(tile_zoom),
     as.integer(o$tile_timeout_ms), as.integer(o$max_tiles),
     if (is.null(o$layers)) NULL else as.character(o$layers),
     if (is.null(o$auth_token)) NULL else as.character(o$auth_token),
@@ -316,4 +354,14 @@ render_styles_3857 <- function(bbox_3857, width, height, styles, ratio,
 pixels_to_array <- function(px) {
   a <- array(as.integer(px$pixels), dim = c(4L, px$width, px$height))
   aperm(a, c(3L, 2L, 1L))  # [height, width, channel]
+}
+
+# An RGBA array with its extent and CRS as attributes.
+with_extent <- function(a, b, epsg) {
+  attr(a, "xmin") <- unname(b[[1]])
+  attr(a, "ymin") <- unname(b[[2]])
+  attr(a, "xmax") <- unname(b[[3]])
+  attr(a, "ymax") <- unname(b[[4]])
+  attr(a, "crs_epsg") <- epsg
+  a
 }

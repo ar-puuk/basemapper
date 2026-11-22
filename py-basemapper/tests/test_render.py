@@ -40,11 +40,7 @@ def test_malformed_style_raises_style_error():
     import basemapper
     with pytest.raises(StyleError, match="version"):
         basemapper.render_basemap_raw(
-            bbox=BBOX,
-            crs=3857,
-            width=64,
-            height=64,
-            style_input='{"version": 7, "sources": {}, "layers": []}',
+            BBOX, 64, 64, '{"version": 7, "sources": {}, "layers": []}', crs=3857,
         )
 
 
@@ -53,13 +49,7 @@ def test_invalid_bbox_raises_validation_error():
     import basemapper
     bad_bbox = [100.0, 4_500_000.0, -100.0, 4_600_000.0]  # xmin > xmax
     with pytest.raises(ValidationError):
-        basemapper.render_basemap_raw(
-            bbox=bad_bbox,
-            crs=3857,
-            width=64,
-            height=64,
-            style_input=GREYSCALE_STYLE,
-        )
+        basemapper.render_basemap_raw(bad_bbox, 64, 64, GREYSCALE_STYLE, crs=3857)
 
 
 def test_detect_crs_raises_validation_error_on_bare_axes():
@@ -89,3 +79,56 @@ def test_import_without_plotnine(monkeypatch):
     finally:
         if real_plotnine is not None:
             sys.modules["plotnine"] = real_plotnine
+
+
+# The functions shared with R (and the Rust core) use the same argument names;
+# these tests pin them so the languages stay in step.
+SHARED = {"style", "pixel_ratio", "layers", "auth_token", "tile_timeout_ms", "max_tiles"}
+
+
+def _params(fn):
+    import inspect
+
+    return list(inspect.signature(fn).parameters)
+
+
+def test_basemap_has_the_shared_arguments():
+    import basemapper
+
+    p = _params(basemapper.basemap)
+    assert p[:3] == ["style", "width", "height"]
+    assert SHARED | {"center", "zoom", "bounds", "crs", "tile_concurrency", "fail_on_tile_error"} <= set(p)
+
+
+def test_render_basemap_raw_has_the_shared_arguments():
+    import inspect
+
+    import basemapper
+
+    p = _params(basemapper.render_basemap_raw)
+    assert p[:4] == ["bounds", "width", "height", "style"]
+    assert SHARED | {"crs", "tile_zoom", "tile_concurrency", "fail_on_tile_error"} <= set(p)
+    sig = inspect.signature(basemapper.render_basemap_raw)
+    assert sig.parameters["fail_on_tile_error"].default is False
+
+
+def test_plot_integrations_have_the_shared_arguments():
+    import basemapper
+
+    p = _params(basemapper.add_basemap)
+    assert p[:2] == ["ax", "style"]
+    assert SHARED | {"tile_zoom", "alpha"} <= set(p)
+    pytest.importorskip("plotnine")
+    p = _params(basemapper.geom_basemap.__init__)
+    assert p[1] == "style"
+    assert SHARED | {"tile_zoom", "alpha"} <= set(p)
+
+
+def test_view_methods_match_r():
+    import basemapper
+
+    for name in ("set_view", "set_bounds", "get_bounds", "get_center", "get_zoom", "get_size",
+                 "render_png", "render_svg", "render_array"):
+        assert callable(getattr(basemapper.Basemap, name))
+    assert _params(basemapper.Basemap.render_png) == ["self", "path"]
+    assert _params(basemapper.Basemap.render_svg)[:2] == ["self", "path"]

@@ -32,3 +32,4 @@ path       = "src/rust/src/lib.rs"
 # src/rust/core/ is a vendored snapshot synced from repo root core/ by Makevars.
 basemapper-core = { path = "src/rust/core" }
 extendr-api     = { version = "0.9", features = [] }
+serde_json      = "1"

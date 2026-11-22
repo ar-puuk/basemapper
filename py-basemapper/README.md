@@ -1,11 +1,12 @@
 # basemapper <img src="logo.svg" align="right" height="139" alt="" />
 
-**basemapper** is a headless spatial basemap renderer for Python. It fetches and
-composites styled map tiles (raster or MapLibre GL vector styles) into
-georeferenced RGBA arrays using a Rust core, and exposes the result through
-native integrations with matplotlib, plotnine, and NumPy.
+**basemapper** renders MapLibre GL basemaps (vector and raster styles)
+headlessly with a Rust core: to PNG, NumPy arrays or true vector SVG, at any
+fractional zoom and pixel ratio, and as matplotlib and plotnine layers that
+render at the output resolution.
 
-> **Also available for R** — same Rust core, extendr bindings.
+> **Also available for R** — the same Rust core, and the same functions and
+> argument names (R's `verb(m, ...)` is `m.verb(...)` here).
 > [R documentation](https://ar-puuk.github.io/basemapper/r/)
 
 ## Installation
@@ -56,24 +57,24 @@ pip install "git+https://github.com/ar-puuk/basemapper.git#subdirectory=py-basem
 ## Quick example
 
 ```python
-from basemapper import basemap_provider, wms_provider, pmtiles_provider, render_basemap_raw
+import basemapper
+from basemapper import basemap_provider, wms_provider, pmtiles_provider
 
-# 25 built-in providers — no tile URL needed
+# 25 built-in providers (basemapper.list_providers()) — no tile URL needed
 style = basemap_provider("OpenFreeMap.liberty")
-style = basemap_provider("Carto.DarkMatter")
 
-# OGC WMS source
+# A view: centre + zoom, or bounds to fit
+m = basemapper.basemap(style, 800, 600, center=(-122.45, 37.75), zoom=12, pixel_ratio=2)
+m.render_png(path="sf.png")        # 1600 x 1200
+m.render_svg(path="sf.svg")        # true vector
+m.set_view(zoom=13).get_bounds(lonlat=True)
+
+# One-shot render of bounds to a (height, width, 4) uint8 array
+a = basemapper.render_basemap_raw([-122.5, 37.7, -122.4, 37.8], 400, 300, style)
+
+# Other sources
 style = wms_provider("https://gis.example.com/wms", layers="imagery")
-
-# PMTiles archive (HTTP range requests — no tile server required)
 style = pmtiles_provider("https://example.com/world.pmtiles")
-
-# Render — anti-meridian bboxes (xmin > xmax) are handled automatically
-pixels = render_basemap_raw(
-    bbox=[-122.5, 37.7, -122.4, 37.8],
-    width=400, height=300,
-    style_input=style,
-)
 ```
 
 ## Get started

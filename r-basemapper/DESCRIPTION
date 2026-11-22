@@ -22,7 +22,6 @@ Imports:
     grid,
     sf (>= 1.0),
     jsonlite (>= 1.8),
-    httr2 (>= 1.0),
     terra (>= 1.7)
 Suggests:
     roxygen2 (>= 7.3),

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import numpy as np
 
@@ -19,28 +19,35 @@ class geom_basemap(geom):
     has been established. Uses the same injection logic as :func:`add_basemap`.
 
     The basemap renders when the plot is drawn, at the output resolution
-    (natively at ``save(dpi=...)``), like :func:`add_basemap`.
+    (natively at ``save(dpi=...)``), like :func:`add_basemap`. The same
+    layer exists in R (ggplot2 ``geom_basemap()``), with the same arguments.
 
     Args:
-        style_url: MapLibre GL style URL or inline JSON string, a provider
-            object, or a list of those stacked bottom to top.
-        zoom: Tile zoom level override (0–22). Auto-computed when None.
+        style: A MapLibre GL style URL or JSON string (e.g. from
+            :func:`basemap_provider`), or a list of those stacked bottom to
+            top.
+        tile_zoom: Tile detail override: the tile zoom on the 256 px grid
+            (vector sources use one less), or None to pick tiles as MapLibre
+            does for the view.
         alpha: Opacity of the basemap layer (0.0–1.0).
         layers: Optional layer filter list — plain IDs keep only those layers;
-                minus-prefixed IDs exclude those layers.
+            minus-prefixed IDs drop those layers.
+        pixel_ratio: Device pixels per CSS pixel; default output dpi / 96.
+        auth_token: Optional access token for the tile service.
+        tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
+        max_tiles: Maximum tile downloads per style.
         crs: CRS of the plot's x/y data (anything ``pyproj.CRS`` accepts).
             plotnine has no spatial coordinate system to read it from, so it
             defaults to ``"EPSG:4326"`` (longitude/latitude). Pass e.g.
             ``crs=gdf.crs`` or ``crs="EPSG:3857"`` for projected data.
-        ratio: Device pixels per CSS pixel; default output dpi / 96.
 
     Example:
         >>> import pandas as pd
         >>> from plotnine import ggplot, aes, geom_point
-        >>> from basemapper import geom_basemap
+        >>> from basemapper import basemap_provider, geom_basemap
         >>> df = pd.DataFrame({"lon": [-111.95, -111.80], "lat": [40.68, 40.80]})
         >>> (ggplot(df, aes("lon", "lat"))
-        ...  + geom_basemap(style_url="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json")
+        ...  + geom_basemap(basemap_provider("Carto.Positron"))
         ...  + geom_point())
     """
 
@@ -54,20 +61,26 @@ class geom_basemap(geom):
 
     def __init__(
         self,
-        style_url: str,
-        zoom: Optional[int] = None,
+        style: Any,
+        tile_zoom: Optional[int] = None,
         alpha: float = 1.0,
         layers: Optional[List[str]] = None,
+        pixel_ratio: Optional[float] = None,
+        auth_token: Optional[str] = None,
+        tile_timeout_ms: int = 10_000,
+        max_tiles: int = 256,
         crs: object = "EPSG:4326",
-        ratio: Optional[float] = None,
         **kwargs: object,
     ) -> None:
-        self.style_url = style_url
-        self.zoom = zoom
+        self.style = style
+        self.tile_zoom = tile_zoom
         self.alpha = alpha
         self.layers = layers
+        self.pixel_ratio = pixel_ratio
+        self.auth_token = auth_token
+        self.tile_timeout_ms = tile_timeout_ms
+        self.max_tiles = max_tiles
         self.crs = crs
-        self.ratio = ratio
         super().__init__(mapping=None, data=None, **kwargs)
 
     def draw_panel(self, data, panel_params, coord, ax, **kwargs):  # type: ignore[override]
@@ -95,8 +108,10 @@ class geom_basemap(geom):
         ax.set_xlim(x_range[0], x_range[1])
         ax.set_ylim(y_range[0], y_range[1])
         img = BasemapImage(
-            ax, self.style_url, crs, self.ratio, self.zoom,
-            dict(layers=self.layers), alpha=self.alpha,
+            ax, self.style, crs, self.pixel_ratio, self.tile_zoom,
+            dict(layers=self.layers, auth_token=self.auth_token,
+                 tile_timeout_ms=self.tile_timeout_ms, max_tiles=self.max_tiles),
+            alpha=self.alpha,
         )
         img.set_extent((x_range[0], x_range[1], y_range[0], y_range[1]))
         ax.add_image(img)
