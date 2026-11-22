@@ -42,6 +42,7 @@ every language.
 | Centre | `get_center(m)` | `m.get_center()` | `m.get_center()` |
 | Zoom | `get_zoom(m)` | `m.get_zoom()` | `m.get_zoom()` |
 | Image size (device px) | `get_size(m)` | `m.get_size()` | `m.get_size()` |
+| Attribution text | `get_attribution(m)` (or of styles: `get_attribution(style)`) | `m.get_attribution()` (or `get_attribution(style)`) | `m.get_attribution()?` (or `basemapper_core::attribution(&styles, token)?`) |
 | PNG | `render_png(m, path = NULL)` | `m.render_png(path=None)` | `m.render_png(Some(path))?` |
 | Vector SVG | `render_svg(m, path = NULL, text =, embed_fonts =, font_dirs =)` | `m.render_svg(path=None, text=, embed_fonts=, font_dirs=)` | `m.render_svg(Some(path), &SvgOptions { .. })?` |
 | RGBA array | `render_array(m)`: integer `[h, w, 4]` with extent attributes | `m.render_array()`: uint8 `(h, w, 4)` | `m.render_array()?`: `RenderResult { pixels, width, height, .. }` |

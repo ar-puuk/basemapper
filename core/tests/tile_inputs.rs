@@ -267,3 +267,48 @@ fn arcgis_service_json_tiles_resolve_against_the_service() {
     req.fail_on_tile_error = true;
     render(req).unwrap();
 }
+
+#[test]
+fn attribution_collects_every_source_as_plain_text() {
+    use basemapper_core::attribution;
+    // Inline (HTML), from a TileJSON (Esri's copyrightText), from a PMTiles archive.
+    let server = Server::run();
+    server.expect(
+        Expectation::matching(method_path("GET", "/svc/VectorTileServer"))
+            .times(1..)
+            .respond_with(status_code(200).body(r#"{"tiles": ["tile/{z}/{y}/{x}.pbf"], "copyrightText": "Sources: Esri"}"#)),
+    );
+    let style = serde_json::json!({
+        "version": 8,
+        "sources": {
+            "a": {"type": "raster", "tiles": ["https://t/{z}/{x}/{y}.png"], "attribution": "<a href=\"x\">&copy; A</a>"},
+            "b": {"type": "vector", "url": server.url_str("/svc/VectorTileServer")},
+            "unused": {"type": "raster", "tiles": ["https://u/{z}/{x}/{y}.png"], "attribution": "never shown"},
+        },
+        "layers": [
+            {"id": "a", "type": "raster", "source": "a"},
+            {"id": "b", "type": "fill", "source": "b", "source-layer": "water"},
+        ],
+    })
+    .to_string();
+    let archive = vector_archive();
+    let styles = vec![style.clone(), archive.to_str().unwrap().to_owned(), style, "Esri.WorldImagery".to_owned()];
+    let a = attribution(&styles, None).unwrap();
+    assert_eq!(
+        a,
+        "© A | Sources: Esri | © test | Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, \
+         Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
+    );
+    // A credit included in another is dropped, whichever comes first.
+    let two = |first: &str, second: &str| {
+        serde_json::json!({"version": 8, "sources": {
+            "a": {"type": "raster", "tiles": ["https://a/{z}/{x}/{y}.png"], "attribution": first},
+            "b": {"type": "raster", "tiles": ["https://b/{z}/{x}/{y}.png"], "attribution": second}},
+            "layers": [{"id": "a", "type": "raster", "source": "a"}, {"id": "b", "type": "raster", "source": "b"}]})
+        .to_string()
+    };
+    assert_eq!(attribution(&[two("© OSM · ESA", "© OSM")], None).unwrap(), "© OSM · ESA");
+    assert_eq!(attribution(&[two("© OSM", "© OSM · ESA")], None).unwrap(), "© OSM · ESA");
+    let none = r#"{"version": 8, "sources": {}, "layers": [{"id": "bg", "type": "background"}]}"#;
+    assert_eq!(attribution(&[none.to_owned()], None).unwrap(), "");
+}

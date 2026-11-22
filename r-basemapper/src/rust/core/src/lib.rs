@@ -1,3 +1,4 @@
+pub mod attribution;
 pub mod basemap;
 pub mod bbox;
 pub mod cache;
@@ -140,6 +141,17 @@ pub fn list_layers(style: &str, auth_token: Option<&str>) -> Result<Vec<(String,
                 .collect()
         })
         .unwrap_or_default())
+}
+
+/// The attribution text of `styles` (stacked styles, the strings
+/// [`Basemap`] takes): every source the styles draw from contributes its
+/// attribution (from the style, its TileJSON or PMTiles metadata), as plain
+/// text, without duplicates, joined with `" | "`. Empty when none is given.
+pub fn attribution(styles: &[String], auth_token: Option<&str>) -> Result<String, BasemapError> {
+    RUNTIME.block_on(async {
+        let client = http_client(std::time::Duration::from_secs(30))?;
+        attribution::attribution(styles, &client, auth_token).await
+    })
 }
 
 /// Encode straight-alpha RGBA pixels as a PNG file.

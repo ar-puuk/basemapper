@@ -249,6 +249,12 @@ impl Basemap {
         (crate::vector::render::device_px(self.width, self.pixel_ratio), crate::vector::render::device_px(self.height, self.pixel_ratio))
     }
 
+    /// The attribution text the view's styles ask maps to show (see
+    /// [`crate::attribution()`]).
+    pub fn get_attribution(&self) -> Result<String, BasemapError> {
+        crate::attribution(&self.styles, self.auth_token.as_deref())
+    }
+
     // ── Rendering ───────────────────────────────────────────────────────────
 
     fn requests(&self) -> Vec<RenderRequest> {

@@ -81,6 +81,9 @@ Python. See `docs/api.md` in the repository.
   Protomaps and Shortbread schemas and keywords for Esri's layer names;
   catalogue raster basemaps switch to their label-free or label-only tiles
   (CARTO, Esri, Stamen). `list_layers()` gains a `feature` column.
+* `get_attribution()` returns the attribution text a view or style asks
+  maps to show, for a caption: every source's attribution (from the style,
+  its TileJSON or PMTiles metadata) as plain text, without duplicates.
 * ArcGIS vector styles whose source names the `VectorTileServer` without a
   trailing slash (Esri's item styles) load their tiles.
 

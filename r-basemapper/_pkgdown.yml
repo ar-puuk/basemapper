@@ -79,10 +79,13 @@ reference:
       - tile_style
       - ogc_styles
 
-  - title: Style layers
-    desc: The layers of a style, for the `layers` filter.
+  - title: Style layers and attribution
+    desc: >
+      A style's layers with their features, for the `layers` and `features`
+      filters, and the attribution text it asks maps to show.
     contents:
       - list_layers
+      - get_attribution
 
   - title: Tile cache
     contents:

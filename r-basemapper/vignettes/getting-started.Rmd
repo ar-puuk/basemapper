@@ -193,6 +193,16 @@ ggplot(nc) + geom_basemap(positron, layers = c("background", "water"))
 Tiles are cached on disk (`tile_cache()` shows where, moves the cache or
 clears it), for as long as the servers' caching headers allow.
 
+Basemap providers ask maps to credit them. `get_attribution()` collects the
+credit line of a view or style, for a caption:
+
+```r
+ggplot(nc) +
+  geom_basemap(positron) +
+  geom_sf(fill = NA) +
+  labs(caption = get_attribution(positron))
+```
+
 ## Step 6 — One-shot rendering
 
 `render_basemap_raw()` renders bounds in one call and returns the pixels with

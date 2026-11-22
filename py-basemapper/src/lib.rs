@@ -222,6 +222,13 @@ fn fit_bounds(py: Python<'_>, bounds_3857: Vec<f64>, width: u32, height: u32) ->
     Ok(basemapper_core::fit_bounds([bounds_3857[0], bounds_3857[1], bounds_3857[2], bounds_3857[3]], width, height))
 }
 
+/// The attribution text of stacked styles (plain text joined with " | ").
+#[pyfunction]
+#[pyo3(signature = (styles, auth_token=None))]
+fn attribution(py: Python<'_>, styles: Vec<String>, auth_token: Option<String>) -> PyResult<String> {
+    py.allow_threads(|| basemapper_core::attribution(&styles, auth_token.as_deref())).map_err(|e| core_err_to_py(py, e))
+}
+
 /// A style's layers in drawing order as (id, type, feature) triples.
 #[pyfunction]
 #[pyo3(signature = (style, auth_token=None))]
@@ -357,6 +364,7 @@ fn _basemapper(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bbox_from_center, m)?)?;
     m.add_function(wrap_pyfunction!(fit_bounds, m)?)?;
     m.add_function(wrap_pyfunction!(list_layers, m)?)?;
+    m.add_function(wrap_pyfunction!(attribution, m)?)?;
     m.add_function(wrap_pyfunction!(basemap_provider, m)?)?;
     m.add_function(wrap_pyfunction!(list_providers, m)?)?;
     m.add_function(wrap_pyfunction!(tile_style, m)?)?;

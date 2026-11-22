@@ -176,3 +176,15 @@ def test_labels_and_features_filter_a_style():
         basemap(style, 8, 8, features=["highways"]).render_array()
     b = basemap(style, 8, 8, features=["background"]).render_array()
     assert tuple(b[0, 0]) == (255, 0, 0, 255)
+
+
+def test_get_attribution():
+    from basemapper import basemap, get_attribution
+
+    assert get_attribution("Esri.WorldImagery").startswith("Tiles © Esri")
+    style = json.dumps({"version": 8, "sources": {"a": {"type": "raster", "tiles": ["https://t/{z}/{x}/{y}.png"],
+                        "attribution": "<a href='x'>&copy; A</a>"}}, "layers": [{"id": "a", "type": "raster", "source": "a"}]})
+    assert get_attribution([style, style]) == "© A"
+    assert basemap([style, "Esri.WorldImagery"], 8, 8).get_attribution().startswith("© A | Tiles © Esri")
+    empty = json.dumps({"version": 8, "sources": {}, "layers": []})
+    assert get_attribution(empty) == ""

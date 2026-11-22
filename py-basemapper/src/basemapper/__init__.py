@@ -7,7 +7,7 @@ argument names, with R's ``verb(m, ...)`` written ``m.verb(...)`` here.
 from .exceptions import BasemapError, NetworkError, StyleError, ValidationError
 from ._basemap import Basemap, basemap
 from ._render import render_basemap_raw
-from .layer_utils import list_layers
+from .layer_utils import get_attribution, list_layers
 from .matplotlib_integration import add_basemap
 from .styles import basemap_provider, list_providers, providers, tile_cache, tile_style, wms_style, wmts_style
 
@@ -23,6 +23,7 @@ __all__ = [
     "Basemap",
     "render_basemap_raw",
     "list_layers",
+    "get_attribution",
     "basemap_provider",
     "list_providers",
     "providers",

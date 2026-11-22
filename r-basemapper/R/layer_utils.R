@@ -27,3 +27,35 @@ list_layers <- function(style, auth_token = NULL) {
   data.frame(id = as.character(ids), type = attr(ids, "type"), feature = attr(ids, "feature"),
              stringsAsFactors = FALSE)
 }
+
+#' The attribution a style asks maps to show
+#'
+#' Every source the styles' layers draw from contributes its attribution
+#' (from the style, the source's TileJSON or PMTiles metadata), as
+#' MapLibre's attribution control collects it: plain text, without
+#' duplicates, joined with `" | "`. Use it for a caption or credit line,
+#' e.g. `labs(caption = get_attribution(style))`. Python:
+#' `basemapper.get_attribution()` and `m.get_attribution()`.
+#'
+#' @param x A view from [basemap()], or a style (anything [basemap()]
+#'   takes) or vector of styles stacked bottom to top.
+#' @param auth_token Optional access token for the tile service (for a view,
+#'   its own is used).
+#' @return A character string; `""` when the styles give no attribution.
+#' @export
+#' @examples
+#' get_attribution("Esri.WorldImagery")
+#' \dontrun{
+#' m <- basemap("OpenFreeMap.Liberty", center = c(-111.89, 40.76), zoom = 12)
+#' get_attribution(m)
+#' }
+get_attribution <- function(x, auth_token = NULL) {
+  if (inherits(x, "basemap")) {
+    styles <- x$styles
+    auth_token <- auth_token %||% x$options$auth_token
+  } else {
+    styles <- style_strings(x)
+  }
+  .Call("wrap__attribution_raw", styles, if (is.null(auth_token)) NULL else as.character(auth_token)[1L],
+        PACKAGE = "basemapper")
+}

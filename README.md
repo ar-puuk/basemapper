@@ -203,6 +203,7 @@ resolution (`ggsave(dpi = 300)`, `savefig(dpi=300)`).
 | Tile cache | `tile_cache()` | `tile_cache()` | `cache::{dir, set_dir, clear}` |
 | Your own tile data (tile URL, TileJSON, PMTiles, ArcGIS) | pass it as `style`; `tile_style()` for overrides | same | `tile_style()` |
 | OGC WMS / WMTS | `wms_style()`, `wmts_style()` | same names | `providers::wms_style()`, `providers::wmts_style()` |
+| Attribution text (for a caption) | `get_attribution()` | `get_attribution()`, `m.get_attribution()` | `attribution()`, `m.get_attribution()` |
 | Labels / features (stack parts of basemaps) | `labels =`, `features =` | same | `Basemap::labels()`, `Basemap::features()` |
 | Inspect style layers (id, type, feature) | `list_layers()` | `list_layers()` | `list_layers()` |
 

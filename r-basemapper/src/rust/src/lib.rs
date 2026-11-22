@@ -195,6 +195,12 @@ fn fit_bounds_raw(bounds_3857: Vec<f64>, width: i32, height: i32) -> Result<Vec<
     Ok(vec![lon, lat, zoom])
 }
 
+/// The attribution text of stacked styles (plain text joined with " | ").
+#[extendr]
+fn attribution_raw(styles: Vec<String>, auth_token: Nullable<String>) -> Result<String> {
+    basemapper_core::attribution(&styles, opt(auth_token).as_deref()).map_err(err)
+}
+
 /// A style's layer ids in drawing order, with their types and features as
 /// attributes `type` and `feature`.
 #[extendr]
@@ -338,6 +344,7 @@ extendr_module! {
     fn bbox_from_center_raw;
     fn fit_bounds_raw;
     fn list_layers_raw;
+    fn attribution_raw;
     fn basemap_provider_raw;
     fn list_providers_raw;
     fn tile_style_raw;

@@ -158,3 +158,12 @@ test_that("labels and features filter a style", {
   b <- render_array(basemap(style, 8, 8, features = "background"))
   expect_equal(as.vector(b[1, 1, ]), c(255L, 0L, 0L, 255L))
 })
+
+test_that("get_attribution collects sources as plain text", {
+  expect_match(get_attribution("Esri.WorldImagery"), "^Tiles \u00a9 Esri")
+  style <- paste0('{"version":8,"sources":{"a":{"type":"raster","tiles":["https://t/{z}/{x}/{y}.png"],',
+                  '"attribution":"<a href=\'x\'>&copy; A</a>"}},"layers":[{"id":"a","type":"raster","source":"a"}]}')
+  expect_equal(get_attribution(c(style, style)), "\u00a9 A")
+  expect_match(get_attribution(basemap(c(style, "Esri.WorldImagery"), 8, 8)), "^\u00a9 A \\| Tiles")
+  expect_equal(get_attribution('{"version":8,"sources":{},"layers":[]}'), "")
+})

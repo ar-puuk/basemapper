@@ -153,6 +153,13 @@ class Basemap:
         """``(width, height)`` of rendered images in device pixels."""
         return (_device_px(self.width, self.pixel_ratio), _device_px(self.height, self.pixel_ratio))
 
+    def get_attribution(self) -> str:
+        """The attribution text the view's styles ask maps to show (see
+        :func:`get_attribution`), e.g. for a caption."""
+        from ._basemapper import attribution
+
+        return attribution(self.styles, self.auth_token)
+
     def __repr__(self) -> str:
         lon, lat = self._center
         n = len(self.styles)

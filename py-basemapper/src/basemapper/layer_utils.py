@@ -1,8 +1,32 @@
-"""Layer discovery: :func:`list_layers`."""
+"""Style inspection: :func:`list_layers` and :func:`get_attribution`."""
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
+
+
+def get_attribution(style: Any, auth_token: Optional[str] = None) -> str:
+    """The attribution text a style asks maps to show.
+
+    Every source the style's layers draw from contributes its attribution
+    (from the style, the source's TileJSON or PMTiles metadata), as MapLibre's
+    attribution control collects it, as plain text without duplicates, joined
+    with ``" | "``. Use it for a caption or a credit line, e.g.
+    ``ax.annotate(get_attribution(style), ...)``. :meth:`Basemap.get_attribution`
+    gives a view's. The same function exists in R (``get_attribution()``).
+
+    Args:
+        style: A style (anything :func:`basemap` takes), or a list of
+            styles stacked bottom to top.
+        auth_token: Optional access token for the tile service.
+
+    Returns:
+        The attribution; an empty string when the styles give none.
+    """
+    from ._basemap import _style_strings
+    from ._basemapper import attribution
+
+    return attribution(_style_strings(style), auth_token)
 
 
 def list_layers(style: str, auth_token: Optional[str] = None) -> List[Dict[str, str]]:
