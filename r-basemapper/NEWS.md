@@ -34,6 +34,10 @@ Python. See `docs/api.md` in the repository.
   embedded (subset; open fonts from Google Fonts or your `font_dirs`), or as
   traced glyph outlines with `render_svg(text = "paths")`.
 * Views crossing the anti-meridian render MapLibre's world copies.
+* Tile URLs are requested as MapLibre requests them: all `tiles` templates
+  (spread over subdomains), `scheme: "tms"`, and the `{quadkey}`, `{prefix}`,
+  `{ratio}` and `{bbox-epsg-3857}` tokens. `wms_provider()` uses
+  `{bbox-epsg-3857}` and sends `SRS` for WMS 1.1.x.
 
 ## New functions
 

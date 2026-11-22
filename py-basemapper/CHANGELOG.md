@@ -13,6 +13,10 @@ First version, not yet released.
   can be stacked bottom to top; anti-meridian views render world copies.
 - True vector SVG output; labels as editable `<text>` with embedded (subset)
   fonts by default, or traced glyph outlines (`render_svg(text="paths")`).
+- Tile URLs are requested as MapLibre requests them: all `tiles` templates
+  (spread over subdomains), `scheme: "tms"`, and the `{quadkey}`, `{prefix}`,
+  `{ratio}` and `{bbox-epsg-3857}` tokens. `wms_provider()` uses
+  `{bbox-epsg-3857}` and sends `SRS` for WMS 1.1.x.
 
 ### API
 

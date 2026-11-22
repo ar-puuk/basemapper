@@ -3,7 +3,7 @@
 
 use basemapper_core::{
     style::{filter_style_layers, validate_maplibre_style},
-    tile_fetcher::{expand_url, TileCoord, TileSource},
+    tile_fetcher::{expand_url, TileCoord, TileSource, TileUrls},
     BasemapError,
 };
 
@@ -77,13 +77,13 @@ fn expand_url_substitutes_zxy() {
 
 #[test]
 fn expand_url_wms_bbox_substitution() {
-    // At z=0 x=0 y=0 the tile covers the entire world in EPSG:3857.
-    let tpl = "https://wms.example.com/?BBOX={xmin},{ymin},{xmax},{ymax}";
+    // MapLibre's {bbox-epsg-3857}: the z0 tile covers the whole world.
+    let tpl = "https://wms.example.com/?BBOX={bbox-epsg-3857}";
     let coord = TileCoord { z: 0, x: 0, y: 0 };
-    let expanded = expand_url(tpl, coord);
-    // World tile: xmin ≈ -20037508, ymin ≈ -20037508, xmax ≈ +20037508, ymax ≈ +20037508
-    assert!(expanded.contains("-20037508."), "xmin should be negative earth-half: {expanded}");
-    assert!(expanded.contains("20037508."), "xmax should be positive earth-half: {expanded}");
+    assert_eq!(
+        expand_url(tpl, coord),
+        "https://wms.example.com/?BBOX=-20037508.342789244,-20037508.342789244,20037508.342789244,20037508.342789244"
+    );
 }
 
 #[test]
@@ -120,19 +120,12 @@ fn pmtiles_provider_style_json_is_valid_maplibre() {
 
 #[test]
 fn wms_provider_style_json_is_valid_maplibre() {
-    let style = r#"{
-        "version": 8,
-        "sources": {
-            "wms": {
-                "type": "raster",
-                "tiles": ["https://wms.example.com/?BBOX={xmin},{ymin},{xmax},{ymax}&WIDTH=256&HEIGHT=256&LAYERS=base&FORMAT=image/png"],
-                "tileSize": 256
-            }
-        },
-        "layers": [{"id": "wms-layer", "type": "raster", "source": "wms"}]
-    }"#;
+    let style = basemapper_core::providers::wms_provider(
+        "https://wms.example.com/", "base", "", "1.3.0", "image/png", false, None,
+    );
+    assert!(style.contains("BBOX={bbox-epsg-3857}"));
     assert!(
-        validate_maplibre_style(style).is_ok(),
+        validate_maplibre_style(&style).is_ok(),
         "WMS provider style must pass MapLibre validation"
     );
 }
@@ -151,7 +144,7 @@ fn tile_source_maxzoom_arm_pmtiles() {
 #[test]
 fn tile_source_maxzoom_arm_raster() {
     let src = TileSource::XyzRaster {
-        url_template: "https://tile.example.com/{z}/{x}/{y}.png".into(),
+        urls: TileUrls::xyz("https://tile.example.com/{z}/{x}/{y}.png"),
         auth_header: None,
         maxzoom: Some(18),
     };

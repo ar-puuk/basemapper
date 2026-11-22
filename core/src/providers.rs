@@ -105,8 +105,9 @@ pub fn vector_provider(url_template: &str, source_layer: &str, paint: &Map<Strin
     (style.to_string(), dropped)
 }
 
-/// A WMS GetMap endpoint as 256 px raster tiles in EPSG:3857 (the renderer
-/// fills in `{xmin}`, `{ymin}`, `{xmax}`, `{ymax}` per tile).
+/// A WMS GetMap endpoint as 256 px raster tiles in EPSG:3857, through
+/// MapLibre's `{bbox-epsg-3857}` token (filled in per tile). WMS 1.1.x names
+/// the projection `SRS`, 1.3.0 `CRS`.
 pub fn wms_provider(
     url: &str,
     layers: &str,
@@ -116,9 +117,10 @@ pub fn wms_provider(
     transparent: bool,
     extra_params: Option<&str>,
 ) -> String {
+    let crs = if version.starts_with("1.0") || version.starts_with("1.1") { "SRS" } else { "CRS" };
     let mut tile_url = format!(
-        "{url}?SERVICE=WMS&VERSION={version}&REQUEST=GetMap&LAYERS={}&STYLES={}&CRS=EPSG:3857\
-         &BBOX={{xmin}},{{ymin}},{{xmax}},{{ymax}}&WIDTH=256&HEIGHT=256&FORMAT={}&TRANSPARENT={}",
+        "{url}?SERVICE=WMS&VERSION={version}&REQUEST=GetMap&LAYERS={}&STYLES={}&{crs}=EPSG:3857\
+         &BBOX={{bbox-epsg-3857}}&WIDTH=256&HEIGHT=256&FORMAT={}&TRANSPARENT={}",
         encode_query(layers),
         encode_query(styles),
         encode_query(format),
@@ -250,6 +252,8 @@ mod tests {
         assert_eq!(v["layers"][1]["paint"]["line-width"], 1);
         let wms = wms_provider("https://w", "a b", "", "1.3.0", "image/png", true, Some("X=1"));
         assert!(wms.contains("LAYERS=a%20b") && wms.contains("FORMAT=image%2Fpng") && wms.contains("TRANSPARENT=TRUE&X=1"));
+        assert!(wms.contains("&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&"));
+        assert!(wms_provider("https://w", "a", "", "1.1.1", "image/png", false, None).contains("&SRS=EPSG:3857&"));
         assert_eq!(esri_vector_provider("https://e/VectorTileServer/"), "https://e/VectorTileServer/resources/styles/root.json");
         assert!(pmtiles_provider("https://p/a.pmtiles").contains("pmtiles://https://p/a.pmtiles"));
     }

@@ -11,7 +11,7 @@ pub use basemap::{Basemap, Crs};
 pub use bbox::{bbox_from_center, compute_zoom, fit_bounds, RenderRequest, RenderResult, SpatialBounds};
 pub use error::BasemapError;
 pub use style::{filter_style_layers, StyleInput};
-pub use tile_fetcher::TileSource;
+pub use tile_fetcher::{TileSource, TileUrls};
 pub use vector::fonts::{FontEmbed, SvgOptions, SvgText};
 
 use once_cell::sync::Lazy;
@@ -273,9 +273,9 @@ async fn render_single_bbox(
         });
     }
 
-    // Raster XYZ (also handles WMS via bbox placeholder expansion).
+    // Raster XYZ (also WMS, through {bbox-epsg-3857}).
     let coords = tile_fetcher::build_tile_coords(bbox, zoom);
-    let urls = tile_fetcher::build_tile_urls(tile_source, &coords);
+    let urls = tile_fetcher::build_tile_urls(tile_source, &coords, request.pixel_ratio);
     let tiles = tile_fetcher::fetch_all_tiles(
         client,
         urls,
@@ -418,7 +418,7 @@ async fn extract_tile_source_from_style(
         // A vector archive: the vector path, which fetches every source
         // itself (from the archive), with the archive's max zoom.
         TileSource::PMTiles { maxzoom, .. } if src_type == "vector" => {
-            TileSource::MapboxVectorTile { url_template: String::new(), api_key: None, maxzoom }
+            TileSource::MapboxVectorTile { urls: TileUrls::default(), api_key: None, maxzoom }
         }
         other => other,
     })
@@ -441,20 +441,24 @@ async fn resolve_source(
     style_base_url: Option<&str>,
 ) -> Result<ResolvedSource, BasemapError> {
     let num = |v: &serde_json::Value, k: &str| v.get(k).and_then(|x| x.as_f64());
+    let tile_list = |v: &serde_json::Value| -> Vec<String> {
+        v.get("tiles")
+            .and_then(|t| t.as_array())
+            .map(|a| a.iter().filter_map(|u| u.as_str().map(str::to_owned)).collect())
+            .unwrap_or_default()
+    };
     let mut minzoom = num(source, "minzoom");
     let mut tile_size = num(source, "tileSize");
-    // Resolve tile URL template and maxzoom.
-    let (tiles, source_maxzoom): (String, Option<u8>) = if let Some(t) = source
-        .get("tiles")
-        .and_then(|t| t.as_array())
-        .and_then(|a| a.first())
-        .and_then(|u| u.as_str())
-    {
+    // `scheme` from the source, else from its TileJSON (as MapLibre's
+    // loadTileJson, where explicit source options take precedence).
+    let mut scheme = source.get("scheme").and_then(|v| v.as_str()).map(str::to_owned);
+    // Resolve the tile URL templates and maxzoom.
+    let (tiles, source_maxzoom): (Vec<String>, Option<u8>) = if !tile_list(source).is_empty() {
         let mz = source
             .get("maxzoom")
             .and_then(|v| v.as_u64())
             .map(|v| v.min(22) as u8);
-        (t.to_owned(), mz)
+        (tile_list(source), mz)
     } else if let Some(archive) = source.get("url").and_then(|u| u.as_str()).and_then(|u| u.strip_prefix("pmtiles://")) {
         // The pmtiles protocol's TileJSON: zoom range from the archive
         // header; the source's own minzoom / maxzoom take precedence.
@@ -467,7 +471,7 @@ async fn resolve_source(
             .and_then(|v| v.as_u64())
             .map_or(header.max_zoom, |v| v as u8)
             .min(22);
-        (format!("pmtiles://{url}"), Some(mz))
+        (vec![format!("pmtiles://{url}")], Some(mz))
     } else if let Some(tilejson_url_raw) = source.get("url").and_then(|u| u.as_str()) {
         let tilejson_url = resolve_url(tilejson_url_raw, style_base_url);
         let mut tilejson_req = client.get(&tilejson_url);
@@ -490,14 +494,11 @@ async fn resolve_source(
         let tilejson: serde_json::Value = resp.json().await.map_err(|_| {
             BasemapError::StyleParseError("could not parse TileJSON response".into())
         })?;
-        let tile_url_raw = tilejson
-            .get("tiles")
-            .and_then(|t| t.as_array())
-            .and_then(|a| a.first())
-            .and_then(|u| u.as_str())
-            .ok_or_else(|| {
-                BasemapError::StyleParseError("TileJSON missing \"tiles\" array".into())
-            })?;
+        let tiles: Vec<String> =
+            tile_list(&tilejson).iter().map(|t| resolve_url(t, Some(&tilejson_url))).collect();
+        if tiles.is_empty() {
+            return Err(BasemapError::StyleParseError("TileJSON missing \"tiles\" array".into()));
+        }
         let mz = source
             .get("maxzoom")
             .or_else(|| tilejson.get("maxzoom"))
@@ -505,24 +506,26 @@ async fn resolve_source(
             .map(|v| v.min(22) as u8);
         minzoom = minzoom.or_else(|| num(&tilejson, "minzoom"));
         tile_size = tile_size.or_else(|| num(&tilejson, "tileSize"));
-        (resolve_url(tile_url_raw, Some(&tilejson_url)), mz)
+        scheme = scheme.or_else(|| tilejson.get("scheme").and_then(|v| v.as_str()).map(str::to_owned));
+        (tiles, mz)
     } else {
         return Err(BasemapError::StyleParseError(
             "source has neither \"tiles\" array nor \"url\" TileJSON reference".into(),
         ));
     };
 
-    let source = if tiles.starts_with("pmtiles://") {
-        TileSource::PMTiles { url: tiles.trim_start_matches("pmtiles://").to_owned(), maxzoom: source_maxzoom }
+    let urls = TileUrls { templates: tiles, tms: scheme.as_deref() == Some("tms") };
+    let source = if let Some(archive) = urls.templates.first().and_then(|t| t.strip_prefix("pmtiles://")) {
+        TileSource::PMTiles { url: archive.to_owned(), maxzoom: source_maxzoom }
     } else if src_type == "vector" {
         TileSource::MapboxVectorTile {
-            url_template: tiles,
+            urls,
             api_key: auth_token.map(str::to_owned),
             maxzoom: source_maxzoom,
         }
     } else {
         TileSource::XyzRaster {
-            url_template: tiles,
+            urls,
             auth_header: auth_token.map(|t| format!("Bearer {t}")),
             maxzoom: source_maxzoom,
         }
@@ -830,7 +833,7 @@ async fn fetch_vector_inputs(
             if let TileSource::PMTiles { url, .. } = source {
                 return fetch_pmtiles_tiles(url, &coords, client).await;
             }
-            let urls = tile_fetcher::build_tile_urls(source, &coords);
+            let urls = tile_fetcher::build_tile_urls(source, &coords, request.pixel_ratio);
             tile_fetcher::fetch_all_tiles(
                 client,
                 urls,

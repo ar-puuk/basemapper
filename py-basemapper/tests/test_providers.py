@@ -87,7 +87,7 @@ def test_basemap_provider_resolves_every_listed_provider():
 
 def test_ogc_and_pmtiles_providers():
     tile = next(iter(json.loads(wms_provider("https://x.com/wms", layers="a b"))["sources"].values()))["tiles"][0]
-    assert "LAYERS=a%20b" in tile and "BBOX={xmin},{ymin},{xmax},{ymax}" in tile
+    assert "LAYERS=a%20b" in tile and "BBOX={bbox-epsg-3857}" in tile
     tile = next(iter(json.loads(wmts_provider("https://x.com/wmts", "lyr"))["sources"].values()))["tiles"][0]
     assert "LAYER=lyr" in tile
     src = next(iter(json.loads(pmtiles_provider("https://x.com/a.pmtiles"))["sources"].values()))

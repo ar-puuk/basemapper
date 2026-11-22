@@ -77,7 +77,7 @@ test_that("wms / wmts / pmtiles providers build raster styles", {
   w <- jsonlite::fromJSON(wms_provider("https://x.com/wms", layers = "a b"), simplifyVector = FALSE)
   tile <- w$sources[[1]]$tiles[[1]]
   expect_match(tile, "LAYERS=a%20b", fixed = TRUE)
-  expect_match(tile, "BBOX={xmin},{ymin},{xmax},{ymax}", fixed = TRUE)
+  expect_match(tile, "BBOX={bbox-epsg-3857}", fixed = TRUE)
   t <- jsonlite::fromJSON(wmts_provider("https://x.com/wmts", "lyr"), simplifyVector = FALSE)
   expect_match(t$sources[[1]]$tiles[[1]], "LAYER=lyr", fixed = TRUE)
   p <- jsonlite::fromJSON(pmtiles_provider("https://x.com/a.pmtiles"), simplifyVector = FALSE)

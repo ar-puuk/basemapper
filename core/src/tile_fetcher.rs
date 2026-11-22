@@ -12,16 +12,37 @@ use tokio::task::JoinSet;
 static TILE_CACHE: Lazy<Mutex<LruCache<String, Vec<u8>>>> =
     Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(512).unwrap())));
 
+/// A source's tile URL templates (MapLibre's `tiles`) and `scheme`.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct TileUrls {
+    /// Templates; tiles are spread over them as MapLibre does.
+    pub templates: Vec<String>,
+    /// `scheme: "tms"`: tile rows count from the south.
+    pub tms: bool,
+}
+
+impl TileUrls {
+    /// One `scheme: "xyz"` template.
+    pub fn xyz(template: impl Into<String>) -> Self {
+        TileUrls { templates: vec![template.into()], tms: false }
+    }
+
+    /// The URL of a tile, as MapLibre's `CanonicalTileID.url()`.
+    pub fn url(&self, coord: TileCoord, pixel_ratio: f64) -> String {
+        tile_url(&self.templates, coord, pixel_ratio, self.tms)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum TileSource {
     XyzRaster {
-        url_template: String,
+        urls: TileUrls,
         auth_header: Option<String>,
         /// Server-advertised maximum zoom from the source object or TileJSON.
         maxzoom: Option<u8>,
     },
     MapboxVectorTile {
-        url_template: String,
+        urls: TileUrls,
         api_key: Option<String>,
         /// Server-advertised maximum zoom from the source object or TileJSON.
         maxzoom: Option<u8>,
@@ -109,31 +130,76 @@ impl pmtiles::AsyncBackend for ReqwestBackend {
     }
 }
 
-/// Expand `{z}`, `{x}`, `{y}` (and optional WMS bbox) placeholders in a URL template.
-pub fn expand_url(template: &str, coord: TileCoord) -> String {
-    let s = template
+/// The URL of a tile from a source's templates, as MapLibre's
+/// `CanonicalTileID.url()`: the template is picked by `(x + y) % n` (spreading
+/// tiles over subdomains), then `{prefix}`, `{z}`, `{x}`, `{y}` (flipped for
+/// `scheme: "tms"`), `{ratio}` (`@2x` above pixel ratio 1), `{quadkey}` and
+/// `{bbox-epsg-3857}` (for WMS) are replaced.
+pub fn tile_url(templates: &[String], coord: TileCoord, pixel_ratio: f64, tms: bool) -> String {
+    let Some(first) = templates.first() else { return String::new() };
+    let template = templates
+        .get(((coord.x as u64 + coord.y as u64) % templates.len() as u64) as usize)
+        .unwrap_or(first);
+    let n = 1u64 << coord.z;
+    let y = if tms { n - 1 - coord.y as u64 } else { coord.y as u64 };
+    let mut s = template
+        .replace("{prefix}", &format!("{:x}{:x}", coord.x % 16, coord.y % 16))
         .replace("{z}", &coord.z.to_string())
         .replace("{x}", &coord.x.to_string())
-        .replace("{y}", &coord.y.to_string());
-
-    // Bail out early when no bbox placeholders present (avoids float math on every tile).
-    if !s.contains("{xmin}") && !s.contains("{ymin}") && !s.contains("{xmax}") && !s.contains("{ymax}") {
-        return s;
+        .replace("{y}", &y.to_string())
+        .replace("{ratio}", if pixel_ratio > 1.0 { "@2x" } else { "" });
+    if s.contains("{quadkey}") {
+        s = s.replace("{quadkey}", &quadkey(coord));
     }
+    if s.contains("{bbox-epsg-3857}") {
+        s = s.replace("{bbox-epsg-3857}", &tile_bbox(coord));
+    }
+    s
+}
 
-    // Compute EPSG:3857 bbox for this tile (tile y=0 is north).
-    const EARTH_HALF: f64 = 20_037_508.342_789_244;
-    let n = (1u64 << coord.z) as f64;
-    let tile_m = EARTH_HALF * 2.0 / n;
-    let xmin = -EARTH_HALF + coord.x as f64 * tile_m;
-    let xmax = xmin + tile_m;
-    let ymax = EARTH_HALF - coord.y as f64 * tile_m;
-    let ymin = ymax - tile_m;
+/// [`tile_url`] for one `scheme: "xyz"` template at pixel ratio 1.
+pub fn expand_url(template: &str, coord: TileCoord) -> String {
+    tile_url(&[template.to_owned()], coord, 1.0, false)
+}
 
-    s.replace("{xmin}", &format!("{xmin:.4}"))
-     .replace("{ymin}", &format!("{ymin:.4}"))
-     .replace("{xmax}", &format!("{xmax:.4}"))
-     .replace("{ymax}", &format!("{ymax:.4}"))
+/// Bing-style quadkey of a tile (MapLibre's `getQuadkey`).
+fn quadkey(c: TileCoord) -> String {
+    (1..=c.z)
+        .rev()
+        .map(|i| {
+            let mask = 1u32 << (i - 1);
+            char::from(b'0' + u8::from(c.x & mask != 0) + 2 * u8::from(c.y & mask != 0))
+        })
+        .collect()
+}
+
+/// `xmin,ymin,xmax,ymax` of a tile in EPSG:3857 metres, computed and printed
+/// exactly as MapLibre's `{bbox-epsg-3857}` (whoots-js `getTileBBox`, numbers
+/// as JavaScript prints them), so WMS requests match MapLibre's byte for byte.
+fn tile_bbox(c: TileCoord) -> String {
+    use std::f64::consts::PI;
+    let y = 2f64.powi(c.z as i32) - c.y as f64 - 1.0;
+    let merc = |px: f64, py: f64| {
+        let resolution = (2.0 * PI * 6378137.0 / 256.0) / 2f64.powi(c.z as i32);
+        let half = 2.0 * PI * 6378137.0 / 2.0;
+        (px * resolution - half, py * resolution - half)
+    };
+    let x = c.x as f64;
+    let (x0, y0) = merc(x * 256.0, y * 256.0);
+    let (x1, y1) = merc((x + 1.0) * 256.0, (y + 1.0) * 256.0);
+    format!("{},{},{},{}", js_number(x0), js_number(y0), js_number(x1), js_number(y1))
+}
+
+/// A number as JavaScript's `String(n)` prints it (shortest round trip;
+/// exponent form below 1e-6). Values here stay well under 1e21.
+fn js_number(v: f64) -> String {
+    if v == 0.0 {
+        "0".to_owned()
+    } else if v.abs() < 1e-6 {
+        format!("{v:e}")
+    } else {
+        format!("{v}")
+    }
 }
 
 /// Compute all tile coordinates that cover a given EPSG:3857 bbox at zoom.
@@ -153,23 +219,22 @@ pub fn build_tile_coords(bbox: [f64; 4], zoom: u8) -> Vec<TileCoord> {
     coords
 }
 
-/// Build the URL list for a given tile source and set of coordinates.
-pub fn build_tile_urls(source: &TileSource, coords: &[TileCoord]) -> Vec<(TileCoord, String)> {
+/// Build the URL list for a given tile source and set of coordinates;
+/// `pixel_ratio` fills `{ratio}`.
+pub fn build_tile_urls(source: &TileSource, coords: &[TileCoord], pixel_ratio: f64) -> Vec<(TileCoord, String)> {
     coords
         .iter()
         .map(|&coord| {
             let url = match source {
-                TileSource::XyzRaster { url_template, .. } => expand_url(url_template, coord),
-                TileSource::MapboxVectorTile {
-                    url_template,
-                    api_key,
-                    ..
-                } => {
-                    let base = expand_url(url_template, coord);
-                    if let Some(key) = api_key {
-                        format!("{base}?access_token={key}")
-                    } else {
-                        base
+                TileSource::XyzRaster { urls, .. } => urls.url(coord, pixel_ratio),
+                TileSource::MapboxVectorTile { urls, api_key, .. } => {
+                    let base = urls.url(coord, pixel_ratio);
+                    match api_key {
+                        Some(key) => {
+                            let sep = if base.contains('?') { '&' } else { '?' };
+                            format!("{base}{sep}access_token={key}")
+                        }
+                        None => base,
                     }
                 }
                 // PMTiles fetch bypasses the URL template system.
@@ -268,4 +333,49 @@ pub async fn fetch_all_tiles(
         }
     }
     Ok(results)
+}
+
+#[cfg(test)]
+mod url_tests {
+    use super::*;
+
+    fn c(z: u8, x: u32, y: u32) -> TileCoord {
+        TileCoord { z, x, y }
+    }
+
+    #[test]
+    fn tokens_expand_as_maplibre() {
+        let t = |tpl: &str, coord, ratio, tms| tile_url(&[tpl.to_owned()], coord, ratio, tms);
+        assert_eq!(t("https://t/{z}/{x}/{y}.png", c(5, 3, 7), 1.0, false), "https://t/5/3/7.png");
+        // scheme "tms": rows from the south.
+        assert_eq!(t("https://t/{z}/{x}/{y}.png", c(5, 3, 7), 1.0, true), "https://t/5/3/24.png");
+        assert_eq!(t("https://t/{z}/{x}/{y}{ratio}.png", c(1, 0, 0), 2.0, false), "https://t/1/0/0@2x.png");
+        assert_eq!(t("https://t/{z}/{x}/{y}{ratio}.png", c(1, 0, 0), 1.0, false), "https://t/1/0/0.png");
+        // Bing's documented example: tile (3, 5) at level 3 is "213".
+        assert_eq!(t("https://t/{quadkey}.jpeg", c(3, 3, 5), 1.0, false), "https://t/213.jpeg");
+        assert_eq!(t("https://t/{prefix}/{z}", c(5, 17, 30), 1.0, false), "https://t/1e/5");
+    }
+
+    #[test]
+    fn templates_are_picked_by_x_plus_y() {
+        let urls = TileUrls { templates: vec!["a/{x}".into(), "b/{x}".into(), "c/{x}".into()], tms: false };
+        assert_eq!(urls.url(c(4, 0, 0), 1.0), "a/0");
+        assert_eq!(urls.url(c(4, 1, 0), 1.0), "b/1");
+        assert_eq!(urls.url(c(4, 1, 1), 1.0), "c/1");
+        assert_eq!(urls.url(c(4, 2, 1), 1.0), "a/2");
+    }
+
+    #[test]
+    fn bbox_matches_maplibre_strings() {
+        // Strings from MapLibre GL JS 5.24 (whoots-js getTileBBox, String(n)).
+        let b = |coord| tile_url(&["{bbox-epsg-3857}".to_owned()], coord, 1.0, false);
+        assert_eq!(b(c(0, 0, 0)), "-20037508.342789244,-20037508.342789244,20037508.342789244,20037508.342789244");
+        assert_eq!(b(c(1, 1, 0)), "0,0,20037508.342789244,20037508.342789244");
+        assert_eq!(b(c(1, 0, 1)), "-20037508.342789244,-20037508.342789244,0,0");
+        assert_eq!(b(c(3, 4, 2)), "0,5009377.085697312,5009377.085697312,10018754.17139462");
+        assert_eq!(
+            b(c(19, 154308, 197167)),
+            "-8242663.382160267,4966572.349857613,-8242586.945131982,4966648.786885899"
+        );
+    }
 }
