@@ -8,9 +8,11 @@ from typing import Dict, List, Optional
 def list_layers(style: str, auth_token: Optional[str] = None) -> List[Dict[str, str]]:
     """List a style's layers.
 
-    The layers of a style in drawing order, with their types: the IDs are
-    what the ``layers`` filter of :func:`basemap` and the renderers accepts
-    (plain IDs keep, ``-`` prefixed IDs drop). The same function exists in R
+    The layers of a style in drawing order, with their types and features:
+    the IDs are what the ``layers`` filter of :func:`basemap` and the
+    renderers accepts (plain IDs keep, ``-`` prefixed IDs drop), the
+    features what ``features`` accepts; ``symbol`` layers are the labels
+    ``labels`` keeps or drops. The same function exists in R
     (``list_layers()``, returning a data frame).
 
     Args:
@@ -18,12 +20,12 @@ def list_layers(style: str, auth_token: Optional[str] = None) -> List[Dict[str, 
         auth_token: Optional access token for the style URL.
 
     Returns:
-        A list of ``{"id": ..., "type": ...}`` dicts (``pandas.DataFrame(...)``
-        turns it into a table).
+        A list of ``{"id": ..., "type": ..., "feature": ...}`` dicts
+        (``pandas.DataFrame(...)`` turns it into a table).
 
     Raises:
         BasemapError: If the style cannot be fetched or parsed.
     """
     from ._basemapper import list_layers as _impl
 
-    return [{"id": i, "type": t} for i, t in _impl(str(style), auth_token)]
+    return [{"id": i, "type": t, "feature": f} for i, t, f in _impl(str(style), auth_token)]

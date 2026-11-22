@@ -21,6 +21,8 @@ every language.
 | `bounds`, `crs` | Bounds to fit instead of `center` / `zoom`, and their CRS | —, EPSG:4326 |
 | `pixel_ratio` | Device pixels per CSS pixel (MapLibre's `devicePixelRatio`); images are `width * pixel_ratio` by `height * pixel_ratio` | 1 (plot layers: output dpi / 96) |
 | `layers` | Layer filter: plain IDs keep, `-`-prefixed IDs drop | all layers |
+| `labels` | `TRUE` all layers, `FALSE` without labels, `"only"` just the labels (transparent background) | `TRUE` |
+| `features` | Feature filter: plain names keep, `-`-prefixed names drop (background, water, landcover, parks, buildings, roads, rail, boundaries, places, poi, terrain, other) | all features |
 | `auth_token` | Access token for the tile service | none |
 | `tile_timeout_ms` | Per-tile HTTP timeout | 10000 |
 | `max_tiles` | Maximum tiles fetched per style | 256 |
@@ -55,7 +57,7 @@ dict or a GeoDataFrame / GeoSeries. `crs` takes anything `sf::st_crs()` or
 
 | R | Python | Rust |
 |---|---|---|
-| `render_basemap_raw(bounds, width, height, style, crs =, pixel_ratio =, tile_zoom =, layers =, auth_token =, tile_timeout_ms =, max_tiles =, tile_concurrency =, fail_on_tile_error =)` | `render_basemap_raw(bounds, width, height, style, crs=, pixel_ratio=, tile_zoom=, ...)` | `render(RenderRequest { bbox, width, height, style_input, tile_zoom, pixel_ratio, .. })` / `render_stack(requests)` |
+| `render_basemap_raw(bounds, width, height, style, crs =, pixel_ratio =, tile_zoom =, layers =, labels =, features =, auth_token =, tile_timeout_ms =, max_tiles =, tile_concurrency =, fail_on_tile_error =)` | `render_basemap_raw(bounds, width, height, style, crs=, pixel_ratio=, tile_zoom=, ...)` | `render(RenderRequest { bbox, width, height, style_input, tile_zoom, pixel_ratio, .. })` / `render_stack(requests)` |
 
 Both packages return the pixels of the fitted view: R an integer array with
 the input extent as attributes, Python a uint8 array.
@@ -64,7 +66,7 @@ the input extent as attributes, Python a uint8 array.
 
 | R | Python |
 |---|---|
-| `geom_basemap(style, tile_zoom =, alpha =, layers =, pixel_ratio =, auth_token =, tile_timeout_ms =, max_tiles =)` (ggplot2) | `geom_basemap(style, tile_zoom=, alpha=, layers=, pixel_ratio=, auth_token=, tile_timeout_ms=, max_tiles=, crs=)` (plotnine) |
+| `geom_basemap(style, tile_zoom =, alpha =, layers =, labels =, features =, pixel_ratio =, auth_token =, tile_timeout_ms =, max_tiles =)` (ggplot2) | `geom_basemap(style, tile_zoom=, alpha=, layers=, labels=, features=, pixel_ratio=, auth_token=, tile_timeout_ms=, max_tiles=, crs=)` (plotnine) |
 | `tm_basemap(style, ..., width =, height =)` (tmap v4) | `add_basemap(ax, style, ..., crs=)` (matplotlib) |
 
 These layers render when the plot is drawn, for the panel's extent and at
@@ -87,13 +89,13 @@ overrides.
 
 | R | Python | Rust (`basemapper_core::providers`) |
 |---|---|---|
-| `basemap_provider(name, type =, api_key =, tiles =)` | `basemap_provider(name, type=, api_key=, tiles=)` | `basemap_provider(name, &ProviderOptions { kind, api_key, tiles })?` |
+| `basemap_provider(name, type =, api_key =, tiles =, labels =, features =)` | `basemap_provider(name, type=, api_key=, tiles=, labels=, features=)` | `basemap_provider(name, &ProviderOptions { kind, api_key, tiles, labels, features })?` |
 | `list_providers(type = NULL)`: data frame of `name`, `vector`, `raster`, `api_key_env`, `attribution` | `list_providers(type=None)`: list of dicts, same keys | `list_providers(kind)`: `Vec<&Provider>` (all in `PROVIDERS`) |
 | `providers$CartoDB.Positron` | `providers.CartoDB.Positron` | — |
 | `tile_style(source, type =, tile_size =, scheme =, minzoom =, maxzoom =, attribution =, source_layers =, paint =, auth_token =)` | `tile_style(source, type=, tile_size=, scheme=, minzoom=, maxzoom=, attribution=, source_layers=, paint=, auth_token=)` | `basemapper_core::tile_style(source, &TileStyleOptions { .. }, auth_token)?`, which also returns the dropped paint keys |
 | `wms_style(url, layers, styles =, version =, format =, transparent =, extra_params =)` | `wms_style(url, layers, styles=, version=, format=, transparent=, extra_params=)` | `wms_style(...)` |
 | `wmts_style(url, layer, tilematrixset =, format =, style =, version =, extra_params =)` | `wmts_style(url, layer, tilematrixset=, format=, style=, version=, extra_params=)` | `wmts_style(...)` |
-| `list_layers(style, auth_token = NULL)`: data frame of `id`, `type` | `list_layers(style, auth_token=None)`: list of `{"id", "type"}` | `basemapper_core::list_layers(style, auth_token)?`: `Vec<(id, type)>` |
+| `list_layers(style, auth_token = NULL)`: data frame of `id`, `type`, `feature` | `list_layers(style, auth_token=None)`: list of `{"id", "type", "feature"}` | `basemapper_core::list_layers(style, auth_token)?`: `Vec<(id, type, feature)>` |
 
 Named basemaps come in a vector form (a MapLibre style), a raster form
 (tiles), or both; the vector form is the default and `type` picks the other.
@@ -101,6 +103,27 @@ Asking for a form a basemap lacks is an error that says which it has. CARTO,
 MapTiler and Stadia need a free API key, passed as `api_key` or read from
 `CARTO_API_KEY`, `MAPTILER_API_KEY` or `STADIA_API_KEY`. `tiles` draws your
 own tile data (same schema) with a basemap's style.
+
+## Labels and features
+
+`labels` and `features` on the renderers apply to every style of a stack;
+on `basemap_provider()` they filter that one basemap, so a stack can mix
+them (imagery under a vector basemap's labels). Each layer is a label when
+it is a `symbol` layer, and belongs to the feature its vector tile source
+layer names, through tables for the OpenMapTiles (OpenFreeMap, Stadia,
+MapTiler), Protomaps (CARTO) and Shortbread (VersaTiles) schemas, then
+keywords that cover Esri's descriptive layer names and layer ids
+(`basemapper_core::features`). Raster tiles have their labels drawn in:
+catalogue basemaps with label-free or label-only tiles (CARTO, Esri's
+imagery, canvas, terrain and ocean basemaps, Stamen) switch to them, and
+asking for a split a raster basemap lacks is an error. Filters that leave a
+style with nothing to draw are an error that lists the style's features.
+
+| Rust | |
+|---|---|
+| `Basemap::labels(Labels::Only)`, `Basemap::features(vec![..])` | on a view |
+| `RenderRequest { labels, features, .. }` | one-shot |
+| `features::select_layers(style_json, labels, &features)`, `features::layer_feature(&layer)` | on style JSON |
 
 ## Tile cache
 

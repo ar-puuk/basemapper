@@ -14,6 +14,8 @@ basemap(
   crs = NULL,
   pixel_ratio = 1,
   layers = NULL,
+  labels = TRUE,
+  features = NULL,
   auth_token = NULL,
   tile_timeout_ms = 10000L,
   max_tiles = 256L,
@@ -42,6 +44,17 @@ an \code{sf} / \code{sfc} object.}
 
 \item{layers}{Optional layer filter applied to every style: plain IDs keep
 only those layers, minus-prefixed IDs drop them (see \code{\link[=list_layers]{list_layers()}}).}
+
+\item{labels}{\code{TRUE} keeps every layer, \code{FALSE} drops the labels (text and
+icons), \code{"only"} keeps only the labels on a transparent background, to
+stack over another map. Catalogue raster basemaps switch to their
+label-free or label-only tiles.}
+
+\item{features}{Optional feature filter applied to every style: plain
+names keep those features, minus-prefixed names drop them, e.g.
+\code{c("water", "roads")} or \code{"-buildings"}. Features: background, water,
+landcover, parks, buildings, roads, rail, boundaries, places, poi,
+terrain, other (the \code{feature} column of \code{\link[=list_layers]{list_layers()}}).}
 
 \item{auth_token}{Optional access token for the tile service.}
 

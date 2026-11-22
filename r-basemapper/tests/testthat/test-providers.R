@@ -131,3 +131,30 @@ test_that("wms_style and wmts_style build raster styles", {
   tile <- json(wmts_style("https://x.com/wmts", "lyr"))$sources[[1]]$tiles[[1]]
   expect_match(tile, "LAYER=lyr", fixed = TRUE)
 })
+
+test_that("list_layers reports each layer's feature", {
+  l <- list_layers("Esri.WorldImagery")
+  expect_named(l, c("id", "type", "feature"))
+  expect_equal(l$feature, "other")
+})
+
+test_that("basemap_provider labels pick raster tiles", {
+  tiles <- function(name, labels) {
+    json(basemap_provider(name, type = "raster", api_key = "K", labels = labels))$sources$raster$tiles[[1]]
+  }
+  expect_match(tiles("CartoDB.Positron", FALSE), "/light_nolabels/", fixed = TRUE)
+  expect_match(tiles("CartoDB.Positron", "only"), "/light_only_labels/", fixed = TRUE)
+  expect_match(tiles("Esri.WorldImagery", "only"), "World_Boundaries_and_Places", fixed = TRUE)
+  expect_error(tiles("OpenStreetMap.Mapnik", FALSE), "labels drawn in")
+  expect_error(basemap_provider("Esri.WorldImagery", labels = "some"), "labels must be")
+})
+
+test_that("labels and features filter a style", {
+  style <- '{"version":8,"sources":{},"layers":[{"id":"bg","type":"background","paint":{"background-color":"#ff0000"}}]}'
+  a <- render_array(basemap(style, 8, 8, labels = FALSE))
+  expect_equal(as.vector(a[1, 1, ]), c(255L, 0L, 0L, 255L))
+  expect_error(render_array(basemap(style, 8, 8, labels = "only")), "its features are background")
+  expect_error(render_array(basemap(style, 8, 8, features = "highways")), "unknown feature")
+  b <- render_array(basemap(style, 8, 8, features = "background"))
+  expect_equal(as.vector(b[1, 1, ]), c(255L, 0L, 0L, 255L))
+})

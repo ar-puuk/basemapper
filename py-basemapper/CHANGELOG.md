@@ -54,6 +54,17 @@ here. See `docs/api.md` in the repository.
   `tile_cache()` shows, moves, disables or clears the cache (in the platform
   cache directory by default). Requests identify
   basemapper in their User-Agent.
+- `labels` and `features` draw parts of a style, so basemaps can be
+  stacked: `labels=False` drops the labels, `labels="only"` keeps just
+  them on a transparent background, and `features` keeps (`["water",
+  "roads"]`) or drops (`["-buildings"]`) background, water, landcover, parks,
+  buildings, roads, rail, boundaries, places, poi or terrain. They work on
+  every renderer and plot layer (for the whole stack) and on
+  `basemap_provider()` (for one basemap, e.g. imagery under a vector
+  basemap's labels). Features come from tables for the OpenMapTiles,
+  Protomaps and Shortbread schemas and keywords for Esri's layer names;
+  catalogue raster basemaps switch to their label-free or label-only tiles
+  (CARTO, Esri, Stamen). `list_layers()` gains a `feature` key.
 - ArcGIS vector styles whose source names the `VectorTileServer` without a
   trailing slash (Esri's item styles) load their tiles.
 - `list_layers(style)` returns `[{"id", "type"}, ...]` in drawing order.

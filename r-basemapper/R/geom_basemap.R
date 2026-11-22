@@ -13,7 +13,7 @@ GeomBasemap <- ggplot2::ggproto(
   default_aes   = ggplot2::aes(),
 
   draw_panel = function(data, panel_params, coord,
-                        style, tile_zoom, alpha, layers, pixel_ratio, auth_token,
+                        style, tile_zoom, alpha, layers, labels, features, pixel_ratio, auth_token,
                         tile_timeout_ms, max_tiles) {
     # Extract panel extent and reproject to EPSG:3857.
     x_range <- panel_params$x.range %||% panel_params$x_range
@@ -31,6 +31,8 @@ GeomBasemap <- ggplot2::ggproto(
       tile_zoom       = tile_zoom,
       alpha           = alpha,
       layers          = layers,
+      labels          = labels,
+      features        = features,
       pixel_ratio     = pixel_ratio,
       auth_token      = auth_token,
       tile_timeout_ms = tile_timeout_ms,
@@ -80,8 +82,9 @@ makeContent.BasemapGrob <- function(x) {
   px <- render_styles_3857(
     x$bbox_3857, css_w, css_h, x$style, ratio,
     tile_zoom = x$tile_zoom,
-    options   = list(layers = x$layers, auth_token = x$auth_token,
-                     tile_timeout_ms = x$tile_timeout_ms, max_tiles = x$max_tiles)
+    options   = list(layers = x$layers, labels = x$labels, features = x$features,
+                     auth_token = x$auth_token, tile_timeout_ms = x$tile_timeout_ms,
+                     max_tiles = x$max_tiles)
   )
 
   img <- grid::rasterGrob(
@@ -138,12 +141,15 @@ geom_basemap <- function(
     tile_zoom       = NULL,
     alpha           = 1,
     layers          = NULL,
+    labels          = TRUE,
+    features        = NULL,
     pixel_ratio     = NULL,
     auth_token      = NULL,
     tile_timeout_ms = 10000L,
     max_tiles       = 256L,
     ...
 ) {
+  labels <- labels_arg(labels)
   ggplot2::layer(
     geom        = GeomBasemap,
     mapping     = NULL,
@@ -157,6 +163,8 @@ geom_basemap <- function(
       tile_zoom       = tile_zoom,
       alpha           = alpha,
       layers          = layers,
+      labels          = labels,
+      features        = features,
       pixel_ratio     = pixel_ratio,
       auth_token      = auth_token,
       tile_timeout_ms = tile_timeout_ms,

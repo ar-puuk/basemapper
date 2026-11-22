@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import warnings
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from . import _basemapper as _core
 
@@ -21,6 +21,8 @@ def basemap_provider(
     type: Optional[str] = None,
     api_key: Optional[str] = None,
     tiles: Optional[str] = None,
+    labels: Union[bool, str] = True,
+    features: Optional[List[str]] = None,
 ) -> str:
     """A named basemap's style.
 
@@ -43,15 +45,26 @@ def basemap_provider(
             ``.pmtiles`` archive (URL or path), tile URL or TileJSON. It must
             use the same schema as the provider's tiles (OpenMapTiles for
             OpenFreeMap and Stadia).
+        labels: ``True`` keeps every layer, ``False`` drops the labels,
+            ``"only"`` keeps only the labels, to stack this basemap's labels
+            over another map. Raster tiles switch to the provider's
+            label-free or label-only tiles (an error when it has none).
+        features: Vector form: features to keep (``["water", "roads"]``)
+            or drop (``["-buildings"]``); see :func:`list_layers`.
 
     Returns:
-        A style URL, or inline style JSON (raster form, or with ``tiles``).
+        A style URL, or inline style JSON (the raster form, or with
+        ``tiles``, ``labels`` or ``features``).
 
     Raises:
         ValidationError: For an unknown name (with suggestions), a form the
             basemap lacks, or a missing API key.
     """
-    return _core.basemap_provider(name, type, api_key, None if tiles is None else str(tiles))
+    from ._render import _features_arg, labels_arg
+
+    return _core.basemap_provider(
+        name, type, api_key, None if tiles is None else str(tiles), labels_arg(labels), _features_arg(features)
+    )
 
 
 def list_providers(type: Optional[str] = None) -> List[Dict[str, object]]:

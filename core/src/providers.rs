@@ -24,6 +24,12 @@ pub struct Raster {
     /// One subdomain per character, filled into `{s}`.
     pub subdomains: &'static str,
     pub maxzoom: u8,
+    /// Whether the tiles have labels drawn in.
+    pub labelled: bool,
+    /// The same map without labels, when the provider has it.
+    pub nolabels: Option<&'static str>,
+    /// The labels alone on transparent tiles, when the provider has them.
+    pub labels_only: Option<&'static str>,
 }
 
 /// The API key a basemap needs.
@@ -47,8 +53,25 @@ pub struct Provider {
     pub key: Option<ApiKey>,
 }
 
+/// Raster tiles with labels drawn in and no variants.
 const fn raster(tiles: &'static str, subdomains: &'static str, maxzoom: u8) -> Option<Raster> {
-    Some(Raster { tiles, subdomains, maxzoom })
+    Some(Raster { tiles, subdomains, maxzoom, labelled: true, nolabels: None, labels_only: None })
+}
+
+/// Raster tiles with labels, a label-free version and the labels alone.
+const fn raster_variants(
+    tiles: &'static str,
+    subdomains: &'static str,
+    maxzoom: u8,
+    nolabels: &'static str,
+    labels_only: &'static str,
+) -> Option<Raster> {
+    Some(Raster { tiles, subdomains, maxzoom, labelled: true, nolabels: Some(nolabels), labels_only: Some(labels_only) })
+}
+
+/// Raster tiles without labels, optionally with labels to go over them.
+const fn unlabelled(tiles: &'static str, maxzoom: u8, labels_only: Option<&'static str>) -> Option<Raster> {
+    Some(Raster { tiles, subdomains: "", maxzoom, labelled: false, nolabels: None, labels_only })
 }
 
 const CARTO_KEY: Option<ApiKey> = Some(ApiKey { env: "CARTO_API_KEY", signup: "https://carto.com/basemaps/apikey" });
@@ -73,12 +96,17 @@ macro_rules! esri_style {
         concat!("https://www.arcgis.com/sharing/rest/content/items/", $item, "/resources/styles/root.json")
     };
 }
+macro_rules! carto_tiles {
+    ($path:literal) => {
+        concat!("https://{s}.basemaps.cartocdn.com/", $path, "/{z}/{x}/{y}{r}.png?key={key}")
+    };
+}
 macro_rules! carto {
-    ($name:literal, $gl:literal, $raster:literal) => {
+    ($name:literal, $gl:literal, $raster:literal, $nolabels:literal, $labels:literal) => {
         Provider {
             name: $name,
             vector: Some(concat!("https://basemaps.cartocdn.com/gl/", $gl, "-gl-style/style.json?key={key}")),
-            raster: raster(concat!("https://{s}.basemaps.cartocdn.com/", $raster, "/{z}/{x}/{y}{r}.png?key={key}"), "abcd", 20),
+            raster: raster_variants(carto_tiles!($raster), "abcd", 20, carto_tiles!($nolabels), carto_tiles!($labels)),
             attribution: CARTO,
             key: CARTO_KEY,
         }
@@ -107,6 +135,18 @@ macro_rules! stadia {
             ),
             attribution: $attr,
             key: STADIA,
+        }
+    };
+    ($name:literal, $id:literal, $ext:literal, $maxzoom:literal, $attr:expr, $nolabels:literal, $labels:literal) => {
+        Provider {
+            raster: raster_variants(
+                concat!("https://tiles.stadiamaps.com/tiles/", $id, "/{z}/{x}/{y}{r}.", $ext, "?api_key={key}"),
+                "",
+                $maxzoom,
+                concat!("https://tiles.stadiamaps.com/tiles/", $nolabels, "/{z}/{x}/{y}{r}.", $ext, "?api_key={key}"),
+                concat!("https://tiles.stadiamaps.com/tiles/", $labels, "/{z}/{x}/{y}{r}.png?api_key={key}"),
+            ),
+            ..stadia!($name, $id, $ext, $maxzoom, $attr)
         }
     };
 }
@@ -162,9 +202,9 @@ pub const PROVIDERS: &[Provider] = &[
     openfreemap!("OpenFreeMap.Dark", "dark"),
     openfreemap!("OpenFreeMap.Fiord", "fiord"),
     // CARTO (free API key since 2026)
-    carto!("CartoDB.Positron", "positron", "light_all"),
-    carto!("CartoDB.DarkMatter", "dark-matter", "dark_all"),
-    carto!("CartoDB.Voyager", "voyager", "rastertiles/voyager"),
+    carto!("CartoDB.Positron", "positron", "light_all", "light_nolabels", "light_only_labels"),
+    carto!("CartoDB.DarkMatter", "dark-matter", "dark_all", "dark_nolabels", "dark_only_labels"),
+    carto!("CartoDB.Voyager", "voyager", "rastertiles/voyager", "rastertiles/voyager_nolabels", "rastertiles/voyager_only_labels"),
     // Esri
     Provider {
         name: "Esri.WorldStreetMap",
@@ -183,49 +223,49 @@ pub const PROVIDERS: &[Provider] = &[
     Provider {
         name: "Esri.WorldGrayCanvas",
         vector: Some(esri_style!("291da5eab3a0412593b66d384379f89f")),
-        raster: raster(esri_tiles!("Canvas/World_Light_Gray_Base"), "", 16),
+        raster: unlabelled(esri_tiles!("Canvas/World_Light_Gray_Base"), 16, Some(esri_tiles!("Canvas/World_Light_Gray_Reference"))),
         attribution: "Tiles © Esri — Esri, HERE, Garmin, © OpenStreetMap contributors, and the GIS User Community",
         key: None,
     },
     Provider {
         name: "Esri.WorldDarkGrayCanvas",
         vector: Some(esri_style!("5e9b3685f4c24d8781073dd928ebda50")),
-        raster: raster(esri_tiles!("Canvas/World_Dark_Gray_Base"), "", 16),
+        raster: unlabelled(esri_tiles!("Canvas/World_Dark_Gray_Base"), 16, Some(esri_tiles!("Canvas/World_Dark_Gray_Reference"))),
         attribution: "Tiles © Esri — Esri, HERE, Garmin, © OpenStreetMap contributors, and the GIS User Community",
         key: None,
     },
     Provider {
         name: "Esri.WorldImagery",
         vector: None,
-        raster: raster(esri_tiles!("World_Imagery"), "", 19),
+        raster: unlabelled(esri_tiles!("World_Imagery"), 19, Some(esri_tiles!("Reference/World_Boundaries_and_Places"))),
         attribution: "Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community",
         key: None,
     },
     Provider {
         name: "Esri.WorldTerrain",
         vector: None,
-        raster: raster(esri_tiles!("World_Terrain_Base"), "", 13),
+        raster: unlabelled(esri_tiles!("World_Terrain_Base"), 13, Some(esri_tiles!("Reference/World_Reference_Overlay"))),
         attribution: "Tiles © Esri — Source: USGS, Esri, TANA, DeLorme, and NPS",
         key: None,
     },
     Provider {
         name: "Esri.WorldShadedRelief",
         vector: None,
-        raster: raster(esri_tiles!("World_Shaded_Relief"), "", 13),
+        raster: unlabelled(esri_tiles!("World_Shaded_Relief"), 13, Some(esri_tiles!("Reference/World_Reference_Overlay"))),
         attribution: "Tiles © Esri — Source: Esri",
         key: None,
     },
     Provider {
         name: "Esri.WorldPhysical",
         vector: None,
-        raster: raster(esri_tiles!("World_Physical_Map"), "", 8),
+        raster: unlabelled(esri_tiles!("World_Physical_Map"), 8, None),
         attribution: "Tiles © Esri — Source: US National Park Service",
         key: None,
     },
     Provider {
         name: "Esri.OceanBasemap",
         vector: None,
-        raster: raster(esri_tiles!("Ocean/World_Ocean_Base"), "", 13),
+        raster: unlabelled(esri_tiles!("Ocean/World_Ocean_Base"), 13, Some(esri_tiles!("Ocean/World_Ocean_Reference"))),
         attribution: "Tiles © Esri — Sources: GEBCO, NOAA, CHS, OSU, UNH, CSUMB, National Geographic, DeLorme, NAVTEQ, and Esri",
         key: None,
     },
@@ -247,7 +287,7 @@ pub const PROVIDERS: &[Provider] = &[
     Provider {
         name: "USGS.USImagery",
         vector: None,
-        raster: raster("https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}", "", 16),
+        raster: unlabelled("https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}", 16, None),
         attribution: USGS,
         key: None,
     },
@@ -257,10 +297,13 @@ pub const PROVIDERS: &[Provider] = &[
     stadia!("Stadia.AlidadeSatellite", "alidade_satellite", "jpg", 20, STADIA_ATTR),
     stadia!("Stadia.OSMBright", "osm_bright", "png", 20, STADIA_ATTR),
     stadia!("Stadia.Outdoors", "outdoors", "png", 20, STADIA_ATTR),
-    stadia!("Stadia.StamenToner", "stamen_toner", "png", 20, STAMEN),
+    stadia!("Stadia.StamenToner", "stamen_toner", "png", 20, STAMEN, "stamen_toner_background", "stamen_toner_labels"),
     stadia!("Stadia.StamenTonerLite", "stamen_toner_lite", "png", 20, STAMEN),
-    stadia!("Stadia.StamenTerrain", "stamen_terrain", "png", 18, STAMEN),
-    stadia!("Stadia.StamenWatercolor", "stamen_watercolor", "jpg", 16, STAMEN),
+    stadia!("Stadia.StamenTerrain", "stamen_terrain", "png", 18, STAMEN, "stamen_terrain_background", "stamen_terrain_labels"),
+    Provider {
+        raster: unlabelled("https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}{r}.jpg?api_key={key}", 16, None),
+        ..stadia!("Stadia.StamenWatercolor", "stamen_watercolor", "jpg", 16, STAMEN)
+    },
     // MapTiler (API key)
     maptiler!("MapTiler.Streets", "streets-v2", "png"),
     maptiler!("MapTiler.Basic", "basic-v2", "png"),
@@ -402,6 +445,11 @@ pub struct ProviderOptions {
     /// tile URL or TileJSON, by URL or path), keeping its style. It must use
     /// the same schema (source layers and fields) as the provider's tiles.
     pub tiles: Option<String>,
+    /// Keep every layer, drop the labels, or keep only the labels. Raster
+    /// tiles switch to the provider's label-free or label-only tiles.
+    pub labels: crate::Labels,
+    /// Feature filter for the vector form (see [`crate::features`]).
+    pub features: Option<Vec<String>>,
 }
 
 fn other_kind(kind: TileKind) -> TileKind {
@@ -446,26 +494,44 @@ pub fn basemap_provider(name: &str, options: &ProviderOptions) -> Result<String,
         TileKind::Vector => p.vector.unwrap_or_default().replace("{key}", &key),
         TileKind::Raster => raster_style_for(p, &key),
     };
-    match &options.tiles {
-        None => Ok(style),
-        Some(tiles) => crate::RUNTIME.block_on(async {
-            let client = crate::http_client(std::time::Duration::from_secs(30))?;
-            replace_tiles(&style, kind, tiles, &client).await
-        }),
+    let features = options.features.as_deref().unwrap_or(&[]);
+    let select = options.labels != crate::Labels::All || !features.is_empty();
+    if options.tiles.is_none() && (!select || kind == TileKind::Raster) {
+        return crate::features::select_layers(&style, options.labels, features);
     }
+    crate::RUNTIME.block_on(async {
+        let client = crate::http_client(std::time::Duration::from_secs(30))?;
+        let style = match &options.tiles {
+            Some(tiles) => replace_tiles(&style, kind, tiles, &client).await?,
+            None => crate::tile_style::resolve_style_input(&style, &client, None).await?,
+        };
+        crate::features::select_layers(&style, options.labels, features)
+    })
 }
 
 /// The raster form as a style: one raster source, `{s}` expanded into one
 /// tile URL per subdomain as MapLibre spreads requests over `tiles`.
 fn raster_style_for(p: &Provider, key: &str) -> String {
     let r = p.raster.expect("raster form");
-    let template = r.tiles.replace("{r}", "{ratio}").replace("{key}", key);
-    let tiles: Vec<String> = if r.subdomains.is_empty() {
-        vec![template]
-    } else {
-        r.subdomains.chars().map(|s| template.replace("{s}", &s.to_string())).collect()
+    let expand = |t: &str| -> Vec<String> {
+        let template = t.replace("{r}", "{ratio}").replace("{key}", key);
+        if r.subdomains.is_empty() {
+            vec![template]
+        } else {
+            r.subdomains.chars().map(|s| template.replace("{s}", &s.to_string())).collect()
+        }
     };
+    let tiles = expand(r.tiles);
+    // The label variants, for `labels` (see crate::features::select_layers).
+    let mut variants = json!({"provider": p.name, "has_labels": r.labelled});
+    if let Some(t) = r.nolabels {
+        variants["nolabels"] = json!(expand(t));
+    }
+    if let Some(t) = r.labels_only {
+        variants["labels"] = json!(expand(t));
+    }
     json!({
+        "metadata": { "basemapper:raster": variants },
         "version": 8,
         "sources": { "raster": {
             "type": "raster",
@@ -509,6 +575,9 @@ async fn replace_tiles(
         let resolved = crate::tile_style::resolve_style_input(style, client, None).await?;
         serde_json::from_str(&resolved).map_err(|e| BasemapError::StyleParseError(e.to_string()))?
     };
+    if let Some(m) = v["metadata"].as_object_mut() {
+        m.remove("basemapper:raster"); // the provider's label variants no longer apply
+    }
     let by_url = new.get("url").is_some();
     let mut replaced = 0;
     if let Some(sources) = v["sources"].as_object_mut() {
@@ -618,7 +687,7 @@ mod tests {
     use super::*;
 
     fn opts(kind: Option<TileKind>, key: Option<&str>) -> ProviderOptions {
-        ProviderOptions { kind, api_key: key.map(str::to_owned), tiles: None }
+        ProviderOptions { kind, api_key: key.map(str::to_owned), ..Default::default() }
     }
 
     #[test]
@@ -684,6 +753,33 @@ mod tests {
         assert!(e.contains("did you mean CartoDB.Positron?"), "{e}");
         let e = basemap_provider("Esri.Nothing", &opts(None, None)).unwrap_err().to_string();
         assert!(e.contains("Esri.WorldImagery"), "{e}");
+    }
+
+    #[test]
+    fn raster_labels_switch_tiles() {
+        use crate::Labels;
+        let tiles = |name: &str, labels: Labels| -> Result<Value, BasemapError> {
+            let o = ProviderOptions { kind: Some(TileKind::Raster), api_key: Some("K".into()), labels, ..Default::default() };
+            let v: Value = serde_json::from_str(&basemap_provider(name, &o)?).unwrap();
+            Ok(v["sources"]["raster"]["tiles"][0].clone())
+        };
+        assert!(tiles("CartoDB.Positron", Labels::None).unwrap().as_str().unwrap().contains("/light_nolabels/"));
+        assert!(tiles("CartoDB.Positron", Labels::Only).unwrap().as_str().unwrap().contains("/light_only_labels/"));
+        assert!(tiles("Esri.WorldImagery", Labels::None).unwrap().as_str().unwrap().contains("/World_Imagery/"));
+        assert!(tiles("Esri.WorldImagery", Labels::Only).unwrap().as_str().unwrap().contains("World_Boundaries_and_Places"));
+        assert!(tiles("Esri.WorldGrayCanvas", Labels::Only).unwrap().as_str().unwrap().contains("World_Light_Gray_Reference"));
+        let e = tiles("OpenStreetMap.Mapnik", Labels::None).unwrap_err().to_string();
+        assert!(e.contains("labels drawn in"), "{e}");
+        assert!(tiles("Esri.WorldPhysical", Labels::Only).unwrap_err().to_string().contains("no label-only"));
+        // Every variant expands like the main tiles.
+        for p in PROVIDERS.iter().filter(|p| p.raster.is_some()) {
+            for labels in [Labels::None, Labels::Only] {
+                if let Ok(t) = tiles(p.name, labels) {
+                    let t = t.as_str().unwrap();
+                    assert!(t.starts_with("https://") && !t.contains("{s}") && !t.contains("{key}"), "{}: {t}", p.name);
+                }
+            }
+        }
     }
 
     #[test]

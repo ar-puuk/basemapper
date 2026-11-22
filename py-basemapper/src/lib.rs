@@ -58,10 +58,13 @@ fn stack_requests(
     tile_timeout_ms: u32,
     max_tiles: u32,
     layers: &Option<Vec<String>>,
+    labels: &str,
+    features: &Option<Vec<String>>,
     auth_token: &Option<String>,
     fail_on_tile_error: bool,
     tile_concurrency: u32,
 ) -> PyResult<Vec<RenderRequest>> {
+    let labels = basemapper_core::Labels::parse(labels).map_err(|e| core_err_to_py(py, e))?;
     if bbox_3857.len() != 4 {
         return Err(validation_error(py, "bounds must have exactly 4 elements"));
     }
@@ -80,6 +83,8 @@ fn stack_requests(
             max_tiles,
             tile_concurrency: tile_concurrency.max(1),
             layers: layers.clone(),
+            labels,
+            features: features.clone(),
             auth_token: auth_token.clone(),
             fail_on_tile_error,
             pixel_ratio,
@@ -96,7 +101,7 @@ fn stack_requests(
 #[pyfunction]
 #[pyo3(signature = (
     bbox_3857, width, height, styles, pixel_ratio=1.0,
-    tile_zoom=None, tile_timeout_ms=10_000, max_tiles=256, layers=None,
+    tile_zoom=None, tile_timeout_ms=10_000, max_tiles=256, layers=None, labels="all", features=None,
     auth_token=None, fail_on_tile_error=false, tile_concurrency=16
 ))]
 #[allow(clippy::too_many_arguments)]
@@ -111,13 +116,15 @@ fn render_raw(
     tile_timeout_ms: u32,
     max_tiles: u32,
     layers: Option<Vec<String>>,
+    labels: &str,
+    features: Option<Vec<String>>,
     auth_token: Option<String>,
     fail_on_tile_error: bool,
     tile_concurrency: u32,
 ) -> PyResult<(Py<PyBytes>, u32, u32)> {
     let reqs = stack_requests(
         py, &bbox_3857, width, height, &styles, pixel_ratio, tile_zoom, tile_timeout_ms, max_tiles, &layers,
-        &auth_token, fail_on_tile_error, tile_concurrency,
+        labels, &features, &auth_token, fail_on_tile_error, tile_concurrency,
     )?;
     match py.allow_threads(|| render_stack(reqs)) {
         Ok(r) => Ok((PyBytes::new_bound(py, &r.pixels).unbind(), r.width, r.height)),
@@ -142,7 +149,7 @@ fn encode_png(py: Python<'_>, pixels: &[u8], width: u32, height: u32) -> PyResul
 #[pyfunction]
 #[pyo3(signature = (
     bbox_3857, width, height, styles,
-    tile_zoom=None, tile_timeout_ms=10_000, max_tiles=256, layers=None,
+    tile_zoom=None, tile_timeout_ms=10_000, max_tiles=256, layers=None, labels="all", features=None,
     auth_token=None, fail_on_tile_error=false, tile_concurrency=16,
     text="editable", embed_fonts="subset", font_dirs=None
 ))]
@@ -157,6 +164,8 @@ fn render_svg_raw(
     tile_timeout_ms: u32,
     max_tiles: u32,
     layers: Option<Vec<String>>,
+    labels: &str,
+    features: Option<Vec<String>>,
     auth_token: Option<String>,
     fail_on_tile_error: bool,
     tile_concurrency: u32,
@@ -165,8 +174,8 @@ fn render_svg_raw(
     font_dirs: Option<Vec<String>>,
 ) -> PyResult<String> {
     let reqs = stack_requests(
-        py, &bbox_3857, width, height, &styles, 1.0, tile_zoom, tile_timeout_ms, max_tiles, &layers, &auth_token,
-        fail_on_tile_error, tile_concurrency,
+        py, &bbox_3857, width, height, &styles, 1.0, tile_zoom, tile_timeout_ms, max_tiles, &layers, labels,
+        &features, &auth_token, fail_on_tile_error, tile_concurrency,
     )?;
     let opts = svg_options(py, text, embed_fonts, font_dirs)?;
     match py.allow_threads(|| render_svg_stack_with(reqs, &opts)) {
@@ -213,10 +222,10 @@ fn fit_bounds(py: Python<'_>, bounds_3857: Vec<f64>, width: u32, height: u32) ->
     Ok(basemapper_core::fit_bounds([bounds_3857[0], bounds_3857[1], bounds_3857[2], bounds_3857[3]], width, height))
 }
 
-/// A style's layers in drawing order as (id, type) pairs.
+/// A style's layers in drawing order as (id, type, feature) triples.
 #[pyfunction]
 #[pyo3(signature = (style, auth_token=None))]
-fn list_layers(py: Python<'_>, style: &str, auth_token: Option<String>) -> PyResult<Vec<(String, String)>> {
+fn list_layers(py: Python<'_>, style: &str, auth_token: Option<String>) -> PyResult<Vec<(String, String, String)>> {
     let style = style.to_owned();
     match py.allow_threads(|| basemapper_core::list_layers(&style, auth_token.as_deref())) {
         Ok(l) => Ok(l),
@@ -231,15 +240,18 @@ fn parse_kind(py: Python<'_>, kind: Option<&str>) -> PyResult<Option<basemapper_
 }
 
 #[pyfunction]
-#[pyo3(signature = (name, kind=None, api_key=None, tiles=None))]
+#[pyo3(signature = (name, kind=None, api_key=None, tiles=None, labels="all", features=None))]
 fn basemap_provider(
     py: Python<'_>,
     name: &str,
     kind: Option<&str>,
     api_key: Option<String>,
     tiles: Option<String>,
+    labels: &str,
+    features: Option<Vec<String>>,
 ) -> PyResult<String> {
-    let opts = providers::ProviderOptions { kind: parse_kind(py, kind)?, api_key, tiles };
+    let labels = basemapper_core::Labels::parse(labels).map_err(|e| core_err_to_py(py, e))?;
+    let opts = providers::ProviderOptions { kind: parse_kind(py, kind)?, api_key, tiles, labels, features };
     let name = name.to_owned();
     py.allow_threads(|| providers::basemap_provider(&name, &opts)).map_err(|e| core_err_to_py(py, e))
 }

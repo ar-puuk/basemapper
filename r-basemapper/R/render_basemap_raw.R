@@ -42,6 +42,8 @@ render_basemap_raw <- function(
     pixel_ratio        = 1,
     tile_zoom          = NULL,
     layers             = NULL,
+    labels             = TRUE,
+    features           = NULL,
     auth_token         = NULL,
     tile_timeout_ms    = 10000L,
     max_tiles          = 256L,
@@ -60,7 +62,8 @@ render_basemap_raw <- function(
   }
   px <- render_styles_3857(
     unname(bbox_3857), width, height, style, pixel_ratio, tile_zoom = tile_zoom,
-    options = list(layers = layers, auth_token = auth_token, tile_timeout_ms = tile_timeout_ms,
+    options = list(layers = layers, labels = labels_arg(labels), features = features,
+                   auth_token = auth_token, tile_timeout_ms = tile_timeout_ms,
                    max_tiles = max_tiles, tile_concurrency = tile_concurrency,
                    fail_on_tile_error = fail_on_tile_error)
   )

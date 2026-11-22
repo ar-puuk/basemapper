@@ -101,7 +101,7 @@ fn local_pmtiles_archive_lists_and_renders() {
     let p = path.to_str().unwrap();
 
     let layers = list_layers(p, None).unwrap();
-    assert!(layers.iter().any(|(id, t)| id == "water-fill" && t == "fill"));
+    assert!(layers.iter().any(|(id, t, _)| id == "water-fill" && t == "fill"));
 
     let (s, _) = tile_style(p, &TileStyleOptions::default(), None).unwrap();
     let v = style_json(&s);
@@ -203,7 +203,7 @@ fn remote_pmtiles_reads_ranges_of_the_raw_file() {
     );
     let url = server.url_str("/area.pmtiles");
     let layers = list_layers(&url, None).unwrap();
-    assert!(layers.iter().any(|(id, _)| id == "water-fill"));
+    assert!(layers.iter().any(|(id, _, _)| id == "water-fill"));
     let r = render(RenderRequest::new([-WORLD, -WORLD, WORLD, WORLD], 1024, 1024, StyleInput::detect(&url))).unwrap();
     assert!(r.pixels.chunks(4).any(|px| px[3] > 0));
 }
@@ -212,7 +212,7 @@ fn remote_pmtiles_reads_ranges_of_the_raw_file() {
 fn catalogue_names_work_as_style() {
     // Raster-only entries resolve without the network.
     let layers = list_layers("Esri.WorldImagery", None).unwrap();
-    assert_eq!(layers, vec![("raster".to_owned(), "raster".to_owned())]);
+    assert_eq!(layers, vec![("raster".to_owned(), "raster".to_owned(), "other".to_owned())]);
     assert_eq!(list_layers("esri.worldimagery", None).unwrap(), layers);
     // A near miss is an error with the name it was probably meant to be.
     let e = list_layers("Esri.WorldImagry", None).unwrap_err().to_string();

@@ -178,8 +178,8 @@ cities = pd.DataFrame({"lon": [-111.89, -111.98], "lat": [40.76, 40.66]})
 ```
 
 The plot layers (`geom_basemap`, `tm_basemap`, `add_basemap`) share the
-arguments `style`, `tile_zoom`, `alpha`, `layers`, `pixel_ratio`,
-`auth_token`, `tile_timeout_ms` and `max_tiles`, and render at the output
+arguments `style`, `tile_zoom`, `alpha`, `layers`, `labels`, `features`,
+`pixel_ratio`, `auth_token`, `tile_timeout_ms` and `max_tiles`, and render at the output
 resolution (`ggsave(dpi = 300)`, `savefig(dpi=300)`).
 
 ---
@@ -203,7 +203,8 @@ resolution (`ggsave(dpi = 300)`, `savefig(dpi=300)`).
 | Tile cache | `tile_cache()` | `tile_cache()` | `cache::{dir, set_dir, clear}` |
 | Your own tile data (tile URL, TileJSON, PMTiles, ArcGIS) | pass it as `style`; `tile_style()` for overrides | same | `tile_style()` |
 | OGC WMS / WMTS | `wms_style()`, `wmts_style()` | same names | `providers::wms_style()`, `providers::wmts_style()` |
-| Inspect style layers | `list_layers()` | `list_layers()` | `list_layers()` |
+| Labels / features (stack parts of basemaps) | `labels =`, `features =` | same | `Basemap::labels()`, `Basemap::features()` |
+| Inspect style layers (id, type, feature) | `list_layers()` | `list_layers()` | `list_layers()` |
 
 ---
 
@@ -229,10 +230,36 @@ render_basemap_raw([15_000_000, -5_000_000, -15_000_000, 5_000_000], 800, 400,
 
 ---
 
-## Layer filtering
+## Labels, features and layers
 
-Pass a character vector / list to `layers` on any function to keep or
-exclude specific layers (`list_layers(style)` lists a style's layers):
+Every function takes `labels` and `features` to draw parts of a style, so
+basemaps can be stacked. `labels = FALSE` drops the labels (text and
+icons); `labels = "only"` keeps only the labels, on a transparent
+background. `features` keeps (`c("water", "roads")`) or drops
+(`"-buildings"`) parts of the map: background, water, landcover, parks,
+buildings, roads, rail, boundaries, places, poi, terrain. They work on any
+vector style, from tables for the OpenMapTiles, Protomaps and Shortbread
+schemas and Esri's layer names; catalogue raster basemaps switch to their
+label-free or label-only tiles.
+
+```r
+# R — imagery under a vector basemap's labels; each style filtered alone
+basemap(c("Esri.WorldImagery", basemap_provider("OpenFreeMap.Liberty", labels = "only")),
+        center = c(-111.89, 40.76), zoom = 12)
+
+# R — water and roads only, without their names
+basemap("OpenFreeMap.Liberty", labels = FALSE, features = c("water", "roads"), bounds = nc)
+```
+
+```python
+# Python — same API
+basemap(["Esri.WorldImagery", basemap_provider("OpenFreeMap.Liberty", labels="only")],
+        center=(-111.89, 40.76), zoom=12)
+basemap("OpenFreeMap.Liberty", labels=False, features=["water", "roads"], bounds=gdf)
+```
+
+`list_layers(style)` shows each layer's id, type and feature. For finer
+control, `layers` keeps or drops layers by id:
 
 ```r
 # R — keep only roads and labels

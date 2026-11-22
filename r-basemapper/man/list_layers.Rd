@@ -12,12 +12,22 @@ list_layers(style, auth_token = NULL)
 \item{auth_token}{Optional access token for the style URL.}
 }
 \value{
-A data frame with columns \code{id} and \code{type}.
+A data frame with columns \code{id}, \code{type} and \code{feature}.
 }
 \description{
-The layers of a style in drawing order, with their types: the IDs are
-what the \code{layers} filter of \code{\link[=basemap]{basemap()}} and the renderers accepts (plain
-IDs keep, minus-prefixed IDs drop). Python: \code{basemapper.list_layers()}.
+The layers of a style in drawing order, with their types and features:
+the IDs are what the \code{layers} filter of \code{\link[=basemap]{basemap()}} and the renderers
+accepts (plain IDs keep, minus-prefixed IDs drop), the features what
+\code{features} accepts; \code{symbol} layers are the labels \code{labels} keeps or
+drops. Python: \code{basemapper.list_layers()}.
+}
+\details{
+A layer's feature comes from its vector tile source layer, with tables
+for the OpenMapTiles (OpenFreeMap, Stadia, MapTiler), Protomaps (CARTO)
+and Shortbread (VersaTiles) schemas and keywords for others (Esri's
+descriptive names, layer ids). The features are background, water,
+landcover, parks, buildings, roads, rail, boundaries, places, poi,
+terrain and other.
 }
 \examples{
 \dontrun{

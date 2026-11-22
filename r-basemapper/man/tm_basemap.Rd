@@ -9,6 +9,8 @@ tm_basemap(
   tile_zoom = NULL,
   alpha = 1,
   layers = NULL,
+  labels = TRUE,
+  features = NULL,
   pixel_ratio = NULL,
   auth_token = NULL,
   tile_timeout_ms = 10000L,
@@ -31,6 +33,17 @@ pick tiles as MapLibre does for the view.}
 
 \item{layers}{Optional layer filter applied to every style: plain IDs keep
 only those layers, minus-prefixed IDs drop them (see \code{\link[=list_layers]{list_layers()}}).}
+
+\item{labels}{\code{TRUE} keeps every layer, \code{FALSE} drops the labels (text and
+icons), \code{"only"} keeps only the labels on a transparent background, to
+stack over another map. Catalogue raster basemaps switch to their
+label-free or label-only tiles.}
+
+\item{features}{Optional feature filter applied to every style: plain
+names keep those features, minus-prefixed names drop them, e.g.
+\code{c("water", "roads")} or \code{"-buildings"}. Features: background, water,
+landcover, parks, buildings, roads, rail, boundaries, places, poi,
+terrain, other (the \code{feature} column of \code{\link[=list_layers]{list_layers()}}).}
 
 \item{pixel_ratio}{Device pixels per CSS pixel: the basemap raster is
 \code{width * pixel_ratio} by \code{height * pixel_ratio} pixels with the same zoom

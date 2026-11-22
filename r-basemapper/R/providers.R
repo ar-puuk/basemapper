@@ -21,8 +21,14 @@
 #'   `.pmtiles` archive (URL or path), tile URL or TileJSON. It must use the
 #'   same schema as the provider's tiles (OpenMapTiles for OpenFreeMap and
 #'   Stadia).
+#' @param labels `TRUE` keeps every layer, `FALSE` drops the labels,
+#'   `"only"` keeps only the labels, to stack this basemap's labels over
+#'   another map. Raster tiles switch to the provider's label-free or
+#'   label-only tiles (an error when it has none).
+#' @param features Vector form: features to keep (`c("water", "roads")`) or
+#'   drop (`"-buildings"`); see [list_layers()].
 #' @return A style string: a URL, or inline style JSON (the raster form, or
-#'   with `tiles`).
+#'   with `tiles`, `labels` or `features`).
 #' @seealso [tile_style()] for your own tile data, [wms_style()] for OGC
 #'   services.
 #' @export
@@ -32,10 +38,15 @@
 #' \dontrun{
 #' basemap_provider("CartoDB.Voyager", api_key = "...")   # or set CARTO_API_KEY
 #' basemap_provider("OpenFreeMap.Liberty", tiles = "data/area.pmtiles")
+#' # Imagery under a vector basemap's labels
+#' basemap(c("Esri.WorldImagery", basemap_provider("OpenFreeMap.Liberty", labels = "only")),
+#'         center = c(-111.89, 40.76), zoom = 12)
 #' }
-basemap_provider <- function(name, type = NULL, api_key = NULL, tiles = NULL) {
+basemap_provider <- function(name, type = NULL, api_key = NULL, tiles = NULL, labels = TRUE,
+                             features = NULL) {
   chr <- function(x) if (is.null(x)) NULL else as.character(x)[1L]
   .Call("wrap__basemap_provider_raw", as.character(name)[1L], chr(type), chr(api_key), chr(tiles),
+        labels_arg(labels), if (is.null(features)) NULL else as.character(features),
         PACKAGE = "basemapper")
 }
 

@@ -3,7 +3,7 @@ STYLE_JSON <- '{"version":8,"sources":{"s":{"type":"raster","tiles":["http://t/{
 test_that("list_layers returns a data frame of ids and types", {
   l <- list_layers(STYLE_JSON)
   expect_s3_class(l, "data.frame")
-  expect_named(l, c("id", "type"))
+  expect_named(l, c("id", "type", "feature"))
   expect_equal(l$id, c("water", "roads", "labels"))
   expect_equal(l$type, rep("raster", 3))
 })

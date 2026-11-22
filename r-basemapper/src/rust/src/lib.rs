@@ -48,10 +48,14 @@ fn stack_requests(
     tile_timeout_ms: i32,
     max_tiles: i32,
     layers: Nullable<Vec<String>>,
+    labels: &str,
+    features: Nullable<Vec<String>>,
     auth_token: Nullable<String>,
     fail_on_tile_error: bool,
     tile_concurrency: i32,
 ) -> Result<Vec<RenderRequest>> {
+    let labels = basemapper_core::Labels::parse(labels).map_err(err)?;
+    let features = opt(features);
     if bbox_3857.len() != 4 {
         return Err(err("bounds must have exactly 4 elements"));
     }
@@ -74,6 +78,8 @@ fn stack_requests(
             max_tiles: max_tiles as u32,
             tile_concurrency: tile_concurrency.max(1) as u32,
             layers: layers.clone(),
+            labels,
+            features: features.clone(),
             auth_token: auth_token.clone(),
             fail_on_tile_error,
             pixel_ratio,
@@ -98,13 +104,15 @@ fn render_raw(
     tile_timeout_ms: i32,
     max_tiles: i32,
     layers: Nullable<Vec<String>>,
+    labels: &str,
+    features: Nullable<Vec<String>>,
     auth_token: Nullable<String>,
     fail_on_tile_error: bool,
     tile_concurrency: i32,
 ) -> Result<Robj> {
     let reqs = stack_requests(
-        &bbox_3857, width, height, styles, pixel_ratio, tile_zoom, tile_timeout_ms, max_tiles, layers, auth_token,
-        fail_on_tile_error, tile_concurrency,
+        &bbox_3857, width, height, styles, pixel_ratio, tile_zoom, tile_timeout_ms, max_tiles, layers, labels, features,
+        auth_token, fail_on_tile_error, tile_concurrency,
     )?;
     let r = render_stack(reqs).map_err(err)?;
     let mut out: Robj = Raw::from_bytes(&r.pixels).into();
@@ -136,6 +144,8 @@ fn render_svg_raw(
     tile_timeout_ms: i32,
     max_tiles: i32,
     layers: Nullable<Vec<String>>,
+    labels: &str,
+    features: Nullable<Vec<String>>,
     auth_token: Nullable<String>,
     fail_on_tile_error: bool,
     tile_concurrency: i32,
@@ -144,8 +154,8 @@ fn render_svg_raw(
     font_dirs: Nullable<Vec<String>>,
 ) -> Result<String> {
     let reqs = stack_requests(
-        &bbox_3857, width, height, styles, 1.0, tile_zoom, tile_timeout_ms, max_tiles, layers, auth_token,
-        fail_on_tile_error, tile_concurrency,
+        &bbox_3857, width, height, styles, 1.0, tile_zoom, tile_timeout_ms, max_tiles, layers, labels, features,
+        auth_token, fail_on_tile_error, tile_concurrency,
     )?;
     let mut opts = SvgOptions::default();
     opts.text = match text {
@@ -185,15 +195,17 @@ fn fit_bounds_raw(bounds_3857: Vec<f64>, width: i32, height: i32) -> Result<Vec<
     Ok(vec![lon, lat, zoom])
 }
 
-/// A style's layer ids in drawing order, with their types as attribute
-/// `type`.
+/// A style's layer ids in drawing order, with their types and features as
+/// attributes `type` and `feature`.
 #[extendr]
 fn list_layers_raw(style: &str, auth_token: Nullable<String>) -> Result<Robj> {
     let layers = basemapper_core::list_layers(style, opt(auth_token).as_deref()).map_err(err)?;
     let ids: Vec<String> = layers.iter().map(|l| l.0.clone()).collect();
-    let types: Vec<String> = layers.into_iter().map(|l| l.1).collect();
+    let types: Vec<String> = layers.iter().map(|l| l.1.clone()).collect();
+    let features: Vec<String> = layers.into_iter().map(|l| l.2).collect();
     let mut out: Robj = ids.into();
     out.set_attrib("type", types)?;
+    out.set_attrib("feature", features)?;
     Ok(out)
 }
 
@@ -209,8 +221,16 @@ fn basemap_provider_raw(
     kind: Nullable<String>,
     api_key: Nullable<String>,
     tiles: Nullable<String>,
+    labels: &str,
+    features: Nullable<Vec<String>>,
 ) -> Result<String> {
-    let opts = providers::ProviderOptions { kind: parse_kind(kind)?, api_key: opt(api_key), tiles: opt(tiles) };
+    let opts = providers::ProviderOptions {
+        kind: parse_kind(kind)?,
+        api_key: opt(api_key),
+        tiles: opt(tiles),
+        labels: basemapper_core::Labels::parse(labels).map_err(err)?,
+        features: opt(features),
+    };
     providers::basemap_provider(name, &opts).map_err(err)
 }
 

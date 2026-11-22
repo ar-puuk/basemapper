@@ -27,6 +27,12 @@ pub struct RenderRequest {
     pub max_tiles: u32,
     pub tile_concurrency: u32,
     pub layers: Option<Vec<String>>,
+    /// Keep every layer, drop the labels, or keep only the labels (see
+    /// [`crate::features`]).
+    pub labels: crate::Labels,
+    /// Feature filter: plain names keep those features, `-`-prefixed names
+    /// drop them (see [`crate::features::FEATURES`]).
+    pub features: Option<Vec<String>>,
     /// Optional authentication token. Sent as `Authorization: Bearer <token>`
     /// for raster sources; appended as `?access_token=<token>` for Mapbox
     /// vector sources.
@@ -57,6 +63,8 @@ impl RenderRequest {
             max_tiles: 256,
             tile_concurrency: 16,
             layers: None,
+            labels: crate::Labels::All,
+            features: None,
             auth_token: None,
             fail_on_tile_error: false,
             pixel_ratio: 1.0,
@@ -120,6 +128,9 @@ impl RenderRequest {
         }
         if let Some(ref layers) = self.layers {
             validate_layers(layers)?;
+        }
+        if let Some(ref features) = self.features {
+            crate::features::validate_features(features)?;
         }
         Ok(())
     }

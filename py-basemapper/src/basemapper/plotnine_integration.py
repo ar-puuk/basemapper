@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 
 import numpy as np
+
+from ._render import _features_arg, labels_arg
 
 # plotnine is an optional dependency; this module is only imported when it is
 # available (guarded in __init__.py via try/except ImportError).
@@ -32,6 +34,16 @@ class geom_basemap(geom):
         alpha: Opacity of the basemap layer (0.0–1.0).
         layers: Optional layer filter list — plain IDs keep only those layers;
             minus-prefixed IDs drop those layers.
+        labels: ``True`` keeps every layer, ``False`` drops the labels (text
+            and icons), ``"only"`` keeps only the labels on a transparent
+            background, to stack over another map. Catalogue raster
+            basemaps switch to their label-free or label-only tiles.
+        features: Optional feature filter applied to every style: plain
+            names keep those features, ``-`` prefixed names drop them, e.g.
+            ``["water", "roads"]`` or ``["-buildings"]``. Features:
+            background, water, landcover, parks, buildings, roads, rail,
+            boundaries, places, poi, terrain, other (see the ``feature``
+            of :func:`list_layers`).
         pixel_ratio: Device pixels per CSS pixel; default output dpi / 96.
         auth_token: Optional access token for the tile service.
         tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
@@ -65,6 +77,8 @@ class geom_basemap(geom):
         tile_zoom: Optional[int] = None,
         alpha: float = 1.0,
         layers: Optional[List[str]] = None,
+        labels: Union[bool, str] = True,
+        features: Optional[List[str]] = None,
         pixel_ratio: Optional[float] = None,
         auth_token: Optional[str] = None,
         tile_timeout_ms: int = 10_000,
@@ -76,6 +90,8 @@ class geom_basemap(geom):
         self.tile_zoom = tile_zoom
         self.alpha = alpha
         self.layers = layers
+        self.labels = labels_arg(labels)
+        self.features = _features_arg(features)
         self.pixel_ratio = pixel_ratio
         self.auth_token = auth_token
         self.tile_timeout_ms = tile_timeout_ms
@@ -109,7 +125,7 @@ class geom_basemap(geom):
         ax.set_ylim(y_range[0], y_range[1])
         img = BasemapImage(
             ax, self.style, crs, self.pixel_ratio, self.tile_zoom,
-            dict(layers=self.layers, auth_token=self.auth_token,
+            dict(layers=self.layers, labels=self.labels, features=self.features, auth_token=self.auth_token,
                  tile_timeout_ms=self.tile_timeout_ms, max_tiles=self.max_tiles),
             alpha=self.alpha,
         )

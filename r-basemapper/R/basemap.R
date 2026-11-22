@@ -26,6 +26,15 @@
 #' @param pixel_ratio Device pixels per CSS pixel.
 #' @param layers Optional layer filter applied to every style: plain IDs keep
 #'   only those layers, minus-prefixed IDs drop them (see [list_layers()]).
+#' @param labels `TRUE` keeps every layer, `FALSE` drops the labels (text and
+#'   icons), `"only"` keeps only the labels on a transparent background, to
+#'   stack over another map. Catalogue raster basemaps switch to their
+#'   label-free or label-only tiles.
+#' @param features Optional feature filter applied to every style: plain
+#'   names keep those features, minus-prefixed names drop them, e.g.
+#'   `c("water", "roads")` or `"-buildings"`. Features: background, water,
+#'   landcover, parks, buildings, roads, rail, boundaries, places, poi,
+#'   terrain, other (the `feature` column of [list_layers()]).
 #' @param auth_token Optional access token for the tile service.
 #' @param tile_timeout_ms Per-tile HTTP timeout in milliseconds.
 #' @param max_tiles Maximum tiles fetched per style.
@@ -60,6 +69,8 @@ basemap <- function(
     crs                = NULL,
     pixel_ratio        = 1,
     layers             = NULL,
+    labels             = TRUE,
+    features           = NULL,
     auth_token         = NULL,
     tile_timeout_ms    = 10000L,
     max_tiles          = 256L,
@@ -79,7 +90,7 @@ basemap <- function(
       styles = styles, width = width, height = height, pixel_ratio = as.numeric(pixel_ratio),
       center = c(0, 0), zoom = 0,
       options = list(
-        layers = layers, auth_token = auth_token,
+        layers = layers, labels = labels_arg(labels), features = features, auth_token = auth_token,
         tile_timeout_ms = as.integer(tile_timeout_ms), max_tiles = as.integer(max_tiles),
         tile_concurrency = as.integer(tile_concurrency),
         fail_on_tile_error = isTRUE(fail_on_tile_error)
@@ -247,6 +258,8 @@ render_svg <- function(m, path = NULL, text = c("editable", "bitmap", "paths"),
     as.numeric(get_bounds(m)), m$width, m$height, m$styles,
     NULL, o$tile_timeout_ms, o$max_tiles,
     if (is.null(o$layers)) NULL else as.character(o$layers),
+    o$labels %||% "all",
+    if (is.null(o$features)) NULL else as.character(o$features),
     if (is.null(o$auth_token)) NULL else as.character(o$auth_token),
     o$fail_on_tile_error, o$tile_concurrency,
     text, embed_fonts,
@@ -326,12 +339,20 @@ render_pixels <- function(m) {
                      tile_zoom = NULL, options = m$options)
 }
 
+# `labels` (TRUE, FALSE or "only") as the core's "all" / "none" / "only".
+labels_arg <- function(labels) {
+  if (is.character(labels) && length(labels) == 1L && labels %in% c("all", "none", "only")) return(labels)
+  if (isTRUE(labels)) return("all")
+  if (isFALSE(labels)) return("none")
+  stop('labels must be TRUE, FALSE or "only".', call. = FALSE)
+}
+
 # Render styles over an EPSG:3857 bbox; width/height in CSS px.
 render_styles_3857 <- function(bbox_3857, width, height, styles, pixel_ratio,
                                tile_zoom = NULL, options = list()) {
   o <- utils::modifyList(
-    list(layers = NULL, auth_token = NULL, tile_timeout_ms = 10000L, max_tiles = 256L,
-         tile_concurrency = 16L, fail_on_tile_error = FALSE),
+    list(layers = NULL, labels = "all", features = NULL, auth_token = NULL, tile_timeout_ms = 10000L,
+         max_tiles = 256L, tile_concurrency = 16L, fail_on_tile_error = FALSE),
     options
   )
   raw <- .Call(
@@ -341,6 +362,8 @@ render_styles_3857 <- function(bbox_3857, width, height, styles, pixel_ratio,
     if (is.null(tile_zoom)) NULL else as.integer(tile_zoom),
     as.integer(o$tile_timeout_ms), as.integer(o$max_tiles),
     if (is.null(o$layers)) NULL else as.character(o$layers),
+    labels_arg(o$labels),
+    if (is.null(o$features)) NULL else as.character(o$features),
     if (is.null(o$auth_token)) NULL else as.character(o$auth_token),
     isTRUE(o$fail_on_tile_error), as.integer(o$tile_concurrency),
     PACKAGE = "basemapper"

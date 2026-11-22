@@ -60,6 +60,8 @@ fn main() {
         max_tiles: 256,
         tile_concurrency: 16,
         layers: None,
+        labels: basemapper_core::Labels::All,
+        features: None,
         auth_token: None,
         fail_on_tile_error: false,
         pixel_ratio: 1.0,

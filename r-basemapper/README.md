@@ -64,6 +64,10 @@ style <- "OpenFreeMap.Liberty"
 style <- basemap_provider("Esri.WorldGrayCanvas", type = "raster")   # pick the form
 style <- basemap_provider("OpenFreeMap.Liberty", tiles = "data/omt.pmtiles")   # your own tiles
 
+# Stack parts of basemaps: imagery under a vector basemap's labels
+hybrid <- c("Esri.WorldImagery", basemap_provider("OpenFreeMap.Liberty", labels = "only"))
+# labels = FALSE / "only", features = c("water", "roads") / "-buildings"
+
 # A view: centre + zoom, or bounds to fit
 m <- basemap(style, 800, 600, center = c(-122.45, 37.75), zoom = 12, pixel_ratio = 2)
 render_png(m, path = "sf.png")     # 1600 x 1200

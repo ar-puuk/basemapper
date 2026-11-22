@@ -267,6 +267,8 @@ fn render_fixture(dir: &Path, case: &Value, svg: bool) -> Result<(RgbaImage, Opt
         max_tiles: 256,
         tile_concurrency: 8,
         layers,
+        labels: basemapper_core::Labels::All,
+        features: None,
         auth_token: None,
         // Tiles outside a source's coverage are left out of fixtures (404);
         // MapLibre renders them as empty, so skip rather than fail.

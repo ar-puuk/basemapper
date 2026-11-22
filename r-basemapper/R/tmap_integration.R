@@ -32,6 +32,8 @@ tm_basemap <- function(
     tile_zoom       = NULL,
     alpha           = 1,
     layers          = NULL,
+    labels          = TRUE,
+    features        = NULL,
     pixel_ratio     = NULL,
     auth_token      = NULL,
     tile_timeout_ms = 10000L,
@@ -49,6 +51,8 @@ tm_basemap <- function(
         tile_zoom       = tile_zoom,
         alpha           = alpha,
         layers          = layers,
+        labels          = labels_arg(labels),
+        features        = features,
         pixel_ratio     = pixel_ratio,
         auth_token      = auth_token,
         tile_timeout_ms = tile_timeout_ms,
@@ -95,7 +99,8 @@ tmapGridAuxPrepare.tm_basemap_rust <- function(a, bs, id, o) {
         unname(c(b_3857["xmin"], b_3857["ymin"], b_3857["xmax"], b_3857["ymax"])),
         w, h, a$style, ratio,
         tile_zoom = a$tile_zoom,
-        options   = list(layers = a$layers, auth_token = a$auth_token,
+        options   = list(layers = a$layers, labels = a$labels, features = a$features,
+                         auth_token = a$auth_token,
                          tile_timeout_ms = a$tile_timeout_ms, max_tiles = a$max_tiles)
       )),
       error = function(e) {

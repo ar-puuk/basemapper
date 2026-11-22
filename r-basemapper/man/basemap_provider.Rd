@@ -4,7 +4,14 @@
 \alias{basemap_provider}
 \title{Named basemaps}
 \usage{
-basemap_provider(name, type = NULL, api_key = NULL, tiles = NULL)
+basemap_provider(
+  name,
+  type = NULL,
+  api_key = NULL,
+  tiles = NULL,
+  labels = TRUE,
+  features = NULL
+)
 }
 \arguments{
 \item{name}{Basemap name (case-insensitive).}
@@ -22,10 +29,18 @@ need one.}
 \code{.pmtiles} archive (URL or path), tile URL or TileJSON. It must use the
 same schema as the provider's tiles (OpenMapTiles for OpenFreeMap and
 Stadia).}
+
+\item{labels}{\code{TRUE} keeps every layer, \code{FALSE} drops the labels,
+\code{"only"} keeps only the labels, to stack this basemap's labels over
+another map. Raster tiles switch to the provider's label-free or
+label-only tiles (an error when it has none).}
+
+\item{features}{Vector form: features to keep (\code{c("water", "roads")}) or
+drop (\code{"-buildings"}); see \code{\link[=list_layers]{list_layers()}}.}
 }
 \value{
 A style string: a URL, or inline style JSON (the raster form, or
-with \code{tiles}).
+with \code{tiles}, \code{labels} or \code{features}).
 }
 \description{
 \code{basemap_provider()} returns the style of a named basemap, for
@@ -43,6 +58,9 @@ basemap_provider("Esri.WorldGrayCanvas", type = "raster")
 \dontrun{
 basemap_provider("CartoDB.Voyager", api_key = "...")   # or set CARTO_API_KEY
 basemap_provider("OpenFreeMap.Liberty", tiles = "data/area.pmtiles")
+# Imagery under a vector basemap's labels
+basemap(c("Esri.WorldImagery", basemap_provider("OpenFreeMap.Liberty", labels = "only")),
+        center = c(-111.89, 40.76), zoom = 12)
 }
 }
 \seealso{

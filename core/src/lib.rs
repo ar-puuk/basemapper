@@ -2,6 +2,7 @@ pub mod basemap;
 pub mod bbox;
 pub mod cache;
 pub mod error;
+pub mod features;
 pub mod providers;
 pub mod renderer;
 pub mod style;
@@ -13,6 +14,7 @@ pub use basemap::{Basemap, Crs};
 pub use bbox::{bbox_from_center, compute_zoom, fit_bounds, RenderRequest, RenderResult, SpatialBounds};
 pub use error::BasemapError;
 pub use style::{filter_style_layers, StyleInput};
+pub use features::Labels;
 pub use tile_fetcher::{TileSource, TileUrls};
 pub use tile_style::{TileKind, TileStyleOptions};
 pub use vector::fonts::{FontEmbed, SvgOptions, SvgText};
@@ -111,13 +113,14 @@ pub fn tile_style(
     })
 }
 
-/// A style's layers in drawing order, as (id, type) pairs. `style` is a
-/// style URL or style JSON (the same strings `Basemap` takes); the ids are
-/// what the `layers` filter accepts.
+/// A style's layers in drawing order, as (id, type, feature) triples.
+/// `style` is a style URL or style JSON (the same strings `Basemap` takes);
+/// the ids are what the `layers` filter accepts, the features what the
+/// `features` filter accepts (see [`features`]).
 ///
 /// `style` is anything [`render`] accepts: a style, or tile data (a tile
 /// URL, TileJSON, PMTiles archive or ArcGIS service) with its built style.
-pub fn list_layers(style: &str, auth_token: Option<&str>) -> Result<Vec<(String, String)>, BasemapError> {
+pub fn list_layers(style: &str, auth_token: Option<&str>) -> Result<Vec<(String, String, String)>, BasemapError> {
     let json = RUNTIME.block_on(async {
         let client = http_client(std::time::Duration::from_secs(30))?;
         StyleInput::detect(style).resolve(&client, auth_token).await
@@ -127,7 +130,13 @@ pub fn list_layers(style: &str, auth_token: Option<&str>) -> Result<Vec<(String,
         .as_array()
         .map(|ls| {
             ls.iter()
-                .map(|l| (l["id"].as_str().unwrap_or("").to_owned(), l["type"].as_str().unwrap_or("").to_owned()))
+                .map(|l| {
+                    (
+                        l["id"].as_str().unwrap_or("").to_owned(),
+                        l["type"].as_str().unwrap_or("").to_owned(),
+                        features::layer_feature(l).to_owned(),
+                    )
+                })
                 .collect()
         })
         .unwrap_or_default())
@@ -147,6 +156,15 @@ pub fn encode_png(pixels: &[u8], width: u32, height: u32) -> Result<Vec<u8>, Bas
 // Async rendering pipeline
 // ──────────────────────────────────────────────────────────────────────────────
 
+/// The style with the request's `layers`, `labels` and `features` filters applied.
+fn select_style_layers(raw_json: &str, request: &RenderRequest) -> Result<String, BasemapError> {
+    let json = match &request.layers {
+        Some(layers) => filter_style_layers(raw_json, layers)?,
+        None => raw_json.to_owned(),
+    };
+    features::select_layers(&json, request.labels, request.features.as_deref().unwrap_or(&[]))
+}
+
 async fn render_async(request: RenderRequest) -> Result<RenderResult, BasemapError> {
     let client = http_client(std::time::Duration::from_millis(request.tile_timeout_ms as u64))?;
 
@@ -157,16 +175,16 @@ async fn render_async(request: RenderRequest) -> Result<RenderResult, BasemapErr
         .await?;
     style::validate_maplibre_style(&raw_json)?;
 
-    let style_json = if let Some(ref layers) = request.layers {
-        filter_style_layers(&raw_json, layers)?
-    } else {
-        raw_json.clone()
-    };
-    let transparent = request.layers.is_some();
+    let style_json = select_style_layers(&raw_json, &request)?;
 
     // Extract tile source (may fetch TileJSON).
     let style_val: serde_json::Value = serde_json::from_str(&style_json)
         .map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
+    // Filtered styles and label-only tiles go over other maps: no background fill.
+    let transparent = request.layers.is_some()
+        || request.labels != Labels::All
+        || request.features.is_some()
+        || style_val.pointer("/metadata/basemapper:transparent") == Some(&serde_json::Value::Bool(true));
     let style_base_url = match &request.style_input {
         StyleInput::Url(u) => Some(u.as_str()),
         StyleInput::InlineJson(_) => None,
@@ -972,10 +990,7 @@ pub fn render_svg_stack_with(requests: Vec<RenderRequest>, options: &SvgOptions)
         for request in &requests {
             let raw_json = request.style_input.resolve(&client, request.auth_token.as_deref()).await?;
             style::validate_maplibre_style(&raw_json)?;
-            let style_json = match &request.layers {
-                Some(layers) => filter_style_layers(&raw_json, layers)?,
-                None => raw_json,
-            };
+            let style_json = select_style_layers(&raw_json, request)?;
             let style_val: serde_json::Value =
                 serde_json::from_str(&style_json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
             let tile_source =

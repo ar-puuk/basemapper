@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -28,6 +28,23 @@ def _render_buffer(
     )
 
 
+def labels_arg(labels: Union[bool, str]) -> str:
+    """``labels`` (True, False or "only") as the core's "all" / "none" / "only"."""
+    if labels is True:
+        return "all"
+    if labels is False:
+        return "none"
+    if isinstance(labels, str) and labels.lower() == "only":
+        return "only"
+    raise ValueError(f'labels must be True, False or "only", not {labels!r}')
+
+
+def _features_arg(features: Optional[Any]) -> Optional[List[str]]:
+    if features is None:
+        return None
+    return [features] if isinstance(features, str) else [str(f) for f in features]
+
+
 def render_basemap_raw(
     bounds: Any,
     width: int,
@@ -37,6 +54,8 @@ def render_basemap_raw(
     pixel_ratio: float = 1.0,
     tile_zoom: Optional[int] = None,
     layers: Optional[List[str]] = None,
+    labels: Union[bool, str] = True,
+    features: Optional[List[str]] = None,
     auth_token: Optional[str] = None,
     tile_timeout_ms: int = 10_000,
     max_tiles: int = 256,
@@ -69,6 +88,16 @@ def render_basemap_raw(
             ``None`` to pick tiles as MapLibre does for the view.
         layers: Optional layer filter: plain IDs keep only those layers,
             ``-`` prefixed IDs drop them.
+        labels: ``True`` keeps every layer, ``False`` drops the labels (text
+            and icons), ``"only"`` keeps only the labels on a transparent
+            background, to stack over another map. Catalogue raster
+            basemaps switch to their label-free or label-only tiles.
+        features: Optional feature filter applied to every style: plain
+            names keep those features, ``-`` prefixed names drop them, e.g.
+            ``["water", "roads"]`` or ``["-buildings"]``. Features:
+            background, water, landcover, parks, buildings, roads, rail,
+            boundaries, places, poi, terrain, other (see the ``feature``
+            of :func:`list_layers`).
         auth_token: Optional access token for the tile service.
         tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
         max_tiles: Maximum tiles fetched per style.
@@ -84,7 +113,8 @@ def render_basemap_raw(
     """
     buf, w, h = _render_buffer(
         bounds, width, height, style, crs=crs, pixel_ratio=pixel_ratio, tile_zoom=tile_zoom,
-        layers=layers, auth_token=auth_token, tile_timeout_ms=tile_timeout_ms, max_tiles=max_tiles,
+        layers=layers, labels=labels_arg(labels), features=_features_arg(features), auth_token=auth_token,
+        tile_timeout_ms=tile_timeout_ms, max_tiles=max_tiles,
         tile_concurrency=tile_concurrency, fail_on_tile_error=fail_on_tile_error,
     )
     return np.frombuffer(buf, dtype=np.uint8).reshape(h, w, 4).copy()

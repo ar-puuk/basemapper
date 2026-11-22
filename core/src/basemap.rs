@@ -30,6 +30,8 @@ pub struct Basemap {
     zoom: f64,
     pixel_ratio: f64,
     layers: Option<Vec<String>>,
+    labels: crate::Labels,
+    features: Option<Vec<String>>,
     auth_token: Option<String>,
     tile_timeout_ms: u32,
     max_tiles: u32,
@@ -90,6 +92,8 @@ impl Basemap {
             zoom: 0.0,
             pixel_ratio: 1.0,
             layers: None,
+            labels: crate::Labels::All,
+            features: None,
             auth_token: None,
             tile_timeout_ms: 10_000,
             max_tiles: 256,
@@ -136,6 +140,19 @@ impl Basemap {
     /// layers, `-`-prefixed IDs drop them.
     pub fn layers(mut self, layers: Vec<String>) -> Self {
         self.layers = Some(layers);
+        self
+    }
+
+    /// Labels to keep in every style: all, none, or only the labels.
+    pub fn labels(mut self, labels: crate::Labels) -> Self {
+        self.labels = labels;
+        self
+    }
+
+    /// Feature filter applied to every style: plain names keep those
+    /// features (`"water"`, `"roads"`, ...), `-`-prefixed names drop them.
+    pub fn features(mut self, features: Vec<String>) -> Self {
+        self.features = Some(features);
         self
     }
 
@@ -240,6 +257,8 @@ impl Basemap {
             .iter()
             .map(|s| RenderRequest {
                 layers: self.layers.clone(),
+                labels: self.labels,
+                features: self.features.clone(),
                 auth_token: self.auth_token.clone(),
                 tile_timeout_ms: self.tile_timeout_ms,
                 max_tiles: self.max_tiles,

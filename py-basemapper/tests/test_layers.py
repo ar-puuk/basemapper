@@ -23,9 +23,9 @@ STYLE = json.dumps({
 
 def test_list_layers_from_inline_json():
     assert list_layers(STYLE) == [
-        {"id": "water", "type": "raster"},
-        {"id": "roads", "type": "raster"},
-        {"id": "labels", "type": "background"},
+        {"id": "water", "type": "raster", "feature": "other"},
+        {"id": "roads", "type": "raster", "feature": "other"},
+        {"id": "labels", "type": "background", "feature": "background"},
     ]
 
 

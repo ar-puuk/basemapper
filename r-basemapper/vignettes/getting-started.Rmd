@@ -138,15 +138,49 @@ The plot layers share these arguments (in Python too):
 | `tile_zoom` | `NULL` (as MapLibre) | Tile detail override on the 256 px grid |
 | `alpha` | `1` | Basemap opacity |
 | `layers` | `NULL` (all) | Layer filter — see below |
+| `labels` | `TRUE` | `FALSE` drops labels, `"only"` keeps just them — see below |
+| `features` | `NULL` (all) | Feature filter — see below |
 | `pixel_ratio` | device dpi / 96 | Device pixels per CSS pixel |
 | `auth_token` | `NULL` | Access token for the tile service |
 | `tile_timeout_ms` | `10000` | Per-tile HTTP timeout |
 | `max_tiles` | `256` | Cap on tiles fetched per style |
 
-## Step 5 — Filter layers
+## Step 5 — Labels, features and layers
 
-Pass layer IDs to `layers` to keep only those layers, or prefix IDs with
-`"-"` to drop them. Keeping and dropping cannot be mixed.
+`labels = FALSE` draws a style without its labels (text and icons);
+`labels = "only"` draws just the labels, on a transparent background, to
+go over another map. `features` keeps or drops parts of the map by what
+they show: background, water, landcover, parks, buildings, roads, rail,
+boundaries, places, poi and terrain. `list_layers()` shows each layer's
+feature.
+
+```r
+list_layers(positron)                       # id, type, feature
+
+# Water and roads only, without their names
+render_png(basemap(positron, 800, 600, bounds = nc, labels = FALSE,
+                   features = c("water", "roads")), path = "nc-lines.png")
+
+# Everything but buildings and points of interest
+ggplot(nc) + geom_basemap(positron, features = c("-buildings", "-poi"))
+```
+
+On the renderers these apply to every style of a stack. To filter one
+style of a stack, pass them to `basemap_provider()`; this puts satellite
+imagery under a vector basemap's labels:
+
+```r
+hybrid <- c("Esri.WorldImagery",
+            basemap_provider("OpenFreeMap.Liberty", labels = "only"))
+render_png(basemap(hybrid, 800, 600, bounds = nc), path = "nc-hybrid.png")
+
+# Raster basemaps switch to their label-free or label-only tiles
+relief <- c("Esri.WorldShadedRelief", basemap_provider("Esri.WorldShadedRelief", labels = "only"))
+```
+
+For finer control, pass layer IDs to `layers` to keep only those layers,
+or prefix IDs with `"-"` to drop them. Keeping and dropping cannot be
+mixed.
 
 ```r
 # Without town and village labels

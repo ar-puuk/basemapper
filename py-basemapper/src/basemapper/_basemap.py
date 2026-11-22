@@ -12,6 +12,8 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
+from ._render import _features_arg, labels_arg
+
 StyleLike = Union[str, Any]
 
 
@@ -66,6 +68,8 @@ class Basemap:
         crs: Optional[Any] = None,
         pixel_ratio: float = 1.0,
         layers: Optional[List[str]] = None,
+        labels: Union[bool, str] = True,
+        features: Optional[List[str]] = None,
         auth_token: Optional[str] = None,
         tile_timeout_ms: int = 10_000,
         max_tiles: int = 256,
@@ -80,6 +84,9 @@ class Basemap:
         self.height = int(height)
         self.pixel_ratio = float(pixel_ratio)
         self.layers = layers
+        labels_arg(labels)  # validate now
+        self.labels = labels
+        self.features = _features_arg(features)
         self.auth_token = auth_token
         self.tile_timeout_ms = int(tile_timeout_ms)
         self.max_tiles = int(max_tiles)
@@ -160,6 +167,8 @@ class Basemap:
     def _options(self) -> dict:
         return dict(
             layers=self.layers,
+            labels=labels_arg(self.labels),
+            features=self.features,
             auth_token=self.auth_token,
             tile_timeout_ms=self.tile_timeout_ms,
             max_tiles=self.max_tiles,
@@ -241,6 +250,8 @@ def basemap(
     crs: Optional[Any] = None,
     pixel_ratio: float = 1.0,
     layers: Optional[List[str]] = None,
+    labels: Union[bool, str] = True,
+    features: Optional[List[str]] = None,
     auth_token: Optional[str] = None,
     tile_timeout_ms: int = 10_000,
     max_tiles: int = 256,
@@ -274,6 +285,16 @@ def basemap(
         layers: Optional layer filter applied to every style: plain IDs keep
             only those layers, ``-`` prefixed IDs drop them (see
             :func:`list_layers`).
+        labels: ``True`` keeps every layer, ``False`` drops the labels (text
+            and icons), ``"only"`` keeps only the labels on a transparent
+            background, to stack over another map. Catalogue raster
+            basemaps switch to their label-free or label-only tiles.
+        features: Optional feature filter applied to every style: plain
+            names keep those features, ``-`` prefixed names drop them, e.g.
+            ``["water", "roads"]`` or ``["-buildings"]``. Features:
+            background, water, landcover, parks, buildings, roads, rail,
+            boundaries, places, poi, terrain, other (see the ``feature``
+            of :func:`list_layers`).
         auth_token: Optional access token for the tile service.
         tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
         max_tiles: Maximum tiles fetched per style.
@@ -296,6 +317,6 @@ def basemap(
     """
     return Basemap(
         style, width, height, center=center, zoom=zoom, bounds=bounds, crs=crs, pixel_ratio=pixel_ratio,
-        layers=layers, auth_token=auth_token, tile_timeout_ms=tile_timeout_ms, max_tiles=max_tiles,
-        tile_concurrency=tile_concurrency, fail_on_tile_error=fail_on_tile_error,
+        layers=layers, labels=labels, features=features, auth_token=auth_token, tile_timeout_ms=tile_timeout_ms,
+        max_tiles=max_tiles, tile_concurrency=tile_concurrency, fail_on_tile_error=fail_on_tile_error,
     )

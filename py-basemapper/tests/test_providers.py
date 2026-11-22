@@ -69,7 +69,7 @@ def test_local_style_file_gets_absolute_urls(tmp_path):
     tile = json.loads(tile_style(str(path)))["sources"]["s"]["tiles"][0]
     assert tile.startswith("file://") and tile.endswith("/tiles/{z}/{x}/{y}.png")
     # The same file works anywhere a style does.
-    assert list_layers(str(path)) == [{"id": "r", "type": "raster"}]
+    assert list_layers(str(path)) == [{"id": "r", "type": "raster", "feature": "other"}]
 
 
 def test_missing_style_is_a_clear_error():
@@ -122,7 +122,7 @@ def test_providers_object_and_names_as_style():
     assert providers.CartoDB.Positron == "CartoDB.Positron"
     assert providers.OpenTopoMap == "OpenTopoMap"
     assert "Positron" in dir(providers.CartoDB)
-    assert list_layers(providers.Esri.WorldImagery) == [{"id": "raster", "type": "raster"}]
+    assert list_layers(providers.Esri.WorldImagery)[0]["id"] == "raster"
 
 
 def test_tile_cache(tmp_path):
@@ -142,3 +142,37 @@ def test_ogc_styles():
     assert "&SRS=EPSG:3857" in tile
     tile = next(iter(json.loads(wmts_style("https://x.com/wmts", "lyr"))["sources"].values()))["tiles"][0]
     assert "LAYER=lyr" in tile
+
+
+def test_list_layers_reports_features():
+    rows = list_layers("Esri.WorldImagery")
+    assert rows == [{"id": "raster", "type": "raster", "feature": "other"}]
+
+
+def test_basemap_provider_labels_pick_raster_tiles():
+    def tiles(name, labels):
+        style = json.loads(basemap_provider(name, type="raster", api_key="K", labels=labels))
+        return style["sources"]["raster"]["tiles"][0]
+
+    assert "/light_nolabels/" in tiles("CartoDB.Positron", False)
+    assert "/light_only_labels/" in tiles("CartoDB.Positron", "only")
+    assert "World_Boundaries_and_Places" in tiles("Esri.WorldImagery", "only")
+    with pytest.raises(ValidationError, match="labels drawn in"):
+        tiles("OpenStreetMap.Mapnik", False)
+    with pytest.raises(ValueError, match="labels must be"):
+        basemap_provider("Esri.WorldImagery", labels="some")
+
+
+def test_labels_and_features_filter_a_style():
+    from basemapper import BasemapError, basemap
+
+    style = json.dumps({"version": 8, "sources": {}, "layers": [{"id": "bg", "type": "background",
+                        "paint": {"background-color": "#ff0000"}}]})
+    a = basemap(style, 8, 8, labels=False).render_array()
+    assert tuple(a[0, 0]) == (255, 0, 0, 255)
+    with pytest.raises(BasemapError, match="its features are background"):
+        basemap(style, 8, 8, labels="only").render_array()
+    with pytest.raises(BasemapError, match="unknown feature"):
+        basemap(style, 8, 8, features=["highways"]).render_array()
+    b = basemap(style, 8, 8, features=["background"]).render_array()
+    assert tuple(b[0, 0]) == (255, 0, 0, 255)

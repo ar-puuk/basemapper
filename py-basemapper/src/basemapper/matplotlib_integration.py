@@ -5,8 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Union
 
 import numpy as np
+
 from matplotlib.image import AxesImage
 
+from ._render import _features_arg, labels_arg
 from .bbox_utils import detect_crs_from_axes
 
 if TYPE_CHECKING:
@@ -99,6 +101,8 @@ def add_basemap(
     tile_zoom: Optional[int] = None,
     alpha: float = 1.0,
     layers: Optional[List[str]] = None,
+    labels: Union[bool, str] = True,
+    features: Optional[List[str]] = None,
     pixel_ratio: Optional[float] = None,
     auth_token: Optional[str] = None,
     tile_timeout_ms: int = 10_000,
@@ -123,6 +127,16 @@ def add_basemap(
         alpha: Opacity of the basemap layer (0.0–1.0).
         layers: Optional layer filter. Plain IDs keep only those layers;
             minus-prefixed IDs drop those layers.
+        labels: ``True`` keeps every layer, ``False`` drops the labels (text
+            and icons), ``"only"`` keeps only the labels on a transparent
+            background, to stack over another map. Catalogue raster
+            basemaps switch to their label-free or label-only tiles.
+        features: Optional feature filter applied to every style: plain
+            names keep those features, ``-`` prefixed names drop them, e.g.
+            ``["water", "roads"]`` or ``["-buildings"]``. Features:
+            background, water, landcover, parks, buildings, roads, rail,
+            boundaries, places, poi, terrain, other (see the ``feature``
+            of :func:`list_layers`).
         pixel_ratio: Device pixels per CSS pixel (MapLibre's
             devicePixelRatio). Default: output dpi / 96, so lines and labels
             keep their physical size at any dpi. Larger values draw map
@@ -151,7 +165,8 @@ def add_basemap(
     xlim, ylim = ax.get_xlim(), ax.get_ylim()
     img = BasemapImage(
         ax, style, crs, pixel_ratio, tile_zoom,
-        dict(tile_timeout_ms=tile_timeout_ms, max_tiles=max_tiles, layers=layers, auth_token=auth_token),
+        dict(tile_timeout_ms=tile_timeout_ms, max_tiles=max_tiles, layers=layers, labels=labels_arg(labels),
+             features=_features_arg(features), auth_token=auth_token),
         alpha=alpha,
     )
     # First render now, so errors surface here and a result can be returned.
