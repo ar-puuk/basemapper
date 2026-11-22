@@ -25,6 +25,9 @@
 //! `actual.png` and `diff.png` (differing pixels in red) are always written to
 //! `target/golden-output/<case>/`, and `check/manifest.js` (repo root,
 //! gitignored) is refreshed for the `check/index.html` comparison viewer.
+//!
+//! `BASEMAPPER_GOLDEN_ONLY=case1,case2` runs just those cases (the viewer
+//! manifest is then left alone); `BASEMAPPER_GOLDEN_JOBS` sets the threads.
 
 use basemapper_core::{render, render_svg_with, RenderRequest, StyleInput, SvgOptions, SvgText};
 use httptest::{matchers::request::method_path, responders::status_code, Expectation, Server};
@@ -521,6 +524,12 @@ fn golden_images() {
         .filter(|p| p.join("case.json").exists())
         .collect();
     cases.sort();
+    // BASEMAPPER_GOLDEN_ONLY=case1,case2 runs just those cases (when
+    // investigating one view); the full suite is the default.
+    if let Ok(only) = std::env::var("BASEMAPPER_GOLDEN_ONLY") {
+        let names: Vec<&str> = only.split(',').map(str::trim).filter(|s| !s.is_empty()).collect();
+        cases.retain(|p| names.iter().any(|n| p.file_name().is_some_and(|f| f == *n)));
+    }
     assert!(!cases.is_empty(), "no golden cases found");
 
     // Cases are independent (each has its own mock server), so run them on a
@@ -556,7 +565,10 @@ fn golden_images() {
             Err(msg) => failures.push(msg),
         }
     }
-    write_check_manifest(&manifest);
+    // A filtered run would leave the viewer with only those cases.
+    if std::env::var_os("BASEMAPPER_GOLDEN_ONLY").is_none() {
+        write_check_manifest(&manifest);
+    }
     assert!(failures.is_empty(), "golden mismatches:\n{}", failures.join("\n"));
 }
 

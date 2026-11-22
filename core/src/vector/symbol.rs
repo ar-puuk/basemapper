@@ -1944,6 +1944,20 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
             Some(j) => eval_property(j, Kind::Number, &Ctx { zoom, feature: None }).as_num() != Some(1.0),
         };
         let mut icons_need_linear = false;
+        // draw_symbol.ts samples icons LINEAR when they are "transformed":
+        // pitched with the map (icon-pitch-alignment map, which 'auto'
+        // inherits from icon-rotation-alignment, itself 'map' for line
+        // placement), even with the camera looking straight down.
+        let icon_rotation_map = match super::expr::layout_enum(layout, "icon-rotation-alignment", zoom.floor()).as_deref() {
+            Some("map") => true,
+            Some("viewport") => false,
+            _ => placement != "point",
+        };
+        let icon_pitch_map = match super::expr::layout_enum(layout, "icon-pitch-alignment", zoom.floor()).as_deref() {
+            Some("map") => true,
+            Some("viewport") => false,
+            _ => icon_rotation_map,
+        };
 
         let mut instances: Vec<Instance> = Vec::new();
         let layer_source = layer["source"].as_str().unwrap_or("");
@@ -2200,7 +2214,7 @@ pub fn place(style: &Json, tiles: &[SymbolTile], assets: &SymbolAssets, zoom: f6
                 inst.label.icon = None;
             }
             if let Some(ic) = inst.label.icon.as_mut() {
-                ic.linear = ic.sdf || icon_size_scaled || icons_need_linear;
+                ic.linear = ic.sdf || icon_size_scaled || icons_need_linear || icon_pitch_map;
             }
             if inst.label.text.is_some() || inst.label.icon.is_some() {
                 layer_labels.push((inst.sort_key, inst.tile_idx, inst.label));

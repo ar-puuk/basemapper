@@ -36,6 +36,10 @@ cargo run -p basemapper-core --example capture_fixture -- ... --tiles-from <case
 cargo run -p basemapper-core --example capture_fixture -- ... --all-sources
 ```
 
+To run only some cases while investigating one view, set
+`BASEMAPPER_GOLDEN_ONLY=case1,case2` (e.g.
+`BASEMAPPER_GOLDEN_ONLY=openfreemap_liberty_z16 cargo test -p basemapper-core --test golden -- --nocapture`).
+
 Case options in `case.json`: `pixel_ratio` (render at that devicePixelRatio),
 `svg: true` (also score the SVG output, limits `max_*_svg`), `stack`
 (composite other cases), `fixture_from` / `tiles_from` / `fonts_from` /
