@@ -8,6 +8,8 @@ pmtiles     = { version = "0.23.0", default-features = false, features = ["__asy
 lru         = "0.12"
 # PMTiles backend responses.
 bytes       = "1"
+# Disk tile cache: `Expires` headers.
+httpdate    = "1"
 # In-house CPU vector renderer (core/src/vector/).
 flate2      = "1"
 csscolorparser = "0.7"

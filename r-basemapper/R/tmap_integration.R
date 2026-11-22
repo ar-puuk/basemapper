@@ -23,7 +23,7 @@
 #' library(tmap)
 #' library(sf)
 #' nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-#' basemapper::tm_basemap(basemapper::basemap_provider("Carto.Positron")) +
+#' basemapper::tm_basemap("OpenFreeMap.Positron") +
 #'   tm_shape(nc) +
 #'   tm_sf(fill = NA, col = "steelblue")
 #' }

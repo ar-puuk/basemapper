@@ -226,15 +226,51 @@ fn list_layers(py: Python<'_>, style: &str, auth_token: Option<String>) -> PyRes
 
 // ── Styles (basemapper_core::providers, basemapper_core::tile_style) ────────
 
-#[pyfunction]
-#[pyo3(signature = (name, api_key=None))]
-fn basemap_provider(py: Python<'_>, name: &str, api_key: Option<&str>) -> PyResult<String> {
-    providers::basemap_provider(name, api_key).map_err(|e| core_err_to_py(py, e))
+fn parse_kind(py: Python<'_>, kind: Option<&str>) -> PyResult<Option<basemapper_core::TileKind>> {
+    kind.map(basemapper_core::TileKind::parse).transpose().map_err(|e| core_err_to_py(py, e))
 }
 
 #[pyfunction]
-fn list_providers() -> Vec<&'static str> {
-    providers::PROVIDER_NAMES.to_vec()
+#[pyo3(signature = (name, kind=None, api_key=None, tiles=None))]
+fn basemap_provider(
+    py: Python<'_>,
+    name: &str,
+    kind: Option<&str>,
+    api_key: Option<String>,
+    tiles: Option<String>,
+) -> PyResult<String> {
+    let opts = providers::ProviderOptions { kind: parse_kind(py, kind)?, api_key, tiles };
+    let name = name.to_owned();
+    py.allow_threads(|| providers::basemap_provider(&name, &opts)).map_err(|e| core_err_to_py(py, e))
+}
+
+/// The catalogue as (name, vector, raster, API key variable, attribution) rows.
+#[pyfunction]
+#[pyo3(signature = (kind=None))]
+#[allow(clippy::type_complexity)]
+fn list_providers(
+    py: Python<'_>,
+    kind: Option<&str>,
+) -> PyResult<Vec<(&'static str, bool, bool, Option<&'static str>, &'static str)>> {
+    Ok(providers::list_providers(parse_kind(py, kind)?)
+        .into_iter()
+        .map(|p| (p.name, p.vector.is_some(), p.raster.is_some(), p.key.map(|k| k.env), p.attribution))
+        .collect())
+}
+
+/// The tile cache directory (None when off); `dir` moves it ("" turns it
+/// off), `clear` deletes the cached tiles.
+#[pyfunction]
+#[pyo3(signature = (dir=None, clear=false))]
+fn tile_cache(py: Python<'_>, dir: Option<String>, clear: bool) -> PyResult<Option<String>> {
+    if let Some(d) = dir {
+        basemapper_core::cache::set_dir((!d.is_empty()).then(|| d.into()));
+    }
+    if clear {
+        basemapper_core::cache::clear()
+            .map_err(|e| core_err_to_py(py, BasemapError::RenderError(format!("could not clear the tile cache: {e}"))))?;
+    }
+    Ok(basemapper_core::cache::dir().map(|d| d.to_string_lossy().into_owned()))
 }
 
 /// A style for tile data with overrides; returns (style, dropped paint keys).
@@ -260,10 +296,7 @@ fn tile_style(
 ) -> PyResult<(String, Vec<String>)> {
     let paint: serde_json::Map<String, serde_json::Value> =
         serde_json::from_str(paint_json).map_err(|e| validation_error(py, &format!("paint must be a mapping: {e}")))?;
-    let kind = match kind {
-        Some(k) => Some(basemapper_core::TileKind::parse(k).map_err(|e| core_err_to_py(py, e))?),
-        None => None,
-    };
+    let kind = parse_kind(py, kind)?;
     let opts = basemapper_core::TileStyleOptions {
         kind, tile_size, scheme, minzoom, maxzoom, attribution, source_layers, paint,
     };
@@ -315,6 +348,7 @@ fn _basemapper(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(basemap_provider, m)?)?;
     m.add_function(wrap_pyfunction!(list_providers, m)?)?;
     m.add_function(wrap_pyfunction!(tile_style, m)?)?;
+    m.add_function(wrap_pyfunction!(tile_cache, m)?)?;
     m.add_function(wrap_pyfunction!(wms_style, m)?)?;
     m.add_function(wrap_pyfunction!(wmts_style, m)?)?;
     Ok(())

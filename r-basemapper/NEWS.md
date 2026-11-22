@@ -55,6 +55,23 @@ Python. See `docs/api.md` in the repository.
 * Styles: `basemap_provider()` (named catalogue), `tile_style()` (a style for
   tile data, with overrides), `wms_style()` and `wmts_style()`;
   `list_layers()` inspects a style.
+* Named basemaps are a hand-curated catalogue with leaflet-providers names
+  (`CartoDB.Positron`, `Esri.WorldImagery`, `OpenStreetMap.HOT`, plus
+  OpenFreeMap): 42 basemaps, each with a vector form, a raster form or both.
+  A name works as `style` directly. `basemap_provider(name, type, api_key,
+  tiles)` picks the form (vector by default; asking for a missing form is an
+  error, never a fallback), reads API keys from `CARTO_API_KEY`,
+  `MAPTILER_API_KEY` or `STADIA_API_KEY`, and draws your own tiles with a
+  basemap's style. Unknown names suggest close ones. `list_providers()`
+  returns a data frame of names, forms, key variables and attribution;
+  `providers` completes names (`providers$CartoDB.Positron`). CARTO now
+  needs a free API key.
+* Tiles are cached on disk as long as the server's caching headers allow;
+  `tile_cache()` shows, moves, disables or clears the cache (in
+  `tools::R_user_dir("basemapper", "cache")` by default). Requests identify
+  basemapper in their User-Agent.
+* ArcGIS vector styles whose source names the `VectorTileServer` without a
+  trailing slash (Esri's item styles) load their tiles.
 
 ## Plot layers
 

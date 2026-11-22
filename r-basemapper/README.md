@@ -58,8 +58,11 @@ remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
 ```r
 library(basemapper)
 
-# 25 built-in providers (list_providers()) — no tile URL needed
-style <- basemap_provider("OpenFreeMap.liberty")
+# Built-in basemaps by leaflet name (list_providers(), providers$...);
+# the name works as a style
+style <- "OpenFreeMap.Liberty"
+style <- basemap_provider("Esri.WorldGrayCanvas", type = "raster")   # pick the form
+style <- basemap_provider("OpenFreeMap.Liberty", tiles = "data/omt.pmtiles")   # your own tiles
 
 # A view: centre + zoom, or bounds to fit
 m <- basemap(style, 800, 600, center = c(-122.45, 37.75), zoom = 12, pixel_ratio = 2)

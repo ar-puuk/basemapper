@@ -63,7 +63,7 @@ library(ggplot2)
 library(sf)
 nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
 ggplot(nc) +
-  geom_basemap(basemap_provider("Carto.Positron")) +
+  geom_basemap("OpenFreeMap.Positron") +
   geom_sf(fill = NA, color = "steelblue") +
   coord_sf()
 }

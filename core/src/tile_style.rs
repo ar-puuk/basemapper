@@ -37,7 +37,8 @@ impl TileKind {
         }
     }
 
-    fn name(self) -> &'static str {
+    /// `"raster"` or `"vector"`.
+    pub fn name(self) -> &'static str {
         match self {
             TileKind::Raster => "raster",
             TileKind::Vector => "vector",
@@ -98,6 +99,14 @@ fn classify(s: &str) -> Input {
         return Input::VectorTileServer(base());
     }
     Input::Resource(s.to_owned())
+}
+
+/// The base URL when `s` names an ArcGIS VectorTileServer.
+pub(crate) fn vector_tile_server(s: &str) -> Option<String> {
+    match classify(s) {
+        Input::VectorTileServer(base) => Some(base),
+        _ => None,
+    }
 }
 
 fn is_http(s: &str) -> bool {
@@ -218,12 +227,19 @@ pub(crate) async fn tile_style(
 }
 
 /// The style for a `style` string the renderer is given: a style URL or file
-/// is loaded (relative URLs made absolute); tile data gets a built style.
+/// is loaded (relative URLs made absolute); tile data gets a built style; a
+/// catalogue name (`"CartoDB.Positron"`) is that basemap's default form.
 pub(crate) async fn resolve_style_input(
     input: &str,
     client: &reqwest::Client,
     auth_token: Option<&str>,
 ) -> Result<String, BasemapError> {
+    let named = crate::providers::bare_name_style(input)?;
+    let input = match &named {
+        Some(style) if style.trim_start().starts_with('{') => return Ok(style.clone()),
+        Some(url) => url.as_str(),
+        None => input,
+    };
     tile_style(input, &TileStyleOptions::default(), client, auth_token).await.map(|(s, _)| s)
 }
 

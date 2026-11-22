@@ -16,27 +16,114 @@ from typing import Dict, List, Optional
 from . import _basemapper as _core
 
 
-def basemap_provider(name: str, api_key: Optional[str] = None) -> str:
+def basemap_provider(
+    name: str,
+    type: Optional[str] = None,
+    api_key: Optional[str] = None,
+    tiles: Optional[str] = None,
+) -> str:
     """A named basemap's style.
 
+    Names follow leaflet-providers (``"CartoDB.Positron"``,
+    ``"Esri.WorldImagery"``, ``"OpenStreetMap.HOT"``); see
+    :func:`list_providers` or the :data:`providers` object. A name also works
+    as ``style`` directly; this function picks the form, passes a key, or
+    swaps in your own tiles.
+
     Args:
-        name: Provider name, e.g. ``"OpenFreeMap.liberty"`` or
-            ``"Carto.Positron"``; see :func:`list_providers`.
-        api_key: API key, required by MapTiler; optional for Stadia (lifts
-            rate limits); ignored by the others.
+        name: Basemap name (case-insensitive).
+        type: ``"vector"`` (a MapLibre style) or ``"raster"`` (tiles). By
+            default the vector form when there is one, else raster. Asking
+            for a form a basemap lacks is an error, never a silent fallback.
+        api_key: API key for CARTO, MapTiler and Stadia; by default read
+            from ``CARTO_API_KEY``, ``MAPTILER_API_KEY`` or
+            ``STADIA_API_KEY``. The keys are free for moderate use;
+            :func:`list_providers` shows which basemaps need one.
+        tiles: Your own tile data to draw with this basemap's style: a
+            ``.pmtiles`` archive (URL or path), tile URL or TileJSON. It must
+            use the same schema as the provider's tiles (OpenMapTiles for
+            OpenFreeMap and Stadia).
 
     Returns:
-        A style URL or inline style JSON.
+        A style URL, or inline style JSON (raster form, or with ``tiles``).
 
     Raises:
-        ValidationError: For an unknown name, or a MapTiler style without a key.
+        ValidationError: For an unknown name (with suggestions), a form the
+            basemap lacks, or a missing API key.
     """
-    return _core.basemap_provider(name, api_key)
+    return _core.basemap_provider(name, type, api_key, None if tiles is None else str(tiles))
 
 
-def list_providers() -> List[str]:
-    """The names :func:`basemap_provider` accepts."""
-    return list(_core.list_providers())
+def list_providers(type: Optional[str] = None) -> List[Dict[str, object]]:
+    """The basemaps :func:`basemap_provider` knows.
+
+    Args:
+        type: ``"vector"`` or ``"raster"`` to list only basemaps with that
+            form; None lists all.
+
+    Returns:
+        One dict per basemap: ``name``, ``vector`` and ``raster`` (the forms
+        it has), ``api_key_env`` (the environment variable its key is read
+        from, or None when it needs none) and ``attribution``.
+    """
+    return [
+        {"name": n, "vector": v, "raster": r, "api_key_env": k, "attribution": a}
+        for n, v, r, k, a in _core.list_providers(type)
+    ]
+
+
+class _Group:
+    """Basemap names of one provider, as attributes."""
+
+    def __init__(self, name: str, names: Dict[str, str]):
+        self._name = name
+        self.__dict__.update(names)
+
+    def __repr__(self) -> str:
+        names = [v for k, v in self.__dict__.items() if not k.startswith("_")]
+        return f"<{self._name}: {', '.join(names)}>"
+
+
+def _providers_object() -> _Group:
+    groups: Dict[str, Dict[str, str]] = {}
+    top: Dict[str, object] = {}
+    for p in _core.list_providers(None):
+        name = p[0]
+        family, _, variant = name.partition(".")
+        if variant:
+            groups.setdefault(family, {})[variant] = name
+        else:
+            top[name] = name
+    for family, names in groups.items():
+        top[family] = _Group(family, names)
+    return _Group("providers", top)
+
+
+providers = _providers_object()
+"""Basemap names for autocompletion: ``providers.CartoDB.Positron`` is the
+string ``"CartoDB.Positron"``, usable as ``style`` or with
+:func:`basemap_provider`."""
+
+
+def tile_cache(dir: Optional[str] = None, clear: bool = False) -> Optional[str]:
+    """The disk cache for map tiles.
+
+    Tiles are kept as long as the server's caching headers allow (a day when
+    they say nothing), so repeated renders of an area do not download them
+    again. The cache starts in ``BASEMAPPER_CACHE_DIR`` when set (``off``
+    disables it), else in the platform cache directory.
+
+    Args:
+        dir: Move the cache to this directory; ``False`` or ``""`` turns it
+            off. None leaves it as it is.
+        clear: Delete every cached tile.
+
+    Returns:
+        The cache directory, or None when the cache is off.
+    """
+    if dir is False:
+        dir = ""
+    return _core.tile_cache(None if dir is None else str(dir), bool(clear))
 
 
 def tile_style(

@@ -97,12 +97,14 @@ reference:
 
   - title: Styles
     desc: >
-      Named basemaps, styles for your own tile data, and OGC services. Tile
+      Named basemaps (leaflet-providers names, usable as `style`), styles
+      for your own tile data, and OGC services. Tile
       data (tile URLs, TileJSON, PMTiles, ArcGIS services) also works as
       `style` directly.
     contents:
       - basemap_provider
       - list_providers
+      - providers
       - tile_style
       - wms_style
       - wmts_style
@@ -111,6 +113,10 @@ reference:
     desc: The layers of a style, for the `layers` filter.
     contents:
       - list_layers
+
+  - title: Tile cache
+    contents:
+      - tile_cache
 
   - title: Exceptions
     contents:

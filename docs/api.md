@@ -74,8 +74,9 @@ from cartopy axes.
 
 ## Styles
 
-`style` takes a MapLibre style (URL, file or JSON), a named basemap, or tile
-data whose style is built for you: a tile URL template (`{z}/{x}/{y}`,
+`style` takes a MapLibre style (URL, file or JSON), a named basemap (its
+leaflet-providers name, e.g. `"CartoDB.Voyager"`), or tile data whose style
+is built for you: a tile URL template (`{z}/{x}/{y}`,
 `{quadkey}`, `{bbox-epsg-3857}`, WMTS `{TileMatrix}/{TileRow}/{TileCol}`), a
 TileJSON, a PMTiles archive (URL, local path or `pmtiles://`), or an ArcGIS
 `MapServer` / `VectorTileServer`. Raster or vector is detected from the
@@ -86,9 +87,30 @@ overrides.
 
 | R | Python | Rust (`basemapper_core::providers`) |
 |---|---|---|
-| `basemap_provider(name, api_key = NULL)` | `basemap_provider(name, api_key=None)` | `basemap_provider(name, api_key)?` |
-| `list_providers()` | `list_providers()` | `PROVIDER_NAMES` |
+| `basemap_provider(name, type =, api_key =, tiles =)` | `basemap_provider(name, type=, api_key=, tiles=)` | `basemap_provider(name, &ProviderOptions { kind, api_key, tiles })?` |
+| `list_providers(type = NULL)`: data frame of `name`, `vector`, `raster`, `api_key_env`, `attribution` | `list_providers(type=None)`: list of dicts, same keys | `list_providers(kind)`: `Vec<&Provider>` (all in `PROVIDERS`) |
+| `providers$CartoDB.Positron` | `providers.CartoDB.Positron` | — |
 | `tile_style(source, type =, tile_size =, scheme =, minzoom =, maxzoom =, attribution =, source_layers =, paint =, auth_token =)` | `tile_style(source, type=, tile_size=, scheme=, minzoom=, maxzoom=, attribution=, source_layers=, paint=, auth_token=)` | `basemapper_core::tile_style(source, &TileStyleOptions { .. }, auth_token)?`, which also returns the dropped paint keys |
 | `wms_style(url, layers, styles =, version =, format =, transparent =, extra_params =)` | `wms_style(url, layers, styles=, version=, format=, transparent=, extra_params=)` | `wms_style(...)` |
 | `wmts_style(url, layer, tilematrixset =, format =, style =, version =, extra_params =)` | `wmts_style(url, layer, tilematrixset=, format=, style=, version=, extra_params=)` | `wmts_style(...)` |
 | `list_layers(style, auth_token = NULL)`: data frame of `id`, `type` | `list_layers(style, auth_token=None)`: list of `{"id", "type"}` | `basemapper_core::list_layers(style, auth_token)?`: `Vec<(id, type)>` |
+
+Named basemaps come in a vector form (a MapLibre style), a raster form
+(tiles), or both; the vector form is the default and `type` picks the other.
+Asking for a form a basemap lacks is an error that says which it has. CARTO,
+MapTiler and Stadia need a free API key, passed as `api_key` or read from
+`CARTO_API_KEY`, `MAPTILER_API_KEY` or `STADIA_API_KEY`. `tiles` draws your
+own tile data (same schema) with a basemap's style.
+
+## Tile cache
+
+| R | Python | Rust (`basemapper_core::cache`) |
+|---|---|---|
+| `tile_cache(dir = NULL, clear = FALSE)` | `tile_cache(dir=None, clear=False)` | `dir()`, `set_dir(Some(path))` / `set_dir(None)`, `clear()` |
+
+Tiles are cached on disk for as long as the server's `Cache-Control` /
+`Expires` allow (a day without them; never with `no-store` or `no-cache`).
+The cache starts in `BASEMAPPER_CACHE_DIR` (`off` disables it), else R's
+`tools::R_user_dir("basemapper", "cache")` or, in Python and Rust, the
+platform cache directory. `dir = FALSE` turns it off. Every request sends
+`User-Agent: basemapper/<version> (+https://github.com/ar-puuk/basemapper)`.

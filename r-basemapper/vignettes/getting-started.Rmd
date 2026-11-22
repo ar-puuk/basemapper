@@ -32,15 +32,24 @@ remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
 ## Step 1 — Choose a style
 
 Every function takes a `style`: a MapLibre GL style (URL, file or JSON), a
-named basemap from `basemap_provider()`, or tile data, whose style is built
+named basemap (`"CartoDB.Voyager"`, `"Esri.WorldImagery"`: the
+leaflet-providers names), or tile data, whose style is built
 for you: a tile URL, TileJSON, PMTiles archive (URL or local file) or ArcGIS
 service. A vector of styles is stacked bottom to top.
 
 ```r
 library(basemapper)
 
-list_providers()
-positron <- basemap_provider("Carto.Positron")
+list_providers()                  # name, forms, API key variable, attribution
+positron <- "OpenFreeMap.Positron"  # a name works as a style
+positron <- providers$OpenFreeMap.Positron   # the same, with autocompletion
+
+# Pick the form of a basemap that has both; CARTO, MapTiler and Stadia need
+# a free API key (api_key =, or CARTO_API_KEY etc.)
+gray <- basemap_provider("Esri.WorldGrayCanvas", type = "raster")
+
+# Your own tiles with a basemap's style (same schema, here OpenMapTiles)
+mine <- basemap_provider("OpenFreeMap.Liberty", tiles = "data/omt.pmtiles")
 
 # Tile data works as a style directly
 osm  <- "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -141,11 +150,14 @@ Pass layer IDs to `layers` to keep only those layers, or prefix IDs with
 
 ```r
 # Without town and village labels
-render_png(basemap(positron, 800, 600, bounds = nc, layers = c("-place_town", "-place_villages")),
+render_png(basemap(positron, 800, 600, bounds = nc, layers = c("-label_town", "-label_village")),
            path = "nc.png")
 
 ggplot(nc) + geom_basemap(positron, layers = c("background", "water"))
 ```
+
+Tiles are cached on disk (`tile_cache()` shows where, moves the cache or
+clears it), for as long as the servers' caching headers allow.
 
 ## Step 6 — One-shot rendering
 

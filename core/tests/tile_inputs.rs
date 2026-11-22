@@ -207,3 +207,63 @@ fn remote_pmtiles_reads_ranges_of_the_raw_file() {
     let r = render(RenderRequest::new([-WORLD, -WORLD, WORLD, WORLD], 1024, 1024, StyleInput::detect(&url))).unwrap();
     assert!(r.pixels.chunks(4).any(|px| px[3] > 0));
 }
+
+#[test]
+fn catalogue_names_work_as_style() {
+    // Raster-only entries resolve without the network.
+    let layers = list_layers("Esri.WorldImagery", None).unwrap();
+    assert_eq!(layers, vec![("raster".to_owned(), "raster".to_owned())]);
+    assert_eq!(list_layers("esri.worldimagery", None).unwrap(), layers);
+    // A near miss is an error with the name it was probably meant to be.
+    let e = list_layers("Esri.WorldImagry", None).unwrap_err().to_string();
+    assert!(e.contains("did you mean Esri.WorldImagery?"), "{e}");
+}
+
+#[test]
+fn provider_tiles_can_be_replaced_with_your_own() {
+    use basemapper_core::providers::{basemap_provider, ProviderOptions};
+    let raster = |tiles: &str| ProviderOptions {
+        kind: Some(TileKind::Raster),
+        tiles: Some(tiles.to_owned()),
+        ..Default::default()
+    };
+    // The style is kept, the source draws the given tiles; a template keeps
+    // the provider's zoom range, and the provider's attribution goes.
+    let s = basemap_provider("Esri.WorldGrayCanvas", &raster("https://my.server/{z}/{x}/{y}.png")).unwrap();
+    let src = &style_json(&s)["sources"]["raster"];
+    assert_eq!(src["tiles"], serde_json::json!(["https://my.server/{z}/{x}/{y}.png"]));
+    assert_eq!(src["maxzoom"], 16);
+    assert!(src.get("attribution").is_none());
+    // Tiles of the other kind are an error from the archive's header.
+    let archive = vector_archive();
+    let e = basemap_provider("Esri.WorldGrayCanvas", &raster(archive.to_str().unwrap())).unwrap_err().to_string();
+    assert!(e.contains("vector"), "{e}");
+}
+
+#[test]
+fn arcgis_service_json_tiles_resolve_against_the_service() {
+    use httptest::matchers::{matches, request};
+    // An Esri item style references the service by a URL without a trailing
+    // slash; its JSON lists tiles relative to the service.
+    let server = Server::run();
+    let svc = server.url_str("/rest/services/Basemap/VectorTileServer");
+    let style = serde_json::json!({
+        "version": 8,
+        "sources": {"esri": {"type": "vector", "url": svc}},
+        "layers": [{"id": "water", "type": "fill", "source": "esri", "source-layer": "water",
+                    "paint": {"fill-color": "#0000ff"}}],
+    });
+    server.expect(
+        Expectation::matching(method_path("GET", "/rest/services/Basemap/VectorTileServer"))
+            .times(1..)
+            .respond_with(status_code(200).body(r#"{"tiles": ["tile/{z}/{y}/{x}.pbf"], "maxzoom": 1}"#)),
+    );
+    server.expect(
+        Expectation::matching(request::path(matches(r"^/rest/services/Basemap/VectorTileServer/tile/1/[01]/[01]\.pbf$")))
+            .times(1..)
+            .respond_with(status_code(200).body(mvt(1, 0, 0))),
+    );
+    let mut req = RenderRequest::new([-WORLD, -WORLD, WORLD, WORLD], 1024, 1024, StyleInput::detect(&style.to_string()));
+    req.fail_on_tile_error = true;
+    render(req).unwrap();
+}

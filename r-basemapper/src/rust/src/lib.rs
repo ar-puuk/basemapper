@@ -199,14 +199,50 @@ fn list_layers_raw(style: &str, auth_token: Nullable<String>) -> Result<Robj> {
 
 // ── Styles (basemapper_core::providers, basemapper_core::tile_style) ────────
 
-#[extendr]
-fn basemap_provider_raw(name: &str, api_key: Nullable<String>) -> Result<String> {
-    providers::basemap_provider(name, opt(api_key).as_deref()).map_err(err)
+fn parse_kind(kind: Nullable<String>) -> Result<Option<basemapper_core::TileKind>> {
+    opt(kind).map(|k| basemapper_core::TileKind::parse(&k)).transpose().map_err(err)
 }
 
 #[extendr]
-fn list_providers_raw() -> Vec<String> {
-    providers::PROVIDER_NAMES.iter().map(|s| s.to_string()).collect()
+fn basemap_provider_raw(
+    name: &str,
+    kind: Nullable<String>,
+    api_key: Nullable<String>,
+    tiles: Nullable<String>,
+) -> Result<String> {
+    let opts = providers::ProviderOptions { kind: parse_kind(kind)?, api_key: opt(api_key), tiles: opt(tiles) };
+    providers::basemap_provider(name, &opts).map_err(err)
+}
+
+/// The catalogue's names, with the other columns as attributes: `vector`,
+/// `raster`, `api_key_env` ("" when none) and `attribution`. (Not a
+/// `list!`: see `render_raw`.)
+#[extendr]
+fn list_providers_raw(kind: Nullable<String>) -> Result<Robj> {
+    let ps = providers::list_providers(parse_kind(kind)?);
+    let names: Vec<String> = ps.iter().map(|p| p.name.to_owned()).collect();
+    let mut out: Robj = names.into();
+    out.set_attrib("vector", ps.iter().map(|p| p.vector.is_some()).collect::<Vec<bool>>())?;
+    out.set_attrib("raster", ps.iter().map(|p| p.raster.is_some()).collect::<Vec<bool>>())?;
+    out.set_attrib("api_key_env", ps.iter().map(|p| p.key.map_or("", |k| k.env).to_owned()).collect::<Vec<String>>())?;
+    out.set_attrib("attribution", ps.iter().map(|p| p.attribution.to_owned()).collect::<Vec<String>>())?;
+    Ok(out)
+}
+
+/// The tile cache directory (NULL when off); `dir` moves it ("" turns it
+/// off), `clear` deletes the cached tiles.
+#[extendr]
+fn tile_cache_raw(dir: Nullable<String>, clear: bool) -> Result<Nullable<String>> {
+    if let Some(d) = opt(dir) {
+        basemapper_core::cache::set_dir((!d.is_empty()).then(|| d.into()));
+    }
+    if clear {
+        basemapper_core::cache::clear().map_err(|e| err(format!("could not clear the tile cache: {e}")))?;
+    }
+    Ok(match basemapper_core::cache::dir() {
+        Some(d) => Nullable::NotNull(d.to_string_lossy().into_owned()),
+        None => Nullable::Null,
+    })
 }
 
 /// A style for tile data with overrides; the paint keys that matched no
@@ -227,10 +263,7 @@ fn tile_style_raw(
 ) -> Result<Robj> {
     let paint: serde_json::Map<String, serde_json::Value> =
         serde_json::from_str(paint_json).map_err(|e| err(format!("paint must be a named list: {e}")))?;
-    let kind = match opt(kind) {
-        Some(k) => Some(basemapper_core::TileKind::parse(&k).map_err(err)?),
-        None => None,
-    };
+    let kind = parse_kind(kind)?;
     let zoom = |z: Nullable<i32>| opt(z).map(|z| z.clamp(0, 30) as u8);
     let opts = basemapper_core::TileStyleOptions {
         kind,
@@ -288,6 +321,7 @@ extendr_module! {
     fn basemap_provider_raw;
     fn list_providers_raw;
     fn tile_style_raw;
+    fn tile_cache_raw;
     fn wms_style_raw;
     fn wmts_style_raw;
 }

@@ -61,19 +61,64 @@ test_that("a local style file gets absolute URLs and works as a style", {
   expect_equal(list_layers(path)$id, "r")
 })
 
-test_that("basemap_provider resolves every listed provider", {
+test_that("list_providers is a table of forms", {
   p <- list_providers()
-  expect_true(length(p) >= 20)
-  expect_true(all(c("OpenFreeMap.liberty", "Carto.Positron", "ESRI.WorldImagery") %in% p))
-  for (name in p) {
-    key <- if (startsWith(name, "MapTiler.")) "KEY" else NULL
-    s <- basemap_provider(name, api_key = key)
-    expect_type(s, "character")
-    expect_length(s, 1L)
+  expect_s3_class(p, "data.frame")
+  expect_named(p, c("name", "vector", "raster", "api_key_env", "attribution"))
+  expect_true(nrow(p) >= 40)
+  row <- function(n) p[p$name == n, ]
+  expect_true(row("Esri.WorldGrayCanvas")$vector && row("Esri.WorldGrayCanvas")$raster)
+  expect_false(row("OpenFreeMap.Liberty")$raster)
+  expect_equal(row("CartoDB.Positron")$api_key_env, "CARTO_API_KEY")
+  expect_true(is.na(row("OpenFreeMap.Liberty")$api_key_env))
+  expect_true(all(list_providers("vector")$vector))
+  expect_true(all(list_providers("raster")$raster))
+})
+
+test_that("basemap_provider resolves every form of every basemap", {
+  p <- list_providers()
+  for (i in seq_len(nrow(p))) {
+    for (kind in c("vector", "raster")[c(p$vector[i], p$raster[i])]) {
+      s <- basemap_provider(p$name[i], type = kind, api_key = "KEY")
+      expect_type(s, "character")
+      expect_length(s, 1L)
+    }
   }
-  expect_match(basemap_provider("Carto.Positron"), "positron-gl-style")
-  expect_error(basemap_provider("MapTiler.Streets"), "api_key")
-  expect_error(basemap_provider("Nope"), "list_providers")
+})
+
+test_that("basemap_provider picks forms, reads keys and suggests names", {
+  expect_match(basemap_provider("OpenFreeMap.Positron"), "/styles/positron$")
+  expect_equal(basemap_provider("openfreemap.positron"), basemap_provider("OpenFreeMap.Positron"))
+  expect_match(basemap_provider("Carto.Positron", api_key = "K"), "positron-gl-style/style.json?key=K", fixed = TRUE)
+  src <- json(basemap_provider("CartoDB.Positron", type = "raster", api_key = "K"))$sources$raster
+  expect_length(src$tiles, 4L)
+  expect_match(src$attribution, "CARTO")
+  expect_error(basemap_provider("Esri.WorldImagery", type = "vector"), "only as raster tiles")
+  expect_error(basemap_provider("CartoDB.Positon"), "did you mean CartoDB.Positron")
+  withr_env <- Sys.getenv("MAPTILER_API_KEY", NA)
+  on.exit(if (is.na(withr_env)) Sys.unsetenv("MAPTILER_API_KEY") else Sys.setenv(MAPTILER_API_KEY = withr_env))
+  Sys.unsetenv("MAPTILER_API_KEY")
+  expect_error(basemap_provider("MapTiler.Streets"), "MAPTILER_API_KEY")
+  Sys.setenv(MAPTILER_API_KEY = "ENVKEY")
+  expect_match(basemap_provider("MapTiler.Streets"), "key=ENVKEY$")
+  tiles <- json(basemap_provider("Esri.WorldGrayCanvas", type = "raster", tiles = "https://x/{z}/{x}/{y}.png"))
+  expect_equal(tiles$sources$raster$tiles[[1]], "https://x/{z}/{x}/{y}.png")
+})
+
+test_that("providers completes names, and names work as style", {
+  expect_equal(providers$CartoDB.Positron, "CartoDB.Positron")
+  expect_equal(providers$OpenTopoMap, "OpenTopoMap")
+  expect_equal(list_layers(providers$Esri.WorldImagery)$id, "raster")
+})
+
+test_that("tile_cache moves, turns off and clears the cache", {
+  before <- tile_cache()
+  on.exit(tile_cache(if (is.null(before)) FALSE else before))
+  d <- tempfile("tiles")
+  expect_equal(tile_cache(d), d)
+  expect_null(tile_cache(FALSE))
+  expect_equal(tile_cache(d, clear = TRUE), d)
+  expect_match(before, "basemapper", fixed = TRUE)
 })
 
 test_that("wms_style and wmts_style build raster styles", {

@@ -48,7 +48,7 @@
 #'
 #' # Fit a layer's extent
 #' nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-#' m <- basemap(basemap_provider("Carto.Positron"), bounds = nc)
+#' m <- basemap("OpenFreeMap.Positron", bounds = nc)
 #' }
 basemap <- function(
     style,

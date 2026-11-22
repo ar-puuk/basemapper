@@ -21,6 +21,6 @@ IDs keep, minus-prefixed IDs drop). Python: \code{basemapper.list_layers()}.
 }
 \examples{
 \dontrun{
-list_layers(basemap_provider("Carto.Positron"))
+list_layers("OpenFreeMap.Positron")
 }
 }

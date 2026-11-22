@@ -24,13 +24,13 @@
 #' \dontrun{
 #' # WGS-84 bounds (default CRS)
 #' a <- render_basemap_raw(c(-122.5, 37.7, -122.4, 37.8), 400, 300,
-#'                         basemap_provider("Carto.Positron"))
+#'                         "OpenFreeMap.Positron")
 #'
 #' # sf object: CRS read from it; two styles stacked; 2x pixels
 #' nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
 #' a <- render_basemap_raw(nc, 400, 300,
-#'                         c(basemap_provider("ESRI.WorldShadedRelief"),
-#'                           basemap_provider("Carto.Positron")),
+#'                         c("Esri.WorldShadedRelief",
+#'                           "OpenFreeMap.Positron"),
 #'                         pixel_ratio = 2)
 #' }
 render_basemap_raw <- function(

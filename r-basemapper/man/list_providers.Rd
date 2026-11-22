@@ -2,17 +2,24 @@
 % Please edit documentation in R/providers.R
 \name{list_providers}
 \alias{list_providers}
-\title{Names of the built-in basemap providers}
+\title{The built-in basemaps}
 \usage{
-list_providers()
+list_providers(type = NULL)
+}
+\arguments{
+\item{type}{\code{"vector"} or \code{"raster"} to list only basemaps with that
+form; \code{NULL} lists all.}
 }
 \value{
-A character vector.
+A data frame with columns \code{name}; \code{vector} and \code{raster} (logical:
+the forms it has); \code{api_key_env} (the environment variable its API key
+is read from, \code{NA} when it needs none); and \code{attribution}.
 }
 \description{
-The names \code{\link[=basemap_provider]{basemap_provider()}} accepts. Python:
-\code{basemapper.list_providers()}.
+The basemaps \code{\link[=basemap_provider]{basemap_provider()}} knows, with the forms each comes in.
+Python: \code{basemapper.list_providers()}.
 }
 \examples{
 list_providers()
+list_providers("vector")$name
 }

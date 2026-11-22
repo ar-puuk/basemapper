@@ -284,8 +284,8 @@ pub fn build_tile_urls(source: &TileSource, coords: &[TileCoord], pixel_ratio: f
 
 /// Fetch all tiles concurrently, respecting timeout and concurrency limits.
 ///
-/// Hits the in-process LRU cache before issuing network requests. Cache misses
-/// are populated after a successful fetch so subsequent renders re-use bytes.
+/// Tiles come from the in-process LRU cache, else the disk cache
+/// ([`crate::cache`]), else the network; fetched tiles are added to both.
 ///
 /// When `fail_on_tile_error` is `false`, individual tile failures are logged
 /// and skipped; the render continues with whatever tiles succeeded.
@@ -321,6 +321,16 @@ pub async fn fetch_all_tiles(
                 }
             }
 
+            let cache_on_disk = auth.is_none();
+            if cache_on_disk {
+                if let Some(data) = crate::cache::get(&url) {
+                    if let Ok(mut cache) = TILE_CACHE.lock() {
+                        cache.put(url.clone(), data.clone());
+                    }
+                    return Ok((coord, data));
+                }
+            }
+
             let mut req = client.get(&url).timeout(timeout);
             if let Some(header) = auth {
                 req = req.header("Authorization", header);
@@ -338,6 +348,7 @@ pub async fn fetch_all_tiles(
                     status: resp.status().as_u16(),
                 });
             }
+            let headers = resp.headers().clone();
             let bytes = resp
                 .bytes()
                 .await
@@ -346,6 +357,9 @@ pub async fn fetch_all_tiles(
                     status: 0,
                 })?;
             let data = bytes.to_vec();
+            if cache_on_disk {
+                crate::cache::put(&url, &headers, &data);
+            }
 
             // Populate cache for future renders.
             if let Ok(mut cache) = TILE_CACHE.lock() {

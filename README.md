@@ -123,7 +123,7 @@ library(basemapper)
 nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
 
 ggplot(nc) +
-  geom_basemap(basemap_provider("Carto.Positron")) +
+  geom_basemap("OpenFreeMap.Positron") +
   geom_sf(fill = NA, colour = "steelblue") +
   coord_sf()
 ```
@@ -138,7 +138,7 @@ library(basemapper)
 nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
 
 tm_shape(nc) +
-  tm_basemap(basemap_provider("Carto.Positron")) +
+  tm_basemap("OpenFreeMap.Positron") +
   tm_sf()
 ```
 
@@ -157,7 +157,7 @@ fig, ax = plt.subplots(figsize=(10, 6))
 europe.plot(ax=ax, facecolor="none", edgecolor="black")
 
 # Axes from a GeoDataFrame plot carry no CRS: pass it explicitly.
-add_basemap(ax, basemap_provider("Carto.Positron"), crs=europe.crs)
+add_basemap(ax, "OpenFreeMap.Positron", crs=europe.crs)
 plt.show()
 ```
 
@@ -172,7 +172,7 @@ cities = pd.DataFrame({"lon": [-111.89, -111.98], "lat": [40.76, 40.66]})
 
 (
     ggplot(cities, aes("lon", "lat"))
-    + geom_basemap(basemap_provider("Carto.Positron"))   # data CRS defaults to EPSG:4326
+    + geom_basemap("OpenFreeMap.Positron")   # data CRS defaults to EPSG:4326
     + geom_point(colour="red", size=3)
 )
 ```
@@ -199,7 +199,8 @@ resolution (`ggsave(dpi = 300)`, `savefig(dpi=300)`).
 | ggplot2 / plotnine layer | `geom_basemap()` | `geom_basemap()` | — |
 | matplotlib layer | — | `add_basemap()` | — |
 | tmap layer | `tm_basemap()` | — | — |
-| Named basemap (25 sources) | `basemap_provider()`, `list_providers()` | `basemap_provider()`, `list_providers()` | `providers::basemap_provider()`, `providers::PROVIDER_NAMES` |
+| Named basemaps (leaflet names; the name works as `style`) | `basemap_provider()`, `list_providers()`, `providers` | `basemap_provider()`, `list_providers()`, `providers` | `providers::basemap_provider()`, `providers::PROVIDERS` |
+| Tile cache | `tile_cache()` | `tile_cache()` | `cache::{dir, set_dir, clear}` |
 | Your own tile data (tile URL, TileJSON, PMTiles, ArcGIS) | pass it as `style`; `tile_style()` for overrides | same | `tile_style()` |
 | OGC WMS / WMTS | `wms_style()`, `wmts_style()` | same names | `providers::wms_style()`, `providers::wmts_style()` |
 | Inspect style layers | `list_layers()` | `list_layers()` | `list_layers()` |
@@ -217,13 +218,13 @@ draw it directly on one canvas.
 ```r
 # R — Pacific-centred map crossing the date line
 render_basemap_raw(c(15000000, -5000000, -15000000, 5000000), 800, 400,
-                   basemap_provider("OSM.Standard"), crs = 3857)
+                   "OpenStreetMap.Mapnik", crs = 3857)
 ```
 
 ```python
 # Python — same
 render_basemap_raw([15_000_000, -5_000_000, -15_000_000, 5_000_000], 800, 400,
-                   basemap_provider("OSM.Standard"), crs=3857)
+                   "OpenStreetMap.Mapnik", crs=3857)
 ```
 
 ---

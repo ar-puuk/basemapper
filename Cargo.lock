@@ -187,6 +187,7 @@ dependencies = [
  "csscolorparser",
  "flate2",
  "http 0.2.12",
+ "httpdate",
  "httptest",
  "hyper 0.14.32",
  "image",

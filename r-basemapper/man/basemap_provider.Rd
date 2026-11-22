@@ -4,27 +4,46 @@
 \alias{basemap_provider}
 \title{Named basemaps}
 \usage{
-basemap_provider(name, api_key = NULL)
+basemap_provider(name, type = NULL, api_key = NULL, tiles = NULL)
 }
 \arguments{
-\item{name}{Provider name, e.g. \code{"OpenFreeMap.liberty"} or
-\code{"Carto.Positron"}; see \code{\link[=list_providers]{list_providers()}}.}
+\item{name}{Basemap name (case-insensitive).}
 
-\item{api_key}{API key, required by MapTiler; optional for Stadia (lifts
-rate limits); ignored by the others.}
+\item{type}{\code{"vector"} (a MapLibre style) or \code{"raster"} (tiles). By
+default the vector form when there is one, else raster. Asking for a
+form a basemap lacks is an error, never a silent fallback.}
+
+\item{api_key}{API key for CARTO, MapTiler and Stadia; by default read
+from \code{CARTO_API_KEY}, \code{MAPTILER_API_KEY} or \code{STADIA_API_KEY}. The keys
+are free for moderate use; \code{\link[=list_providers]{list_providers()}} shows which basemaps
+need one.}
+
+\item{tiles}{Your own tile data to draw with this basemap's style: a
+\code{.pmtiles} archive (URL or path), tile URL or TileJSON. It must use the
+same schema as the provider's tiles (OpenMapTiles for OpenFreeMap and
+Stadia).}
 }
 \value{
-A style string (URL or JSON).
+A style string: a URL, or inline style JSON (the raster form, or
+with \code{tiles}).
 }
 \description{
 \code{basemap_provider()} returns the style of a named basemap, for
-\code{\link[=basemap]{basemap()}} and the other renderers' \code{style} argument: a style URL (vector
-GL styles) or inline style JSON (raster services). \code{\link[=list_providers]{list_providers()}}
-lists the names. Implemented in the Rust core, so R and Python
+\code{\link[=basemap]{basemap()}} and the other renderers' \code{style} argument. Names follow
+leaflet-providers (\code{"CartoDB.Positron"}, \code{"Esri.WorldImagery"},
+\code{"OpenStreetMap.HOT"}); \code{\link[=list_providers]{list_providers()}} lists them with their forms,
+and \link{providers} completes them. A name also works as \code{style} directly;
+use this function to pick the form, pass a key, or draw your own tiles
+with the basemap's style. Implemented in the Rust core, so R and Python
 (\code{basemapper.basemap_provider()}) return the same style.
 }
 \examples{
-basemap_provider("OpenFreeMap.liberty")
+basemap_provider("OpenFreeMap.Liberty")
+basemap_provider("Esri.WorldGrayCanvas", type = "raster")
+\dontrun{
+basemap_provider("CartoDB.Voyager", api_key = "...")   # or set CARTO_API_KEY
+basemap_provider("OpenFreeMap.Liberty", tiles = "data/area.pmtiles")
+}
 }
 \seealso{
 \code{\link[=tile_style]{tile_style()}} for your own tile data, \code{\link[=wms_style]{wms_style()}} for OGC

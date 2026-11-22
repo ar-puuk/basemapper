@@ -1,5 +1,6 @@
 pub mod basemap;
 pub mod bbox;
+pub mod cache;
 pub mod error;
 pub mod providers;
 pub mod renderer;
@@ -20,8 +21,23 @@ use once_cell::sync::Lazy;
 use tokio::runtime::Runtime;
 
 // Thread-local tokio runtime shared across all render calls from binding crates.
-static RUNTIME: Lazy<Runtime> =
+pub(crate) static RUNTIME: Lazy<Runtime> =
     Lazy::new(|| Runtime::new().expect("failed to create basemapper tokio runtime"));
+
+/// The User-Agent sent with every request, identifying the app as tile
+/// usage policies ask (e.g. OpenStreetMap's).
+pub(crate) const USER_AGENT: &str =
+    concat!("basemapper/", env!("CARGO_PKG_VERSION"), " (+https://github.com/ar-puuk/basemapper)");
+
+/// The HTTP client for styles, tiles, glyphs and sprites.
+pub(crate) fn http_client(timeout: std::time::Duration) -> Result<reqwest::Client, BasemapError> {
+    reqwest::Client::builder()
+        .timeout(timeout)
+        .use_rustls_tls()
+        .user_agent(USER_AGENT)
+        .build()
+        .map_err(|e| BasemapError::RenderError(e.to_string()))
+}
 
 /// Render a basemap tile mosaic to a flat RGBA byte array.
 ///
@@ -90,12 +106,7 @@ pub fn tile_style(
     auth_token: Option<&str>,
 ) -> Result<(String, Vec<String>), BasemapError> {
     RUNTIME.block_on(async {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .use_rustls_tls()
-            .user_agent(concat!("basemapper/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .map_err(|e| BasemapError::RenderError(e.to_string()))?;
+        let client = http_client(std::time::Duration::from_secs(30))?;
         tile_style::tile_style(input, options, &client, auth_token).await
     })
 }
@@ -108,12 +119,7 @@ pub fn tile_style(
 /// URL, TileJSON, PMTiles archive or ArcGIS service) with its built style.
 pub fn list_layers(style: &str, auth_token: Option<&str>) -> Result<Vec<(String, String)>, BasemapError> {
     let json = RUNTIME.block_on(async {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .use_rustls_tls()
-            .user_agent(concat!("basemapper/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .map_err(|e| BasemapError::RenderError(e.to_string()))?;
+        let client = http_client(std::time::Duration::from_secs(30))?;
         StyleInput::detect(style).resolve(&client, auth_token).await
     })?;
     let v: serde_json::Value = serde_json::from_str(&json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
@@ -142,14 +148,7 @@ pub fn encode_png(pixels: &[u8], width: u32, height: u32) -> Result<Vec<u8>, Bas
 // ──────────────────────────────────────────────────────────────────────────────
 
 async fn render_async(request: RenderRequest) -> Result<RenderResult, BasemapError> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_millis(
-            request.tile_timeout_ms as u64,
-        ))
-        .use_rustls_tls()
-        .user_agent(concat!("basemapper/", env!("CARGO_PKG_VERSION")))
-        .build()
-        .map_err(|e| BasemapError::RenderError(e.to_string()))?;
+    let client = http_client(std::time::Duration::from_millis(request.tile_timeout_ms as u64))?;
 
     // Resolve style once — shared across both halves for anti-meridian renders.
     let raw_json = request
@@ -461,6 +460,22 @@ struct ResolvedSource {
     tile_size: f64,
 }
 
+/// The URL a TileJSON's relative `tiles` resolve against. An ArcGIS
+/// service's JSON (`.../VectorTileServer`) lists them relative to the
+/// service itself (`tile/{z}/{y}/{x}.pbf`), as if its URL ended in `/`.
+fn tilejson_base(url: &str) -> String {
+    let (path, query) = url.split_once('?').map_or((url, None), |(p, q)| (p, Some(q)));
+    let lower = path.to_ascii_lowercase();
+    if lower.ends_with("/vectortileserver") || lower.ends_with("/mapserver") {
+        match query {
+            Some(q) => format!("{path}/?{q}"),
+            None => format!("{path}/"),
+        }
+    } else {
+        url.to_owned()
+    }
+}
+
 async fn resolve_source(
     source: &serde_json::Value,
     src_type: &str,
@@ -522,8 +537,8 @@ async fn resolve_source(
         let tilejson: serde_json::Value = resp.json().await.map_err(|_| {
             BasemapError::StyleParseError("could not parse TileJSON response".into())
         })?;
-        let tiles: Vec<String> =
-            tile_list(&tilejson).iter().map(|t| resolve_url(t, Some(&tilejson_url))).collect();
+        let base = tilejson_base(&tilejson_url);
+        let tiles: Vec<String> = tile_list(&tilejson).iter().map(|t| resolve_url(t, Some(&base))).collect();
         if tiles.is_empty() {
             return Err(BasemapError::StyleParseError("TileJSON missing \"tiles\" array".into()));
         }
@@ -950,12 +965,7 @@ pub fn render_svg_stack_with(requests: Vec<RenderRequest>, options: &SvgOptions)
     }
     let timeout = requests.iter().map(|r| r.tile_timeout_ms).max().unwrap_or(10_000);
     RUNTIME.block_on(async {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_millis(timeout.max(15_000) as u64))
-            .use_rustls_tls()
-            .user_agent(concat!("basemapper/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .map_err(|e| BasemapError::RenderError(e.to_string()))?;
+        let client = http_client(std::time::Duration::from_millis(timeout.max(15_000) as u64))?;
         // Every style's tiles and assets first, so the fonts of the whole
         // document are resolved (and embedded) once.
         let mut inputs = Vec::new();

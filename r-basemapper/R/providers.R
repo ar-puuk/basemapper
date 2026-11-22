@@ -1,37 +1,112 @@
 #' Named basemaps
 #'
 #' `basemap_provider()` returns the style of a named basemap, for
-#' [basemap()] and the other renderers' `style` argument: a style URL (vector
-#' GL styles) or inline style JSON (raster services). [list_providers()]
-#' lists the names. Implemented in the Rust core, so R and Python
+#' [basemap()] and the other renderers' `style` argument. Names follow
+#' leaflet-providers (`"CartoDB.Positron"`, `"Esri.WorldImagery"`,
+#' `"OpenStreetMap.HOT"`); [list_providers()] lists them with their forms,
+#' and [providers] completes them. A name also works as `style` directly;
+#' use this function to pick the form, pass a key, or draw your own tiles
+#' with the basemap's style. Implemented in the Rust core, so R and Python
 #' (`basemapper.basemap_provider()`) return the same style.
 #'
-#' @param name Provider name, e.g. `"OpenFreeMap.liberty"` or
-#'   `"Carto.Positron"`; see [list_providers()].
-#' @param api_key API key, required by MapTiler; optional for Stadia (lifts
-#'   rate limits); ignored by the others.
-#' @return A style string (URL or JSON).
+#' @param name Basemap name (case-insensitive).
+#' @param type `"vector"` (a MapLibre style) or `"raster"` (tiles). By
+#'   default the vector form when there is one, else raster. Asking for a
+#'   form a basemap lacks is an error, never a silent fallback.
+#' @param api_key API key for CARTO, MapTiler and Stadia; by default read
+#'   from `CARTO_API_KEY`, `MAPTILER_API_KEY` or `STADIA_API_KEY`. The keys
+#'   are free for moderate use; [list_providers()] shows which basemaps
+#'   need one.
+#' @param tiles Your own tile data to draw with this basemap's style: a
+#'   `.pmtiles` archive (URL or path), tile URL or TileJSON. It must use the
+#'   same schema as the provider's tiles (OpenMapTiles for OpenFreeMap and
+#'   Stadia).
+#' @return A style string: a URL, or inline style JSON (the raster form, or
+#'   with `tiles`).
 #' @seealso [tile_style()] for your own tile data, [wms_style()] for OGC
 #'   services.
 #' @export
 #' @examples
-#' basemap_provider("OpenFreeMap.liberty")
-basemap_provider <- function(name, api_key = NULL) {
-  .Call("wrap__basemap_provider_raw", as.character(name)[1L],
-        if (is.null(api_key)) NULL else as.character(api_key), PACKAGE = "basemapper")
+#' basemap_provider("OpenFreeMap.Liberty")
+#' basemap_provider("Esri.WorldGrayCanvas", type = "raster")
+#' \dontrun{
+#' basemap_provider("CartoDB.Voyager", api_key = "...")   # or set CARTO_API_KEY
+#' basemap_provider("OpenFreeMap.Liberty", tiles = "data/area.pmtiles")
+#' }
+basemap_provider <- function(name, type = NULL, api_key = NULL, tiles = NULL) {
+  chr <- function(x) if (is.null(x)) NULL else as.character(x)[1L]
+  .Call("wrap__basemap_provider_raw", as.character(name)[1L], chr(type), chr(api_key), chr(tiles),
+        PACKAGE = "basemapper")
 }
 
-#' Names of the built-in basemap providers
+#' The built-in basemaps
 #'
-#' The names [basemap_provider()] accepts. Python:
-#' `basemapper.list_providers()`.
+#' The basemaps [basemap_provider()] knows, with the forms each comes in.
+#' Python: `basemapper.list_providers()`.
 #'
-#' @return A character vector.
+#' @param type `"vector"` or `"raster"` to list only basemaps with that
+#'   form; `NULL` lists all.
+#' @return A data frame with columns `name`; `vector` and `raster` (logical:
+#'   the forms it has); `api_key_env` (the environment variable its API key
+#'   is read from, `NA` when it needs none); and `attribution`.
 #' @export
 #' @examples
 #' list_providers()
-list_providers <- function() {
-  .Call("wrap__list_providers_raw", PACKAGE = "basemapper")
+#' list_providers("vector")$name
+list_providers <- function(type = NULL) {
+  x <- .Call("wrap__list_providers_raw", if (is.null(type)) NULL else as.character(type)[1L],
+             PACKAGE = "basemapper")
+  key <- attr(x, "api_key_env")
+  key[key == ""] <- NA_character_
+  data.frame(name = as.vector(x), vector = attr(x, "vector"), raster = attr(x, "raster"),
+             api_key_env = key, attribution = attr(x, "attribution"), stringsAsFactors = FALSE)
+}
+
+#' Basemap names, for autocompletion
+#'
+#' A named list of every basemap name: `providers$CartoDB.Positron` is the
+#' string `"CartoDB.Positron"`, usable as `style` or with
+#' [basemap_provider()]. The names match `leaflet::providers` where both
+#' have a basemap. Python: `basemapper.providers.CartoDB.Positron`.
+#'
+#' @format A named list of character strings.
+#' @export
+#' @examples
+#' providers$Esri.WorldImagery
+providers <- NULL
+
+#' The tile cache
+#'
+#' Map tiles are cached on disk for as long as the server's caching headers
+#' allow (a day when they say nothing), so repeated renders of an area do
+#' not download them again. The cache starts in `BASEMAPPER_CACHE_DIR` when
+#' that is set (`"off"` disables it), else in
+#' `tools::R_user_dir("basemapper", "cache")`. Python:
+#' `basemapper.tile_cache()`.
+#'
+#' @param dir A directory to move the cache to, or `FALSE` to turn it off.
+#'   `NULL` leaves it as it is.
+#' @param clear Delete every cached tile.
+#' @return The cache directory, or `NULL` when the cache is off (invisibly
+#'   when `dir` or `clear` is given).
+#' @export
+#' @examples
+#' tile_cache()
+tile_cache <- function(dir = NULL, clear = FALSE) {
+  d <- if (isFALSE(dir)) "" else if (is.null(dir)) NULL else path.expand(as.character(dir)[1L])
+  out <- .Call("wrap__tile_cache_raw", d, isTRUE(clear), PACKAGE = "basemapper")
+  if (is.null(dir) && !isTRUE(clear)) out else invisible(out)
+}
+
+.onLoad <- function(libname, pkgname) {
+  ns <- asNamespace(pkgname)
+  names <- as.vector(.Call("wrap__list_providers_raw", NULL, PACKAGE = "basemapper"))
+  assign("providers", stats::setNames(as.list(names), names), envir = ns)
+  # CRAN policy: user files go under R_user_dir() unless the user chose a place.
+  if (is.na(Sys.getenv("BASEMAPPER_CACHE_DIR", NA_character_))) {
+    .Call("wrap__tile_cache_raw", tools::R_user_dir("basemapper", "cache"), FALSE, PACKAGE = "basemapper")
+  }
+  invisible()
 }
 
 #' A style for tile data

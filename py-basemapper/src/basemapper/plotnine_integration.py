@@ -47,7 +47,7 @@ class geom_basemap(geom):
         >>> from basemapper import basemap_provider, geom_basemap
         >>> df = pd.DataFrame({"lon": [-111.95, -111.80], "lat": [40.68, 40.80]})
         >>> (ggplot(df, aes("lon", "lat"))
-        ...  + geom_basemap(basemap_provider("Carto.Positron"))
+        ...  + geom_basemap("OpenFreeMap.Positron")
         ...  + geom_point())
     """
 

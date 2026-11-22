@@ -5,7 +5,9 @@ import warnings
 
 import pytest
 
-from basemapper import basemap_provider, list_layers, list_providers, tile_style, wms_style, wmts_style
+from basemapper import (
+    basemap_provider, list_layers, list_providers, providers, tile_cache, tile_style, wms_style, wmts_style,
+)
 from basemapper.exceptions import ValidationError
 
 
@@ -75,18 +77,62 @@ def test_missing_style_is_a_clear_error():
         tile_style("no/such/style.json")
 
 
-def test_basemap_provider_resolves_every_listed_provider():
-    names = list_providers()
-    assert len(names) >= 20
-    assert {"OpenFreeMap.liberty", "Carto.Positron", "ESRI.WorldImagery"} <= set(names)
-    for name in names:
-        key = "KEY" if name.startswith("MapTiler.") else None
-        assert isinstance(basemap_provider(name, api_key=key), str)
-    assert "positron-gl-style" in basemap_provider("Carto.Positron")
-    with pytest.raises(ValidationError, match="api_key"):
+def test_list_providers_is_a_table_of_forms():
+    rows = list_providers()
+    assert len(rows) >= 40
+    assert set(rows[0]) == {"name", "vector", "raster", "api_key_env", "attribution"}
+    by_name = {r["name"]: r for r in rows}
+    assert by_name["Esri.WorldGrayCanvas"]["vector"] and by_name["Esri.WorldGrayCanvas"]["raster"]
+    assert not by_name["OpenFreeMap.Liberty"]["raster"]
+    assert by_name["MapTiler.Streets"]["api_key_env"] == "MAPTILER_API_KEY"
+    assert by_name["CartoDB.Positron"]["api_key_env"] == "CARTO_API_KEY"
+    assert by_name["OpenFreeMap.Liberty"]["api_key_env"] is None
+    assert all(r["vector"] for r in list_providers("vector"))
+    assert all(r["raster"] for r in list_providers("raster"))
+
+
+def test_basemap_provider_resolves_every_form():
+    for r in list_providers():
+        for kind in ("vector", "raster"):
+            if r[kind]:
+                assert isinstance(basemap_provider(r["name"], type=kind, api_key="KEY"), str)
+
+
+def test_basemap_provider_forms_and_errors(monkeypatch):
+    assert basemap_provider("OpenFreeMap.Positron").endswith("/styles/positron")
+    assert basemap_provider("openfreemap.positron") == basemap_provider("OpenFreeMap.Positron")
+    assert basemap_provider("Carto.Positron", api_key="K").endswith("positron-gl-style/style.json?key=K")
+    raster = json.loads(basemap_provider("CartoDB.Positron", type="raster", api_key="K"))
+    assert len(raster["sources"]["raster"]["tiles"]) == 4
+    assert raster["sources"]["raster"]["attribution"].endswith("© CARTO")
+    with pytest.raises(ValidationError, match='only as raster tiles'):
+        basemap_provider("Esri.WorldImagery", type="vector")
+    with pytest.raises(ValidationError, match="did you mean CartoDB.Positron"):
+        basemap_provider("CartoDB.Positon")
+    monkeypatch.delenv("MAPTILER_API_KEY", raising=False)
+    with pytest.raises(ValidationError, match="MAPTILER_API_KEY"):
         basemap_provider("MapTiler.Streets")
-    with pytest.raises(ValidationError, match="list_providers"):
-        basemap_provider("Nope")
+    monkeypatch.setenv("MAPTILER_API_KEY", "ENVKEY")
+    assert basemap_provider("MapTiler.Streets").endswith("key=ENVKEY")
+    tiles = json.loads(basemap_provider("Esri.WorldGrayCanvas", type="raster", tiles="https://x/{z}/{x}/{y}.png"))
+    assert tiles["sources"]["raster"]["tiles"] == ["https://x/{z}/{x}/{y}.png"]
+
+
+def test_providers_object_and_names_as_style():
+    assert providers.CartoDB.Positron == "CartoDB.Positron"
+    assert providers.OpenTopoMap == "OpenTopoMap"
+    assert "Positron" in dir(providers.CartoDB)
+    assert list_layers(providers.Esri.WorldImagery) == [{"id": "raster", "type": "raster"}]
+
+
+def test_tile_cache(tmp_path):
+    before = tile_cache()
+    try:
+        assert tile_cache(tmp_path) == str(tmp_path)
+        assert tile_cache(False) is None
+        assert tile_cache(tmp_path, clear=True) == str(tmp_path)
+    finally:
+        tile_cache(before or False)
 
 
 def test_ogc_styles():

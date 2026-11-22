@@ -10,7 +10,7 @@
 #' @export
 #' @examples
 #' \dontrun{
-#' list_layers(basemap_provider("Carto.Positron"))
+#' list_layers("OpenFreeMap.Positron")
 #' }
 list_layers <- function(style, auth_token = NULL) {
   ids <- .Call("wrap__list_layers_raw", as.character(style)[1L],

@@ -20,6 +20,8 @@ Imports:
     ggplot2 (>= 3.4),
     grDevices,
     grid,
+    stats,
+    tools,
     sf (>= 1.0),
     jsonlite (>= 1.8),
     terra (>= 1.7)
