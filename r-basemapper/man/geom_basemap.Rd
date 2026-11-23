@@ -6,6 +6,7 @@
 \usage{
 geom_basemap(
   style,
+  ...,
   tile_zoom = NULL,
   alpha = 1,
   layers = NULL,
@@ -13,16 +14,18 @@ geom_basemap(
   features = NULL,
   pixel_ratio = NULL,
   auth_token = NULL,
-  tile_timeout_ms = 10000L,
-  max_tiles = 256L,
-  attribution = TRUE,
-  ...
+  fetch = fetch_options(),
+  attribution = TRUE
 )
 }
 \arguments{
 \item{style}{A MapLibre GL style URL or JSON string (e.g. from
 \code{\link[=basemap_provider]{basemap_provider()}}), or a vector / list of styles stacked bottom to
 top.}
+
+\item{...}{Other arguments passed on to \code{\link[ggplot2:layer]{ggplot2::layer()}}; they must be
+named. (The deprecated \code{tile_timeout_ms} and \code{max_tiles} are still
+accepted, with a warning: use \code{fetch}.)}
 
 \item{tile_zoom}{Tile detail override: the tile zoom on the 256 px grid
 (vector sources use one less, their tiles being 512 px), or \code{NULL} to
@@ -35,7 +38,7 @@ only those layers, minus-prefixed IDs drop them; \code{*} and \verb{?} are
 wildcards (\code{"-label_*"}). See \code{\link[=list_layers]{list_layers()}}. Names that match no
 layer of any style warn.}
 
-\item{labels}{\code{TRUE} keeps every layer, \code{FALSE} drops the labels (text and
+\item{labels}{\code{"all"} (or \code{TRUE}) keeps every layer, \code{"none"} (or \code{FALSE}) drops the labels (text and
 icons), \code{"only"} keeps only the labels on a transparent background, to
 stack over another map. Catalogue raster basemaps switch to their
 label-free or label-only tiles.}
@@ -54,17 +57,14 @@ smaller.}
 
 \item{auth_token}{Optional access token for the tile service (sent only to the style's own server).}
 
-\item{tile_timeout_ms}{Per-tile HTTP timeout in milliseconds.}
-
-\item{max_tiles}{Maximum tiles fetched per style.}
+\item{fetch}{How tiles are downloaded: a \code{\link[=fetch_options]{fetch_options()}} object
+(timeout, tile limit, parallel downloads, what a failed tile does).}
 
 \item{attribution}{The credit line the basemap's providers ask for, drawn
 small in the bottom-right corner of each panel: \code{TRUE} (the default)
 for the styles' own (see \code{\link[=get_attribution]{get_attribution()}}), \code{FALSE} for none, or
 your own text. It is drawn with the basemap, so later layers can cover
 it.}
-
-\item{...}{Additional arguments passed to \code{ggplot2::layer()}.}
 }
 \value{
 A ggplot2 layer object.

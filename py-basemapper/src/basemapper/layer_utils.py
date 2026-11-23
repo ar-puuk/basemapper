@@ -58,7 +58,7 @@ def list_layers(
         auth_token: Optional access token for the style URL.
         layers: Layer filter to preview: plain IDs keep, ``-`` prefixed IDs
             drop; ``*`` and ``?`` are wildcards.
-        labels: ``True``, ``False`` or ``"only"``, as the renderers take it.
+        labels: ``"all"``, ``"none"`` or ``"only"`` (or ``True`` / ``False``), as the renderers take it.
         features: Feature filter to preview, as the renderers take it.
 
     Returns:

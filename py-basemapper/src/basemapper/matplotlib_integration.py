@@ -13,6 +13,7 @@ from ._render import _features_arg, labels_arg
 from .bbox_utils import detect_crs_from_axes
 
 if TYPE_CHECKING:
+    from ._fetch import FetchOptions
     import matplotlib.axes
     import xarray as xr
 
@@ -155,6 +156,7 @@ class BasemapImage(AxesImage):
 def add_basemap(
     ax: "matplotlib.axes.Axes",
     style: Union[str, Any, Sequence[Any]],
+    *,
     tile_zoom: Optional[int] = None,
     alpha: float = 1.0,
     layers: Optional[List[str]] = None,
@@ -162,10 +164,10 @@ def add_basemap(
     features: Optional[List[str]] = None,
     pixel_ratio: Optional[float] = None,
     auth_token: Optional[str] = None,
-    tile_timeout_ms: int = 10_000,
-    max_tiles: int = 256,
+    fetch: Optional["FetchOptions"] = None,
     attribution: Union[bool, str] = True,
     crs: Optional[object] = None,
+    **deprecated: Any,
 ) -> "xr.DataArray":
     """Render a basemap beneath existing axes content.
 
@@ -186,7 +188,7 @@ def add_basemap(
         layers: Optional layer filter. Plain IDs keep only those layers;
             minus-prefixed IDs drop those layers; ``*`` and ``?`` are
             wildcards.
-        labels: ``True`` keeps every layer, ``False`` drops the labels (text
+        labels: ``"all"`` (or ``True``) keeps every layer, ``"none"`` (or ``False``) drops the labels (text
             and icons), ``"only"`` keeps only the labels on a transparent
             background, to stack over another map. Catalogue raster
             basemaps switch to their label-free or label-only tiles.
@@ -201,12 +203,13 @@ def add_basemap(
             keep their physical size at any dpi. Larger values draw map
             symbols smaller.
         auth_token: Optional access token for the tile service (sent only to the style's own server).
-        tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
-        max_tiles: Maximum tile downloads per style.
+        fetch: How tiles are downloaded: a :class:`FetchOptions`.
         attribution: The credit line the basemap's providers ask for, drawn
             small in the bottom-right corner over the plot: ``True`` (the
             default) for the styles' own (see :func:`get_attribution`),
             ``False`` for none, or your own text.
+        **deprecated: ``tile_timeout_ms`` and ``max_tiles`` are still
+            accepted, with a DeprecationWarning: use ``fetch``.
         crs: CRS of the axes data coordinates (anything ``pyproj.CRS``
             accepts, e.g. ``"EPSG:4326"``, ``gdf.crs``). Required for plain
             matplotlib axes and GeoDataFrame plots, whose axes carry no CRS;
@@ -224,12 +227,15 @@ def add_basemap(
     import pyproj
     import xarray as xr
 
+    from ._fetch import _resolve_fetch
+
+    fetch = _resolve_fetch(fetch, "add_basemap", deprecated)
     crs = pyproj.CRS.from_user_input(crs) if crs is not None else detect_crs_from_axes(ax)
     xlim, ylim = ax.get_xlim(), ax.get_ylim()
     img = BasemapImage(
         ax, style, crs, pixel_ratio, tile_zoom,
-        dict(tile_timeout_ms=tile_timeout_ms, max_tiles=max_tiles, layers=layers, labels=labels_arg(labels),
-             features=_features_arg(features), auth_token=auth_token),
+        dict(layers=layers, labels=labels_arg(labels), features=_features_arg(features), auth_token=auth_token,
+             **fetch._core()),
         alpha=alpha,
     )
     # First render now, so errors surface here and a result can be returned.

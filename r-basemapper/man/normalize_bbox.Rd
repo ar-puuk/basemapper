@@ -15,7 +15,8 @@ baked into a \code{"bbox"} object when supplied.}
 }
 \value{
 A list with \code{vals} (named numeric \code{c(xmin, ymin, xmax,
-  ymax)}) and \code{crs_obj} (an \code{sf::crs} object).
+  ymax)}) and \code{crs_obj} (an \code{sf::crs} object, or for EPSG:4326 and
+EPSG:3857 a list with its \code{epsg}, so those need no \code{sf}).
 }
 \description{
 Dispatches on the type of \code{bbox}:

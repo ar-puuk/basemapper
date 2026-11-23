@@ -62,10 +62,12 @@ test_that("render_png / render_array / render_raster / render_svg (live tiles)",
   expect_equal(attr(a, "crs_epsg"), 3857L)
   expect_true(all(a[, , 4] == 255L))  # Positron has an opaque background
 
-  r <- render_raster(m)
-  expect_s4_class(r, "SpatRaster")
-  expect_equal(dim(r), c(300, 400, 4))
-  expect_equal(as.vector(terra::values(r)[1, ]), as.numeric(a[1, 1, ]))
+  if (requireNamespace("terra", quietly = TRUE)) {
+    r <- render_raster(m)
+    expect_s4_class(r, "SpatRaster")
+    expect_equal(dim(r), c(300, 400, 4))
+    expect_equal(as.vector(terra::values(r)[1, ]), as.numeric(a[1, 1, ]))
+  }
 
   svg <- render_svg(m)
   expect_match(svg, "^<svg")
@@ -93,6 +95,7 @@ test_that("geom_basemap renders natively at ggsave() dpi", {
   skip_on_cran()
   skip_if_offline()
   skip_if_not_installed("ggplot2")
+  skip_if_not_installed("sf")
   pts <- sf::st_sf(geometry = sf::st_sfc(
     sf::st_point(c(-111.95, 40.70)), sf::st_point(c(-111.80, 40.80)), crs = 4326))
   p <- ggplot2::ggplot(pts) + geom_basemap(positron) + ggplot2::geom_sf() +

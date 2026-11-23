@@ -17,6 +17,9 @@
 #'   stacked bottom to top (e.g. a basemap published as separate hillshade,
 #'   base and label services; `"UGRC.Lite"` names such a stack).
 #' @param width,height View size in CSS pixels.
+#' @param ... Not used: the arguments after `height` must be named. (The
+#'   deprecated `tile_timeout_ms`, `max_tiles`, `tile_concurrency` and
+#'   `fail_on_tile_error` are still accepted, with a warning: use `fetch`.)
 #' @param center `c(longitude, latitude)` of the view centre.
 #' @param zoom MapLibre zoom (0--22, fractional allowed).
 #' @param bounds Bounds to fit instead of `center`/`zoom`: `c(xmin, ymin,
@@ -28,7 +31,7 @@
 #'   only those layers, minus-prefixed IDs drop them; `*` and `?` are
 #'   wildcards (`"-label_*"`). See [list_layers()]. Names that match no
 #'   layer of any style warn.
-#' @param labels `TRUE` keeps every layer, `FALSE` drops the labels (text and
+#' @param labels `"all"` (or `TRUE`) keeps every layer, `"none"` (or `FALSE`) drops the labels (text and
 #'   icons), `"only"` keeps only the labels on a transparent background, to
 #'   stack over another map. Catalogue raster basemaps switch to their
 #'   label-free or label-only tiles.
@@ -39,11 +42,8 @@
 #'   terrain, other (the `feature` column of [list_layers()]). Features no
 #'   layer of any style belongs to warn.
 #' @param auth_token Optional access token for the tile service (sent only to the style's own server).
-#' @param tile_timeout_ms Per-tile HTTP timeout in milliseconds.
-#' @param max_tiles Maximum tiles fetched per style.
-#' @param tile_concurrency Parallel tile downloads.
-#' @param fail_on_tile_error Abort on a failed tile instead of leaving it
-#'   empty.
+#' @param fetch How tiles are downloaded: a [fetch_options()] object
+#'   (timeout, tile limit, parallel downloads, what a failed tile does).
 #'
 #' @return A `basemap` object.
 #' @export
@@ -62,46 +62,43 @@
 #' }
 basemap <- function(
     style,
-    width              = 800L,
-    height             = 600L,
-    center             = NULL,
-    zoom               = NULL,
-    bounds             = NULL,
-    crs                = NULL,
-    pixel_ratio        = 1,
-    layers             = NULL,
-    labels             = TRUE,
-    features           = NULL,
-    auth_token         = NULL,
-    tile_timeout_ms    = 10000L,
-    max_tiles          = 256L,
-    tile_concurrency   = 16L,
-    fail_on_tile_error = FALSE
+    width       = 800L,
+    height      = 600L,
+    ...,
+    center      = NULL,
+    zoom        = NULL,
+    bounds      = NULL,
+    crs         = NULL,
+    pixel_ratio = 1,
+    layers      = NULL,
+    labels      = TRUE,
+    features    = NULL,
+    auth_token  = NULL,
+    fetch       = fetch_options()
 ) {
+  fetch  <- fetch_with_deprecated(fetch, list(...), "basemap")$fetch
   styles <- style_strings(style)
   width  <- as.integer(width)
   height <- as.integer(height)
   if (length(width) != 1L || length(height) != 1L || is.na(width) || is.na(height) ||
       width < 1L || height < 1L) {
-    stop("width and height must be positive integers.", call. = FALSE)
+    abort_basemapper("`width` and `height` must be positive integers.")
   }
   check_pixel_ratio(pixel_ratio)
   m <- structure(
     list(
       styles = styles, width = width, height = height, pixel_ratio = as.numeric(pixel_ratio),
-      center = c(0, 0), zoom = 0,
-      options = list(
-        layers = layers, labels = labels_arg(labels), features = features, auth_token = auth_token,
-        tile_timeout_ms = as.integer(tile_timeout_ms), max_tiles = as.integer(max_tiles),
-        tile_concurrency = as.integer(tile_concurrency),
-        fail_on_tile_error = isTRUE(fail_on_tile_error)
+      center = c(0, 0), zoom = 0, fetch = fetch,
+      options = c(
+        list(layers = layers, labels = labels_arg(labels), features = features, auth_token = auth_token),
+        fetch_core(fetch)
       )
     ),
     class = "basemap"
   )
   if (!is.null(bounds)) {
     if (!is.null(center) || !is.null(zoom)) {
-      stop("Give either bounds or center/zoom, not both.", call. = FALSE)
+      abort_basemapper("Give either `bounds` or `center`/`zoom`, not both.")
     }
     return(set_bounds(m, bounds, crs = crs))
   }
@@ -123,13 +120,13 @@ set_view <- function(m, center = NULL, zoom = NULL) {
   check_basemap(m)
   if (!is.null(center)) {
     if (!is.numeric(center) || length(center) != 2L) {
-      stop("center must be c(longitude, latitude).", call. = FALSE)
+      abort_basemapper("center must be c(longitude, latitude).")
     }
     m$center <- as.numeric(center)
   }
   if (!is.null(zoom)) {
     if (!is.numeric(zoom) || length(zoom) != 1L || zoom < 0 || zoom > 22) {
-      stop("zoom must be a single number between 0 and 22.", call. = FALSE)
+      abort_basemapper("zoom must be a single number between 0 and 22.")
     }
     m$zoom <- as.numeric(zoom)
   }
@@ -141,7 +138,7 @@ set_view <- function(m, center = NULL, zoom = NULL) {
 set_bounds <- function(m, bounds, crs = NULL) {
   check_basemap(m)
   b <- bounds_3857(bounds, crs)
-  v <- .Call("wrap__fit_bounds_raw", as.numeric(b), m$width, m$height, PACKAGE = "basemapper")
+  v <- call_core("wrap__fit_bounds_raw", as.numeric(b), m$width, m$height)
   m$center <- v[1:2]
   m$zoom   <- min(max(v[3], 0), 22)
   m
@@ -164,13 +161,13 @@ set_bounds <- function(m, bounds, crs = NULL) {
 #' @export
 get_bounds <- function(m, lonlat = FALSE) {
   check_basemap(m)
-  b <- .Call("wrap__bbox_from_center_raw", m$center[1], m$center[2], m$zoom,
-             m$width, m$height, PACKAGE = "basemapper")
+  b <- call_core("wrap__bbox_from_center_raw", m$center[1], m$center[2], m$zoom,
+             m$width, m$height)
   names(b) <- c("xmin", "ymin", "xmax", "ymax")
   if (!lonlat) return(b)
-  bb <- sf::st_bbox(sf::st_transform(sf::st_as_sfc(sf::st_bbox(b, crs = sf::st_crs(3857))), 4326))
-  c(xmin = unname(bb["xmin"]), ymin = unname(bb["ymin"]),
-    xmax = unname(bb["xmax"]), ymax = unname(bb["ymax"]))
+  lo <- mercator_to_lonlat(b[["xmin"]], b[["ymin"]])
+  hi <- mercator_to_lonlat(b[["xmax"]], b[["ymax"]])
+  c(xmin = lo[[1]], ymin = lo[[2]], xmax = hi[[1]], ymax = hi[[2]])
 }
 
 #' @rdname get_bounds
@@ -279,7 +276,7 @@ knit_print.basemap <- function(x, options = list(), ...) {
 #' @export
 render_png <- function(m, path = NULL) {
   px  <- render_pixels(m)
-  png <- .Call("wrap__encode_png_raw", px$pixels, px$width, px$height, PACKAGE = "basemapper")
+  png <- call_core("wrap__encode_png_raw", px$pixels, px$width, px$height)
   if (is.null(path)) return(png)
   writeBin(png, path)
   invisible(png)
@@ -293,7 +290,7 @@ render_svg <- function(m, path = NULL, text = c("editable", "bitmap", "paths"),
   embed_fonts <- match.arg(embed_fonts)
   check_basemap(m)
   o <- m$options
-  svg <- .Call(
+  svg <- call_core(
     "wrap__render_svg_raw",
     as.numeric(get_bounds(m)), m$width, m$height, m$styles,
     NULL, o$tile_timeout_ms, o$max_tiles,
@@ -303,8 +300,7 @@ render_svg <- function(m, path = NULL, text = c("editable", "bitmap", "paths"),
     if (is.null(o$auth_token)) NULL else as.character(o$auth_token),
     o$fail_on_tile_error, o$tile_concurrency,
     text, embed_fonts,
-    if (is.null(font_dirs)) NULL else normalizePath(as.character(font_dirs), mustWork = FALSE),
-    PACKAGE = "basemapper"
+    if (is.null(font_dirs)) NULL else normalizePath(as.character(font_dirs), mustWork = FALSE)
   )
   if (is.null(path)) return(svg)
   writeLines(svg, path, useBytes = TRUE, sep = "")
@@ -321,6 +317,7 @@ render_array <- function(m) {
 #' @rdname render_png
 #' @export
 render_raster <- function(m) {
+  rlang::check_installed("terra", "to return a SpatRaster.")
   px <- render_pixels(m)
   b  <- get_bounds(m)
   r  <- terra::rast(
@@ -340,12 +337,12 @@ render_raster <- function(m) {
 # ── Internals ─────────────────────────────────────────────────────────────────
 
 check_basemap <- function(m) {
-  if (!inherits(m, "basemap")) stop("`m` must be a basemap() object.", call. = FALSE)
+  if (!inherits(m, "basemap")) abort_basemapper("`m` must be a basemap() object.")
 }
 
 check_pixel_ratio <- function(pixel_ratio) {
   if (!is.numeric(pixel_ratio) || length(pixel_ratio) != 1L || !(pixel_ratio > 0)) {
-    stop("pixel_ratio must be a single number > 0.", call. = FALSE)
+    abort_basemapper("pixel_ratio must be a single number > 0.")
   }
 }
 
@@ -359,7 +356,7 @@ device_px <- function(css, pixel_ratio) {
 style_strings <- function(style) {
   styles <- if (is.list(style)) style else as.list(style)
   styles <- vapply(styles, function(s) as.character(s)[1L], character(1))
-  if (length(styles) == 0L || anyNA(styles)) stop("At least one style is required.", call. = FALSE)
+  if (length(styles) == 0L || anyNA(styles)) abort_basemapper("At least one style is required.")
   unname(styles)
 }
 
@@ -384,7 +381,7 @@ labels_arg <- function(labels) {
   if (is.character(labels) && length(labels) == 1L && labels %in% c("all", "none", "only")) return(labels)
   if (isTRUE(labels)) return("all")
   if (isFALSE(labels)) return("none")
-  stop('labels must be TRUE, FALSE or "only".', call. = FALSE)
+  abort_basemapper('labels must be TRUE, FALSE or "only".')
 }
 
 # Render styles over an EPSG:3857 bbox; width/height in CSS px.
@@ -395,7 +392,7 @@ render_styles_3857 <- function(bbox_3857, width, height, styles, pixel_ratio,
          max_tiles = 256L, tile_concurrency = 16L, fail_on_tile_error = FALSE),
     options
   )
-  raw <- .Call(
+  raw <- call_core(
     "wrap__render_raw",
     as.numeric(bbox_3857), as.integer(width), as.integer(height), style_strings(styles),
     as.numeric(pixel_ratio),
@@ -405,8 +402,7 @@ render_styles_3857 <- function(bbox_3857, width, height, styles, pixel_ratio,
     labels_arg(o$labels),
     if (is.null(o$features)) NULL else as.character(o$features),
     if (is.null(o$auth_token)) NULL else as.character(o$auth_token),
-    isTRUE(o$fail_on_tile_error), as.integer(o$tile_concurrency),
-    PACKAGE = "basemapper"
+    isTRUE(o$fail_on_tile_error), as.integer(o$tile_concurrency)
   )
   w <- attr(raw, "width")
   h <- attr(raw, "height")

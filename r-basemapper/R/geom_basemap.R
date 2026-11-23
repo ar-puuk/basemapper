@@ -14,7 +14,7 @@ GeomBasemap <- ggplot2::ggproto(
 
   draw_panel = function(data, panel_params, coord,
                         style, tile_zoom, alpha, layers, labels, features, pixel_ratio, auth_token,
-                        tile_timeout_ms, max_tiles, attribution) {
+                        fetch, attribution) {
     # Extract panel extent and reproject to EPSG:3857.
     x_range <- panel_params$x.range %||% panel_params$x_range
     y_range <- panel_params$y.range %||% panel_params$y_range
@@ -35,8 +35,7 @@ GeomBasemap <- ggplot2::ggproto(
       features        = features,
       pixel_ratio     = pixel_ratio,
       auth_token      = auth_token,
-      tile_timeout_ms = tile_timeout_ms,
-      max_tiles       = max_tiles,
+      fetch           = fetch,
       attribution     = attribution,
       cl              = "BasemapGrob"
     )
@@ -83,9 +82,8 @@ makeContent.BasemapGrob <- function(x) {
   px <- render_styles_3857(
     x$bbox_3857, css_w, css_h, x$style, ratio,
     tile_zoom = x$tile_zoom,
-    options   = list(layers = x$layers, labels = x$labels, features = x$features,
-                     auth_token = x$auth_token, tile_timeout_ms = x$tile_timeout_ms,
-                     max_tiles = x$max_tiles)
+    options   = c(list(layers = x$layers, labels = x$labels, features = x$features,
+                       auth_token = x$auth_token), fetch_core(x$fetch))
   )
 
   img <- grid::rasterGrob(
@@ -117,6 +115,9 @@ makeContent.BasemapGrob <- function(x) {
 #' @param style A MapLibre GL style URL or JSON string (e.g. from
 #'   [basemap_provider()]), or a vector / list of styles stacked bottom to
 #'   top.
+#' @param ... Other arguments passed on to [ggplot2::layer()]; they must be
+#'   named. (The deprecated `tile_timeout_ms` and `max_tiles` are still
+#'   accepted, with a warning: use `fetch`.)
 #' @inheritParams render_basemap_raw
 #' @param alpha Opacity of the basemap layer (0--1).
 #' @param pixel_ratio Device pixels per CSS pixel (MapLibre's
@@ -128,8 +129,6 @@ makeContent.BasemapGrob <- function(x) {
 #'   for the styles' own (see [get_attribution()]), `FALSE` for none, or
 #'   your own text. It is drawn with the basemap, so later layers can cover
 #'   it.
-#' @param ... Additional arguments passed to `ggplot2::layer()`.
-#'
 #' @return A ggplot2 layer object.
 #' @export
 #'
@@ -145,18 +144,18 @@ makeContent.BasemapGrob <- function(x) {
 #' }
 geom_basemap <- function(
     style,
-    tile_zoom       = NULL,
-    alpha           = 1,
-    layers          = NULL,
-    labels          = TRUE,
-    features        = NULL,
-    pixel_ratio     = NULL,
-    auth_token      = NULL,
-    tile_timeout_ms = 10000L,
-    max_tiles       = 256L,
-    attribution     = TRUE,
-    ...
+    ...,
+    tile_zoom   = NULL,
+    alpha       = 1,
+    layers      = NULL,
+    labels      = TRUE,
+    features    = NULL,
+    pixel_ratio = NULL,
+    auth_token  = NULL,
+    fetch       = fetch_options(),
+    attribution = TRUE
 ) {
+  args <- fetch_with_deprecated(fetch, list(...), "geom_basemap", after = "style", allow_other = TRUE)
   labels <- labels_arg(labels)
   ggplot2::layer(
     geom        = GeomBasemap,
@@ -166,7 +165,7 @@ geom_basemap <- function(
     position    = "identity",
     show.legend = FALSE,
     inherit.aes = FALSE,
-    params      = list(
+    params      = c(list(
       style           = style,
       tile_zoom       = tile_zoom,
       alpha           = alpha,
@@ -175,10 +174,8 @@ geom_basemap <- function(
       features        = features,
       pixel_ratio     = pixel_ratio,
       auth_token      = auth_token,
-      tile_timeout_ms = tile_timeout_ms,
-      max_tiles       = max_tiles,
-      attribution     = attribution,
-      ...
-    )
+      fetch           = args$fetch,
+      attribution     = attribution
+    ), args$dots)
   )
 }

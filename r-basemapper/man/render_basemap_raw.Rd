@@ -9,6 +9,7 @@ render_basemap_raw(
   width,
   height,
   style,
+  ...,
   crs = NULL,
   pixel_ratio = 1,
   tile_zoom = NULL,
@@ -16,10 +17,7 @@ render_basemap_raw(
   labels = TRUE,
   features = NULL,
   auth_token = NULL,
-  tile_timeout_ms = 10000L,
-  max_tiles = 256L,
-  tile_concurrency = 16L,
-  fail_on_tile_error = FALSE
+  fetch = fetch_options()
 )
 }
 \arguments{
@@ -30,10 +28,11 @@ the object).}
 
 \item{width, height}{View size in CSS pixels.}
 
-\item{style}{A MapLibre GL style URL or JSON string, a catalogue name
-(see \code{\link[=basemap_provider]{basemap_provider()}}), or a character vector / list of those
-stacked bottom to top (e.g. a basemap published as separate hillshade,
-base and label services; \code{"UGRC.Lite"} names such a stack).}
+\item{style}{A style, as \code{\link[=basemap]{basemap()}} takes it.}
+
+\item{...}{Not used: the arguments after \code{height} must be named. (The
+deprecated \code{tile_timeout_ms}, \code{max_tiles}, \code{tile_concurrency} and
+\code{fail_on_tile_error} are still accepted, with a warning: use \code{fetch}.)}
 
 \item{crs}{CRS of \code{bounds} (anything \code{\link[sf:st_crs]{sf::st_crs()}} accepts).}
 
@@ -48,7 +47,7 @@ only those layers, minus-prefixed IDs drop them; \code{*} and \verb{?} are
 wildcards (\code{"-label_*"}). See \code{\link[=list_layers]{list_layers()}}. Names that match no
 layer of any style warn.}
 
-\item{labels}{\code{TRUE} keeps every layer, \code{FALSE} drops the labels (text and
+\item{labels}{\code{"all"} (or \code{TRUE}) keeps every layer, \code{"none"} (or \code{FALSE}) drops the labels (text and
 icons), \code{"only"} keeps only the labels on a transparent background, to
 stack over another map. Catalogue raster basemaps switch to their
 label-free or label-only tiles.}
@@ -62,14 +61,8 @@ layer of any style belongs to warn.}
 
 \item{auth_token}{Optional access token for the tile service (sent only to the style's own server).}
 
-\item{tile_timeout_ms}{Per-tile HTTP timeout in milliseconds.}
-
-\item{max_tiles}{Maximum tiles fetched per style.}
-
-\item{tile_concurrency}{Parallel tile downloads.}
-
-\item{fail_on_tile_error}{Abort on a failed tile instead of leaving it
-empty.}
+\item{fetch}{How tiles are downloaded: a \code{\link[=fetch_options]{fetch_options()}} object
+(timeout, tile limit, parallel downloads, what a failed tile does).}
 }
 \value{
 An integer array \verb{[height * pixel_ratio, width * pixel_ratio, 4]}
@@ -77,10 +70,11 @@ An integer array \verb{[height * pixel_ratio, width * pixel_ratio, 4]}
 \code{xmax}, \code{ymax} and \code{crs_epsg} (\code{NA} for a non-EPSG CRS).
 }
 \description{
-A one-shot render: fit \code{bounds} into a \code{width} x \code{height} CSS-pixel view
-and return the pixels. \code{\link[=basemap]{basemap()}} with \code{\link[=render_array]{render_array()}} gives the same
-result with a reusable view; plot integrations use this function. The
-same function exists in Python (\code{basemapper.render_basemap_raw()}).
+The low-level one-shot render: fit \code{bounds} into a \code{width} x \code{height}
+CSS-pixel view and return the pixels, with the extent in the input's own
+CRS. For most uses, \code{\link[=basemap]{basemap()}} with \code{\link[=render_array]{render_array()}} or
+\code{\link[=render_raster]{render_raster()}} is simpler and gives a view to reuse. The same function
+exists in Python (\code{basemapper.render_basemap_raw()}).
 }
 \examples{
 \dontrun{

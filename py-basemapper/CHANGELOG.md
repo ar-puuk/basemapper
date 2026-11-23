@@ -2,6 +2,26 @@
 
 ## Development version
 
+### New interface for download settings
+
+- New `FetchOptions` gathers how tiles download: `timeout` (now in
+  seconds), `max_tiles`, `concurrency` and `on_error` (`"skip"` or
+  `"fail"`). `basemap()`, `Basemap`, `render_basemap_raw()`,
+  `add_basemap()` and `geom_basemap()` take it as
+  `fetch=FetchOptions(...)`, which shortens their argument lists.
+- `tile_timeout_ms`, `max_tiles`, `tile_concurrency` and
+  `fail_on_tile_error` are deprecated: they still work, with a
+  `DeprecationWarning` saying what to write instead. An unknown keyword
+  is a `TypeError`.
+- `add_basemap()` and `geom_basemap()` take their options as keywords only
+  (`add_basemap(ax, style, alpha=0.8)`).
+- `labels` also takes `"all"` and `"none"`, as in R (`True` and `False`
+  still work).
+- matplotlib and xarray are now optional: `pip install
+  'basemapper[matplotlib]'` (or `[plotnine]`, `[all]`) for `add_basemap()`
+  and `geom_basemap()`, which explain what to install if they are missing.
+  Rendering images and SVG needs only numpy and pyproj.
+
 ### Performance
 
 - Rendering the same view again (a figure redrawn, a notebook re-run) no

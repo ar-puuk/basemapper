@@ -235,7 +235,8 @@ cities = pd.DataFrame({"lon": [-111.89, -111.98], "lat": [40.76, 40.66]})
 
 The plot layers (`geom_basemap`, `tm_basemap`, `add_basemap`) share the
 arguments `style`, `tile_zoom`, `alpha`, `layers`, `labels`, `features`,
-`pixel_ratio`, `auth_token`, `tile_timeout_ms`, `max_tiles` and
+`pixel_ratio`, `auth_token`, `fetch` (download settings: R
+`fetch_options()`, Python `FetchOptions`) and
 `attribution` (the providers' credit line in the corner, on by default), and render at the output
 resolution (`ggsave(dpi = 300)`, `savefig(dpi=300)`).
 

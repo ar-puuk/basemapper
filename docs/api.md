@@ -21,13 +21,10 @@ every language.
 | `bounds`, `crs` | Bounds to fit instead of `center` / `zoom`, and their CRS | —, EPSG:4326 |
 | `pixel_ratio` | Device pixels per CSS pixel (MapLibre's `devicePixelRatio`); images are `width * pixel_ratio` by `height * pixel_ratio` | 1 (plot layers: output dpi / 96) |
 | `layers` | Layer filter: plain IDs keep, `-`-prefixed IDs drop; `*` and `?` are wildcards (`"-label_*"`) | all layers |
-| `labels` | `TRUE` all layers, `FALSE` without labels, `"only"` just the labels (transparent background) | `TRUE` |
+| `labels` | `"all"` every layer, `"none"` without labels, `"only"` just the labels (transparent background); `TRUE` / `FALSE` are shorthand for `"all"` / `"none"` | `TRUE` |
 | `features` | Feature filter: plain names keep, `-`-prefixed names drop (background, water, landcover, parks, buildings, roads, rail, boundaries, places, poi, terrain, other) | all features |
-| `auth_token` | Access token for the tile service | none |
-| `tile_timeout_ms` | Per-tile HTTP timeout | 10000 |
-| `max_tiles` | Maximum tiles fetched per style | 256 |
-| `tile_concurrency` | Parallel tile downloads | 16 |
-| `fail_on_tile_error` | Abort on a failed tile instead of leaving it empty | false |
+| `auth_token` | Access token for the tile service, sent only to the style's own server | none |
+| `fetch` | How tiles download: R `fetch_options(timeout =, max_tiles =, concurrency =, on_error =)`, Python `FetchOptions(timeout=, max_tiles=, concurrency=, on_error=)` | 10 s, 256 tiles, 16 at once, `"skip"` |
 | `tile_zoom` | Tile detail override (tile zoom on the 256 px grid; vector sources use one less) | as MapLibre picks |
 | `path` | Output file for `render_png` / `render_svg`; none returns the result | none |
 
@@ -58,7 +55,7 @@ dict or a GeoDataFrame / GeoSeries. `crs` takes anything `sf::st_crs()` or
 
 | R | Python | Rust |
 |---|---|---|
-| `render_basemap_raw(bounds, width, height, style, crs =, pixel_ratio =, tile_zoom =, layers =, labels =, features =, auth_token =, tile_timeout_ms =, max_tiles =, tile_concurrency =, fail_on_tile_error =)` | `render_basemap_raw(bounds, width, height, style, crs=, pixel_ratio=, tile_zoom=, ...)` | `render(RenderRequest { bbox, width, height, style_input, tile_zoom, pixel_ratio, .. })` / `render_stack(requests)` |
+| `render_basemap_raw(bounds, width, height, style, crs =, pixel_ratio =, tile_zoom =, layers =, labels =, features =, auth_token =, fetch =)` | `render_basemap_raw(bounds, width, height, style, crs=, pixel_ratio=, tile_zoom=, ...)` | `render(RenderRequest { bbox, width, height, style_input, tile_zoom, pixel_ratio, .. })` / `render_stack(requests)` |
 
 Both packages return the pixels of the fitted view: R an integer array with
 the input extent as attributes, Python a uint8 array.
@@ -67,7 +64,7 @@ the input extent as attributes, Python a uint8 array.
 
 | R | Python |
 |---|---|
-| `geom_basemap(style, tile_zoom =, alpha =, layers =, labels =, features =, pixel_ratio =, auth_token =, tile_timeout_ms =, max_tiles =, attribution =)` (ggplot2) | `geom_basemap(style, tile_zoom=, alpha=, layers=, labels=, features=, pixel_ratio=, auth_token=, tile_timeout_ms=, max_tiles=, attribution=, crs=)` (plotnine) |
+| `geom_basemap(style, tile_zoom =, alpha =, layers =, labels =, features =, pixel_ratio =, auth_token =, fetch =, attribution =)` (ggplot2) | `geom_basemap(style, tile_zoom=, alpha=, layers=, labels=, features=, pixel_ratio=, auth_token=, fetch=, attribution=, crs=)` (plotnine) |
 | `tm_basemap(style, ..., width =, height =)` (tmap v4) | `add_basemap(ax, style, ..., crs=)` (matplotlib) |
 
 The plot layers draw the basemap's credit line (see `get_attribution()`)
@@ -158,3 +155,19 @@ The cache starts in `BASEMAPPER_CACHE_DIR` (`off` disables it), else R's
 `tools::R_user_dir("basemapper", "cache")` or, in Python and Rust, the
 platform cache directory. `dir = FALSE` turns it off. Every request sends
 `User-Agent: basemapper/<version> (+https://github.com/ar-puuk/basemapper)`.
+
+## Errors
+
+Errors have a kind, the same in both packages, so code can handle one kind
+of failure:
+
+| Kind | R condition class | Python exception |
+|---|---|---|
+| Invalid input (bounds, sizes, filters, `max_tiles` exceeded) | `basemapper_validation_error` | `ValidationError` (also a `ValueError`) |
+| The style could not be downloaded or read | `basemapper_style_error` | `StyleError` |
+| Tiles could not be downloaded (a wrong key, a server down) | `basemapper_network_error` | `NetworkError` |
+| Anything else | `basemapper_render_error` | `BasemapError` |
+
+Every R condition also has class `basemapper_error`; every Python exception
+derives from `BasemapError`.
+

@@ -1,5 +1,31 @@
 # basemapper (development version)
 
+## New interface for download settings
+
+* New `fetch_options()` gathers how tiles download: `timeout` (now in
+  seconds), `max_tiles`, `concurrency` and `on_error` (`"skip"` or
+  `"fail"`). `basemap()`, `render_basemap_raw()`, `geom_basemap()` and
+  `tm_basemap()` take it as `fetch = fetch_options(...)`, which shortens
+  their argument lists by four.
+* `tile_timeout_ms`, `max_tiles`, `tile_concurrency` and
+  `fail_on_tile_error` are deprecated: they still work, with a warning
+  saying what to write instead.
+* Arguments after the first ones must now be named (`basemap(style, 800,
+  600, zoom = 12)`); an unknown argument name is an error rather than being
+  ignored. `geom_basemap()` and `tm_basemap()` now take `...` right after
+  `style`.
+* Errors carry classes, the same kinds as Python's exceptions:
+  `basemapper_validation_error`, `basemapper_style_error`,
+  `basemapper_network_error` and `basemapper_render_error`, each also a
+  `basemapper_error` (see `?basemapper-errors`).
+* `labels` takes `"all"`, `"none"` or `"only"`, with `TRUE` and `FALSE` as
+  shorthand (as before).
+* sf and terra are now suggested rather than required: views, bounds in
+  EPSG:4326 or EPSG:3857, and `get_bounds(lonlat = TRUE)` work without
+  them. Bounds in another CRS or as `sf` objects need sf; `render_raster()`
+  needs terra. You are offered to install them when needed. On Linux this
+  saves installing GDAL, GEOS and PROJ.
+
 ## Performance
 
 * Redrawing a plot (resizing it, `ggsave()`, re-knitting) no longer

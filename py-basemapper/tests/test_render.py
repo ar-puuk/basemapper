@@ -83,7 +83,7 @@ def test_import_without_plotnine(monkeypatch):
 
 # The functions shared with R (and the Rust core) use the same argument names;
 # these tests pin them so the languages stay in step.
-SHARED = {"style", "pixel_ratio", "layers", "auth_token", "tile_timeout_ms", "max_tiles"}
+SHARED = {"style", "pixel_ratio", "layers", "auth_token", "fetch"}
 
 
 def _params(fn):
@@ -97,19 +97,15 @@ def test_basemap_has_the_shared_arguments():
 
     p = _params(basemapper.basemap)
     assert p[:3] == ["style", "width", "height"]
-    assert SHARED | {"center", "zoom", "bounds", "crs", "tile_concurrency", "fail_on_tile_error"} <= set(p)
+    assert SHARED | {"center", "zoom", "bounds", "crs"} <= set(p)
 
 
 def test_render_basemap_raw_has_the_shared_arguments():
-    import inspect
-
     import basemapper
 
     p = _params(basemapper.render_basemap_raw)
     assert p[:4] == ["bounds", "width", "height", "style"]
-    assert SHARED | {"crs", "tile_zoom", "tile_concurrency", "fail_on_tile_error"} <= set(p)
-    sig = inspect.signature(basemapper.render_basemap_raw)
-    assert sig.parameters["fail_on_tile_error"].default is False
+    assert SHARED | {"crs", "tile_zoom"} <= set(p)
 
 
 def test_plot_integrations_have_the_shared_arguments():
@@ -122,6 +118,58 @@ def test_plot_integrations_have_the_shared_arguments():
     p = _params(basemapper.geom_basemap.__init__)
     assert p[1] == "style"
     assert SHARED | {"tile_zoom", "alpha"} <= set(p)
+
+
+def test_fetch_options_validate_and_map_to_the_core():
+    from basemapper import FetchOptions, ValidationError
+
+    assert FetchOptions()._core() == dict(
+        tile_timeout_ms=10_000, max_tiles=256, tile_concurrency=16, fail_on_tile_error=False
+    )
+    assert FetchOptions(timeout=2.5, on_error="fail")._core()["tile_timeout_ms"] == 2500
+    assert FetchOptions(on_error="fail")._core()["fail_on_tile_error"] is True
+    for bad in (dict(timeout=0), dict(max_tiles=1.5), dict(concurrency=0), dict(on_error="ignore"),
+                dict(max_tiles=True)):
+        with pytest.raises(ValidationError):
+            FetchOptions(**bad)
+    with pytest.raises(Exception):
+        FetchOptions().timeout = 3  # frozen
+
+
+def test_replaced_fetch_arguments_still_work_with_a_deprecation_warning():
+    import basemapper
+
+    with pytest.warns(DeprecationWarning) as record:
+        m = basemapper.basemap("x", tile_timeout_ms=2000, max_tiles=12)
+    messages = [str(w.message) for w in record]
+    assert len(messages) == 2
+    assert "FetchOptions(timeout=...) (in seconds)" in messages[0]
+    # The warning points at the caller's line, not basemapper's internals.
+    assert record[0].filename == __file__
+    assert m.fetch == basemapper.FetchOptions(timeout=2.0, max_tiles=12)
+    with pytest.warns(DeprecationWarning):
+        m = basemapper.Basemap("x", fail_on_tile_error=True, tile_concurrency=3)
+    assert m.fetch.on_error == "fail" and m.fetch.concurrency == 3
+    assert m._options()["tile_concurrency"] == 3
+
+
+def test_unknown_keywords_and_bad_fetch_are_errors():
+    import basemapper
+
+    with pytest.raises(TypeError, match="zoo"):
+        basemapper.basemap("x", zoo=3)
+    with pytest.raises(basemapper.ValidationError):
+        basemapper.basemap("x", fetch={"timeout": 1})
+    with pytest.raises(TypeError):
+        basemapper.render_basemap_raw([0, 0, 1, 1], 8, 8, "x", tile_zom=3)
+
+
+def test_plot_integrations_load_lazily():
+    import basemapper
+
+    assert "add_basemap" in dir(basemapper) or callable(basemapper.add_basemap)
+    with pytest.raises(AttributeError):
+        basemapper.no_such_function  # noqa: B018
 
 
 def test_view_methods_match_r():

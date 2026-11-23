@@ -8,6 +8,7 @@ basemap(
   style,
   width = 800L,
   height = 600L,
+  ...,
   center = NULL,
   zoom = NULL,
   bounds = NULL,
@@ -17,10 +18,7 @@ basemap(
   labels = TRUE,
   features = NULL,
   auth_token = NULL,
-  tile_timeout_ms = 10000L,
-  max_tiles = 256L,
-  tile_concurrency = 16L,
-  fail_on_tile_error = FALSE
+  fetch = fetch_options()
 )
 }
 \arguments{
@@ -30,6 +28,10 @@ stacked bottom to top (e.g. a basemap published as separate hillshade,
 base and label services; \code{"UGRC.Lite"} names such a stack).}
 
 \item{width, height}{View size in CSS pixels.}
+
+\item{...}{Not used: the arguments after \code{height} must be named. (The
+deprecated \code{tile_timeout_ms}, \code{max_tiles}, \code{tile_concurrency} and
+\code{fail_on_tile_error} are still accepted, with a warning: use \code{fetch}.)}
 
 \item{center}{\code{c(longitude, latitude)} of the view centre.}
 
@@ -47,7 +49,7 @@ only those layers, minus-prefixed IDs drop them; \code{*} and \verb{?} are
 wildcards (\code{"-label_*"}). See \code{\link[=list_layers]{list_layers()}}. Names that match no
 layer of any style warn.}
 
-\item{labels}{\code{TRUE} keeps every layer, \code{FALSE} drops the labels (text and
+\item{labels}{\code{"all"} (or \code{TRUE}) keeps every layer, \code{"none"} (or \code{FALSE}) drops the labels (text and
 icons), \code{"only"} keeps only the labels on a transparent background, to
 stack over another map. Catalogue raster basemaps switch to their
 label-free or label-only tiles.}
@@ -61,14 +63,8 @@ layer of any style belongs to warn.}
 
 \item{auth_token}{Optional access token for the tile service (sent only to the style's own server).}
 
-\item{tile_timeout_ms}{Per-tile HTTP timeout in milliseconds.}
-
-\item{max_tiles}{Maximum tiles fetched per style.}
-
-\item{tile_concurrency}{Parallel tile downloads.}
-
-\item{fail_on_tile_error}{Abort on a failed tile instead of leaving it
-empty.}
+\item{fetch}{How tiles are downloaded: a \code{\link[=fetch_options]{fetch_options()}} object
+(timeout, tile limit, parallel downloads, what a failed tile does).}
 }
 \value{
 A \code{basemap} object.

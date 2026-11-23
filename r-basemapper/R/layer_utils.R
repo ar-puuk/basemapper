@@ -30,12 +30,11 @@
 #' list_layers("OpenFreeMap.Positron", layers = "highway_*")
 #' }
 list_layers <- function(style, auth_token = NULL, layers = NULL, labels = TRUE, features = NULL) {
-  ids <- .Call("wrap__list_layers_raw", as.character(style)[1L],
+  ids <- call_core("wrap__list_layers_raw", as.character(style)[1L],
                if (is.null(auth_token)) NULL else as.character(auth_token),
                if (is.null(layers)) NULL else as.character(layers),
                labels_arg(labels),
-               if (is.null(features)) NULL else as.character(features),
-               PACKAGE = "basemapper")
+               if (is.null(features)) NULL else as.character(features))
   source_layer <- attr(ids, "source_layer")
   source_layer[source_layer == ""] <- NA_character_
   data.frame(id = as.character(ids), type = attr(ids, "type"), source_layer = source_layer,
@@ -70,8 +69,7 @@ get_attribution <- function(x, auth_token = NULL) {
   } else {
     styles <- style_strings(x)
   }
-  .Call("wrap__attribution_raw", styles, if (is.null(auth_token)) NULL else as.character(auth_token)[1L],
-        PACKAGE = "basemapper")
+  call_core("wrap__attribution_raw", styles, if (is.null(auth_token)) NULL else as.character(auth_token)[1L])
 }
 
 # Attribution per style set, so plots redrawn (resized, re-saved) do not
@@ -89,7 +87,7 @@ attribution_text <- function(attribution, style, auth_token = NULL) {
   if (is.null(attribution) || isFALSE(attribution) || identical(attribution, NA)) return("")
   if (is.character(attribution)) return(paste(attribution, collapse = " "))
   if (!isTRUE(attribution)) {
-    stop("attribution must be TRUE, FALSE or a character string.", call. = FALSE)
+    abort_basemapper("attribution must be TRUE, FALSE or a character string.")
   }
   styles <- style_strings(style)
   key <- paste(c(styles, auth_token), collapse = "\r")

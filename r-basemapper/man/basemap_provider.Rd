@@ -33,7 +33,7 @@ basemaps need one.}
 same schema as the provider's tiles (OpenMapTiles for OpenFreeMap and
 Stadia).}
 
-\item{labels}{\code{TRUE} keeps every layer, \code{FALSE} drops the labels,
+\item{labels}{\code{"all"} (or \code{TRUE}) keeps every layer, \code{"none"} (or \code{FALSE}) drops the labels,
 \code{"only"} keeps only the labels, to stack this basemap's labels over
 another map. Raster tiles switch to the provider's label-free or
 label-only tiles (an error when it has none).}

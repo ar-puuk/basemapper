@@ -109,8 +109,10 @@ reference:
       - list_layers
       - get_attribution
 
-  - title: Tile cache
+  - title: Downloads
+    desc: How tiles download (`FetchOptions`, the `fetch` argument) and the tile cache.
     contents:
+      - FetchOptions
       - tile_cache
 
   - title: Exceptions
