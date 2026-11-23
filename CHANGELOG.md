@@ -17,6 +17,9 @@ Tagged v0.2.0 when merged into `main`; until then on `dev`.
 
 ### Fixes
 
+- **python:** plot integrations import plainly; CI installs the plot extras ([36b11f1](https://github.com/ar-puuk/basemapper/commit/36b11f115906f160b08498dabb164133dde40814))
+- **deps:** update dependencies with security advisories; PyO3 0.29 ([bfa32fc](https://github.com/ar-puuk/basemapper/commit/bfa32fc3bf0a8150e63541cde803bffdca16f361))
+- **cache:** never keep responses from the local machine in memory ([94ca02c](https://github.com/ar-puuk/basemapper/commit/94ca02caa53ce7fac5a9698a95533cd98061bece))
 - enforce max_tiles for vector tiles; scope tokens; harden downloads ([5dcba03](https://github.com/ar-puuk/basemapper/commit/5dcba03aa61101ceef89057c2f7fc6d6d4ab8c3e))
 
 ### Performance
@@ -25,6 +28,7 @@ Tagged v0.2.0 when merged into `main`; until then on `dev`.
 
 ### Documentation
 
+- **changelog:** the v0.2.0 section ([db73aee](https://github.com/ar-puuk/basemapper/commit/db73aeee1861197937fcde914e43baff91421469))
 - install instructions install the latest release, never a pinned version ([ffb22df](https://github.com/ar-puuk/basemapper/commit/ffb22df731dd656e4bf9868b8a2327e47ced7a94))
 - CITATION.cff for GitHub's "Cite this repository" ([6a69b01](https://github.com/ar-puuk/basemapper/commit/6a69b01e76eb6847301e861f4e9b47e0c5d8e189))
 - Zenodo DOI badge for the package (all versions) ([6e6f112](https://github.com/ar-puuk/basemapper/commit/6e6f112646f10df4a8cd4688b563503a262f1fae))
