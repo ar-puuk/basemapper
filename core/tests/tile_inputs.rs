@@ -341,6 +341,38 @@ fn unmatched_filter_names_warn_only_when_no_style_has_them() {
 }
 
 #[test]
+fn filters_apply_to_a_stack_as_one_basemap() {
+    use basemapper_core::{render_stack, render_svg_stack};
+    // A hillshade-like style (background only) under a style with water;
+    // the water tiles are unreachable, so that style draws nothing.
+    let water = serde_json::json!({"version": 8,
+        "sources": {"s": {"type": "vector", "tiles": ["http://127.0.0.1:9/{z}/{x}/{y}.pbf"]}},
+        "layers": [{"id": "water", "type": "fill", "source": "s", "source-layer": "water", "paint": {"fill-color": "#0000ff"}}]})
+    .to_string();
+    let req = |style: &str, features: &str| {
+        let mut r = RenderRequest::new([-WORLD, -WORLD, WORLD, WORLD], 16, 16, StyleInput::detect(style));
+        r.features = Some(vec![features.into()]);
+        r.tile_timeout_ms = 2_000;
+        r
+    };
+    // "water" leaves nothing of the background style: it is skipped, not an error.
+    let r = render_stack(vec![req(&background_style("bg"), "water"), req(&water, "water")]).unwrap();
+    assert!(r.pixels.chunks_exact(4).all(|p| p[3] == 0), "the skipped background must not be drawn");
+    assert!(render_svg_stack(vec![req(&background_style("bg"), "water"), req(&water, "water")]).is_ok());
+    // Alone, the same filter on the background style is still an error.
+    let alone = render(req(&background_style("bg"), "water")).unwrap_err().to_string();
+    assert!(alone.contains("nothing of this style"), "{alone}");
+    // A filter that leaves nothing of the whole stack is an error naming its features.
+    for result in [
+        render_stack(vec![req(&background_style("bg"), "roads"), req(&water, "roads")]).map(|_| ()),
+        render_svg_stack(vec![req(&background_style("bg"), "roads"), req(&water, "roads")]).map(|_| ()),
+    ] {
+        let e = result.unwrap_err().to_string();
+        assert!(e.contains("nothing of this stack") && e.contains("background") && e.contains("water"), "{e}");
+    }
+}
+
+#[test]
 fn list_layers_previews_filters() {
     let style = serde_json::json!({"version": 8, "sources": {"s": {"type": "vector", "tiles": ["https://t/{z}/{x}/{y}.pbf"]}},
         "layers": [
