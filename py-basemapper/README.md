@@ -55,18 +55,19 @@ Install the development version from GitHub.
 With pip:
 
 ```sh
-pip install "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
+pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
 ```
 
-These install the latest release, v0.1.1 ([all releases](https://github.com/ar-puuk/basemapper/releases)).
-For the development version, leave out `@v0.1.1`.
+These install the latest release: the `main` branch, which changes only when a
+release is made ([all releases](https://github.com/ar-puuk/basemapper/releases)).
+For the development version, put `@dev` after the repository URL.
 
 With [uv](https://docs.astral.sh/uv/), into a project or the current
 environment:
 
 ```sh
-uv add "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
-uv pip install "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
+uv add "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+uv pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
 ```
 
 With conda (or mamba), conda-forge provides the dependencies and the Rust
@@ -75,7 +76,7 @@ toolchain, and pip builds basemapper from GitHub inside the environment:
 ```sh
 conda create -n basemapper -c conda-forge python numpy pyproj matplotlib xarray rust pip
 conda activate basemapper
-pip install "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
+pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
 ```
 
 or as an `environment.yml` (`conda env create -f environment.yml`):
@@ -92,11 +93,13 @@ dependencies:
   - rust
   - pip
   - pip:
-      - "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
+      - "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
 ```
 
-For `geom_basemap()` in plotnine, install `basemapper[plotnine]` in place of
-`basemapper`.
+For the plot layers, install with an extra in place of plain `basemapper`:
+`basemapper[matplotlib]` for `add_basemap()`, `basemapper[plotnine]` for
+`geom_basemap()` too (or `basemapper[all]`), e.g.
+`pip install "basemapper[matplotlib] @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"`.
 
 > A PyPI release is planned once the package stabilises.
 

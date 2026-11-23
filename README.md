@@ -31,22 +31,24 @@ GL JS (see [How rendering works](docs/rendering-engine.md)).
 ### R
 
 ```r
-# Any one of these installs the v0.1.1 release; each compiles the Rust core.
-pak::pak("ar-puuk/basemapper/r-basemapper@v0.1.1")
-remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper", ref = "v0.1.1")
-devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper", ref = "v0.1.1")
+# Any one of these installs the latest release; each compiles the Rust core.
+pak::pak("ar-puuk/basemapper/r-basemapper")
+remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
+devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
 ```
 
-These install the latest release, v0.1.1 ([all releases](https://github.com/ar-puuk/basemapper/releases)).
-For the development version, leave out the version: `pak::pak("ar-puuk/basemapper/r-basemapper")`.
+These install the latest release: the `main` branch, which changes only when a
+release is made ([all releases](https://github.com/ar-puuk/basemapper/releases)).
+For the development version, install from the `dev` branch: `pak::pak("ar-puuk/basemapper/r-basemapper@dev")`.
 
 Building from source needs a [Rust toolchain](https://rustup.rs) and, on
 Windows, [RTools45](https://cran.r-project.org/bin/windows/Rtools/) plus the
 GNU target: `rustup target add x86_64-pc-windows-gnu`.
 
-Depends on: `ggplot2 (>= 3.4)`, `sf (>= 1.0)`, `jsonlite (>= 1.8)`,
-`terra (>= 1.7)`, `grid`.
-Optional: `tmap (>= 4.0)` for `tm_basemap()`.
+Depends on: `ggplot2 (>= 3.4)`, `cli`, `jsonlite (>= 1.8)`, `lifecycle`,
+`rlang`, `grid`.
+Optional: `sf (>= 1.0)` for bounds in other CRSs and `sf` objects,
+`terra (>= 1.7)` for `render_raster()`, `tmap (>= 4.0)` for `tm_basemap()`.
 
 > CRAN and R-Universe packages are planned after an extended testing period.
 
@@ -55,18 +57,19 @@ Optional: `tmap (>= 4.0)` for `tm_basemap()`.
 With pip:
 
 ```sh
-pip install "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
+pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
 ```
 
-These install the latest release, v0.1.1 ([all releases](https://github.com/ar-puuk/basemapper/releases)).
-For the development version, leave out `@v0.1.1`.
+These install the latest release: the `main` branch, which changes only when a
+release is made ([all releases](https://github.com/ar-puuk/basemapper/releases)).
+For the development version, put `@dev` after the repository URL.
 
 With [uv](https://docs.astral.sh/uv/), into a project or the current
 environment:
 
 ```sh
-uv add "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
-uv pip install "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
+uv add "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+uv pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
 ```
 
 With conda (or mamba), conda-forge provides the dependencies and the Rust
@@ -75,7 +78,7 @@ toolchain, and pip builds basemapper from GitHub inside the environment:
 ```sh
 conda create -n basemapper -c conda-forge python numpy pyproj matplotlib xarray rust pip
 conda activate basemapper
-pip install "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
+pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
 ```
 
 or as an `environment.yml` (`conda env create -f environment.yml`):
@@ -92,18 +95,21 @@ dependencies:
   - rust
   - pip
   - pip:
-      - "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
+      - "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
 ```
 
-For `geom_basemap()` in plotnine, install `basemapper[plotnine]` in place of
-`basemapper`.
+For the plot layers, install with an extra in place of plain `basemapper`:
+`basemapper[matplotlib]` for `add_basemap()`, `basemapper[plotnine]` for
+`geom_basemap()` too (or `basemapper[all]`), e.g.
+`pip install "basemapper[matplotlib] @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"`.
 
 Building from source needs a [Rust toolchain](https://rustup.rs) (conda's
 `rust` package also works); pip and uv build the extension with maturin
 automatically.
 
-Depends on: `numpy`, `pyproj`, `matplotlib`, `xarray`.
-Optional: `plotnine >= 0.12` for `geom_basemap()`.
+Depends on: `numpy`, `pyproj`.
+Optional (extras): `matplotlib` and `xarray` for `add_basemap()`,
+`plotnine >= 0.12` for `geom_basemap()`.
 
 > PyPI and conda packages are planned after an extended testing period.
 
@@ -111,12 +117,14 @@ Optional: `plotnine >= 0.12` for `geom_basemap()`.
 
 ```toml
 [dependencies]
-basemapper-core = { git = "https://github.com/ar-puuk/basemapper", tag = "v0.1.1" }
+basemapper-core = { git = "https://github.com/ar-puuk/basemapper" }
 ```
 
 The crate the R and Python packages are built on; its documentation is the
-[Rust guide](https://ar-puuk.github.io/basemapper/rust/). For the
-development version, use `branch = "main"` in place of the tag.
+[Rust guide](https://ar-puuk.github.io/basemapper/rust/). This follows the
+latest release (the `main` branch; `Cargo.lock` keeps the commit you
+built with until `cargo update`). For the development version, add
+`branch = "dev"`.
 
 ---
 

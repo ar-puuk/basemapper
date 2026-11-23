@@ -15,8 +15,8 @@ output of the code above them.
 ## Installation
 
 ```sh
-pip install "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
-# or: uv add "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
+pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+# or: uv add "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
 ```
 
 See the [home page](../index.html) for conda.

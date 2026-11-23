@@ -19,10 +19,10 @@ output of the code above them.
 ## Installation
 
 ```r
-# Any one of these installs the v0.1.1 release; each compiles the Rust core.
-pak::pak("ar-puuk/basemapper/r-basemapper@v0.1.1")
-remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper", ref = "v0.1.1")
-devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper", ref = "v0.1.1")
+# Any one of these installs the latest release; each compiles the Rust core.
+pak::pak("ar-puuk/basemapper/r-basemapper")
+remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
+devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
 ```
 
 ## Choose a style
