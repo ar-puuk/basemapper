@@ -1,0 +1,2 @@
+raster: raster.png 228 KB, raster.svg 305 KB (0 paths, 1 images)
+vector: vector.png 81 KB, vector.svg 429 KB (2132 paths, 3 images)

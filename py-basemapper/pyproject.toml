@@ -19,6 +19,10 @@ dependencies = [
 plotnine = ["plotnine>=0.12"]
 dev      = [
     "great-docs",
+    # The user guide's examples (executed when the docs are built)
+    "ipykernel",
+    "geopandas",
+    "geodatasets",
     "pytest>=7",
     "plotnine>=0.12",
 ]

@@ -1,0 +1,153 @@
+---
+title: "Get started"
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7.5, fig.height = 4.6)
+```
+
+> **Python or Rust?** The same functions and arguments exist in
+> [Python](../../python/index.html) (`m.verb(...)` for R's `verb(m, ...)`)
+> and [Rust](../../rust/basemapper_core/index.html).
+
+basemapper renders MapLibre GL basemaps headlessly with a Rust core: no
+browser, display server, GPU or GDAL. Vector styles are drawn by a software
+port of MapLibre GL JS's renderer, so maps look as they do in MapLibre.
+Everything on this page was run when the page was built; the maps are the
+output of the code above them.
+
+## Installation
+
+```r
+# Any one of these; each compiles the Rust core from source.
+pak::pak("ar-puuk/basemapper/r-basemapper")
+remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
+devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
+```
+
+## Choose a style
+
+Every function takes a `style`. The simplest is a named basemap, a
+[leaflet-providers](https://leaflet-extras.github.io/leaflet-providers/preview/)
+name; `list_providers()` lists them, with the API key some need:
+
+```{r}
+library(tmap)        # (for the tmap example below) before basemapper,
+library(basemapper)  # whose tm_basemap() replaces tmap's
+
+p <- list_providers()
+head(p[, c("name", "vector", "raster", "api_key_env")], 12)
+```
+
+A MapLibre style URL or JSON works too, and so does tile data: a tile URL,
+TileJSON, PMTiles archive or ArcGIS service (see
+[Your own tiles and services](own-data.html)).
+
+## A map on its own
+
+`basemap()` creates a view: a centre and MapLibre zoom (or bounds to fit),
+and a size in CSS pixels. Printed in a document, a view shows the map:
+
+```{r}
+m <- basemap("OpenFreeMap.Positron", 720, 405, center = c(-111.8887, 40.7556), zoom = 12.4)
+m
+```
+
+`print()` describes it, and the `get_*()` functions read it:
+
+```{r}
+print(m)
+get_bounds(m, lonlat = TRUE)
+get_attribution(m)
+```
+
+`set_view()` and `set_bounds()` change the view. Here it fits North
+Carolina's counties, from {sf}:
+
+```{r}
+nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
+m <- set_bounds(basemap("OpenFreeMap.Liberty", 720, 300), nc)
+m
+```
+
+## Raster and vector, PNG and SVG
+
+Basemaps come as raster tiles (images, like OpenStreetMap's) or vector tiles
+(geometry styled on the fly, like OpenFreeMap's). Either renders to a PNG
+with `render_png()` or an SVG with `render_svg()`. In an SVG, vector layers
+are paths and the labels editable text with the style's fonts embedded;
+raster tiles are embedded as images.
+
+```{r}
+slc <- c(-111.8910, 40.7608)
+raster <- basemap("OpenStreetMap.Mapnik", 480, 300, center = slc, zoom = 11.5)
+vector <- basemap("OpenFreeMap.Bright", 480, 300, center = slc, zoom = 11.5)
+
+out <- file.path(tempdir(), c("raster.png", "raster.svg", "vector.png", "vector.svg"))
+render_png(raster, path = out[1])
+render_svg(raster, path = out[2])
+render_png(vector, path = out[3])
+render_svg(vector, path = out[4])
+data.frame(file = basename(out), kb = round(file.size(out) / 1024))
+```
+
+```{r formats, echo = FALSE, results = "asis"}
+# Show the four files written above.
+show <- file.path(knitr::opts_chunk$get("fig.path"), basename(out))
+dir.create(dirname(show[1]), recursive = TRUE, showWarnings = FALSE)
+invisible(file.copy(out, show, overwrite = TRUE))
+cat(sprintf(
+  '<table class="table" style="table-layout:fixed"><col style="width:7.5em"><col><col><tr><th></th><th>PNG</th><th>SVG</th></tr>
+<tr><th>Raster<br><small>OpenStreetMap</small></th><td><img src="%s" style="width:100%%"></td><td><img src="%s" style="width:100%%"></td></tr>
+<tr><th>Vector<br><small>OpenFreeMap Bright</small></th><td><img src="%s" style="width:100%%"></td><td><img src="%s" style="width:100%%"></td></tr></table>',
+  show[1], show[2], show[3], show[4]
+))
+```
+
+`render_raster()` returns a georeferenced {terra} raster, and
+`render_array()` the pixels:
+
+```{r}
+render_raster(vector)
+dim(render_array(vector))
+```
+
+`pixel_ratio` makes images larger with the same view and label layout:
+`pixel_ratio = 2` for a sharp 2x image, `dpi / 96` for print.
+
+## In a plot
+
+`geom_basemap()` adds a basemap to a {ggplot2} plot. It renders when the
+plot is drawn, for the panel's extent and at the device's resolution, and
+credits the provider in the corner:
+
+```{r}
+library(ggplot2)
+
+ggplot(nc) +
+  geom_basemap("OpenFreeMap.Positron") +
+  geom_sf(aes(fill = BIR74 / 1000), colour = "white", linewidth = 0.2, alpha = 0.75) +
+  scale_fill_viridis_c("Births, 1974\n(thousands)") +
+  theme_void()
+```
+
+`tm_basemap()` does the same in {tmap} (attach tmap first: it has a
+`tm_basemap()` of its own):
+
+```{r, message = FALSE}
+tm_shape(nc) +
+  tm_basemap("Esri.WorldGrayCanvas") +
+  tm_polygons(fill = "SID74", fill_alpha = 0.7, fill.legend = tm_legend("SIDS, 1974"))
+```
+
+[Plots with ggplot2 and tmap](plotting.html) has more.
+
+## Next
+
+* [Basemap gallery](gallery.html): every basemap that needs no API key.
+* [Plots with ggplot2 and tmap](plotting.html): projected data, opacity,
+  credits and print resolution.
+* [Stacking, labels and features](layers.html): several basemaps in one, and
+  parts of them.
+* [Your own tiles and services](own-data.html): tile URLs, PMTiles, ArcGIS
+  and OGC services, and styles for your own data.

@@ -25,14 +25,11 @@ home:
 navbar:
   structure:
     left: [intro, reference, articles]
-    right: [lightswitch, github, search, python_docs]
+    right: [search, lightswitch, github]
   components:
     intro:
       text: Get started
       href: articles/getting-started.html
-    python_docs:
-      text: "Python docs"
-      href: ../python/
     github:
       icon: fab fa-github fa-lg
       href: https://github.com/ar-puuk/basemapper
@@ -54,6 +51,7 @@ reference:
       - set_view
       - get_bounds
       - render_png
+      - plot.basemap
 
   - title: One-shot rendering
     desc: Render bounds to a georeferenced RGBA array in one call.
@@ -102,7 +100,11 @@ reference:
       - detect_crs_from_coord
 
 articles:
-  - title: ~
+  - title: Guides
     navbar: ~
     contents:
-      - getting-started
+      - articles/getting-started
+      - articles/gallery
+      - articles/plotting
+      - articles/layers
+      - articles/own-data

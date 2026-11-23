@@ -8,7 +8,7 @@
 //! a raster form (tiles), or both; the vector form is the default.
 //!
 //! Tile URLs, TileJSON, PMTiles archives and ArcGIS services need no entry:
-//! they are accepted as `style` directly, and [`crate::tile_style`] builds
+//! they are accepted as `style` directly, and [`crate::tile_style()`] builds
 //! their style with overrides.
 
 use crate::tile_style::{TileKind, TileStyleOptions};

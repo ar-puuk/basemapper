@@ -208,11 +208,50 @@ print.basemap <- function(x, ...) {
   invisible(x)
 }
 
+#' Show a basemap view
+#'
+#' `plot()` renders the view and draws it on the current graphics device.
+#' In R Markdown and Quarto documents, a view printed by a chunk (`m` on its
+#' own line) renders and shows as an image at its CSS pixel size, sharp at
+#' any `pixel_ratio`; `print(m)` describes the view instead.
+#'
+#' @param x A view from [basemap()].
+#' @param ... Unused.
+#' @return `x`, invisibly (`plot()`); a knitr image (`knit_print()`).
+#' @examples
+#' \dontrun{
+#' m <- basemap("OpenFreeMap.Positron", 800, 450, center = c(-111.8887, 40.7556), zoom = 12.4)
+#' plot(m)
+#' }
+#' @name plot.basemap
+#' @export
+plot.basemap <- function(x, ...) {
+  a <- render_array(x)
+  grid::grid.newpage()
+  grid::grid.raster(a / 255, interpolate = TRUE)
+  invisible(x)
+}
+
+#' @rdname plot.basemap
+#' @param options knitr chunk options.
+#' @exportS3Method knitr::knit_print
+knit_print.basemap <- function(x, options = list(), ...) {
+  .BASEMAPPER_KNIT$n <- .BASEMAPPER_KNIT$n + 1L
+  path <- knitr::fig_path("-basemap.png", options, number = .BASEMAPPER_KNIT$n)
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  render_png(x, path = path)
+  knitr::include_graphics(path, dpi = 96 * x$pixel_ratio)
+}
+
+.BASEMAPPER_KNIT <- new.env(parent = emptyenv())
+.BASEMAPPER_KNIT$n <- 0L
+
 #' Render a basemap view
 #'
 #' * `render_png()` writes or returns a PNG.
-#' * `render_svg()` writes or returns a vector SVG document (`width` x
-#'   `height` user units; `pixel_ratio` does not apply).
+#' * `render_svg()` writes or returns an SVG document (`width` x `height`
+#'   user units; `pixel_ratio` does not apply): vector layers as paths and
+#'   text, raster tiles (raster basemaps, hillshade) as embedded images.
 #' * `render_array()` returns an integer array `[height, width, 4]` (RGBA,
 #'   0--255) with the extent as attributes, like [render_basemap_raw()].
 #' * `render_raster()` (R only) returns a [terra::rast()] (EPSG:3857, layers

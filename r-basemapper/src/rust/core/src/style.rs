@@ -17,7 +17,7 @@ impl StyleInput {
     }
 
     /// The style JSON: inline JSON as is; otherwise a style URL or file is
-    /// loaded, or a style is built for tile data (see [`crate::tile_style`]).
+    /// loaded, or a style is built for tile data (see [`crate::tile_style()`]).
     pub async fn resolve(
         &self,
         client: &reqwest::Client,

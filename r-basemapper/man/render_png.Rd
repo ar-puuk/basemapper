@@ -50,8 +50,9 @@ first.}
 \description{
 \itemize{
 \item \code{render_png()} writes or returns a PNG.
-\item \code{render_svg()} writes or returns a vector SVG document (\code{width} x
-\code{height} user units; \code{pixel_ratio} does not apply).
+\item \code{render_svg()} writes or returns an SVG document (\code{width} x \code{height}
+user units; \code{pixel_ratio} does not apply): vector layers as paths and
+text, raster tiles (raster basemaps, hillshade) as embedded images.
 \item \code{render_array()} returns an integer array \verb{[height, width, 4]} (RGBA,
 0--255) with the extent as attributes, like \code{\link[=render_basemap_raw]{render_basemap_raw()}}.
 \item \code{render_raster()} (R only) returns a \code{\link[terra:rast]{terra::rast()}} (EPSG:3857, layers

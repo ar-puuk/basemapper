@@ -3,26 +3,32 @@
     Build the unified basemapper documentation site locally.
 
 .DESCRIPTION
-    Runs roxygen2::roxygenize (R man pages), pkgdown (R HTML site), and
-    great-docs (Python HTML site), then assembles everything into site/ and
-    assembles everything into site/.
+    Runs roxygen2::roxygenize (R man pages), pkgdown (R HTML site),
+    great-docs (Python HTML site) and rustdoc (Rust HTML site), then
+    assembles everything into site/ and gives the three sites one
+    navigation. The R articles and the Python user guide are executed, and
+    the Rust guide's examples are run: building needs network access.
 
     Prerequisites
     -------------
     - R with packages: roxygen2, pkgdown, bslib, ggplot2, sf, jsonlite,
       tmap, stars, knitr, rmarkdown  (auto-installed if missing)
-    - Rust toolchain + RTools45 (required to compile the R/Python packages)
+    - Rust toolchain + RTools45 (required to compile the R/Python packages
+      and to build the Rust docs)
     - Python with pip (great-docs is installed automatically via .[dev])
+    - The Quarto CLI (great-docs renders with it)
+    - On macOS/Linux, PowerShell 7: pwsh ./scripts/build-docs.ps1
+
+    See "Updating the documentation" in README.md for the whole process.
 
     Add Rscript and the Python Scripts folder to your session PATH if needed:
         $env:PATH = "C:\Program Files\R\R-4.6.0\bin;" +
                     "C:\Users\<you>\AppData\Roaming\Python\Python313\Scripts;" +
                     $env:PATH
 
-    After running, commit and push to deploy:
-        git add site/
-        git commit -m "docs: rebuild site"
-        git push
+    site/ is for previewing (it is not committed): the Documentation
+    workflow (.github/workflows/docs.yml) builds and deploys the site from
+    main.
 
 .EXAMPLE
     .\scripts\build-docs.ps1
@@ -60,6 +66,19 @@ Write-Host '==> pip install -e .[dev] (compiles Rust extension, installs great-d
 Push-Location $pyPkg
 try {
     python -m pip install -e ".[dev]"
+    if ($LASTEXITCODE -ne 0) { Write-Error 'pip install failed' }
+    # great-docs executes the user guide with py-basemapper/.venv's Python
+    # when that folder exists (else this Python): give it the same packages.
+    $venvPython = Join-Path $pyPkg (Join-Path '.venv' (Join-Path 'Scripts' 'python.exe'))
+    if (Test-Path $venvPython) {
+        Write-Host '==> also into py-basemapper/.venv, which great-docs runs the user guide with ...' -ForegroundColor Cyan
+        if (Get-Command uv -ErrorAction SilentlyContinue) {
+            uv pip install --python $venvPython -e ".[dev]"
+        } else {
+            & $venvPython -m pip install -e ".[dev]"
+        }
+        if ($LASTEXITCODE -ne 0) { Write-Error 'installing into py-basemapper/.venv failed' }
+    }
 } finally {
     Pop-Location
 }
@@ -89,14 +108,29 @@ if (Test-Path $logoSrc) {
     Write-Warning "logo.svg not found at $logoSrc -- Python docs will build without a logo."
 }
 
+# -- Protomaps styles for the PMTiles examples --------------------------------
+# The R articles and Python guide load them as styles/protomaps-*.json; the
+# copies are git-ignored, core/guide/styles/ is the source.
+$stylesSrc = Join-Path (Join-Path (Join-Path $repoRoot 'core') 'guide') 'styles'
+$stylesDests = @(
+    (Join-Path (Join-Path (Join-Path (Join-Path $repoRoot 'r-basemapper') 'vignettes') 'articles') 'styles'),
+    (Join-Path (Join-Path $pyPkg 'user_guide') 'styles')
+)
+foreach ($dest in $stylesDests) {
+    New-Item -ItemType Directory -Force -Path $dest | Out-Null
+    Copy-Item (Join-Path $stylesSrc '*.json') $dest -Force
+}
+
 # -- R: regenerate man pages --------------------------------------------------
 Write-Host '==> roxygen2::roxygenize (regenerating man pages) ...' -ForegroundColor Cyan
 Rscript -e "roxygen2::roxygenize('r-basemapper')"
+if ($LASTEXITCODE -ne 0) { Write-Error 'roxygen2 failed' }
 
 # -- R: pkgdown ---------------------------------------------------------------
 Write-Host '==> pkgdown::build_site -> site/r/ ...' -ForegroundColor Cyan
 # Output destination is set in r-basemapper/_pkgdown.yml (destination: ../site/r).
 Rscript -e "pkgdown::build_site(pkg='r-basemapper', preview=FALSE, new_process=FALSE)"
+if ($LASTEXITCODE -ne 0) { Write-Error 'pkgdown failed' }
 
 # -- Python: great-docs -------------------------------------------------------
 Write-Host '==> great-docs build -> py-basemapper/great-docs/_site/ ...' -ForegroundColor Cyan
@@ -105,6 +139,7 @@ Push-Location $pyPkg
 try {
     $env:PYTHONUTF8 = '1'
     & great-docs build
+    if ($LASTEXITCODE -ne 0) { Write-Error 'great-docs failed' }
 } finally {
     Remove-Item Env:PYTHONUTF8 -ErrorAction SilentlyContinue
     Pop-Location
@@ -112,6 +147,16 @@ try {
 
 if (-not (Test-Path $gdocOut)) {
     Write-Error "great-docs build produced no output at: $gdocOut"
+}
+
+# -- Rust: guide examples + rustdoc -> site/rust/ ----------------------------
+Write-Host '==> Rust docs (runs the guide examples) -> site/rust/ ...' -ForegroundColor Cyan
+$env:PYTHONUTF8 = '1'
+try {
+    python (Join-Path $PSScriptRoot 'docs_rust.py') $siteDir
+    if ($LASTEXITCODE -ne 0) { Write-Error 'Rust docs failed' }
+} finally {
+    Remove-Item Env:PYTHONUTF8 -ErrorAction SilentlyContinue
 }
 
 # -- Assemble into site/ ------------------------------------------------------
@@ -122,9 +167,13 @@ Copy-Item -Recurse $gdocOut $sitePy
 Write-Host '==> Copying landing page -> site/index.html ...' -ForegroundColor Cyan
 Copy-Item $docsIndex $siteIndex -Force
 
+# -- One navigation for the three sites ---------------------------------------
+Write-Host '==> Adding the R | Python | Rust switcher to every page ...' -ForegroundColor Cyan
+python (Join-Path $PSScriptRoot 'docs_postprocess.py') $siteDir
+if ($LASTEXITCODE -ne 0) { Write-Error 'docs post-processing failed' }
+
 # -- Done ---------------------------------------------------------------------
 Write-Host ''
-Write-Host 'Build complete. Commit and push to deploy:' -ForegroundColor Green
-Write-Host '    git add site/'
-Write-Host "    git commit -m 'docs: rebuild site'"
-Write-Host '    git push'
+Write-Host 'Build complete: site/ is ready to preview, e.g.' -ForegroundColor Green
+Write-Host '    python -m http.server 8765 --directory site'
+Write-Host 'It is not committed; CI (.github/workflows/docs.yml) deploys the site from main.'

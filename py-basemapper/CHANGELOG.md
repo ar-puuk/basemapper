@@ -75,6 +75,15 @@ here. See `docs/api.md` in the repository.
   `features` that match no layer of any style warn.
 - `list_layers()` shows each layer's `source_layer`, and takes `layers`,
   `labels` and `features` to preview what a render draws.
+- `render_svg()` takes raster basemaps too: raster tiles are embedded as
+  images (vector layers stay paths and text).
+- `labels`, `features` and `layers` treat a stack of styles as one basemap
+  (e.g. UGRC's hillshade, base and labels services): a style they leave
+  nothing of is skipped, and it is an error only when they leave nothing of
+  the whole stack. Before, `labels="only"` failed on any stack with a
+  style that has no labels.
+- A view shown in Jupyter or Quarto (`m` as a cell's last line) displays the
+  map, at its CSS pixel size.
 - Raster basemaps no longer show a one-pixel white line at tile seams when
   rendered at a fractional pixel ratio (as a figure's dpi gives).
 - ArcGIS vector styles whose source names the `VectorTileServer` without a

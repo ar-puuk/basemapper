@@ -53,6 +53,14 @@ test_that("attribution_text resolves TRUE, FALSE and custom text", {
   expect_error(basemapper:::attribution_text(1, s), "attribution must be")
 })
 
+test_that("attribution_text caches style sets longer than a variable name", {
+  # Inline style JSON (e.g. a labels-only basemap_provider()) is often over
+  # the 10000 bytes R allows a name; the cache must not use it as one.
+  long <- credited_style(paste0("&copy; Long", strrep(" ", 12000)))
+  expect_equal(basemapper:::attribution_text(TRUE, c(long, credited_style())), "© Long | © Test")
+  expect_equal(basemapper:::attribution_text(TRUE, c(long, credited_style())), "© Long | © Test")
+})
+
 test_that("geom_basemap draws the attribution unless disabled", {
   skip_if_not_installed("ggplot2")
   skip_if_not_installed("sf")
@@ -75,4 +83,21 @@ test_that("tm_basemap adds tm_credits unless disabled", {
   with_credit <- tm_basemap(credited_style())
   without <- tm_basemap(credited_style(), attribution = FALSE)
   expect_gt(length(with_credit), length(without))
+})
+
+test_that("plot() draws a view, and knitr shows it as an image at CSS size", {
+  m <- basemap(credited_style(), 16, 8, center = c(0, 0), zoom = 1, pixel_ratio = 2)
+  f <- tempfile(fileext = ".png")
+  grDevices::png(f, 64, 32)
+  expect_invisible(plot(m))
+  grDevices::dev.off()
+  expect_gt(file.size(f), 0)
+
+  skip_if_not_installed("knitr")
+  img <- knitr::knit_print(m, options = list(fig.path = file.path(tempdir(), "knit-"), label = "chunk"))
+  expect_s3_class(img, "knit_image_paths")
+  expect_true(file.exists(img[[1]]))
+  expect_equal(attr(img, "dpi"), 192)  # 32 x 16 device px, shown at 16 x 8 CSS px
+  skip_if_not_installed("png")
+  expect_equal(dim(png::readPNG(img[[1]]))[1:2], c(16L, 32L))
 })

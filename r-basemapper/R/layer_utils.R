@@ -75,8 +75,11 @@ get_attribution <- function(x, auth_token = NULL) {
 }
 
 # Attribution per style set, so plots redrawn (resized, re-saved) do not
-# fetch the styles again.
+# fetch the styles again. Keys are looked up with match(): a style set can
+# be inline style JSON, longer than R allows a variable name to be.
 .BASEMAPPER_ATTRIBUTION <- new.env(parent = emptyenv())
+.BASEMAPPER_ATTRIBUTION$keys <- character()
+.BASEMAPPER_ATTRIBUTION$text <- character()
 
 # The text a plot layer's `attribution` argument asks for: TRUE the styles'
 # own (cached; "" when it cannot be read), FALSE / NULL / NA none, a string
@@ -89,10 +92,13 @@ attribution_text <- function(attribution, style, auth_token = NULL) {
   }
   styles <- style_strings(style)
   key <- paste(c(styles, auth_token), collapse = "\r")
-  if (is.null(.BASEMAPPER_ATTRIBUTION[[key]])) {
-    .BASEMAPPER_ATTRIBUTION[[key]] <- tryCatch(get_attribution(styles, auth_token), error = function(e) "")
-  }
-  .BASEMAPPER_ATTRIBUTION[[key]]
+  cache <- .BASEMAPPER_ATTRIBUTION
+  hit <- match(key, cache$keys)
+  if (!is.na(hit)) return(cache$text[[hit]])
+  text <- tryCatch(get_attribution(styles, auth_token), error = function(e) "")
+  cache$keys <- c(cache$keys, key)
+  cache$text <- c(cache$text, text)
+  text
 }
 
 # The attribution as small text in the bottom-right corner of the current

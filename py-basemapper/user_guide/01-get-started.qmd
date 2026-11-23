@@ -1,0 +1,153 @@
+---
+title: "Get started"
+---
+
+> **R or Rust?** The same functions and arguments exist in
+> [R](../../r/index.html) (`verb(m, ...)` for Python's `m.verb(...)`) and
+> [Rust](../../rust/basemapper_core/index.html).
+
+basemapper renders MapLibre GL basemaps headlessly with a Rust core: no
+browser, display server, GPU or GDAL. Vector styles are drawn by a software
+port of MapLibre GL JS's renderer, so maps look as they do in MapLibre.
+Everything on this page was run when the page was built; the maps are the
+output of the code above them.
+
+## Installation
+
+```sh
+pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+# or: uv add "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+```
+
+See the [home page](../index.html) for conda.
+
+## Choose a style
+
+Every function takes a `style`. The simplest is a named basemap, a
+[leaflet-providers](https://leaflet-extras.github.io/leaflet-providers/preview/)
+name; `list_providers()` lists them, with the API key some need:
+
+```{python}
+import basemapper as bm
+
+for p in bm.list_providers()[:12]:
+    print(f"{p['name']:<24} vector={p['vector']!s:<5} raster={p['raster']!s:<5} key={p['api_key_env']}")
+```
+
+A MapLibre style URL or JSON works too, and so does tile data: a tile URL,
+TileJSON, PMTiles archive or ArcGIS service (see
+[Your own tiles and services](05-own-data.qmd)).
+
+## A map on its own
+
+`basemap()` creates a view: a centre and MapLibre zoom (or bounds to fit),
+and a size in CSS pixels. In a notebook, a view shows the map:
+
+```{python}
+m = bm.basemap("OpenFreeMap.Positron", 720, 405, center=(-111.8887, 40.7556), zoom=12.4)
+m
+```
+
+`repr()` describes it, and the `get_*()` methods read it:
+
+```{python}
+print(repr(m))
+print(m.get_bounds(lonlat=True))
+print(m.get_attribution())
+```
+
+`set_view()` and `set_bounds()` change the view. Here it fits North
+Carolina's counties (a GeoDataFrame, from
+[geodatasets](https://geodatasets.readthedocs.io)):
+
+```{python}
+import geopandas as gpd
+import geodatasets
+
+nc = gpd.read_file(geodatasets.get_path("geoda.sids"))
+bm.basemap("OpenFreeMap.Liberty", 720, 300, bounds=nc)
+```
+
+## Raster and vector, PNG and SVG
+
+Basemaps come as raster tiles (images, like OpenStreetMap's) or vector tiles
+(geometry styled on the fly, like OpenFreeMap's). Either renders to a PNG
+with `render_png()` or an SVG with `render_svg()`. In an SVG, vector layers
+are paths and the labels editable text with the style's fonts embedded;
+raster tiles are embedded as images.
+
+```{python}
+import os, tempfile
+
+slc = (-111.8910, 40.7608)
+raster = bm.basemap("OpenStreetMap.Mapnik", 480, 300, center=slc, zoom=11.5)
+vector = bm.basemap("OpenFreeMap.Bright", 480, 300, center=slc, zoom=11.5)
+
+out = tempfile.mkdtemp()
+for name, m in [("raster", raster), ("vector", vector)]:
+    m.render_png(os.path.join(out, f"{name}.png"))
+    m.render_svg(os.path.join(out, f"{name}.svg"))
+
+for f in sorted(os.listdir(out)):
+    print(f"{f:<12} {os.path.getsize(os.path.join(out, f)) // 1024} KB")
+```
+
+```{python}
+#| echo: false
+# Show the four files written above.
+import base64
+from IPython.display import HTML
+
+def uri(f):
+    mime = "image/svg+xml" if f.endswith(".svg") else "image/png"
+    return f"data:{mime};base64," + base64.b64encode(open(os.path.join(out, f), "rb").read()).decode()
+
+HTML(f"""<table class="table" style="table-layout:fixed"><col style="width:7.5em"><col><col><tr><th></th><th>PNG</th><th>SVG</th></tr>
+<tr><th>Raster<br><small>OpenStreetMap</small></th><td><img src="{uri('raster.png')}" style="width:100%"></td><td><img src="{uri('raster.svg')}" style="width:100%"></td></tr>
+<tr><th>Vector<br><small>OpenFreeMap Bright</small></th><td><img src="{uri('vector.png')}" style="width:100%"></td><td><img src="{uri('vector.svg')}" style="width:100%"></td></tr></table>""")
+```
+
+`render_array()` returns the pixels, for your own compositing, and
+`get_bounds()` their extent in Web Mercator:
+
+```{python}
+a = vector.render_array()
+a.shape, a.dtype, vector.get_bounds()
+```
+
+`pixel_ratio` makes images larger with the same view and label layout:
+`pixel_ratio=2` for a sharp 2x image, `dpi / 96` for print.
+
+## In a plot
+
+`add_basemap()` adds a basemap under a matplotlib axes' content. It renders
+when the figure is drawn, for the axes' extent and at the output resolution,
+and credits the provider in the corner:
+
+```{python}
+import matplotlib.pyplot as plt
+
+nc_3857 = nc.to_crs(3857)
+fig, ax = plt.subplots(figsize=(8, 3.6))
+nc_3857.plot(ax=ax, column="BIR74", cmap="viridis", alpha=0.75, edgecolor="white", linewidth=0.3, legend=True)
+bm.add_basemap(ax, "OpenFreeMap.Positron", crs=3857)
+ax.set_axis_off()
+```
+
+`geom_basemap()` does the same in plotnine, with the arguments of R's
+`geom_basemap()`:
+
+```{python}
+from plotnine import aes, geom_map, ggplot, scale_fill_cmap, theme_void, theme
+
+(
+    ggplot(nc)
+    + bm.geom_basemap("Esri.WorldGrayCanvas")
+    + geom_map(aes(fill="SID74"), alpha=0.7, color="white", size=0.2)
+    + scale_fill_cmap("Blues", name="SIDS, 1974")
+    + theme_void()
+    + theme(figure_size=(8, 3.6))
+)
+```
+
+[Plots with matplotlib and plotnine](03-plotting.qmd) has more.

@@ -1,3 +1,70 @@
+// Crate documentation: the guide in guide/, with each example's source
+// (examples/guide_*.rs) and its output (guide/output/, written by
+// scripts/build-docs.ps1). Only read when building docs, so builds
+// without the guide folder (the vendored R copy) are unaffected.
+#![cfg_attr(doc, doc = include_str!("../guide/intro.md"))]
+#![cfg_attr(doc, doc = include_str!("../guide/quickstart.md"))]
+//! ```no_run
+#![cfg_attr(doc, doc = include_str!("../examples/guide_quickstart.rs"))]
+//! ```
+//!
+//! Output:
+//!
+//! ```text
+#![cfg_attr(doc, doc = include_str!("../guide/output/quickstart.txt"))]
+//! ```
+#![cfg_attr(doc, doc = include_str!("../guide/quickstart_after.md"))]
+//!
+#![cfg_attr(doc, doc = include_str!("../guide/formats.md"))]
+//! ```no_run
+#![cfg_attr(doc, doc = include_str!("../examples/guide_formats.rs"))]
+//! ```
+//!
+//! Output:
+//!
+//! ```text
+#![cfg_attr(doc, doc = include_str!("../guide/output/formats.txt"))]
+//! ```
+#![cfg_attr(doc, doc = include_str!("../guide/formats_after.md"))]
+//!
+#![cfg_attr(doc, doc = include_str!("../guide/stack.md"))]
+//! ```no_run
+#![cfg_attr(doc, doc = include_str!("../examples/guide_stack.rs"))]
+//! ```
+//!
+//! Output:
+//!
+//! ```text
+#![cfg_attr(doc, doc = include_str!("../guide/output/stack.txt"))]
+//! ```
+#![cfg_attr(doc, doc = include_str!("../guide/stack_after.md"))]
+//!
+#![cfg_attr(doc, doc = include_str!("../guide/layers.md"))]
+//! ```no_run
+#![cfg_attr(doc, doc = include_str!("../examples/guide_layers.rs"))]
+//! ```
+//!
+//! Output:
+//!
+//! ```text
+#![cfg_attr(doc, doc = include_str!("../guide/output/layers.txt"))]
+//! ```
+#![cfg_attr(doc, doc = include_str!("../guide/layers_after.md"))]
+//!
+#![cfg_attr(doc, doc = include_str!("../guide/pmtiles.md"))]
+//! ```no_run
+#![cfg_attr(doc, doc = include_str!("../examples/guide_pmtiles.rs"))]
+//! ```
+//!
+//! Output:
+//!
+//! ```text
+#![cfg_attr(doc, doc = include_str!("../guide/output/pmtiles.txt"))]
+//! ```
+#![cfg_attr(doc, doc = include_str!("../guide/pmtiles_after.md"))]
+//!
+#![cfg_attr(doc, doc = include_str!("../guide/more.md"))]
+
 pub mod attribution;
 pub mod basemap;
 pub mod bbox;
@@ -55,18 +122,39 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
 /// Render several styles over the same view and composite them bottom to
 /// top (straight-alpha source-over), e.g. a basemap published as separate
 /// services. All requests must share bbox, size and pixel ratio.
-pub fn render_stack(requests: Vec<RenderRequest>) -> Result<RenderResult, BasemapError> {
+///
+/// `layers`, `labels` and `features` apply to the stack as one basemap: a
+/// style they leave nothing of (the hillshade under `labels = Only`, the
+/// labels over `features = ["terrain"]`) is skipped, and it is an error
+/// only when they leave nothing of the whole stack. A name warns only when
+/// it matches nothing in any style of the stack.
+pub fn render_stack(mut requests: Vec<RenderRequest>) -> Result<RenderResult, BasemapError> {
     let first = requests.first().ok_or_else(|| BasemapError::RenderError("no styles to render".into()))?;
     let (bbox, w, h, r) = (first.bbox, first.width, first.height, first.pixel_ratio);
     if requests.iter().any(|q| q.bbox != bbox || q.width != w || q.height != h || q.pixel_ratio != r) {
         return Err(BasemapError::RenderError("all styles in a stack must share bbox, size and pixel ratio".into()));
     }
+    if requests.len() == 1 {
+        return render(requests.remove(0));
+    }
+    for q in &requests {
+        q.validate()?;
+    }
     let mut acc: Option<RenderResult> = None;
+    let mut warnings: Option<Vec<String>> = None;
+    let mut present: Vec<&'static str> = Vec::new();
     for q in requests {
-        let top = render(q)?;
-        // A name warns only when it matches nothing in any style of the stack.
-        let top_warnings = top.warnings.clone();
-        let acc_warnings = acc.as_ref().map(|a| a.warnings.clone());
+        let part = RUNTIME.block_on(render_part(q))?;
+        warnings = Some(match warnings {
+            None => part.warnings,
+            Some(prev) => prev.into_iter().filter(|w| part.warnings.contains(w)).collect(),
+        });
+        for f in part.present {
+            if !present.contains(&f) {
+                present.push(f);
+            }
+        }
+        let Some(top) = part.result else { continue };
         acc = Some(match acc {
             None => top,
             Some(mut below) => {
@@ -78,11 +166,10 @@ pub fn render_stack(requests: Vec<RenderRequest>) -> Result<RenderResult, Basema
                 below
             }
         });
-        if let (Some(a), Some(prev)) = (acc.as_mut(), acc_warnings) {
-            a.warnings = prev.into_iter().filter(|w| top_warnings.contains(w)).collect();
-        }
     }
-    Ok(acc.expect("at least one request"))
+    let mut out = acc.ok_or_else(|| empty_filter_error(&present, "stack"))?;
+    out.warnings = warnings.unwrap_or_default();
+    Ok(out)
 }
 
 /// `dst = src over dst`, both straight-alpha RGBA.
@@ -216,6 +303,15 @@ fn apply_filters(
     Ok((selection, warnings))
 }
 
+/// The error for `labels` / `features` leaving nothing to draw, listing the
+/// features there are (`what`: "style" or "stack").
+fn empty_filter_error(present: &[&str], what: &str) -> BasemapError {
+    BasemapError::InvalidLayerFilter(format!(
+        "labels and features leave nothing of this {what} to draw; its features are {}",
+        present.join(", ")
+    ))
+}
+
 /// The style a request draws: its filters applied (an error when they leave
 /// nothing to draw), with warnings for names that matched no layer.
 fn select_style_layers(raw_json: &str, request: &RenderRequest) -> Result<(String, Vec<String>), BasemapError> {
@@ -224,12 +320,32 @@ fn select_style_layers(raw_json: &str, request: &RenderRequest) -> Result<(Strin
     // `layers` may leave nothing (as before); `labels` / `features` emptying a
     // style that had layers is an error.
     if selection.empty && !selection.present.is_empty() {
-        return Err(BasemapError::InvalidLayerFilter(format!(
-            "labels and features leave nothing of this style to draw; its features are {}",
-            selection.present.join(", ")
-        )));
+        return Err(empty_filter_error(&selection.present, "style"));
     }
     Ok((selection.style, warnings))
+}
+
+/// One style of a stack, rendered with its filters: no result when
+/// `labels` / `features` leave nothing of it, with the warnings and the
+/// features it has either way.
+struct StackPart {
+    result: Option<RenderResult>,
+    warnings: Vec<String>,
+    present: Vec<&'static str>,
+}
+
+async fn render_part(request: RenderRequest) -> Result<StackPart, BasemapError> {
+    let client = http_client(std::time::Duration::from_millis(request.tile_timeout_ms as u64))?;
+    let raw_json = request.style_input.resolve(&client, request.auth_token.as_deref()).await?;
+    style::validate_maplibre_style(&raw_json)?;
+    let (selection, warnings) =
+        apply_filters(&raw_json, request.layers.as_deref(), request.labels, request.features.as_deref())?;
+    if selection.empty && !selection.present.is_empty() {
+        return Ok(StackPart { result: None, warnings, present: selection.present });
+    }
+    let mut result = render_style(request, client, selection.style).await?;
+    result.warnings = warnings.clone();
+    Ok(StackPart { result: Some(result), warnings, present: selection.present })
 }
 
 async fn render_async(request: RenderRequest) -> Result<RenderResult, BasemapError> {
@@ -1063,21 +1179,40 @@ pub fn render_svg_stack_with(requests: Vec<RenderRequest>, options: &SvgOptions)
         let client = http_client(std::time::Duration::from_millis(timeout.max(15_000) as u64))?;
         // Every style's tiles and assets first, so the fonts of the whole
         // document are resolved (and embedded) once.
+        // As render_stack: filters apply to the stack as one basemap.
+        let stacked = requests.len() > 1;
+        let mut present: Vec<&'static str> = Vec::new();
         let mut inputs = Vec::new();
         for request in &requests {
             let raw_json = request.style_input.resolve(&client, request.auth_token.as_deref()).await?;
             style::validate_maplibre_style(&raw_json)?;
-            let (style_json, _) = select_style_layers(&raw_json, request)?;
+            let style_json = if stacked {
+                let (selection, _) =
+                    apply_filters(&raw_json, request.layers.as_deref(), request.labels, request.features.as_deref())?;
+                for f in &selection.present {
+                    if !present.contains(f) {
+                        present.push(f);
+                    }
+                }
+                if selection.empty && !selection.present.is_empty() {
+                    continue;
+                }
+                selection.style
+            } else {
+                select_style_layers(&raw_json, request)?.0
+            };
             let style_val: serde_json::Value =
                 serde_json::from_str(&style_json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
             let tile_source =
                 extract_tile_source_from_style(&style_val, &client, request.auth_token.as_deref(), style_base_url_of(request)).await?;
-            if !matches!(tile_source, TileSource::MapboxVectorTile { .. }) {
-                return Err(BasemapError::RenderError("SVG output needs a vector tile source".into()));
-            }
+            // Raster-only styles take the same path: raster layers are
+            // embedded as images (vector layers are paths and text).
             let (style_val, sources, assets, _) =
                 fetch_vector_inputs(request, &client, &style_json, &tile_source, bbox, width).await?;
             inputs.push((style_val, sources, assets));
+        }
+        if inputs.is_empty() {
+            return Err(empty_filter_error(&present, "stack"));
         }
         let mut fonts = if options.text == SvgText::Editable {
             let mut stacks: Vec<String> = inputs.iter().flat_map(|i| i.2.glyphs.stacks.keys().cloned()).collect();
