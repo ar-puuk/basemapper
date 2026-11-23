@@ -308,7 +308,7 @@ def basemap(
             background, water, landcover, parks, buildings, roads, rail,
             boundaries, places, poi, terrain, other (see the ``feature``
             of :func:`list_layers`).
-        auth_token: Optional access token for the tile service.
+        auth_token: Optional access token for the tile service (sent only to the style's own server).
         tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
         max_tiles: Maximum tiles fetched per style.
         tile_concurrency: Parallel tile downloads.

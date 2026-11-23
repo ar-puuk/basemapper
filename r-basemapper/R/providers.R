@@ -170,7 +170,7 @@ tile_cache <- function(dir = NULL, clear = FALSE, max_size = NULL) {
 #' @param paint Vector tiles: a named list of paint properties for the
 #'   generated `fill-*`, `line-*` and `circle-*` layers, e.g.
 #'   `list("fill-color" = "#cccccc")`. Others are dropped with a warning.
-#' @param auth_token Optional access token for the tile service.
+#' @param auth_token Optional access token for the tile service (sent only to the style's own server).
 #' @return The style JSON string.
 #' @export
 #' @examples

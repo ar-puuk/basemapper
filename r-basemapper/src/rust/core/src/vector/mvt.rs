@@ -125,10 +125,17 @@ pub fn decode(bytes: &[u8]) -> Result<Tile, String> {
     let raw;
     let data = if bytes.starts_with(&[0x1f, 0x8b]) {
         use std::io::Read;
+        // A tile inflates to at most MAX_INFLATED bytes (a gzip bomb would
+        // otherwise exhaust memory).
+        const MAX_INFLATED: u64 = 64 << 20;
         let mut out = Vec::new();
         flate2::read::GzDecoder::new(bytes)
+            .take(MAX_INFLATED + 1)
             .read_to_end(&mut out)
             .map_err(|e| format!("gzip: {e}"))?;
+        if out.len() as u64 > MAX_INFLATED {
+            return Err(format!("gzip: tile inflates past {} MB", MAX_INFLATED >> 20));
+        }
         raw = out;
         &raw[..]
     } else {

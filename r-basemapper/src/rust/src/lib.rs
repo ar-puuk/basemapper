@@ -29,6 +29,12 @@ fn err(e: impl std::fmt::Display) -> extendr_api::Error {
     extendr_api::Error::Other(e.to_string())
 }
 
+/// A count or size from R that must be at least 1 (R integers are signed:
+/// a plain `as u32` would turn -1 into 4294967295).
+fn positive(name: &str, v: i32) -> Result<u32> {
+    u32::try_from(v).ok().filter(|&n| n >= 1).ok_or_else(|| err(format!("{name} must be a positive integer, not {v}")))
+}
+
 fn opt<T>(v: Nullable<T>) -> Option<T> {
     match v {
         Nullable::NotNull(x) => Some(x),
@@ -62,21 +68,28 @@ fn stack_requests(
     if styles.is_empty() {
         return Err(err("at least one style is required"));
     }
-    // Not clamped: the core rejects out-of-range tile zooms with a clear error.
-    let tile_zoom = opt(tile_zoom).map(|z| z as u8);
+    let tile_zoom = match opt(tile_zoom) {
+        Some(z) if (0..=22).contains(&z) => Some(z as u8),
+        Some(z) => return Err(err(format!("tile_zoom must be between 0 and 22, not {z}"))),
+        None => None,
+    };
+    let (width, height) = (positive("width", width)?, positive("height", height)?);
+    let tile_timeout_ms = positive("tile_timeout_ms", tile_timeout_ms)?;
+    let max_tiles = positive("max_tiles", max_tiles)?;
+    let tile_concurrency = positive("tile_concurrency", tile_concurrency)?;
     let layers = opt(layers);
     let auth_token = opt(auth_token);
     Ok(styles
         .iter()
         .map(|s| RenderRequest {
             bbox: [bbox_3857[0], bbox_3857[1], bbox_3857[2], bbox_3857[3]],
-            width: width as u32,
-            height: height as u32,
+            width,
+            height,
             style_input: StyleInput::detect(s),
             tile_zoom,
-            tile_timeout_ms: tile_timeout_ms as u32,
-            max_tiles: max_tiles as u32,
-            tile_concurrency: tile_concurrency.max(1) as u32,
+            tile_timeout_ms,
+            max_tiles,
+            tile_concurrency,
             layers: layers.clone(),
             labels,
             features: features.clone(),
@@ -126,10 +139,11 @@ fn render_raw(
 #[extendr]
 fn encode_png_raw(pixels: Raw, width: i32, height: i32) -> Result<Raw> {
     let px = pixels.as_slice();
+    let (width, height) = (positive("width", width)?, positive("height", height)?);
     if px.len() != width as usize * height as usize * 4 {
         return Err(err("pixel buffer size does not match width * height * 4"));
     }
-    let png = basemapper_core::encode_png(px, width as u32, height as u32).map_err(err)?;
+    let png = basemapper_core::encode_png(px, width, height).map_err(err)?;
     Ok(Raw::from_bytes(&png))
 }
 
@@ -181,8 +195,9 @@ fn render_svg_raw(
 
 /// EPSG:3857 bbox of a width x height CSS-pixel view at a MapLibre zoom.
 #[extendr]
-fn bbox_from_center_raw(lon: f64, lat: f64, zoom: f64, width: i32, height: i32) -> Vec<f64> {
-    basemapper_core::bbox_from_center(lon, lat, zoom, width as u32, height as u32).to_vec()
+fn bbox_from_center_raw(lon: f64, lat: f64, zoom: f64, width: i32, height: i32) -> Result<Vec<f64>> {
+    let (width, height) = (positive("width", width)?, positive("height", height)?);
+    Ok(basemapper_core::bbox_from_center(lon, lat, zoom, width, height).to_vec())
 }
 
 /// c(lon, lat, zoom) of the view fitting EPSG:3857 bounds in width x height.
@@ -192,7 +207,8 @@ fn fit_bounds_raw(bounds_3857: Vec<f64>, width: i32, height: i32) -> Result<Vec<
         return Err(err("bounds must have exactly 4 elements"));
     }
     let b = [bounds_3857[0], bounds_3857[1], bounds_3857[2], bounds_3857[3]];
-    let (lon, lat, zoom) = basemapper_core::fit_bounds(b, width as u32, height as u32);
+    let (width, height) = (positive("width", width)?, positive("height", height)?);
+    let (lon, lat, zoom) = basemapper_core::fit_bounds(b, width, height);
     Ok(vec![lon, lat, zoom])
 }
 

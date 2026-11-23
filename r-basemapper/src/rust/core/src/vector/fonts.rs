@@ -272,7 +272,7 @@ impl SvgFonts {
             let Some(bytes) = bytes else { continue };
             css.push_str(&format!(
                 "@font-face{{font-family:'{}';font-weight:{};font-style:{};src:url(data:font/ttf;base64,{}) format('truetype');}}",
-                face.family.replace('\'', ""),
+                css_family(&face.family),
                 face.weight,
                 if face.italic { "italic" } else { "normal" },
                 super::svg::base64(&bytes)
@@ -415,15 +415,21 @@ fn collect_font_files(dir: &Path, out: &mut Vec<PathBuf>, depth: u32) {
     }
 }
 
+/// A font family name safe inside the SVG's `<style>` element: quotes,
+/// backslashes and markup characters (which could close the element) are
+/// dropped. Family names in styles come from untrusted style JSON.
+fn css_family(family: &str) -> String {
+    family.chars().filter(|c| !matches!(c, '\'' | '"' | '\\' | '<' | '>' | '&' | ';' | '{' | '}')).collect()
+}
+
+/// Downloaded fonts live in `BASEMAPPER_FONT_CACHE`, else in the tile
+/// cache's directory (so `BASEMAPPER_CACHE_DIR=off` and the R package's
+/// `tools::R_user_dir()` apply to fonts too), under `fonts`.
 fn cache_dir() -> Option<PathBuf> {
     if let Some(d) = std::env::var_os("BASEMAPPER_FONT_CACHE") {
         return Some(PathBuf::from(d));
     }
-    let base = std::env::var_os("LOCALAPPDATA")
-        .or_else(|| std::env::var_os("XDG_CACHE_HOME"))
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))?;
-    Some(base.join("basemapper").join("fonts"))
+    crate::cache::dir().map(|d| d.join("fonts"))
 }
 
 fn cache_path(family: &str, weight: u16, italic: bool) -> Option<PathBuf> {
@@ -444,7 +450,8 @@ async fn download(client: &reqwest::Client, family: &str, weight: u16, italic: b
         if !resp.status().is_success() {
             continue;
         }
-        let Ok(css) = resp.text().await else { continue };
+        let Ok(css) = crate::net::read_limited(resp, crate::net::limit::ASSET).await else { continue };
+        let css = String::from_utf8_lossy(&css);
         let Some(start) = css.find("url(") else { continue };
         let rest = &css[start + 4..];
         let Some(end) = rest.find(')') else { continue };
@@ -453,8 +460,7 @@ async fn download(client: &reqwest::Client, family: &str, weight: u16, italic: b
         if !r.status().is_success() {
             continue;
         }
-        let Ok(bytes) = r.bytes().await else { continue };
-        let bytes = bytes.to_vec();
+        let Ok(bytes) = crate::net::read_limited(r, crate::net::limit::ASSET).await else { continue };
         if ttf_parser::Face::parse(&bytes, 0).is_err() {
             continue;
         }

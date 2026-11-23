@@ -46,7 +46,7 @@ class geom_basemap(geom):
             boundaries, places, poi, terrain, other (see the ``feature``
             of :func:`list_layers`).
         pixel_ratio: Device pixels per CSS pixel; default output dpi / 96.
-        auth_token: Optional access token for the tile service.
+        auth_token: Optional access token for the tile service (sent only to the style's own server).
         tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
         max_tiles: Maximum tile downloads per style.
         attribution: The credit line the basemap's providers ask for, drawn

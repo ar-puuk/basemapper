@@ -923,7 +923,9 @@ impl Sprite {
         for (name, e) in index.as_object().ok_or("sprite json is not an object")? {
             let g = |k: &str| e[k].as_u64().unwrap_or(0) as usize;
             let (x, y, w, h) = (g("x"), g("y"), g("width"), g("height"));
-            if w == 0 || h == 0 || x + w > sheet.width() as usize || y + h > sheet.height() as usize {
+            // checked_add: huge values in a broken index must not wrap past the bounds check.
+            let fits = |o: usize, len: usize, max: u32| o.checked_add(len).is_some_and(|end| end <= max as usize);
+            if w == 0 || h == 0 || !fits(x, w, sheet.width()) || !fits(y, h, sheet.height()) {
                 continue;
             }
             let cw = w + 2;

@@ -54,7 +54,7 @@ layer of any style belongs to warn.}
 and label layout. Default: device dpi / 96 (300 dpi for PDF / SVG
 devices), so \code{tmap_save(dpi = 300)} gets a basemap rendered at 300 dpi.}
 
-\item{auth_token}{Optional access token for the tile service.}
+\item{auth_token}{Optional access token for the tile service (sent only to the style's own server).}
 
 \item{tile_timeout_ms}{Per-tile HTTP timeout in milliseconds.}
 

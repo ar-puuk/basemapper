@@ -1,3 +1,43 @@
+# basemapper (development version)
+
+## Bug fixes
+
+* `max_tiles` now limits vector tiles too. It used to be checked against the
+  raster tile grid only, so a large vector view (or `render_svg()`, or a
+  style's extra raster, hillshade or vector sources) could fetch many more
+  tiles than the limit. Raster layers in vector styles drop to coarser tiles
+  to fit, as raster basemaps do; vector sources that need more tiles than
+  the limit are an error.
+* Out-of-range integers are errors instead of wrapping: `tile_zoom = 256`
+  used to render at zoom 0, and a negative `max_tiles` or `tile_timeout_ms`
+  turned the limit off.
+* A failed attribution lookup (a network blip) is retried after a minute,
+  rather than leaving every later plot of the session without its credit
+  line.
+* An invalid `pixel_ratio` or `tile_zoom` is reported as such, not as an
+  "invalid bbox".
+* PMTiles archives honour `fail_on_tile_error` and `tile_concurrency`.
+* A broken sprite index is skipped instead of stopping the render.
+
+## Security
+
+* Access tokens (`auth_token`) are sent only to the origin the style came
+  from (and to the tile servers a TileJSON from there names), no longer to
+  every server a style mentions, such as a third-party overlay. Styles given
+  as JSON or a local file are yours: their servers all get the token, as
+  before.
+* API keys in URLs (`key=`, `api_key=`, `access_token=`, UGRC's quad word,
+  ...) are replaced by `***` in error messages and logs.
+* Downloads have size limits, counted after decompression (tiles 32 MB,
+  styles 64 MB, GeoJSON 512 MB, glyphs, sprites and fonts 32 MB), and
+  gzip-compressed tiles may inflate to at most 64 MB.
+* A style downloaded from the web can no longer read local PMTiles files.
+* Downloaded fonts are cached in the tile cache's folder
+  (`tools::R_user_dir("basemapper", "cache")`), so turning the cache off
+  turns the font cache off too.
+* The Rust library is built with `cargo build --locked`, from the exact
+  dependency versions in `Cargo.lock`.
+
 # basemapper 0.1.1
 
 * The install instructions in the README, the getting-started article and

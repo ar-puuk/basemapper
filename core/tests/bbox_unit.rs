@@ -46,10 +46,10 @@ fn zero_width_returns_invalid_dimensions() {
 }
 
 #[test]
-fn zoom_23_returns_invalid_bbox() {
+fn zoom_23_is_invalid_input() {
     let mut req = base_request();
     req.tile_zoom = Some(23);
-    assert!(matches!(req.validate(), Err(BasemapError::InvalidBbox(_))));
+    assert!(matches!(req.validate(), Err(BasemapError::InvalidInput(_))));
 }
 
 #[test]

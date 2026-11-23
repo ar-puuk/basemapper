@@ -205,7 +205,7 @@ def tile_style(
         paint: Vector tiles: paint properties for the generated ``fill-*``,
             ``line-*`` and ``circle-*`` layers, e.g. ``{"fill-color": "#ccc"}``.
             Others are dropped with a warning.
-        auth_token: Optional access token for the tile service.
+        auth_token: Optional access token for the tile service (sent only to the style's own server).
 
     Returns:
         The style JSON.

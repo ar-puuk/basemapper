@@ -52,7 +52,7 @@ devicePixelRatio). Default: device dpi / 96, so lines and labels keep
 their physical size at any resolution. Larger values draw map symbols
 smaller.}
 
-\item{auth_token}{Optional access token for the tile service.}
+\item{auth_token}{Optional access token for the tile service (sent only to the style's own server).}
 
 \item{tile_timeout_ms}{Per-tile HTTP timeout in milliseconds.}
 

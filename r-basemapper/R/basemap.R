@@ -38,7 +38,7 @@
 #'   landcover, parks, buildings, roads, rail, boundaries, places, poi,
 #'   terrain, other (the `feature` column of [list_layers()]). Features no
 #'   layer of any style belongs to warn.
-#' @param auth_token Optional access token for the tile service.
+#' @param auth_token Optional access token for the tile service (sent only to the style's own server).
 #' @param tile_timeout_ms Per-tile HTTP timeout in milliseconds.
 #' @param max_tiles Maximum tiles fetched per style.
 #' @param tile_concurrency Parallel tile downloads.

@@ -53,7 +53,7 @@ list_layers <- function(style, auth_token = NULL, layers = NULL, labels = TRUE, 
 #'
 #' @param x A view from [basemap()], or a style (anything [basemap()]
 #'   takes) or vector of styles stacked bottom to top.
-#' @param auth_token Optional access token for the tile service (for a view,
+#' @param auth_token Optional access token for the tile service (sent only to the style's own server) (for a view,
 #'   its own is used).
 #' @return A character string; `""` when the styles give no attribution.
 #' @export
@@ -80,6 +80,7 @@ get_attribution <- function(x, auth_token = NULL) {
 .BASEMAPPER_ATTRIBUTION <- new.env(parent = emptyenv())
 .BASEMAPPER_ATTRIBUTION$keys <- character()
 .BASEMAPPER_ATTRIBUTION$text <- character()
+.BASEMAPPER_ATTRIBUTION$failed <- list() # key -> time of the last failed lookup
 
 # The text a plot layer's `attribution` argument asks for: TRUE the styles'
 # own (cached; "" when it cannot be read), FALSE / NULL / NA none, a string
@@ -95,7 +96,16 @@ attribution_text <- function(attribution, style, auth_token = NULL) {
   cache <- .BASEMAPPER_ATTRIBUTION
   hit <- match(key, cache$keys)
   if (!is.na(hit)) return(cache$text[[hit]])
-  text <- tryCatch(get_attribution(styles, auth_token), error = function(e) "")
+  # A failed lookup (a network blip) is remembered for a minute only, then
+  # retried, rather than leaving every later plot of the session uncredited.
+  failed_at <- cache$failed[[key]]
+  if (!is.null(failed_at) && difftime(Sys.time(), failed_at, units = "secs") < 60) return("")
+  text <- tryCatch(get_attribution(styles, auth_token), error = function(e) NULL)
+  if (is.null(text)) {
+    cache$failed[[key]] <- Sys.time()
+    return("")
+  }
+  cache$failed[[key]] <- NULL
   cache$keys <- c(cache$keys, key)
   cache$text <- c(cache$text, text)
   text

@@ -10,7 +10,7 @@ get_attribution(x, auth_token = NULL)
 \item{x}{A view from \code{\link[=basemap]{basemap()}}, or a style (anything \code{\link[=basemap]{basemap()}}
 takes) or vector of styles stacked bottom to top.}
 
-\item{auth_token}{Optional access token for the tile service (for a view,
+\item{auth_token}{Optional access token for the tile service (sent only to the style's own server) (for a view,
 its own is used).}
 }
 \value{

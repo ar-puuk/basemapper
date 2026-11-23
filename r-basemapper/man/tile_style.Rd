@@ -40,7 +40,7 @@ all).}
 generated \verb{fill-*}, \verb{line-*} and \verb{circle-*} layers, e.g.
 \code{list("fill-color" = "#cccccc")}. Others are dropped with a warning.}
 
-\item{auth_token}{Optional access token for the tile service.}
+\item{auth_token}{Optional access token for the tile service (sent only to the style's own server).}
 }
 \value{
 The style JSON string.

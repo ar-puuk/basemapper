@@ -59,7 +59,7 @@ landcover, parks, buildings, roads, rail, boundaries, places, poi,
 terrain, other (the \code{feature} column of \code{\link[=list_layers]{list_layers()}}). Features no
 layer of any style belongs to warn.}
 
-\item{auth_token}{Optional access token for the tile service.}
+\item{auth_token}{Optional access token for the tile service (sent only to the style's own server).}
 
 \item{tile_timeout_ms}{Per-tile HTTP timeout in milliseconds.}
 

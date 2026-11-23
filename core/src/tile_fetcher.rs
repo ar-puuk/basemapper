@@ -135,12 +135,20 @@ impl pmtiles::AsyncBackend for ArchiveBackend {
                         .header("Accept-Encoding", "identity")
                         .send()
                         .await
-                        .map_err(|e| read_error(e.to_string()))?;
+                        .map_err(|e| read_error(e.without_url().to_string()))?;
                     if !resp.status().is_success() {
-                        return Err(read_error(format!("HTTP {} fetching PMTiles range from {url}", resp.status())));
+                        return Err(read_error(format!(
+                            "HTTP {} fetching PMTiles range from {}",
+                            resp.status(),
+                            crate::net::redact(&url)
+                        )));
                     }
-                    let bytes = resp.bytes().await.map_err(|e| read_error(e.to_string()))?;
-                    Ok(pmtiles::BackendResponse::new(bytes))
+                    // At most the range asked for: a server that ignores
+                    // `Range` would otherwise send the whole archive.
+                    let bytes = crate::net::read_limited(resp, length.max(1))
+                        .await
+                        .map_err(|e| read_error(format!("PMTiles range from {}: {e}", crate::net::redact(&url))))?;
+                    Ok(pmtiles::BackendResponse::new(bytes::Bytes::from(bytes)))
                 }
                 Err(path) => {
                     use std::io::{Read, Seek, SeekFrom};
@@ -298,7 +306,7 @@ pub async fn fetch_all_tiles(
     fail_on_tile_error: bool,
 ) -> Result<Vec<(TileCoord, TileData)>, BasemapError> {
     let timeout = Duration::from_millis(timeout_ms as u64);
-    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency as usize));
+    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency.max(1) as usize));
     let mut set: JoinSet<Result<(TileCoord, TileData), BasemapError>> = JoinSet::new();
 
     for (coord, url) in urls {
@@ -312,7 +320,7 @@ pub async fn fetch_all_tiles(
         };
 
         set.spawn(async move {
-            let _permit = sem.acquire().await.unwrap();
+            let _permit = sem.acquire().await.map_err(|e| BasemapError::RenderError(e.to_string()))?;
 
             // Cache hit — skip network entirely.
             if let Ok(mut cache) = TILE_CACHE.lock() {
@@ -349,14 +357,10 @@ pub async fn fetch_all_tiles(
                 });
             }
             let headers = resp.headers().clone();
-            let bytes = resp
-                .bytes()
-                .await
-                .map_err(|_| BasemapError::TileFetchFailed {
-                    url: url.clone(),
-                    status: 0,
-                })?;
-            let data = bytes.to_vec();
+            let data = crate::net::read_limited(resp, crate::net::limit::TILE).await.map_err(|e| {
+                log::warn!("tile {}: {e}", crate::net::redact(&url));
+                BasemapError::TileFetchFailed { url: url.clone(), status: 0 }
+            })?;
             if is_web_page(&headers, &data) {
                 return Err(BasemapError::TileIsWebPage { url: url.clone() });
             }

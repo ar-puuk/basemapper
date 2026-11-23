@@ -196,8 +196,11 @@ impl Basemap {
             }
             self.zoom = z;
         }
-        if let Some(c) = center {
-            self.center = c;
+        if let Some((lon, lat)) = center {
+            if !lon.is_finite() || !lat.is_finite() || !(-90.0..=90.0).contains(&lat) {
+                return Err(BasemapError::InvalidInput("center must be a finite longitude and a latitude between -90 and 90".into()));
+            }
+            self.center = (lon, lat);
         }
         Ok(self)
     }
@@ -257,9 +260,25 @@ impl Basemap {
 
     // ── Rendering ───────────────────────────────────────────────────────────
 
-    fn requests(&self) -> Vec<RenderRequest> {
+    /// The view, checked: the builder setters take any value, so a bad
+    /// zoom or centre is reported when rendering.
+    fn check_view(&self) -> Result<(), BasemapError> {
+        let (lon, lat) = self.center;
+        if !self.zoom.is_finite() || !(0.0..=22.0).contains(&self.zoom) {
+            return Err(BasemapError::InvalidInput(format!("zoom {} must be between 0 and 22", self.zoom)));
+        }
+        if !lon.is_finite() || !lat.is_finite() || !(-90.0..=90.0).contains(&lat) {
+            return Err(BasemapError::InvalidInput(format!(
+                "center ({lon}, {lat}) must be a finite longitude and a latitude between -90 and 90"
+            )));
+        }
+        Ok(())
+    }
+
+    fn requests(&self) -> Result<Vec<RenderRequest>, BasemapError> {
+        self.check_view()?;
         let bbox = self.get_bounds(false);
-        self.styles
+        Ok(self.styles
             .iter()
             .map(|s| RenderRequest {
                 layers: self.layers.clone(),
@@ -273,12 +292,12 @@ impl Basemap {
                 pixel_ratio: self.pixel_ratio,
                 ..RenderRequest::new(bbox, self.width, self.height, StyleInput::detect(s))
             })
-            .collect()
+            .collect())
     }
 
     /// Render to straight-alpha RGBA pixels (device pixels).
     pub fn render_array(&self) -> Result<RenderResult, BasemapError> {
-        let mut requests = self.requests();
+        let mut requests = self.requests()?;
         if requests.len() == 1 {
             render(requests.remove(0))
         } else {
@@ -299,7 +318,7 @@ impl Basemap {
     /// Render a vector SVG (`width` x `height` user units; `pixel_ratio`
     /// does not apply), written to `path` when given; returns the document.
     pub fn render_svg(&self, path: Option<&Path>, options: &SvgOptions) -> Result<String, BasemapError> {
-        let svg = render_svg_stack_with(self.requests(), options)?;
+        let svg = render_svg_stack_with(self.requests()?, options)?;
         if let Some(p) = path {
             std::fs::write(p, &svg).map_err(|e| BasemapError::RenderError(format!("writing {}: {e}", p.display())))?;
         }

@@ -6,11 +6,13 @@ pub enum BasemapError {
     InvalidBbox(String),
     #[error("invalid dimensions {0}×{1}")]
     InvalidDimensions(u32, u32),
-    #[error("style fetch failed for {url}: HTTP {status}")]
+    /// The URL is shown with credentials redacted ([`crate::net::redact`]).
+    #[error("style fetch failed for {}: HTTP {status}", crate::net::redact(.url))]
     StyleFetchFailed { url: String, status: u16 },
     #[error("style parse error: {0}")]
     StyleParseError(String),
-    #[error("tile fetch failed for {url}: HTTP {status}")]
+    /// The URL is shown with credentials redacted ([`crate::net::redact`]).
+    #[error("tile fetch failed for {}: HTTP {status}", crate::net::redact(.url))]
     TileFetchFailed { url: String, status: u16 },
     /// A tile URL answered with a web page (a sign-in or error page), as
     /// some services do for a wrong or missing key. The message leaves the

@@ -18,7 +18,7 @@ def get_attribution(style: Any, auth_token: Optional[str] = None) -> str:
     Args:
         style: A style (anything :func:`basemap` takes), or a list of
             styles stacked bottom to top.
-        auth_token: Optional access token for the tile service.
+        auth_token: Optional access token for the tile service (sent only to the style's own server).
 
     Returns:
         The attribution; an empty string when the styles give none.
