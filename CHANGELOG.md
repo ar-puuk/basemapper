@@ -2,23 +2,29 @@
 
 Every change to basemapper, from the commit history (written by
 `python tools/changelog.py`; do not edit by hand). Each section is a
-merge into `main`, newest first. What changed for users of each package,
+merge into `main`, newest first, led by its version tag. What changed
+for users of each package,
 in more words: [R](r-basemapper/NEWS.md) and
 [Python](py-basemapper/CHANGELOG.md).
 
-## Unreleased
+## v0.1.0
 
-On `dev`, not yet merged into `main`.
+Tagged v0.1.0 when merged into `main`; until then on `dev`.
 
 ### Features
 
+- one version for R, Python and Rust, reported and checked ([91534f2](https://github.com/ar-puuk/basemapper/commit/91534f23799b6a9fc091598693d37b10012ddc2b))
 - **cache:** keep the tile cache small; document where it lives ([3ca096d](https://github.com/ar-puuk/basemapper/commit/3ca096db19711b06caa2b72e30d898eb5e86e048))
+
+### Documentation
+
+- a root CHANGELOG.md, written from the commit history ([7e40bb1](https://github.com/ar-puuk/basemapper/commit/7e40bb19ec6ba599272512fa1d9fe81b14882117))
 
 ### Maintenance
 
 - **r:** remove the unused alternative logo (logo-alt1.svg) ([ab1ac59](https://github.com/ar-puuk/basemapper/commit/ab1ac594e88832fc4026679ee15c136e3d470031))
 
-## 2026-11-22: [#5](https://github.com/ar-puuk/basemapper/pull/5) UGRC basemaps: vector stacks and every UGRC Discover layer
+## [v0.0.6](https://github.com/ar-puuk/basemapper/releases/tag/v0.0.6) (2026-11-22): [#5](https://github.com/ar-puuk/basemapper/pull/5) UGRC basemaps: vector stacks and every UGRC Discover layer
 
 ### Features
 
@@ -28,7 +34,7 @@ On `dev`, not yet merged into `main`.
 
 - live UGRC Discover test with the quad word from a repository secret ([64b990a](https://github.com/ar-puuk/basemapper/commit/64b990a52c225b61df1319688f631f7c28d0f2c0))
 
-## 2026-11-22: [#4](https://github.com/ar-puuk/basemapper/pull/4) Refined documentation site, CI-built docs, stack-wide filters
+## [v0.0.5](https://github.com/ar-puuk/basemapper/releases/tag/v0.0.5) (2026-11-22): [#4](https://github.com/ar-puuk/basemapper/pull/4) Refined documentation site, CI-built docs, stack-wide filters
 
 ### Fixes
 
@@ -43,7 +49,7 @@ On `dev`, not yet merged into `main`.
 
 - **docs:** build and deploy the site from CI; stop committing site/ ([95a96f0](https://github.com/ar-puuk/basemapper/commit/95a96f0f1c4c5c7d8b8549b7d78189911329169e))
 
-## 2026-11-22: [#3](https://github.com/ar-puuk/basemapper/pull/3) CPU renderer, one API across R/Python/Rust, basemap catalogue and filters
+## [v0.0.4](https://github.com/ar-puuk/basemapper/releases/tag/v0.0.4) (2026-11-22): [#3](https://github.com/ar-puuk/basemapper/pull/3) CPU renderer, one API across R/Python/Rust, basemap catalogue and filters
 
 ### Features
 
@@ -132,7 +138,7 @@ On `dev`, not yet merged into `main`.
 - ignore Rplots.pdf ([d2ecc83](https://github.com/ar-puuk/basemapper/commit/d2ecc839d27406c4e5ae8661ec7dfdcced7c6088))
 - gitignore .claude/worktrees (ephemeral agent scratch space) ([21b3381](https://github.com/ar-puuk/basemapper/commit/21b3381e01b6dcd23e5ca44273072dfdf251dfd1))
 
-## 2026-06-09 to 2026-06-15: commits on `main`
+## [v0.0.3](https://github.com/ar-puuk/basemapper/releases/tag/v0.0.3) (2026-06-09 to 2026-06-15): commits on `main`
 
 ### Features
 
@@ -200,7 +206,7 @@ On `dev`, not yet merged into `main`.
 - update site build timestamps from cold rebuild ([045f322](https://github.com/ar-puuk/basemapper/commit/045f3224d043e9c09fd775c38d2b80ed1c79b4f9))
 - commit Cargo.lock and clean up .gitignore ([259e1e2](https://github.com/ar-puuk/basemapper/commit/259e1e280fe33256e3d9128c56cdebf10746d20b))
 
-## 2026-06-09: merge of docs-ci-2
+## [v0.0.2](https://github.com/ar-puuk/basemapper/releases/tag/v0.0.2) (2026-06-09): merge of docs-ci-2
 
 ### Features
 
@@ -221,7 +227,7 @@ On `dev`, not yet merged into `main`.
 
 - **docs-ci:** fix R renv conflict and Python great-docs config ([80968ee](https://github.com/ar-puuk/basemapper/commit/80968ee53e00639d65038a486a938d50d34f4bc5))
 
-## 2026-06-08: [#1](https://github.com/ar-puuk/basemapper/pull/1) 001 spatial basemap renderer
+## [v0.0.1](https://github.com/ar-puuk/basemapper/releases/tag/v0.0.1) (2026-06-08): [#1](https://github.com/ar-puuk/basemapper/pull/1) 001 spatial basemap renderer
 
 ### Features
 

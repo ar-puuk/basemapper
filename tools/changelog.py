@@ -99,6 +99,26 @@ def merge_title(c: dict) -> str:
     return f"{c['date']}: merge of {m[1] if m else c['subject']}"
 
 
+def version_tags() -> dict[str, str]:
+    """Commit hash -> version tag (`v0.1.0`), for the tags on GitHub's main."""
+    out = git("tag", "--list", "v*", "--format=%(refname:short) %(*objectname) %(objectname)")
+    tags = {}
+    for line in out.splitlines():
+        name, *hashes = line.split()
+        tags[hashes[0]] = name  # an annotated tag's commit, else the tag's own
+    return tags
+
+
+def versioned(title: str, items: list[dict], tags: dict[str, str]) -> str:
+    """`title` led by the version tag on any of `items`."""
+    found = [tags[c["hash"]] for c in items if c["hash"] in tags]
+    if not found:
+        return title
+    v = found[0]
+    when, _, what = title.partition(": ")  # "date: what" -> "version (date): what"
+    return f"[{v}]({REPO}/releases/tag/{v}) ({when}): {what}"
+
+
 def run_title(items: list[dict]) -> str:
     """A run of direct commits on main, by its dates."""
     first, last = items[-1]["date"], items[0]["date"]
@@ -110,14 +130,18 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--main", default="origin/main", help="the released branch (default origin/main)")
     ap.add_argument("--dev", default="dev", help="the development branch (default dev)")
+    ap.add_argument("--release", metavar="VERSION",
+                    help="the version the unreleased commits will be tagged with when merged (e.g. v0.1.0)")
     args = ap.parse_args()
+    tags = version_tags()
 
     parts = [
         "# Changelog",
         "",
         "Every change to basemapper, from the commit history (written by",
         "`python tools/changelog.py`; do not edit by hand). Each section is a",
-        "merge into `main`, newest first. What changed for users of each package,",
+        "merge into `main`, newest first, led by its version tag. What changed",
+        "for users of each package,",
         "in more words: [R](r-basemapper/NEWS.md) and",
         "[Python](py-basemapper/CHANGELOG.md).",
         "",
@@ -125,23 +149,27 @@ def main() -> None:
 
     unreleased = commits(f"{args.main}..{args.dev}", "--no-merges")
     if unreleased:
-        parts.append(section("Unreleased", unreleased, f"On `{args.dev}`, not yet merged into `main`."))
+        if args.release:
+            parts.append(section(args.release, unreleased,
+                                 f"Tagged {args.release} when merged into `main`; until then on `{args.dev}`."))
+        else:
+            parts.append(section("Unreleased", unreleased, f"On `{args.dev}`, not yet merged into `main`."))
 
     # Walk main's first-parent line: a merge is a section of what it brought
-    # in; runs of direct commits are grouped by month.
+    # in; runs of direct commits are grouped together.
     line = commits(args.main, "--first-parent")
     direct: list[dict] = []
 
     def flush() -> None:
         if direct:
-            parts.append(section(run_title(direct), direct))
+            parts.append(section(versioned(run_title(direct), direct, tags), direct))
             direct.clear()
 
     for c in line:
         if len(c["parents"]) > 1:
             flush()
             brought = commits(f"{c['parents'][0]}..{c['parents'][1]}", "--no-merges")
-            parts.append(section(merge_title(c), brought))
+            parts.append(section(versioned(merge_title(c), [c], tags), brought))
         else:
             direct.append(c)
     flush()
