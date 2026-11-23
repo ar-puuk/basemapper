@@ -1,6 +1,13 @@
+# basemapper 0.1.1
+
+* The install instructions in the README, the getting-started article and
+  the site name the release (`pak::pak("ar-puuk/basemapper/r-basemapper@v0.1.1")`),
+  so an install gets a tested version rather than the development branch.
+* No change to the package's code.
+
 # basemapper 0.1.0
 
-First version, not yet released.
+The first numbered release (2026-11-22).
 
 ## One API across R, Python and Rust
 

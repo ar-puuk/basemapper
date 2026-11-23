@@ -49,13 +49,13 @@ if not already present.
 ### Install the package
 
 ```r
-# Any one of these installs the v0.1.0 release; each compiles the Rust core.
-pak::pak("ar-puuk/basemapper/r-basemapper@v0.1.0")
-remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper", ref = "v0.1.0")
-devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper", ref = "v0.1.0")
+# Any one of these installs the v0.1.1 release; each compiles the Rust core.
+pak::pak("ar-puuk/basemapper/r-basemapper@v0.1.1")
+remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper", ref = "v0.1.1")
+devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper", ref = "v0.1.1")
 ```
 
-These install the latest release, v0.1.0 ([all releases](https://github.com/ar-puuk/basemapper/releases)).
+These install the latest release, v0.1.1 ([all releases](https://github.com/ar-puuk/basemapper/releases)).
 For the development version, leave out the version: `pak::pak("ar-puuk/basemapper/r-basemapper")`.
 
 ## Quick example
