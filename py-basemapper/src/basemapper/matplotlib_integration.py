@@ -225,7 +225,13 @@ def add_basemap(
             is unreachable.
     """
     import pyproj
-    import xarray as xr
+
+    try:
+        import xarray as xr
+    except ImportError as e:
+        raise ImportError(
+            "add_basemap needs xarray: pip install 'basemapper[matplotlib]' (or install xarray)"
+        ) from e
 
     from ._fetch import _resolve_fetch
 

@@ -26,6 +26,8 @@ dev      = [
     "geodatasets",
     "pytest>=7",
     "plotnine>=0.12",
+    "matplotlib>=3.5",
+    "xarray>=2022.06",
 ]
 
 [tool.maturin]

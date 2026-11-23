@@ -19,40 +19,32 @@ try:
 except Exception:  # not installed as a package (a source checkout)
     __version__ = "0.0.0"
 
-# The plot integrations need optional packages (pip extras): they load when
-# first used, so the package itself needs only numpy and pyproj.
-_OPTIONAL = {
-    "add_basemap": (".matplotlib_integration", "matplotlib"),
-    "geom_basemap": (".plotnine_integration", "plotnine"),
-}
+# The plot integrations need optional packages (pip extras
+# `basemapper[matplotlib]`, `[plotnine]`); the package itself needs only
+# numpy and pyproj. Plain imports (not lazy ones) so documentation tools
+# see them; when the extra is missing, using the name says what to install.
+try:
+    from .matplotlib_integration import add_basemap
+except ImportError:
+    pass
+try:
+    from .plotnine_integration import geom_basemap
+except ImportError:
+    pass
+
+_EXTRAS = {"add_basemap": "matplotlib", "geom_basemap": "plotnine"}
 
 
 def __getattr__(name):
-    if name in _OPTIONAL:
-        module, extra = _OPTIONAL[name]
-        import importlib
-
-        try:
-            value = getattr(importlib.import_module(module, __name__), name)
-        except ImportError as e:
-            raise ImportError(
-                f"basemapper.{name} needs {extra} (and xarray): pip install 'basemapper[{extra}]'"
-                f" (or install {extra} and xarray); {e}"
-            ) from e
-        globals()[name] = value
-        return value
+    # Reached only when the import above failed.
+    if name in _EXTRAS:
+        extra = _EXTRAS[name]
+        raise ImportError(
+            f"basemapper.{name} needs {extra} and xarray: pip install 'basemapper[{extra}]'"
+            f" (or install {extra} and xarray)"
+        )
     raise AttributeError(f"module 'basemapper' has no attribute {name!r}")
 
-
-def _installed(*modules):
-    import importlib.util
-
-    return all(importlib.util.find_spec(m) is not None for m in modules)
-
-
-__all_optional__ = [
-    n for n, ok in (("add_basemap", _installed("matplotlib", "xarray")), ("geom_basemap", _installed("plotnine", "xarray"))) if ok
-]
 
 __all__ = [
     "__version__",
@@ -69,7 +61,8 @@ __all__ = [
     "tile_style",
     "wms_style",
     "wmts_style",
-    *__all_optional__,
+    "add_basemap",
+    "geom_basemap",
     "BasemapError",
     "ValidationError",
     "StyleError",
