@@ -176,3 +176,8 @@ test_that("get_attribution collects sources as plain text", {
   expect_match(get_attribution(basemap(c(style, "Esri.WorldImagery"), 8, 8)), "^\u00a9 A \\| Tiles")
   expect_equal(get_attribution('{"version":8,"sources":{},"layers":[]}'), "")
 })
+
+test_that("the package reports the version it shares with Python and Rust", {
+  v <- as.character(utils::packageVersion("basemapper"))
+  expect_match(v, "^[0-9]+\\.[0-9]+\\.[0-9]+")
+})

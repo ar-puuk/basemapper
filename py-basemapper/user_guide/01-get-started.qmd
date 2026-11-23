@@ -151,3 +151,37 @@ from plotnine import aes, geom_map, ggplot, scale_fill_cmap, theme_void, theme
 ```
 
 [Plots with matplotlib and plotnine](03-plotting.qmd) has more.
+
+
+## The tile cache
+
+Tiles are cached on disk, so drawing an area again does not download its
+tiles again. They are kept for as long as each server allows (a day when it
+says nothing), and the cache looks after itself: expired tiles are deleted,
+and past 250 MB the least recently used tiles go first.
+
+```{python}
+bm.tile_cache()  # where the tiles are kept
+```
+
+```{python}
+#| eval: false
+bm.tile_cache(max_size=500)         # a 500 MB limit
+bm.tile_cache("D:/basemap-tiles")   # another folder, for this session
+bm.tile_cache(False)                # no cache, for this session
+bm.tile_cache(clear=True)           # delete the cached tiles
+```
+
+To keep a folder or limit for good, set environment variables before
+Python starts, for example in your shell profile (or a project's `.env`,
+if you load one):
+
+```sh
+export BASEMAPPER_CACHE_DIR=~/basemap-tiles   # Windows: setx BASEMAPPER_CACHE_DIR D:\basemap-tiles
+export BASEMAPPER_CACHE_MAX_SIZE=500
+```
+
+R reads the same variables, so one folder can serve both languages. Without
+them, Python keeps its tiles in the platform's cache folder:
+`%LOCALAPPDATA%\basemapper` on Windows, `~/Library/Caches/basemapper` on
+macOS and `~/.cache/basemapper` on Linux.

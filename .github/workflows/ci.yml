@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -14,6 +15,20 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  versions:
+    name: Versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # R, Python and the Rust core share one version; a v* tag must name it.
+      - name: Check the packages' versions (and the tag)
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            python3 tools/version.py check --tag "${{ github.ref_name }}"
+          else
+            python3 tools/version.py check
+          fi
+
   rust:
     name: Rust (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

@@ -102,6 +102,11 @@ here. See `docs/api.md` in the repository.
   access), or answers with a web page instead of tiles (as some do for a
   wrong key), is now an error that says to check the key, instead of an
   empty map. The message leaves out the tile URL, which may carry the key.
+- The tile cache looks after itself: expired tiles are deleted, and past
+  its size limit (250 MB; `tile_cache(max_size=)` or `BASEMAPPER_CACHE_MAX_SIZE` in
+  MB) the least recently used tiles go first, in the background.
+  `BASEMAPPER_CACHE_DIR` sets its folder for R and Python alike; the
+  getting-started guide has a section on it. Tests use a temporary cache.
 - `labels`, `features` and `layers` treat a stack of styles as one basemap
   (e.g. UGRC's hillshade, base and labels services): a style they leave
   nothing of is skipped, and it is an error only when they leave nothing of

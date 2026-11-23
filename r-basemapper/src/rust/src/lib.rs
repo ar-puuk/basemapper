@@ -273,11 +273,17 @@ fn list_providers_raw(kind: Nullable<String>) -> Result<Robj> {
 }
 
 /// The tile cache directory (NULL when off); `dir` moves it ("" turns it
-/// off), `clear` deletes the cached tiles.
+/// off), `clear` deletes the cached tiles, `max_size_mb` sets its size limit.
 #[extendr]
-fn tile_cache_raw(dir: Nullable<String>, clear: bool) -> Result<Nullable<String>> {
+fn tile_cache_raw(dir: Nullable<String>, clear: bool, max_size_mb: Nullable<f64>) -> Result<Nullable<String>> {
     if let Some(d) = opt(dir) {
         basemapper_core::cache::set_dir((!d.is_empty()).then(|| d.into()));
+    }
+    if let Some(mb) = opt(max_size_mb) {
+        if !(mb > 0.0) {
+            return Err(err("max_size must be a positive number of megabytes"));
+        }
+        basemapper_core::cache::set_max_size((mb * 1024.0 * 1024.0) as u64);
     }
     if clear {
         basemapper_core::cache::clear().map_err(|e| err(format!("could not clear the tile cache: {e}")))?;

@@ -297,10 +297,19 @@ fn list_providers(
 /// The tile cache directory (None when off); `dir` moves it ("" turns it
 /// off), `clear` deletes the cached tiles.
 #[pyfunction]
-#[pyo3(signature = (dir=None, clear=false))]
-fn tile_cache(py: Python<'_>, dir: Option<String>, clear: bool) -> PyResult<Option<String>> {
+#[pyo3(signature = (dir=None, clear=false, max_size_mb=None))]
+fn tile_cache(py: Python<'_>, dir: Option<String>, clear: bool, max_size_mb: Option<f64>) -> PyResult<Option<String>> {
     if let Some(d) = dir {
         basemapper_core::cache::set_dir((!d.is_empty()).then(|| d.into()));
+    }
+    if let Some(mb) = max_size_mb {
+        if !(mb > 0.0) {
+            return Err(core_err_to_py(
+                py,
+                BasemapError::InvalidInput("max_size must be a positive number of megabytes".into()),
+            ));
+        }
+        basemapper_core::cache::set_max_size((mb * 1024.0 * 1024.0) as u64);
     }
     if clear {
         basemapper_core::cache::clear()

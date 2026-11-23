@@ -201,3 +201,12 @@ def test_get_attribution():
     assert basemap([style, "Esri.WorldImagery"], 8, 8).get_attribution().startswith("© A | Tiles © Esri")
     empty = json.dumps({"version": 8, "sources": {}, "layers": []})
     assert get_attribution(empty) == ""
+
+
+def test_the_package_reports_its_version():
+    import importlib.metadata
+
+    import basemapper
+
+    assert basemapper.__version__ == importlib.metadata.version("basemapper")
+    assert basemapper.__version__.count(".") >= 2
