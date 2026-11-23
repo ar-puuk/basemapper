@@ -10,13 +10,14 @@ use basemapper_core::{
 };
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
+use pyo3::IntoPyObjectExt;
 use pyo3::types::PyBytes;
 
 fn validation_error(py: Python<'_>, msg: &str) -> PyErr {
-    py.import_bound("basemapper.exceptions")
+    py.import("basemapper.exceptions")
         .and_then(|m| m.getattr("ValidationError"))
         .and_then(|cls| cls.call1((msg,)))
-        .map(|exc| PyErr::from_value_bound(exc.into()))
+        .map(PyErr::from_value)
         .unwrap_or_else(|_| PyRuntimeError::new_err(msg.to_owned()))
 }
 
@@ -26,7 +27,7 @@ fn validation_error(py: Python<'_>, msg: &str) -> PyErr {
 ///   "network" → NetworkError, otherwise BasemapError.
 fn core_err_to_py(py: Python<'_>, e: BasemapError) -> PyErr {
     let msg = e.to_string();
-    let exc_mod = match py.import_bound("basemapper.exceptions") {
+    let exc_mod = match py.import("basemapper.exceptions") {
         Ok(m) => m,
         Err(_) => return PyRuntimeError::new_err(msg),
     };
@@ -38,7 +39,7 @@ fn core_err_to_py(py: Python<'_>, e: BasemapError) -> PyErr {
     };
     match exc_mod.getattr(cls_name) {
         Ok(cls) => match cls.call1((msg.clone(),)) {
-            Ok(exc) => PyErr::from_value_bound(exc.into()),
+            Ok(exc) => PyErr::from_value(exc),
             Err(_) => PyRuntimeError::new_err(msg),
         },
         Err(_) => PyRuntimeError::new_err(msg),
@@ -126,8 +127,8 @@ fn render_raw(
         py, &bbox_3857, width, height, &styles, pixel_ratio, tile_zoom, tile_timeout_ms, max_tiles, &layers,
         labels, &features, &auth_token, fail_on_tile_error, tile_concurrency,
     )?;
-    match py.allow_threads(|| render_stack(reqs)) {
-        Ok(r) => Ok((PyBytes::new_bound(py, &r.pixels).unbind(), r.width, r.height, r.warnings)),
+    match py.detach(|| render_stack(reqs)) {
+        Ok(r) => Ok((PyBytes::new(py, &r.pixels).unbind(), r.width, r.height, r.warnings)),
         Err(e) => Err(core_err_to_py(py, e)),
     }
 }
@@ -139,7 +140,7 @@ fn encode_png(py: Python<'_>, pixels: &[u8], width: u32, height: u32) -> PyResul
         return Err(validation_error(py, "pixel buffer size does not match width * height * 4"));
     }
     match basemapper_core::encode_png(pixels, width, height) {
-        Ok(b) => Ok(PyBytes::new_bound(py, &b).unbind()),
+        Ok(b) => Ok(PyBytes::new(py, &b).unbind()),
         Err(e) => Err(core_err_to_py(py, e)),
     }
 }
@@ -178,7 +179,7 @@ fn render_svg_raw(
         &features, &auth_token, fail_on_tile_error, tile_concurrency,
     )?;
     let opts = svg_options(py, text, embed_fonts, font_dirs)?;
-    match py.allow_threads(|| render_svg_stack_with(reqs, &opts)) {
+    match py.detach(|| render_svg_stack_with(reqs, &opts)) {
         Ok(svg) => Ok(svg),
         Err(e) => Err(core_err_to_py(py, e)),
     }
@@ -226,7 +227,7 @@ fn fit_bounds(py: Python<'_>, bounds_3857: Vec<f64>, width: u32, height: u32) ->
 #[pyfunction]
 #[pyo3(signature = (styles, auth_token=None))]
 fn attribution(py: Python<'_>, styles: Vec<String>, auth_token: Option<String>) -> PyResult<String> {
-    py.allow_threads(|| basemapper_core::attribution(&styles, auth_token.as_deref())).map_err(|e| core_err_to_py(py, e))
+    py.detach(|| basemapper_core::attribution(&styles, auth_token.as_deref())).map_err(|e| core_err_to_py(py, e))
 }
 
 /// A style's layers in drawing order as (id, type, source layer, feature),
@@ -245,7 +246,7 @@ fn list_layers(
     let labels = basemapper_core::Labels::parse(labels).map_err(|e| core_err_to_py(py, e))?;
     let filter = basemapper_core::LayerFilter { layers, labels, features };
     let style = style.to_owned();
-    match py.allow_threads(|| basemapper_core::list_layers(&style, auth_token.as_deref(), &filter)) {
+    match py.detach(|| basemapper_core::list_layers(&style, auth_token.as_deref(), &filter)) {
         Ok(l) => Ok(l.into_iter().map(|l| (l.id, l.kind, l.source_layer, l.feature)).collect()),
         Err(e) => Err(core_err_to_py(py, e)),
     }
@@ -267,14 +268,14 @@ fn basemap_provider(
     tiles: Option<String>,
     labels: &str,
     features: Option<Vec<String>>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let labels = basemapper_core::Labels::parse(labels).map_err(|e| core_err_to_py(py, e))?;
     let opts = providers::ProviderOptions { kind: parse_kind(py, kind)?, api_key, tiles, labels, features };
     let name = name.to_owned();
     let mut styles =
-        py.allow_threads(|| providers::basemap_provider_styles(&name, &opts)).map_err(|e| core_err_to_py(py, e))?;
+        py.detach(|| providers::basemap_provider_styles(&name, &opts)).map_err(|e| core_err_to_py(py, e))?;
     // One style as a str; a stacked basemap (UGRC.Lite) as a list, bottom to top.
-    Ok(if styles.len() == 1 { styles.remove(0).into_py(py) } else { styles.into_py(py) })
+    if styles.len() == 1 { styles.remove(0).into_py_any(py) } else { styles.into_py_any(py) }
 }
 
 /// The catalogue as (name, vector, raster, API key variable, attribution) rows.
@@ -346,7 +347,7 @@ fn tile_style(
         kind, tile_size, scheme, minzoom, maxzoom, attribution, source_layers, paint,
     };
     let input = input.to_owned();
-    match py.allow_threads(|| basemapper_core::tile_style(&input, &opts, auth_token.as_deref())) {
+    match py.detach(|| basemapper_core::tile_style(&input, &opts, auth_token.as_deref())) {
         Ok(r) => Ok(r),
         Err(e) => Err(core_err_to_py(py, e)),
     }

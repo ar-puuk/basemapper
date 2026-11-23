@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 pmtiles     = { version = "0.23.0", default-features = false, features = ["__async"] }
-lru         = "0.12"
+lru         = "0.18"
 # PMTiles backend responses.
 bytes       = "1"
 # Disk tile cache: `Expires` headers.
