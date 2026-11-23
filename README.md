@@ -406,26 +406,21 @@ It stops at the first step that fails. In order, it:
 
 Open `site/index.html` through a local server to check it, for example
 `python -m http.server 8765 --directory site`, then
-<http://127.0.0.1:8765/>. To publish, push the source changes (and any
-updated `py-basemapper/_freeze/`, see below) and merge them into `main`; CI
-builds and deploys the site.
+<http://127.0.0.1:8765/>. To publish, push the source changes and merge
+them into `main`; CI builds and deploys the site.
 
-### Python pages and the freeze cache
+### Executed on every build
 
-The Python guide uses Quarto's `freeze: auto`: a page's code runs only when
-its `.qmd` file changes, and the results are kept in `py-basemapper/_freeze/`,
-which is committed so that every build (including CI) reuses them. When a
-change in basemapper itself alters a page's output, re-run that page, from
-`py-basemapper/`:
+The R articles, the Python guide and the Rust guide's examples run on every
+build in CI, so the published site always shows what the current code
+draws.
 
-```sh
-great-docs freeze user_guide/05-own-data.qmd   # one page
-great-docs freeze --clean user_guide/*.qmd     # all of them, from scratch
-great-docs freeze --info                       # what is cached
-```
-
-and commit the updated `_freeze/`. The R articles and the Rust examples have
-no such cache: they run on every build.
+Locally, the Python guide uses great-docs' default freeze: a page's code
+runs again only when its `.qmd` changes, and its results are kept in
+`py-basemapper/_freeze/` (git-ignored; CI starts without it). After a change
+to basemapper itself, delete `py-basemapper/_freeze/` to run every page
+again, or re-run one page from `py-basemapper/`:
+`great-docs freeze user_guide/05-own-data.qmd`.
 
 ### Building in CI by hand
 
