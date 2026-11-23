@@ -27,11 +27,14 @@ GL JS (see [How rendering works](docs/rendering-engine.md)).
 ### R
 
 ```r
-# Any one of these; each compiles the Rust core from source.
-pak::pak("ar-puuk/basemapper/r-basemapper")
-remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
-devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
+# Any one of these installs the v0.1.1 release; each compiles the Rust core.
+pak::pak("ar-puuk/basemapper/r-basemapper@v0.1.1")
+remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper", ref = "v0.1.1")
+devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper", ref = "v0.1.1")
 ```
+
+These install the latest release, v0.1.1 ([all releases](https://github.com/ar-puuk/basemapper/releases)).
+For the development version, leave out the version: `pak::pak("ar-puuk/basemapper/r-basemapper")`.
 
 Building from source needs a [Rust toolchain](https://rustup.rs) and, on
 Windows, [RTools45](https://cran.r-project.org/bin/windows/Rtools/) plus the
@@ -48,15 +51,18 @@ Optional: `tmap (>= 4.0)` for `tm_basemap()`.
 With pip:
 
 ```sh
-pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+pip install "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
 ```
+
+These install the latest release, v0.1.1 ([all releases](https://github.com/ar-puuk/basemapper/releases)).
+For the development version, leave out `@v0.1.1`.
 
 With [uv](https://docs.astral.sh/uv/), into a project or the current
 environment:
 
 ```sh
-uv add "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
-uv pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+uv add "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
+uv pip install "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
 ```
 
 With conda (or mamba), conda-forge provides the dependencies and the Rust
@@ -65,7 +71,7 @@ toolchain, and pip builds basemapper from GitHub inside the environment:
 ```sh
 conda create -n basemapper -c conda-forge python numpy pyproj matplotlib xarray rust pip
 conda activate basemapper
-pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+pip install "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
 ```
 
 or as an `environment.yml` (`conda env create -f environment.yml`):
@@ -82,7 +88,7 @@ dependencies:
   - rust
   - pip
   - pip:
-      - "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+      - "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"
 ```
 
 For `geom_basemap()` in plotnine, install `basemapper[plotnine]` in place of
@@ -96,6 +102,17 @@ Depends on: `numpy`, `pyproj`, `matplotlib`, `xarray`.
 Optional: `plotnine >= 0.12` for `geom_basemap()`.
 
 > PyPI and conda packages are planned after an extended testing period.
+
+### Rust
+
+```toml
+[dependencies]
+basemapper-core = { git = "https://github.com/ar-puuk/basemapper", tag = "v0.1.1" }
+```
+
+The crate the R and Python packages are built on; its documentation is the
+[Rust guide](https://ar-puuk.github.io/basemapper/rust/). For the
+development version, use `branch = "main"` in place of the tag.
 
 ---
 
@@ -389,26 +406,21 @@ It stops at the first step that fails. In order, it:
 
 Open `site/index.html` through a local server to check it, for example
 `python -m http.server 8765 --directory site`, then
-<http://127.0.0.1:8765/>. To publish, push the source changes (and any
-updated `py-basemapper/_freeze/`, see below) and merge them into `main`; CI
-builds and deploys the site.
+<http://127.0.0.1:8765/>. To publish, push the source changes and merge
+them into `main`; CI builds and deploys the site.
 
-### Python pages and the freeze cache
+### Executed on every build
 
-The Python guide uses Quarto's `freeze: auto`: a page's code runs only when
-its `.qmd` file changes, and the results are kept in `py-basemapper/_freeze/`,
-which is committed so that every build (including CI) reuses them. When a
-change in basemapper itself alters a page's output, re-run that page, from
-`py-basemapper/`:
+The R articles, the Python guide and the Rust guide's examples run on every
+build in CI, so the published site always shows what the current code
+draws.
 
-```sh
-great-docs freeze user_guide/05-own-data.qmd   # one page
-great-docs freeze --clean user_guide/*.qmd     # all of them, from scratch
-great-docs freeze --info                       # what is cached
-```
-
-and commit the updated `_freeze/`. The R articles and the Rust examples have
-no such cache: they run on every build.
+Locally, the Python guide uses great-docs' default freeze: a page's code
+runs again only when its `.qmd` changes, and its results are kept in
+`py-basemapper/_freeze/` (git-ignored; CI starts without it). After a change
+to basemapper itself, delete `py-basemapper/_freeze/` to run every page
+again, or re-run one page from `py-basemapper/`:
+`great-docs freeze user_guide/05-own-data.qmd`.
 
 ### Building in CI by hand
 
@@ -442,9 +454,10 @@ package reports: `packageVersion("basemapper")` in R,
 Releases are git tags, `v` and the version (`v0.1.0`); the earlier `v0.0.x`
 tags mark the milestones before it. To release:
 
-1. Set the new version in all six files that hold it, together:
-   `python tools/version.py set 0.2.0` (`python tools/version.py check`
-   confirms they agree; CI checks it on every pull request).
+1. Set the new version in all six files that hold it, together, and pin
+   the READMEs' install commands to it: `python tools/version.py set 0.2.0`
+   (`python tools/version.py check` confirms the versions agree; CI checks
+   it on every pull request).
 2. Write what changed for users in `r-basemapper/NEWS.md` and
    `py-basemapper/CHANGELOG.md`, and regenerate the root changelog from the
    commit history: `python tools/changelog.py --release v0.2.0`.

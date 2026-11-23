@@ -187,8 +187,9 @@ footer a { color: rgba(255,251,242,.85); }
   <div class="wrap install-grid">
     <div>
       <h2>Install from GitHub</h2>
-      <p class="sub">basemapper is installed from GitHub for now. Each package
-        compiles the Rust core, so you need:</p>
+      <p class="sub">basemapper is installed from GitHub for now; these install the
+        latest release, <a href="https://github.com/ar-puuk/basemapper/releases">v0.1.1</a>.
+        Each package compiles the Rust core, so you need:</p>
       <ul class="reqs">
         <li>a <a href="https://rustup.rs">Rust toolchain</a> (conda-forge's <code>rust</code> works too)</li>
         <li>on Windows for R, <a href="https://cran.r-project.org/bin/windows/Rtools/">Rtools</a></li>
@@ -202,28 +203,28 @@ footer a { color: rgba(255,251,242,.85); }
       </div>
       <div class="pane" data-pane="r">
         <div class="tabset"><div class="tablist" role="tablist"><button role="tab" data-tab="pak">pak</button><button role="tab" data-tab="remotes">remotes</button><button role="tab" data-tab="devtools">devtools</button></div>
-          <div class="pane" data-pane="pak"><div class="code"><pre>pak::pak(<span class="s">"ar-puuk/basemapper/r-basemapper"</span>)</pre><button class="copy" type="button">Copy</button></div></div>
-          <div class="pane" data-pane="remotes"><div class="code"><pre>remotes::install_github(<span class="s">"ar-puuk/basemapper"</span>, subdir = <span class="s">"r-basemapper"</span>)</pre><button class="copy" type="button">Copy</button></div></div>
-          <div class="pane" data-pane="devtools"><div class="code"><pre>devtools::install_github(<span class="s">"ar-puuk/basemapper"</span>, subdir = <span class="s">"r-basemapper"</span>)</pre><button class="copy" type="button">Copy</button></div></div>
+          <div class="pane" data-pane="pak"><div class="code"><pre>pak::pak(<span class="s">"ar-puuk/basemapper/r-basemapper@v0.1.1"</span>)</pre><button class="copy" type="button">Copy</button></div></div>
+          <div class="pane" data-pane="remotes"><div class="code"><pre>remotes::install_github(<span class="s">"ar-puuk/basemapper"</span>, subdir = <span class="s">"r-basemapper"</span>, ref = <span class="s">"v0.1.1"</span>)</pre><button class="copy" type="button">Copy</button></div></div>
+          <div class="pane" data-pane="devtools"><div class="code"><pre>devtools::install_github(<span class="s">"ar-puuk/basemapper"</span>, subdir = <span class="s">"r-basemapper"</span>, ref = <span class="s">"v0.1.1"</span>)</pre><button class="copy" type="button">Copy</button></div></div>
         </div>
         <p>Suggests ggplot2 and tmap for the plot layers. <a href="r/articles/getting-started.html">Get started in R &rarr;</a></p>
       </div>
       <div class="pane" data-pane="python">
         <div class="tabset"><div class="tablist" role="tablist"><button role="tab" data-tab="pip">pip</button><button role="tab" data-tab="uv">uv</button><button role="tab" data-tab="conda">conda</button></div>
-          <div class="pane" data-pane="pip"><div class="code"><pre>pip install <span class="s">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></pre><button class="copy" type="button">Copy</button></div></div>
-          <div class="pane" data-pane="uv"><div class="code"><pre>uv add <span class="s">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></pre><button class="copy" type="button">Copy</button></div></div>
+          <div class="pane" data-pane="pip"><div class="code"><pre>pip install <span class="s">"basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"</span></pre><button class="copy" type="button">Copy</button></div></div>
+          <div class="pane" data-pane="uv"><div class="code"><pre>uv add <span class="s">"basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"</span></pre><button class="copy" type="button">Copy</button></div></div>
           <div class="pane" data-pane="conda"><div class="code"><pre><span class="c"># conda-forge gives the dependencies and the Rust toolchain; pip builds basemapper</span>
 conda create -n basemapper -c conda-forge python numpy pyproj matplotlib xarray rust pip
 conda activate basemapper
-pip install <span class="s">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></pre><button class="copy" type="button">Copy</button></div></div>
+pip install <span class="s">"basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.1#subdirectory=py-basemapper"</span></pre><button class="copy" type="button">Copy</button></div></div>
         </div>
         <p>Needs numpy, pyproj, matplotlib and xarray; plotnine for <code>geom_basemap()</code>. <a href="python/user-guide/get-started.html">Get started in Python &rarr;</a></p>
       </div>
       <div class="pane" data-pane="rust">
         <div class="tabset"><div class="tablist" role="tablist"><button role="tab" data-tab="toml">Cargo.toml</button><button role="tab" data-tab="cargo">cargo add</button></div>
           <div class="pane" data-pane="toml"><div class="code"><pre>[dependencies]
-basemapper-core = { git = <span class="s">"https://github.com/ar-puuk/basemapper"</span> }</pre><button class="copy" type="button">Copy</button></div></div>
-          <div class="pane" data-pane="cargo"><div class="code"><pre>cargo add basemapper-core --git https://github.com/ar-puuk/basemapper</pre><button class="copy" type="button">Copy</button></div></div>
+basemapper-core = { git = <span class="s">"https://github.com/ar-puuk/basemapper"</span>, tag = <span class="s">"v0.1.1"</span> }</pre><button class="copy" type="button">Copy</button></div></div>
+          <div class="pane" data-pane="cargo"><div class="code"><pre>cargo add basemapper-core --git https://github.com/ar-puuk/basemapper --tag v0.1.1</pre><button class="copy" type="button">Copy</button></div></div>
         </div>
         <p>The crate the R and Python packages are built on. <a href="rust/basemapper_core/index.html">Rust guide &rarr;</a></p>
       </div>

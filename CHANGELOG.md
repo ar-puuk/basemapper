@@ -7,9 +7,21 @@ for users of each package,
 in more words: [R](r-basemapper/NEWS.md) and
 [Python](py-basemapper/CHANGELOG.md).
 
-## v0.1.0
+## v0.1.1
 
-Tagged v0.1.0 when merged into `main`; until then on `dev`.
+Tagged v0.1.1 when merged into `main`; until then on `dev`.
+
+### Documentation
+
+- stop tracking great-docs' _freeze; CI runs every Python page ([fa0105b](https://github.com/ar-puuk/basemapper/commit/fa0105b6043d863de9074b3880e01913020de453))
+- install instructions pinned to the v0.1.0 release ([7cf2ff3](https://github.com/ar-puuk/basemapper/commit/7cf2ff33c09732e871a53da77f7c13f557854a0d))
+- **changelog:** link the v0.1.0 section to its tag ([4ae94d3](https://github.com/ar-puuk/basemapper/commit/4ae94d38bf2e77e06287736bbd831a70cffe9226))
+
+### Maintenance
+
+- release 0.1.1 ([b07bd42](https://github.com/ar-puuk/basemapper/commit/b07bd42363907306590d7775cd8f9fb50108deb8))
+
+## [v0.1.0](https://github.com/ar-puuk/basemapper/releases/tag/v0.1.0) (2026-11-22): [#6](https://github.com/ar-puuk/basemapper/pull/6) Release v0.1.0: tile cache upkeep, changelog, one reported version
 
 ### Features
 
@@ -18,6 +30,7 @@ Tagged v0.1.0 when merged into `main`; until then on `dev`.
 
 ### Documentation
 
+- **changelog:** sections led by their version tags ([74d26e2](https://github.com/ar-puuk/basemapper/commit/74d26e24d6ecd3ffaeffcf226a005d106bbb4c07))
 - a root CHANGELOG.md, written from the commit history ([7e40bb1](https://github.com/ar-puuk/basemapper/commit/7e40bb19ec6ba599272512fa1d9fe81b14882117))
 
 ### Maintenance

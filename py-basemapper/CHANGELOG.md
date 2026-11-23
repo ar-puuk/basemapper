@@ -1,8 +1,17 @@
 # Changelog
 
-## Unreleased (0.1.0)
+## 0.1.1 (2026-11-22)
 
-First version, not yet released.
+- The install instructions in the README, the get-started guide and the
+  site name the release (`...basemapper@v0.1.1#subdirectory=py-basemapper`),
+  so an install gets a tested version rather than the development branch.
+- The guide's pages run on every documentation build; their results are no
+  longer kept in the repository.
+- No change to the package's code.
+
+## 0.1.0 (2026-11-22)
+
+The first numbered release.
 
 ### Rendering
 

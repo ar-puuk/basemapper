@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name        = "basemapper"
-version     = "0.1.0"
+version     = "0.1.1"
 description = "Headless spatial basemap renderer for Python"
 requires-python = ">=3.9"
 license     = { text = "MIT" }
