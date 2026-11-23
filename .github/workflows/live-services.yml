@@ -1,0 +1,43 @@
+name: Live services
+
+# Renders basemaps from services that need a key, with keys from repository
+# secrets: UGRC Discover with UGRC_QUAD_WORD (UGRC's test quad word, which
+# opens its basemaps and NAIP). The tests skip without the secret (forks,
+# pull requests from forks); they print no URLs, and upload nothing.
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'core/**'
+      - '.github/workflows/live-services.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-services-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ugrc-discover:
+    name: UGRC Discover
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      UGRC_QUAD_WORD: ${{ secrets.UGRC_QUAD_WORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check the secret is set
+        run: |
+          if [ -z "$UGRC_QUAD_WORD" ]; then
+            echo "::error::The UGRC_QUAD_WORD repository secret is not set"
+            exit 1
+          fi
+
+      - name: Render UGRC Discover basemaps
+        run: cargo test -p basemapper-core --test ugrc_discover_live -- --nocapture

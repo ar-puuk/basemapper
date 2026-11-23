@@ -23,8 +23,8 @@ def basemap_provider(
     tiles: Optional[str] = None,
     labels: Union[bool, str] = True,
     features: Optional[List[str]] = None,
-) -> str:
-    """A named basemap's style.
+) -> Union[str, List[str]]:
+    """A named basemap's style (styles, for a basemap of stacked services).
 
     Names follow leaflet-providers (``"CartoDB.Positron"``,
     ``"Esri.WorldImagery"``, ``"OpenStreetMap.HOT"``); see
@@ -37,9 +37,12 @@ def basemap_provider(
         type: ``"vector"`` (a MapLibre style) or ``"raster"`` (tiles). By
             default the vector form when there is one, else raster. Asking
             for a form a basemap lacks is an error, never a silent fallback.
-        api_key: API key for CARTO, MapTiler and Stadia; by default read
-            from ``CARTO_API_KEY``, ``MAPTILER_API_KEY`` or
-            ``STADIA_API_KEY``. The keys are free for moderate use;
+        api_key: API key for CARTO, MapTiler and Stadia, or the quad word
+            for UGRC Discover's basemaps (``"UGRC.Terrain"``,
+            ``"UGRC.Topo"``, ``"UGRC.Hillshade"``, ``"UGRC.Imagery"``, ...); by
+            default read from ``CARTO_API_KEY``, ``MAPTILER_API_KEY``,
+            ``STADIA_API_KEY`` or ``UGRC_QUAD_WORD``. The keys are free for
+            moderate use (UGRC's for Utah's government and partners);
             :func:`list_providers` shows which basemaps need one.
         tiles: Your own tile data to draw with this basemap's style: a
             ``.pmtiles`` archive (URL or path), tile URL or TileJSON. It must
@@ -54,7 +57,11 @@ def basemap_provider(
 
     Returns:
         A style URL, or inline style JSON (the raster form, or with
-        ``tiles``, ``labels`` or ``features``).
+        ``tiles``, ``labels`` or ``features``). A basemap published as
+        separate services (``"UGRC.Lite"``: hillshade, base and labels)
+        returns a list of styles, bottom to top, which :func:`basemap` and
+        the plot layers take as a stack; ``labels`` and ``features`` apply
+        to the stack as one basemap, leaving out a style they empty.
 
     Raises:
         ValidationError: For an unknown name (with suggestions), a form the

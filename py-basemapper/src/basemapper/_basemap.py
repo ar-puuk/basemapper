@@ -319,11 +319,9 @@ def basemap(
 
     Example:
         >>> import basemapper
-        >>> ugrc = "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services"
+        >>> # UGRC's Lite basemap: its hillshade, base and labels services
         >>> m = basemapper.basemap(
-        ...     [f"{ugrc}/{s}/VectorTileServer/resources/styles/root.json"
-        ...      for s in ("VectorHillshade", "LiteBase", "LiteLabels")],
-        ...     800, 600, center=(-111.8887, 40.7556), zoom=12.4, pixel_ratio=2,
+        ...     "UGRC.Lite", 800, 600, center=(-111.8887, 40.7556), zoom=12.4, pixel_ratio=2,
         ... )
         >>> m.render_png("slc.png")   # 1600 x 1200
         >>> m.render_svg("slc.svg")   # vector

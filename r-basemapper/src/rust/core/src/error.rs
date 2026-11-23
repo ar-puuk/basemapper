@@ -12,6 +12,11 @@ pub enum BasemapError {
     StyleParseError(String),
     #[error("tile fetch failed for {url}: HTTP {status}")]
     TileFetchFailed { url: String, status: u16 },
+    /// A tile URL answered with a web page (a sign-in or error page), as
+    /// some services do for a wrong or missing key. The message leaves the
+    /// URL out: it may carry the key.
+    #[error("the tile server sent a web page instead of a tile: check the API key (or quad word) and that it gives access to this basemap")]
+    TileIsWebPage { url: String },
     #[error("tile decode error: {0}")]
     TileDecodeError(String),
     #[error("render error: {0}")]
@@ -40,7 +45,7 @@ impl BasemapError {
             | BasemapError::InvalidInput(_)
             | BasemapError::MaxTilesExceeded { .. } => "validation",
             BasemapError::StyleFetchFailed { .. } | BasemapError::StyleParseError(_) => "style",
-            BasemapError::TileFetchFailed { .. } => "network",
+            BasemapError::TileFetchFailed { .. } | BasemapError::TileIsWebPage { .. } => "network",
             BasemapError::RenderError(_) | BasemapError::TileDecodeError(_) => "render",
         }
     }

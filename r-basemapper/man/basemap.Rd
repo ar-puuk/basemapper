@@ -24,10 +24,10 @@ basemap(
 )
 }
 \arguments{
-\item{style}{A MapLibre GL style URL or JSON string (e.g. from
-\code{\link[=basemap_provider]{basemap_provider()}}), or a character vector / list of those stacked
-bottom to top (e.g. a basemap published as separate hillshade, base and
-label services).}
+\item{style}{A MapLibre GL style URL or JSON string, a catalogue name
+(see \code{\link[=basemap_provider]{basemap_provider()}}), or a character vector / list of those
+stacked bottom to top (e.g. a basemap published as separate hillshade,
+base and label services; \code{"UGRC.Lite"} names such a stack).}
 
 \item{width, height}{View size in CSS pixels.}
 
@@ -89,10 +89,8 @@ arguments.
 }
 \examples{
 \dontrun{
-ugrc <- "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services"
-styles <- sprintf("\%s/\%s/VectorTileServer/resources/styles/root.json", ugrc,
-                  c("VectorHillshade", "LiteBase", "LiteLabels"))
-m <- basemap(styles, 800, 600, center = c(-111.8887, 40.7556), zoom = 12.4,
+# UGRC's Lite basemap: its hillshade, base and labels services, stacked
+m <- basemap("UGRC.Lite", 800, 600, center = c(-111.8887, 40.7556), zoom = 12.4,
              pixel_ratio = 2)
 render_png(m, "slc.png")   # 1600 x 1200
 render_svg(m, "slc.svg")   # vector

@@ -108,7 +108,12 @@ Named basemaps come in a vector form (a MapLibre style), a raster form
 (tiles), or both; the vector form is the default and `type` picks the other.
 Asking for a form a basemap lacks is an error that says which it has. CARTO,
 MapTiler and Stadia need a free API key, passed as `api_key` or read from
-`CARTO_API_KEY`, `MAPTILER_API_KEY` or `STADIA_API_KEY`. `tiles` draws your
+`CARTO_API_KEY`, `MAPTILER_API_KEY` or `STADIA_API_KEY`; UGRC Discover's
+36 raster layers of Utah (`UGRC.Terrain`, `UGRC.Topo`, `UGRC.Imagery`,
+`UGRC.NAIP2024`, ...; `list_providers()` lists them) need its quad word,
+passed the same way or read from `UGRC_QUAD_WORD`. As with an API key's
+plan, a quad word opens the layers UGRC gives it; a layer it is refused is
+an error that says so. `tiles` draws your
 own tile data (same schema) with a basemap's style.
 
 ## Labels and features

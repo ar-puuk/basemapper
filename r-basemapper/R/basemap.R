@@ -12,10 +12,10 @@
 #' (`basemapper.basemap()`) and Rust (`Basemap::new()`), with the same
 #' arguments.
 #'
-#' @param style A MapLibre GL style URL or JSON string (e.g. from
-#'   [basemap_provider()]), or a character vector / list of those stacked
-#'   bottom to top (e.g. a basemap published as separate hillshade, base and
-#'   label services).
+#' @param style A MapLibre GL style URL or JSON string, a catalogue name
+#'   (see [basemap_provider()]), or a character vector / list of those
+#'   stacked bottom to top (e.g. a basemap published as separate hillshade,
+#'   base and label services; `"UGRC.Lite"` names such a stack).
 #' @param width,height View size in CSS pixels.
 #' @param center `c(longitude, latitude)` of the view centre.
 #' @param zoom MapLibre zoom (0--22, fractional allowed).
@@ -49,10 +49,8 @@
 #' @export
 #' @examples
 #' \dontrun{
-#' ugrc <- "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services"
-#' styles <- sprintf("%s/%s/VectorTileServer/resources/styles/root.json", ugrc,
-#'                   c("VectorHillshade", "LiteBase", "LiteLabels"))
-#' m <- basemap(styles, 800, 600, center = c(-111.8887, 40.7556), zoom = 12.4,
+#' # UGRC's Lite basemap: its hillshade, base and labels services, stacked
+#' m <- basemap("UGRC.Lite", 800, 600, center = c(-111.8887, 40.7556), zoom = 12.4,
 #'              pixel_ratio = 2)
 #' render_png(m, "slc.png")   # 1600 x 1200
 #' render_svg(m, "slc.svg")   # vector

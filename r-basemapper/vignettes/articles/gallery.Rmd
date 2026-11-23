@@ -7,7 +7,8 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 ```
 
 Every basemap in the catalogue that needs no API key, rendered for the same
-view of the San Francisco Bay Area. The names work as `style` anywhere: in `basemap()`,
+view of the San Francisco Bay Area (the Utah basemaps [below](#utah), over
+Salt Lake City). The names work as `style` anywhere: in `basemap()`,
 `geom_basemap()`, `tm_basemap()` and in Python and Rust.
 
 ```{r}
@@ -15,28 +16,36 @@ library(basemapper)
 
 p <- list_providers()
 keyless <- p$name[is.na(p$api_key_env)]
-length(keyless)
+utah <- keyless[startsWith(keyless, "UGRC.")]
+world <- setdiff(keyless, utah)
+length(world)
 
 dir <- file.path(tempdir(), "gallery")
 dir.create(dir, showWarnings = FALSE)
-for (name in keyless) {
+for (name in world) {
   m <- basemap(name, 340, 220, center = c(-122.25, 37.75), zoom = 9)
   render_png(m, path = file.path(dir, paste0(name, ".png")))
 }
 ```
 
-```{r gallery, echo = FALSE, results = "asis"}
-# Lay out the images written above, with each one's name and form.
+```{r gallery-layout, echo = FALSE}
+# Lay out images written to `dir`, with each one's name and form.
 show_dir <- file.path(knitr::opts_chunk$get("fig.path"), "gallery")
 dir.create(show_dir, recursive = TRUE, showWarnings = FALSE)
-cells <- vapply(keyless, function(name) {
-  file.copy(file.path(dir, paste0(name, ".png")), show_dir, overwrite = TRUE)
-  row <- p[p$name == name, ]
-  form <- if (row$vector) "vector" else "raster"
-  sprintf('<figure class="bm-cell"><img src="%s/%s.png" alt="%s" loading="lazy"><figcaption><code>%s</code> <span>%s</span></figcaption></figure>',
-          show_dir, name, name, name, form)
-}, character(1))
-cat('<div class="bm-gallery">', paste(cells, collapse = "\n"), "</div>", sep = "\n")
+gallery <- function(names) {
+  cells <- vapply(names, function(name) {
+    file.copy(file.path(dir, paste0(name, ".png")), show_dir, overwrite = TRUE)
+    row <- p[p$name == name, ]
+    form <- if (row$vector) "vector" else "raster"
+    sprintf('<figure class="bm-cell"><img src="%s/%s.png" alt="%s" loading="lazy"><figcaption><code>%s</code> <span>%s</span></figcaption></figure>',
+            show_dir, name, name, name, form)
+  }, character(1))
+  cat('<div class="bm-gallery">', paste(cells, collapse = "\n"), "</div>", sep = "\n")
+}
+```
+
+```{r gallery, echo = FALSE, results = "asis"}
+gallery(world)
 ```
 
 The vector basemaps (OpenFreeMap, and Esri's vector styles) are drawn from
@@ -44,11 +53,33 @@ vector tiles by basemapper's port of MapLibre GL JS; the raster ones are
 tile images. Esri's names have both forms; `basemap_provider(name, type =
 "raster")` picks the other one.
 
+## Utah {#utah}
+
+The Utah Geospatial Resource Center's vector basemaps cover Utah. Each is
+published as separate services (a hillshade, a base map and labels, or
+imagery and an overlay), and its name stands for the whole stack:
+`basemap_provider("UGRC.Lite")` returns the three styles, and `labels` and
+`features` treat them as one basemap.
+
+```{r}
+utah
+for (name in utah) {
+  m <- basemap(name, 340, 220, center = c(-111.89, 40.70), zoom = 10)
+  render_png(m, path = file.path(dir, paste0(name, ".png")))
+}
+```
+
+```{r gallery-utah, echo = FALSE, results = "asis"}
+gallery(utah)
+```
+
 ## With an API key
 
-CARTO, Stadia Maps and MapTiler need a free API key, read from the
-environment variable in `api_key_env` (or given as `api_key =` to
-`basemap_provider()`):
+CARTO, Stadia Maps and MapTiler need a free API key, and UGRC Discover's
+raster basemaps of Utah (terrain, topographic, hillshade and imagery,
+with UGRC's road and label overlay as their labels) its quad word. Each is
+read from the environment variable in `api_key_env` (or given as
+`api_key =` to `basemap_provider()`):
 
 ```{r}
 p[!is.na(p$api_key_env), c("name", "vector", "raster", "api_key_env")]

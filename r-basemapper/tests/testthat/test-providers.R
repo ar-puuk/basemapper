@@ -81,9 +81,18 @@ test_that("basemap_provider resolves every form of every basemap", {
     for (kind in c("vector", "raster")[c(p$vector[i], p$raster[i])]) {
       s <- basemap_provider(p$name[i], type = kind, api_key = "KEY")
       expect_type(s, "character")
-      expect_length(s, 1L)
+      # A basemap of stacked services (UGRC.Lite) gives all its styles.
+      stacked <- p$name[i] %in% c("UGRC.Lite", "UGRC.Dark", "UGRC.Hybrid", "UGRC.Outdoors")
+      if (stacked) expect_gte(length(s), 2L) else expect_length(s, 1L)
     }
   }
+})
+
+test_that("a stacked basemap's name stands for its styles", {
+  lite <- basemap_provider("UGRC.Lite")
+  expect_equal(sub(".*/services/([^/]+)/.*", "\\1", lite), c("VectorHillshade", "LiteBase", "LiteLabels"))
+  expect_true("UGRC.Hybrid" %in% list_providers("vector")$name)
+  expect_error(basemap_provider("UGRC.Lite", type = "raster"), "only as vector")
 })
 
 test_that("basemap_provider picks forms, reads keys and suggests names", {

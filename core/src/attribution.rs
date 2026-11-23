@@ -106,7 +106,28 @@ pub(crate) async fn attribution(
     auth_token: Option<&str>,
 ) -> Result<String, BasemapError> {
     let mut parts: Vec<String> = Vec::new();
+    // A stacked basemap's name (UGRC.Lite) credits its catalogue entry, not
+    // its services' own metadata (UGRC's hillshade credits "me"), plus the
+    // catalogue basemaps in it (Esri's imagery under UGRC.Hybrid).
+    let mut read: Vec<String> = Vec::new();
+    let mut fixed: Vec<(usize, &'static str)> = Vec::new();
     for s in styles {
+        match crate::providers::stack_provider(s) {
+            Some(p) => {
+                for part in p.stack.iter().filter(|part| crate::providers::find_provider(part).is_some()) {
+                    read.push(crate::providers::stack_part(part));
+                }
+                fixed.push((read.len(), p.attribution));
+            }
+            None => read.push(s.clone()),
+        }
+    }
+    let mut next_fixed = 0;
+    for (k, s) in read.iter().enumerate() {
+        while next_fixed < fixed.len() && fixed[next_fixed].0 == k {
+            add_credit(&mut parts, fixed[next_fixed].1.to_owned());
+            next_fixed += 1;
+        }
         let input = StyleInput::detect(s);
         let json = input.resolve(client, auth_token).await?;
         let base = match &input {
@@ -124,16 +145,23 @@ pub(crate) async fn attribution(
         }
         for id in used {
             if let Some(a) = source_attribution(&style["sources"][id], base, client, auth_token).await {
-                let a = plain_text(&a);
-                // A credit another one already includes adds nothing.
-                if !a.is_empty() && !parts.iter().any(|p| p.contains(&a)) {
-                    parts.retain(|p| !a.contains(p.as_str()));
-                    parts.push(a);
-                }
+                add_credit(&mut parts, plain_text(&a));
             }
         }
     }
+    for (_, credit) in &fixed[next_fixed..] {
+        add_credit(&mut parts, credit.to_string());
+    }
     Ok(parts.join(" | "))
+}
+
+/// Add a credit, unless another one already includes it (and drop those
+/// it includes).
+fn add_credit(parts: &mut Vec<String>, a: String) {
+    if !a.is_empty() && !parts.iter().any(|p| p.contains(&a)) {
+        parts.retain(|p| !a.contains(p.as_str()));
+        parts.push(a);
+    }
 }
 
 #[cfg(test)]

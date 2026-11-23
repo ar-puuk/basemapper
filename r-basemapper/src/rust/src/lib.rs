@@ -244,7 +244,7 @@ fn basemap_provider_raw(
     tiles: Nullable<String>,
     labels: &str,
     features: Nullable<Vec<String>>,
-) -> Result<String> {
+) -> Result<Vec<String>> {
     let opts = providers::ProviderOptions {
         kind: parse_kind(kind)?,
         api_key: opt(api_key),
@@ -252,7 +252,8 @@ fn basemap_provider_raw(
         labels: basemapper_core::Labels::parse(labels).map_err(err)?,
         features: opt(features),
     };
-    providers::basemap_provider(name, &opts).map_err(err)
+    // Several styles, bottom to top, for a stacked basemap (UGRC.Lite).
+    providers::basemap_provider_styles(name, &opts).map_err(err)
 }
 
 /// The catalogue's names, with the other columns as attributes: `vector`,
@@ -263,7 +264,8 @@ fn list_providers_raw(kind: Nullable<String>) -> Result<Robj> {
     let ps = providers::list_providers(parse_kind(kind)?);
     let names: Vec<String> = ps.iter().map(|p| p.name.to_owned()).collect();
     let mut out: Robj = names.into();
-    out.set_attrib("vector", ps.iter().map(|p| p.vector.is_some()).collect::<Vec<bool>>())?;
+    let vector = |p: &&providers::Provider| p.kinds().contains(&basemapper_core::TileKind::Vector);
+    out.set_attrib("vector", ps.iter().map(vector).collect::<Vec<bool>>())?;
     out.set_attrib("raster", ps.iter().map(|p| p.raster.is_some()).collect::<Vec<bool>>())?;
     out.set_attrib("api_key_env", ps.iter().map(|p| p.key.map_or("", |k| k.env).to_owned()).collect::<Vec<String>>())?;
     out.set_attrib("attribution", ps.iter().map(|p| p.attribution.to_owned()).collect::<Vec<String>>())?;
