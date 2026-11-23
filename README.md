@@ -434,6 +434,27 @@ gh run download <run-id> --name site --dir site-ci
 
 ---
 
+## Releases
+
+R, Python and the Rust core share one version (0.1.0 and on), which each
+package reports: `packageVersion("basemapper")` in R,
+`basemapper.__version__` in Python and `basemapper_core::VERSION` in Rust.
+Releases are git tags, `v` and the version (`v0.1.0`); the earlier `v0.0.x`
+tags mark the milestones before it. To release:
+
+1. Set the new version in all six files that hold it, together:
+   `python tools/version.py set 0.2.0` (`python tools/version.py check`
+   confirms they agree; CI checks it on every pull request).
+2. Write what changed for users in `r-basemapper/NEWS.md` and
+   `py-basemapper/CHANGELOG.md`, and regenerate the root changelog from the
+   commit history: `python tools/changelog.py --release v0.2.0`.
+3. Merge `dev` into `main` through a pull request.
+4. Tag the merge commit and push the tag:
+   `git tag -a v0.2.0 -m "v0.2.0: ..." && git push origin v0.2.0`. CI checks
+   that the tag matches the packages' version.
+
+---
+
 ## How rendering works
 
 See [docs/rendering-engine.md](docs/rendering-engine.md): the raster and

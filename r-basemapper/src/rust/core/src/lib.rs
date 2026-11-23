@@ -82,6 +82,10 @@ pub use basemap::{Basemap, Crs};
 pub use bbox::{bbox_from_center, compute_zoom, fit_bounds, RenderRequest, RenderResult, SpatialBounds};
 pub use error::BasemapError;
 pub use style::{filter_style_layers, StyleInput};
+/// The version of basemapper (the Rust core, and the R and Python packages
+/// built on it, share it; the release tag is `v` and this).
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub use features::Labels;
 pub use tile_fetcher::{TileSource, TileUrls};
 pub use tile_style::{TileKind, TileStyleOptions};

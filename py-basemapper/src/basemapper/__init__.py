@@ -11,6 +11,14 @@ from .layer_utils import get_attribution, list_layers
 from .matplotlib_integration import add_basemap
 from .styles import basemap_provider, list_providers, providers, tile_cache, tile_style, wms_style, wmts_style
 
+# The version R, Python and the Rust core share (the release tag is v + it).
+try:
+    from importlib.metadata import version as _version
+
+    __version__ = _version("basemapper")
+except Exception:  # not installed as a package (a source checkout)
+    __version__ = "0.0.0"
+
 # plotnine integration is optional — base package usable without plotnine installed.
 try:
     from .plotnine_integration import geom_basemap  # noqa: F401
@@ -19,6 +27,7 @@ except ImportError:
     __all_plotnine__ = []
 
 __all__ = [
+    "__version__",
     "basemap",
     "Basemap",
     "render_basemap_raw",
