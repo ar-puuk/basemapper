@@ -104,3 +104,18 @@ test_that("geom_basemap renders natively at ggsave() dpi", {
   ggplot2::ggsave(f, p, width = 4, height = 3, dpi = 200)
   expect_true(file.size(f) > 10000)
 })
+
+test_that("the default view fits the world and renders (as MapLibre shows it)", {
+  bg <- '{"version":8,"sources":{},"layers":[{"id":"bg","type":"background","paint":{"background-color":"#abcdef"}}]}'
+  m <- basemap(bg)  # 800 x 600 at zoom 0: taller than the world
+  expect_equal(get_zoom(m), log2(800 / 512))
+  expect_equal(unname(get_center(m)), c(0, 0))
+  b <- get_bounds(m)
+  expect_lte(b[["ymax"]], 20037508.342789244)
+  expect_equal(dim(render_array(m)), c(600L, 800L, 4L))
+  # A centre near a pole moves so the view stops at it.
+  n <- basemap(bg, 800, 600, center = c(10, 84), zoom = 3)
+  expect_lt(get_center(n)[["latitude"]], 84)
+  expect_equal(get_bounds(n)[["ymax"]], 20037508.342789244)
+  expect_output(print(m), "zoom 0.644")
+})

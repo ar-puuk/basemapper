@@ -2,6 +2,12 @@
 
 ## Development version
 
+- A view never reaches past the poles, as in MapLibre: when the world is
+  smaller than the view the zoom rises until the world fills it, and a
+  centre near a pole moves so the view stops at it. `basemap(style)` with
+  its defaults (800 x 600 at zoom 0) used to fail with an invalid bbox; it
+  now shows the whole world at zoom 0.64. `get_zoom()` and `get_center()`
+  report the view as shown.
 - SVG text reads fonts with skrifa (Google Fonts' fontations) instead of
   the unmaintained ttf-parser; the SVGs written are the same.
 

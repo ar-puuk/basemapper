@@ -127,7 +127,8 @@ class Basemap:
         degrees with ``lonlat=True``."""
         from ._basemapper import bbox_from_center
 
-        b = tuple(bbox_from_center(self._center[0], self._center[1], self._zoom, self.width, self.height))
+        lon, lat, zoom = self._view()
+        b = tuple(bbox_from_center(lon, lat, zoom, self.width, self.height))
         if not lonlat:
             return b
         import pyproj
@@ -137,13 +138,24 @@ class Basemap:
         e, n = t.transform(b[2], b[3])
         return (w, s, e, n)
 
+    def _view(self) -> Tuple[float, float, float]:
+        """The view shown: the requested centre and zoom, constrained as
+        MapLibre constrains them (never beyond the poles; at least the zoom
+        at which the world fills the view)."""
+        from ._basemapper import constrain_view
+
+        return tuple(constrain_view(self._center[0], self._center[1], self._zoom, self.width, self.height))
+
     def get_center(self) -> Tuple[float, float]:
-        """``(longitude, latitude)`` of the view centre."""
-        return self._center
+        """``(longitude, latitude)`` of the view centre, as shown: a centre
+        whose view would reach past a pole is moved so it stops there."""
+        lon, lat, _ = self._view()
+        return (lon, lat)
 
     def get_zoom(self) -> float:
-        """The MapLibre zoom of the view."""
-        return self._zoom
+        """The MapLibre zoom of the view, as shown: at least the zoom at
+        which the world fills the view."""
+        return self._view()[2]
 
     def get_size(self) -> Tuple[int, int]:
         """``(width, height)`` of rendered images in device pixels."""
@@ -157,12 +169,12 @@ class Basemap:
         return attribution(self.styles, self.auth_token)
 
     def __repr__(self) -> str:
-        lon, lat = self._center
+        lon, lat, zoom = self._view()
         n = len(self.styles)
         w, h = self.get_size()
         return (
             f"<Basemap {n} style{'' if n == 1 else 's'}, {self.width} x {self.height} @ {self.pixel_ratio:g}x "
-            f"({w} x {h} px), center ({lon:.5f}, {lat:.5f}), zoom {self._zoom:.3f}>"
+            f"({w} x {h} px), center ({lon:.5f}, {lat:.5f}), zoom {zoom:.3f}>"
         )
 
     def _repr_png_(self):

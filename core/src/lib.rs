@@ -80,7 +80,7 @@ pub mod tile_style;
 pub mod vector;
 
 pub use basemap::{Basemap, Crs};
-pub use bbox::{bbox_from_center, compute_zoom, fit_bounds, RenderRequest, RenderResult, SpatialBounds};
+pub use bbox::{bbox_from_center, compute_zoom, constrain_view, fit_bounds, RenderRequest, RenderResult, SpatialBounds};
 pub use error::BasemapError;
 pub use style::{filter_style_layers, StyleInput};
 /// The version of basemapper (the Rust core, and the R and Python packages

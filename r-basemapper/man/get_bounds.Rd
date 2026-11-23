@@ -29,10 +29,17 @@ A named numeric vector.
 EPSG:3857 metres, or degrees with \code{lonlat = TRUE}.
 \item \code{get_center()}: \code{c(longitude, latitude)} of the centre.
 \item \code{get_zoom()}: the MapLibre zoom.
-\item \code{get_size()}: \code{c(width, height)} of rendered images in device pixels.
 }
 }
 \details{
+These report the view as shown, which never reaches past the poles: when
+the world is smaller than the view the zoom rises until the world fills it
+(an 800 x 600 view at zoom 0 shows zoom 0.64), and a centre near a pole
+moves so the view stops at it.
+\itemize{
+\item \code{get_size()}: \code{c(width, height)} of rendered images in device pixels.
+}
+
 Python: \code{m.get_bounds()}, \code{m.get_center()}, \code{m.get_zoom()},
 \code{m.get_size()}.
 }

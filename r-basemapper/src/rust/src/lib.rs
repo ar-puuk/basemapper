@@ -214,6 +214,15 @@ fn bbox_from_center_raw(lon: f64, lat: f64, zoom: f64, width: i32, height: i32) 
     Ok(basemapper_core::bbox_from_center(lon, lat, zoom, width, height).to_vec())
 }
 
+/// c(lon, lat, zoom) of the view MapLibre shows for a requested centre and
+/// zoom: never beyond the poles.
+#[extendr]
+fn constrain_view_raw(lon: f64, lat: f64, zoom: f64, width: i32, height: i32) -> Result<Vec<f64>> {
+    let (width, height) = (positive("width", width)?, positive("height", height)?);
+    let (lon, lat, zoom) = basemapper_core::constrain_view(lon, lat, zoom, width, height);
+    Ok(vec![lon, lat, zoom])
+}
+
 /// c(lon, lat, zoom) of the view fitting EPSG:3857 bounds in width x height.
 #[extendr]
 fn fit_bounds_raw(bounds_3857: Vec<f64>, width: i32, height: i32) -> Result<Vec<f64>> {
@@ -396,6 +405,7 @@ extendr_module! {
     fn render_svg_raw;
     fn bbox_from_center_raw;
     fn fit_bounds_raw;
+    fn constrain_view_raw;
     fn list_layers_raw;
     fn attribution_raw;
     fn basemap_provider_raw;

@@ -11,7 +11,7 @@
 //! | read the view | `get_bounds(lonlat)`, `get_center()`, `get_zoom()`, `get_size()` |
 //! | render | `render_array()`, `render_png(path)`, `render_svg(path, options)` |
 
-use crate::bbox::{bbox_from_center, fit_bounds, RenderRequest, RenderResult};
+use crate::bbox::{bbox_from_center, constrain_view, fit_bounds, RenderRequest, RenderResult};
 use crate::{encode_png, render, render_stack, render_svg_stack_with, BasemapError, StyleInput, SvgOptions};
 use std::path::Path;
 
@@ -224,10 +224,18 @@ impl Basemap {
         Ok(self)
     }
 
+    /// The view shown: the requested centre and zoom, constrained as MapLibre
+    /// constrains them (see [`constrain_view`]). The view keeps what was asked
+    /// for, so a later [`size`](Self::size) constrains it afresh.
+    fn view(&self) -> (f64, f64, f64) {
+        constrain_view(self.center.0, self.center.1, self.zoom, self.width, self.height)
+    }
+
     /// The view's `[xmin, ymin, xmax, ymax]`: EPSG:3857 metres, or degrees
     /// with `lonlat`.
     pub fn get_bounds(&self, lonlat: bool) -> [f64; 4] {
-        let b = bbox_from_center(self.center.0, self.center.1, self.zoom, self.width, self.height);
+        let (lon, lat, zoom) = self.view();
+        let b = bbox_from_center(lon, lat, zoom, self.width, self.height);
         if !lonlat {
             return b;
         }
@@ -236,14 +244,17 @@ impl Basemap {
         [w, s, e, n]
     }
 
-    /// The view centre as (longitude, latitude).
+    /// The view centre as (longitude, latitude), as shown: a latitude whose
+    /// view would reach past a pole is moved so it stops at the pole.
     pub fn get_center(&self) -> (f64, f64) {
-        self.center
+        let (lon, lat, _) = self.view();
+        (lon, lat)
     }
 
-    /// The view's MapLibre zoom.
+    /// The view's MapLibre zoom, as shown: at least the zoom at which the
+    /// world fills the view.
     pub fn get_zoom(&self) -> f64 {
-        self.zoom
+        self.view().2
     }
 
     /// Size of rendered images in device pixels (`width`, `height` times
@@ -350,5 +361,45 @@ mod tests {
         assert!(m.set_view(None, Some(23.0)).is_err());
         assert_eq!(Crs::parse("epsg:3857").unwrap(), Crs::WebMercator);
         assert!(Crs::parse("EPSG:2163").is_err());
+    }
+
+    const WORLD: f64 = EARTH_HALF;
+
+    fn within_world(b: [f64; 4]) -> bool {
+        b[1] >= -WORLD && b[3] <= WORLD
+    }
+
+    #[test]
+    fn default_view_fits_the_world() {
+        // 800 x 600 at zoom 0: the world (512 px) is smaller than the view,
+        // so the zoom rises until it fills it (here its width).
+        let m = Basemap::new("x");
+        assert!((m.get_zoom() - (800f64 / 512.0).log2()).abs() < 1e-12, "{}", m.get_zoom());
+        assert_eq!(m.get_center(), (0.0, 0.0));
+        let b = m.get_bounds(false);
+        assert!(within_world(b), "{b:?}");
+        assert!((b[2] - b[0] - 2.0 * WORLD).abs() < 1e-3, "the view's width is the world's: {b:?}");
+        // A tall view fills the height; a view inside the world is not zoomed.
+        assert!((Basemap::new("x").size(300, 1024).get_zoom() - 1.0).abs() < 1e-12);
+        assert_eq!(Basemap::new("x").size(500, 400).get_zoom(), 0.0);
+        // And it renders (it used to be an invalid bbox).
+        let style = r##"{"version":8,"sources":{},"layers":[{"id":"bg","type":"background","paint":{"background-color":"#abcdef"}}]}"##;
+        let r = Basemap::new(style).render_array().expect("the default view renders");
+        assert_eq!((r.width, r.height, &r.pixels[..4]), (800, 600, &[0xab, 0xcd, 0xef, 0xff][..]));
+    }
+
+    #[test]
+    fn views_stop_at_the_poles() {
+        let mut m = Basemap::new("x").size(800, 600);
+        m.set_view(Some((10.0, 84.0)), Some(3.0)).unwrap();
+        let b = m.get_bounds(false);
+        assert!(within_world(b) && (b[3] - WORLD).abs() < 1e-3, "touches the north edge: {b:?}");
+        assert!(m.get_center().1 < 84.0 && m.get_center().0 == 10.0);
+        m.set_view(Some((0.0, -89.0)), None).unwrap();
+        let b = m.get_bounds(false);
+        assert!(within_world(b) && (b[1] + WORLD).abs() < 1e-3, "touches the south edge: {b:?}");
+        // The request is kept: a smaller view is constrained afresh.
+        let n = Basemap::new("x").size(800, 600).center(0.0, 40.0).zoom(0.0).size(200, 100);
+        assert_eq!((n.get_center(), n.get_zoom()), ((0.0, 40.0), 0.0));
     }
 }

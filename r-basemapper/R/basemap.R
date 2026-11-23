@@ -150,6 +150,11 @@ set_bounds <- function(m, bounds, crs = NULL) {
 #'   EPSG:3857 metres, or degrees with `lonlat = TRUE`.
 #' * `get_center()`: `c(longitude, latitude)` of the centre.
 #' * `get_zoom()`: the MapLibre zoom.
+#'
+#' These report the view as shown, which never reaches past the poles: when
+#' the world is smaller than the view the zoom rises until the world fills it
+#' (an 800 x 600 view at zoom 0 shows zoom 0.64), and a centre near a pole
+#' moves so the view stops at it.
 #' * `get_size()`: `c(width, height)` of rendered images in device pixels.
 #'
 #' Python: `m.get_bounds()`, `m.get_center()`, `m.get_zoom()`,
@@ -161,8 +166,8 @@ set_bounds <- function(m, bounds, crs = NULL) {
 #' @export
 get_bounds <- function(m, lonlat = FALSE) {
   check_basemap(m)
-  b <- call_core("wrap__bbox_from_center_raw", m$center[1], m$center[2], m$zoom,
-             m$width, m$height)
+  v <- view_of(m)
+  b <- call_core("wrap__bbox_from_center_raw", v[[1]], v[[2]], v[[3]], m$width, m$height)
   names(b) <- c("xmin", "ymin", "xmax", "ymax")
   if (!lonlat) return(b)
   lo <- mercator_to_lonlat(b[["xmin"]], b[["ymin"]])
@@ -174,14 +179,22 @@ get_bounds <- function(m, lonlat = FALSE) {
 #' @export
 get_center <- function(m) {
   check_basemap(m)
-  c(longitude = m$center[1], latitude = m$center[2])
+  v <- view_of(m)
+  c(longitude = v[[1]], latitude = v[[2]])
 }
 
 #' @rdname get_bounds
 #' @export
 get_zoom <- function(m) {
   check_basemap(m)
-  m$zoom
+  view_of(m)[[3]]
+}
+
+# The view shown: the requested centre and zoom, constrained as MapLibre
+# constrains them (never beyond the poles; at least the zoom at which the
+# world fills the view). c(lon, lat, zoom).
+view_of <- function(m) {
+  call_core("wrap__constrain_view_raw", m$center[1], m$center[2], m$zoom, m$width, m$height)
 }
 
 #' @rdname get_bounds
@@ -195,10 +208,11 @@ get_size <- function(m) {
 print.basemap <- function(x, ...) {
   n <- length(x$styles)
   s <- get_size(x)
+  v <- view_of(x)
   cat(sprintf(
     "<basemap> %d style%s, %d x %d @ %gx (%d x %d px), center (%.5f, %.5f), zoom %.3f\n",
     n, if (n == 1L) "" else "s", x$width, x$height, x$pixel_ratio, s[["width"]], s[["height"]],
-    x$center[1], x$center[2], x$zoom
+    v[[1]], v[[2]], v[[3]]
   ))
   invisible(x)
 }

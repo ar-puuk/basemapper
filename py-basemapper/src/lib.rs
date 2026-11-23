@@ -215,6 +215,13 @@ fn bbox_from_center(lon: f64, lat: f64, zoom: f64, width: u32, height: u32) -> V
 }
 
 /// (lon, lat, zoom) of the view fitting EPSG:3857 bounds in width x height.
+/// (lon, lat, zoom) of the view MapLibre shows for a requested centre and
+/// zoom: never beyond the poles.
+#[pyfunction]
+fn constrain_view(lon: f64, lat: f64, zoom: f64, width: u32, height: u32) -> (f64, f64, f64) {
+    basemapper_core::constrain_view(lon, lat, zoom, width, height)
+}
+
 #[pyfunction]
 fn fit_bounds(py: Python<'_>, bounds_3857: Vec<f64>, width: u32, height: u32) -> PyResult<(f64, f64, f64)> {
     if bounds_3857.len() != 4 {
@@ -390,6 +397,7 @@ fn _basemapper(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(encode_png, m)?)?;
     m.add_function(wrap_pyfunction!(bbox_from_center, m)?)?;
     m.add_function(wrap_pyfunction!(fit_bounds, m)?)?;
+    m.add_function(wrap_pyfunction!(constrain_view, m)?)?;
     m.add_function(wrap_pyfunction!(list_layers, m)?)?;
     m.add_function(wrap_pyfunction!(attribution, m)?)?;
     m.add_function(wrap_pyfunction!(basemap_provider, m)?)?;

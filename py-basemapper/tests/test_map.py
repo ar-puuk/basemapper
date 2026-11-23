@@ -150,3 +150,20 @@ def test_add_basemap_renders_natively_at_savefig_dpi():
     # At 96 dpi the basemap is the 1x render of the view; at 192 dpi the 2x.
     assert _bad_frac(first.values, _reference("carto_positron_z13")) < 0.001
     assert _bad_frac(r["array"], _reference("carto_positron_z13_x2")) < 0.001
+
+
+def test_default_view_fits_the_world_and_renders():
+    import math
+
+    import basemapper
+
+    bg = '{"version":8,"sources":{},"layers":[{"id":"bg","type":"background","paint":{"background-color":"#abcdef"}}]}'
+    m = basemapper.basemap(bg)  # 800 x 600 at zoom 0: taller than the world
+    assert m.get_zoom() == pytest.approx(math.log2(800 / 512))
+    assert m.get_center() == (0.0, 0.0)
+    assert m.get_bounds()[3] <= 20037508.342789244
+    assert m.render_array().shape == (600, 800, 4)
+    n = basemapper.basemap(bg, 800, 600, center=(10, 84), zoom=3)
+    assert n.get_center()[1] < 84
+    assert n.get_bounds()[3] == 20037508.342789244
+    assert "zoom 0.644" in repr(m)
