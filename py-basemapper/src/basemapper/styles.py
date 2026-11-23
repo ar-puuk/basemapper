@@ -125,25 +125,39 @@ string ``"CartoDB.Positron"``, usable as ``style`` or with
 :func:`basemap_provider`."""
 
 
-def tile_cache(dir: Optional[str] = None, clear: bool = False) -> Optional[str]:
+def tile_cache(
+    dir: Optional[str] = None, clear: bool = False, max_size: Optional[float] = None
+) -> Optional[str]:
     """The disk cache for map tiles.
 
     Tiles are kept as long as the server's caching headers allow (a day when
     they say nothing), so repeated renders of an area do not download them
     again. The cache starts in ``BASEMAPPER_CACHE_DIR`` when set (``off``
-    disables it), else in the platform cache directory.
+    disables it), else in the platform cache directory
+    (``%LOCALAPPDATA%\\basemapper``, ``~/Library/Caches/basemapper`` or
+    ``~/.cache/basemapper``). Set ``BASEMAPPER_CACHE_DIR`` in your shell
+    profile or environment to keep a folder for good, or to share one cache
+    with R.
+
+    The cache is kept small: expired tiles are deleted, and past its size
+    limit (250 MB, or ``BASEMAPPER_CACHE_MAX_SIZE`` in MB) the least
+    recently used tiles go first, in the background as tiles are stored.
 
     Args:
         dir: Move the cache to this directory; ``False`` or ``""`` turns it
             off. None leaves it as it is.
         clear: Delete every cached tile.
+        max_size: The cache's size limit in megabytes; None leaves it as
+            it is.
 
     Returns:
         The cache directory, or None when the cache is off.
     """
     if dir is False:
         dir = ""
-    return _core.tile_cache(None if dir is None else str(dir), bool(clear))
+    return _core.tile_cache(
+        None if dir is None else str(dir), bool(clear), None if max_size is None else float(max_size)
+    )
 
 
 def tile_style(

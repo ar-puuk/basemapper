@@ -142,6 +142,35 @@ tm_shape(nc) +
 
 [Plots with ggplot2 and tmap](plotting.html) has more.
 
+## The tile cache
+
+Tiles are cached on disk, so drawing an area again does not download its
+tiles again. They are kept for as long as each server allows (a day when it
+says nothing), and the cache looks after itself: expired tiles are deleted,
+and past 250 MB the least recently used tiles go first.
+
+```{r}
+tile_cache()  # where the tiles are kept
+```
+
+```{r, eval = FALSE}
+tile_cache(max_size = 500)       # a 500 MB limit
+tile_cache("D:/basemap-tiles")   # another folder, for this session
+tile_cache(FALSE)                # no cache, for this session
+tile_cache(clear = TRUE)         # delete the cached tiles
+```
+
+To keep a folder or limit for good, set them in your `.Renviron`
+(`usethis::edit_r_environ()` opens it) and restart R:
+
+```
+BASEMAPPER_CACHE_DIR=D:/basemap-tiles
+BASEMAPPER_CACHE_MAX_SIZE=500
+```
+
+Python reads the same variables, so one folder can serve both languages.
+Without them, R keeps its tiles in `tools::R_user_dir("basemapper", "cache")`.
+
 ## Next
 
 * [Basemap gallery](gallery.html): every basemap that needs no API key.

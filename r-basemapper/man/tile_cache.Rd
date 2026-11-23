@@ -4,13 +4,16 @@
 \alias{tile_cache}
 \title{The tile cache}
 \usage{
-tile_cache(dir = NULL, clear = FALSE)
+tile_cache(dir = NULL, clear = FALSE, max_size = NULL)
 }
 \arguments{
 \item{dir}{A directory to move the cache to, or \code{FALSE} to turn it off.
 \code{NULL} leaves it as it is.}
 
 \item{clear}{Delete every cached tile.}
+
+\item{max_size}{The cache's size limit in megabytes (\code{NULL} leaves it as
+it is).}
 }
 \value{
 The cache directory, or \code{NULL} when the cache is off (invisibly
@@ -21,7 +24,14 @@ Map tiles are cached on disk for as long as the server's caching headers
 allow (a day when they say nothing), so repeated renders of an area do
 not download them again. The cache starts in \code{BASEMAPPER_CACHE_DIR} when
 that is set (\code{"off"} disables it), else in
-\code{tools::R_user_dir("basemapper", "cache")}. Python:
+\code{tools::R_user_dir("basemapper", "cache")}. Set \code{BASEMAPPER_CACHE_DIR} in
+\code{.Renviron} (\code{usethis::edit_r_environ()} opens it) to keep a folder for good,
+or to share one cache with Python.
+}
+\details{
+The cache is kept small: expired tiles are deleted, and past its size
+limit (250 MB, or \code{BASEMAPPER_CACHE_MAX_SIZE} in MB) the least recently
+used tiles go first, in the background as tiles are stored. Python:
 \code{basemapper.tile_cache()}.
 }
 \examples{

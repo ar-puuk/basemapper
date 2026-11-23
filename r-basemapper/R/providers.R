@@ -99,21 +99,30 @@ providers <- NULL
 #' allow (a day when they say nothing), so repeated renders of an area do
 #' not download them again. The cache starts in `BASEMAPPER_CACHE_DIR` when
 #' that is set (`"off"` disables it), else in
-#' `tools::R_user_dir("basemapper", "cache")`. Python:
+#' `tools::R_user_dir("basemapper", "cache")`. Set `BASEMAPPER_CACHE_DIR` in
+#' `.Renviron` (`usethis::edit_r_environ()` opens it) to keep a folder for good,
+#' or to share one cache with Python.
+#'
+#' The cache is kept small: expired tiles are deleted, and past its size
+#' limit (250 MB, or `BASEMAPPER_CACHE_MAX_SIZE` in MB) the least recently
+#' used tiles go first, in the background as tiles are stored. Python:
 #' `basemapper.tile_cache()`.
 #'
 #' @param dir A directory to move the cache to, or `FALSE` to turn it off.
 #'   `NULL` leaves it as it is.
 #' @param clear Delete every cached tile.
+#' @param max_size The cache's size limit in megabytes (`NULL` leaves it as
+#'   it is).
 #' @return The cache directory, or `NULL` when the cache is off (invisibly
 #'   when `dir` or `clear` is given).
 #' @export
 #' @examples
 #' tile_cache()
-tile_cache <- function(dir = NULL, clear = FALSE) {
+tile_cache <- function(dir = NULL, clear = FALSE, max_size = NULL) {
   d <- if (isFALSE(dir)) "" else if (is.null(dir)) NULL else path.expand(as.character(dir)[1L])
-  out <- .Call("wrap__tile_cache_raw", d, isTRUE(clear), PACKAGE = "basemapper")
-  if (is.null(dir) && !isTRUE(clear)) out else invisible(out)
+  mb <- if (is.null(max_size)) NULL else as.numeric(max_size)[1L]
+  out <- .Call("wrap__tile_cache_raw", d, isTRUE(clear), mb, PACKAGE = "basemapper")
+  if (is.null(dir) && !isTRUE(clear) && is.null(max_size)) out else invisible(out)
 }
 
 .onLoad <- function(libname, pkgname) {
@@ -122,7 +131,7 @@ tile_cache <- function(dir = NULL, clear = FALSE) {
   assign("providers", stats::setNames(as.list(names), names), envir = ns)
   # CRAN policy: user files go under R_user_dir() unless the user chose a place.
   if (is.na(Sys.getenv("BASEMAPPER_CACHE_DIR", NA_character_))) {
-    .Call("wrap__tile_cache_raw", tools::R_user_dir("basemapper", "cache"), FALSE, PACKAGE = "basemapper")
+    .Call("wrap__tile_cache_raw", tools::R_user_dir("basemapper", "cache"), FALSE, NULL, PACKAGE = "basemapper")
   }
   invisible()
 }
