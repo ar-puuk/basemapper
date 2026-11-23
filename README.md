@@ -110,11 +110,8 @@ side-by-side list.
 
 ```r
 library(basemapper)
-ugrc <- "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services"
-styles <- sprintf("%s/%s/VectorTileServer/resources/styles/root.json", ugrc,
-                  c("VectorHillshade", "LiteBase", "LiteLabels"))   # bottom to top
-
-m <- basemap(styles, 800, 600, center = c(-111.8887, 40.7556), zoom = 12.4,
+# UGRC's Lite basemap: hillshade, base and labels services, stacked
+m <- basemap("UGRC.Lite", 800, 600, center = c(-111.8887, 40.7556), zoom = 12.4,
              pixel_ratio = 2)
 render_png(m, path = "slc.png")   # 1600 x 1200, rendered natively at zoom 12.4
 render_svg(m, path = "slc.svg")   # true vector; labels as editable text, fonts embedded
@@ -124,11 +121,7 @@ r <- render_raster(m)             # terra SpatRaster (EPSG:3857)
 
 ```python
 import basemapper
-ugrc = "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services"
-styles = [f"{ugrc}/{s}/VectorTileServer/resources/styles/root.json"
-          for s in ("VectorHillshade", "LiteBase", "LiteLabels")]
-
-m = basemapper.basemap(styles, 800, 600, center=(-111.8887, 40.7556), zoom=12.4,
+m = basemapper.basemap("UGRC.Lite", 800, 600, center=(-111.8887, 40.7556), zoom=12.4,
                        pixel_ratio=2)
 m.render_png(path="slc.png")
 m.render_svg(path="slc.svg")      # text="paths" for traced glyph outlines
@@ -459,6 +452,7 @@ supported yet, and how fidelity is verified.
 | R | `R CMD INSTALL r-basemapper`, then `testthat::test_dir("r-basemapper/tests/testthat")` | |
 | Visual comparison | open `check/index.html` after `cargo test` | Overview grid, side-by-side, swipe, blink and diff views |
 | Re-render MapLibre references | `cd tools/reference-render`, `npm install`, `npx playwright install chromium`, `node render.mjs` | Needed after adding or re-capturing fixtures |
+| Keyed services (live) | `UGRC_QUAD_WORD=... cargo test -p basemapper-core --test ugrc_discover_live` | Renders UGRC Discover basemaps; skipped without the key. CI (`Live services` workflow) uses the `UGRC_QUAD_WORD` repository secret, UGRC's test quad word. Keep keys in a git-ignored `.env`, never in the repository or in the docs build |
 
 Fixtures are captured from live services with
 `cargo run -p basemapper-core --example capture_fixture`; see

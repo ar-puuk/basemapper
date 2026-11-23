@@ -267,11 +267,14 @@ fn basemap_provider(
     tiles: Option<String>,
     labels: &str,
     features: Option<Vec<String>>,
-) -> PyResult<String> {
+) -> PyResult<PyObject> {
     let labels = basemapper_core::Labels::parse(labels).map_err(|e| core_err_to_py(py, e))?;
     let opts = providers::ProviderOptions { kind: parse_kind(py, kind)?, api_key, tiles, labels, features };
     let name = name.to_owned();
-    py.allow_threads(|| providers::basemap_provider(&name, &opts)).map_err(|e| core_err_to_py(py, e))
+    let mut styles =
+        py.allow_threads(|| providers::basemap_provider_styles(&name, &opts)).map_err(|e| core_err_to_py(py, e))?;
+    // One style as a str; a stacked basemap (UGRC.Lite) as a list, bottom to top.
+    Ok(if styles.len() == 1 { styles.remove(0).into_py(py) } else { styles.into_py(py) })
 }
 
 /// The catalogue as (name, vector, raster, API key variable, attribution) rows.
@@ -284,7 +287,10 @@ fn list_providers(
 ) -> PyResult<Vec<(&'static str, bool, bool, Option<&'static str>, &'static str)>> {
     Ok(providers::list_providers(parse_kind(py, kind)?)
         .into_iter()
-        .map(|p| (p.name, p.vector.is_some(), p.raster.is_some(), p.key.map(|k| k.env), p.attribution))
+        .map(|p| {
+            let vector = p.kinds().contains(&basemapper_core::TileKind::Vector);
+            (p.name, vector, p.raster.is_some(), p.key.map(|k| k.env), p.attribution)
+        })
         .collect())
 }
 

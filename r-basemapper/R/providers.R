@@ -13,10 +13,13 @@
 #' @param type `"vector"` (a MapLibre style) or `"raster"` (tiles). By
 #'   default the vector form when there is one, else raster. Asking for a
 #'   form a basemap lacks is an error, never a silent fallback.
-#' @param api_key API key for CARTO, MapTiler and Stadia; by default read
-#'   from `CARTO_API_KEY`, `MAPTILER_API_KEY` or `STADIA_API_KEY`. The keys
-#'   are free for moderate use; [list_providers()] shows which basemaps
-#'   need one.
+#' @param api_key API key for CARTO, MapTiler and Stadia, or the quad word
+#'   for UGRC Discover's basemaps (`"UGRC.Terrain"`, `"UGRC.Topo"`,
+#'   `"UGRC.Hillshade"`, `"UGRC.Imagery"`, ...); by default read from
+#'   `CARTO_API_KEY`, `MAPTILER_API_KEY`, `STADIA_API_KEY` or
+#'   `UGRC_QUAD_WORD`. The keys are free for moderate use (UGRC's for
+#'   Utah's government and partners); [list_providers()] shows which
+#'   basemaps need one.
 #' @param tiles Your own tile data to draw with this basemap's style: a
 #'   `.pmtiles` archive (URL or path), tile URL or TileJSON. It must use the
 #'   same schema as the provider's tiles (OpenMapTiles for OpenFreeMap and
@@ -28,7 +31,11 @@
 #' @param features Vector form: features to keep (`c("water", "roads")`) or
 #'   drop (`"-buildings"`); see [list_layers()].
 #' @return A style string: a URL, or inline style JSON (the raster form, or
-#'   with `tiles`, `labels` or `features`).
+#'   with `tiles`, `labels` or `features`). A basemap published as separate
+#'   services (`"UGRC.Lite"`: hillshade, base and labels) returns a character
+#'   vector of styles, bottom to top, which [basemap()], [geom_basemap()] and
+#'   [tm_basemap()] take as a stack; `labels` and `features` apply to the
+#'   stack as one basemap, leaving out a style they empty.
 #' @seealso [tile_style()] for your own tile data, [wms_style()] for OGC
 #'   services.
 #' @export

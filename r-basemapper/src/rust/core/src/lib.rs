@@ -115,8 +115,30 @@ pub(crate) fn http_client(timeout: std::time::Duration) -> Result<reqwest::Clien
 /// Such bboxes are split internally into west and east halves, each rendered
 /// at proportional pixel width, then stitched horizontally.
 pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
+    let mut requests = expand_stacked(vec![request]);
+    if requests.len() > 1 {
+        return render_stack(requests);
+    }
+    let request = requests.remove(0);
     request.validate()?;
     RUNTIME.block_on(render_async(request))
+}
+
+/// The requests with each stacked basemap's name (`UGRC.Lite`) replaced by
+/// one request per style of its stack, bottom to top.
+fn expand_stacked(requests: Vec<RenderRequest>) -> Vec<RenderRequest> {
+    let mut out = Vec::with_capacity(requests.len());
+    for request in requests {
+        match &request.style_input {
+            StyleInput::Url(name) if providers::stack_provider(name).is_some() => {
+                for style in providers::expand_stacks(std::slice::from_ref(name)) {
+                    out.push(RenderRequest { style_input: StyleInput::detect(&style), ..request.clone() });
+                }
+            }
+            _ => out.push(request),
+        }
+    }
+    out
 }
 
 /// Render several styles over the same view and composite them bottom to
@@ -128,7 +150,8 @@ pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
 /// labels over `features = ["terrain"]`) is skipped, and it is an error
 /// only when they leave nothing of the whole stack. A name warns only when
 /// it matches nothing in any style of the stack.
-pub fn render_stack(mut requests: Vec<RenderRequest>) -> Result<RenderResult, BasemapError> {
+pub fn render_stack(requests: Vec<RenderRequest>) -> Result<RenderResult, BasemapError> {
+    let mut requests = expand_stacked(requests);
     let first = requests.first().ok_or_else(|| BasemapError::RenderError("no styles to render".into()))?;
     let (bbox, w, h, r) = (first.bbox, first.width, first.height, first.pixel_ratio);
     if requests.iter().any(|q| q.bbox != bbox || q.width != w || q.height != h || q.pixel_ratio != r) {
@@ -234,6 +257,14 @@ pub struct LayerFilter {
 /// `style` is anything [`render`] accepts: a style, or tile data (a tile
 /// URL, TileJSON, PMTiles archive or ArcGIS service) with its built style.
 pub fn list_layers(style: &str, auth_token: Option<&str>, filter: &LayerFilter) -> Result<Vec<LayerInfo>, BasemapError> {
+    if providers::stack_provider(style).is_some() {
+        // A stacked basemap: every style's layers, bottom to top.
+        let mut all = Vec::new();
+        for part in providers::expand_stacks(&[style.to_owned()]) {
+            all.extend(list_layers(&part, auth_token, filter)?);
+        }
+        return Ok(all);
+    }
     let json = RUNTIME.block_on(async {
         let client = http_client(std::time::Duration::from_secs(30))?;
         StyleInput::detect(style).resolve(&client, auth_token).await
@@ -1163,6 +1194,7 @@ pub fn render_svg_stack(requests: Vec<RenderRequest>) -> Result<String, BasemapE
 /// embedded fonts (default) or as traced glyph outlines.
 pub fn render_svg_stack_with(requests: Vec<RenderRequest>, options: &SvgOptions) -> Result<String, BasemapError> {
     use std::fmt::Write as _;
+    let requests = expand_stacked(requests);
     let first = requests.first().ok_or_else(|| BasemapError::RenderError("no styles to render".into()))?;
     let (bbox, width, height) = (first.bbox, first.width, first.height);
     if bbox[0] > bbox[2] {

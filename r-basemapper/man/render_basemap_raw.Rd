@@ -30,10 +30,10 @@ the object).}
 
 \item{width, height}{View size in CSS pixels.}
 
-\item{style}{A MapLibre GL style URL or JSON string (e.g. from
-\code{\link[=basemap_provider]{basemap_provider()}}), or a character vector / list of those stacked
-bottom to top (e.g. a basemap published as separate hillshade, base and
-label services).}
+\item{style}{A MapLibre GL style URL or JSON string, a catalogue name
+(see \code{\link[=basemap_provider]{basemap_provider()}}), or a character vector / list of those
+stacked bottom to top (e.g. a basemap published as separate hillshade,
+base and label services; \code{"UGRC.Lite"} names such a stack).}
 
 \item{crs}{CRS of \code{bounds} (anything \code{\link[sf:st_crs]{sf::st_crs()}} accepts).}
 

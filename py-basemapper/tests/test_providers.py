@@ -95,7 +95,20 @@ def test_basemap_provider_resolves_every_form():
     for r in list_providers():
         for kind in ("vector", "raster"):
             if r[kind]:
-                assert isinstance(basemap_provider(r["name"], type=kind, api_key="KEY"), str)
+                style = basemap_provider(r["name"], type=kind, api_key="KEY")
+                # A basemap of stacked services (UGRC.Lite) gives its styles as a list.
+                if r["name"] in ("UGRC.Lite", "UGRC.Dark", "UGRC.Hybrid", "UGRC.Outdoors"):
+                    assert isinstance(style, list) and len(style) >= 2
+                else:
+                    assert isinstance(style, str)
+
+
+def test_stacked_basemaps_expand_and_filter_as_one():
+    lite = basemap_provider("UGRC.Lite")
+    assert [s.split("/services/")[1].split("/")[0] for s in lite] == ["VectorHillshade", "LiteBase", "LiteLabels"]
+    assert "UGRC.Hybrid" in [r["name"] for r in list_providers("vector")]
+    with pytest.raises(ValidationError, match="only as vector"):
+        basemap_provider("UGRC.Lite", type="raster")
 
 
 def test_basemap_provider_forms_and_errors(monkeypatch):

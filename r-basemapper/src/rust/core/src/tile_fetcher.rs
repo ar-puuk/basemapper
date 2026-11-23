@@ -357,6 +357,9 @@ pub async fn fetch_all_tiles(
                     status: 0,
                 })?;
             let data = bytes.to_vec();
+            if is_web_page(&headers, &data) {
+                return Err(BasemapError::TileIsWebPage { url: url.clone() });
+            }
             if cache_on_disk {
                 crate::cache::put(&url, &headers, &data);
             }
@@ -371,6 +374,9 @@ pub async fn fetch_all_tiles(
     }
 
     let mut results = Vec::new();
+    let mut refused: Option<u16> = None;
+    let mut web_page = false;
+    let mut other_failures = false;
     while let Some(res) = set.join_next().await {
         let tile_result = res.map_err(|e| BasemapError::RenderError(e.to_string()))?;
         match tile_result {
@@ -379,11 +385,40 @@ pub async fn fetch_all_tiles(
                 if fail_on_tile_error {
                     return Err(e);
                 }
+                match e {
+                    BasemapError::TileFetchFailed { status: s @ (401 | 403), .. } => refused = Some(s),
+                    BasemapError::TileIsWebPage { .. } => web_page = true,
+                    _ => other_failures = true,
+                }
                 log::warn!("tile fetch failed (skipped): {e}");
             }
         }
     }
+    // Every tile refused (or answered with a web page) is a key problem, not
+    // a flaky tile: say so rather than draw nothing. (No URL: it may carry
+    // the key.)
+    if results.is_empty() && !other_failures {
+        if let Some(status) = refused {
+            return Err(BasemapError::InvalidInput(format!(
+                "the tile server refused every tile (HTTP {status}): check that the API key (or quad word) gives access to this basemap"
+            )));
+        }
+        if web_page {
+            return Err(BasemapError::TileIsWebPage { url: String::new() });
+        }
+    }
     Ok(results)
+}
+
+/// Whether a tile response is a web page (a sign-in or error page) rather
+/// than tile data: by its content type, or an HTML start.
+fn is_web_page(headers: &reqwest::header::HeaderMap, body: &[u8]) -> bool {
+    let html_type = headers
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|t| t.to_ascii_lowercase().starts_with("text/html"));
+    let start: Vec<u8> = body.iter().skip_while(|b| b.is_ascii_whitespace()).take(15).map(u8::to_ascii_lowercase).collect();
+    html_type || start.starts_with(b"<!doctype html") || start.starts_with(b"<html")
 }
 
 #[cfg(test)]

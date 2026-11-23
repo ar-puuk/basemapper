@@ -395,6 +395,46 @@ fn list_layers_previews_filters() {
 }
 
 #[test]
+fn a_web_page_instead_of_tiles_is_an_error_that_hints_at_the_key() {
+    use httptest::matchers::{matches, request};
+    let server = Server::run();
+    let page = "<!DOCTYPE html><html><body>Sign in</body></html>";
+    server.expect(
+        Expectation::matching(request::path(matches("^/p/")))
+            .times(1..)
+            .respond_with(status_code(200).insert_header("Content-Type", "text/html; charset=utf-8").body(page)),
+    );
+    let style = serde_json::json!({
+        "version": 8,
+        "sources": {"r": {"type": "raster", "tiles": [server.url_str("/p/{z}/{x}/{y}.png")], "tileSize": 256}},
+        "layers": [{"id": "r", "type": "raster", "source": "r"}],
+    })
+    .to_string();
+    for strict in [false, true] {
+        let mut req = RenderRequest::new([-WORLD, -WORLD, WORLD, WORLD], 256, 256, StyleInput::detect(&style));
+        req.fail_on_tile_error = strict;
+        let e = render(req).unwrap_err().to_string();
+        assert!(e.contains("web page instead of a tile") && e.contains("API key") && !e.contains("/p/"), "{e}");
+    }
+}
+
+#[test]
+fn a_server_refusing_every_tile_is_an_error_not_a_blank_map() {
+    use httptest::matchers::{matches, request};
+    let server = Server::run();
+    server.expect(Expectation::matching(request::path(matches("^/k/"))).times(1..).respond_with(status_code(401)));
+    let style = serde_json::json!({
+        "version": 8,
+        "sources": {"r": {"type": "raster", "tiles": [server.url_str("/k/{z}/{x}/{y}.png")], "tileSize": 256}},
+        "layers": [{"id": "r", "type": "raster", "source": "r"}],
+    })
+    .to_string();
+    let req = RenderRequest::new([-WORLD, -WORLD, WORLD, WORLD], 256, 256, StyleInput::detect(&style));
+    let e = render(req).unwrap_err().to_string();
+    assert!(e.contains("refused every tile (HTTP 401)") && !e.contains("/k/"), "{e}");
+}
+
+#[test]
 fn raster_styles_render_to_svg_as_embedded_images() {
     let server = Server::run();
     for (x, y) in [(0, 0), (1, 0), (0, 1), (1, 1)] {

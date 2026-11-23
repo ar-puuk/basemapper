@@ -93,6 +93,31 @@ Python. See `docs/api.md` in the repository.
   `labels` and `features` to preview what a render draws.
 * `render_svg()` takes raster basemaps too: raster tiles are embedded as
   images (vector layers stay paths and text).
+* UGRC's vector basemaps of Utah: `"UGRC.Lite"`, `"UGRC.Dark"`,
+  `"UGRC.Hybrid"` and `"UGRC.Outdoors"`. Each is published as separate
+  services (hillshade, base and labels; Hybrid is Esri's imagery under UGRC's
+  overlay), and its name stands for the stack anywhere a style goes;
+  `basemap_provider()` returns its styles as a character vector.
+* UGRC Discover's raster layers of Utah, with its quad word as the key
+  (`api_key`, or the `UGRC_QUAD_WORD` environment variable), all 36 of its
+  layers:
+  - maps: `"UGRC.Terrain"`, `"UGRC.Topo"`, `"UGRC.LiteRaster"`,
+    `"UGRC.HybridRaster"`, `"UGRC.Hillshade"`, and the transparent
+    `"UGRC.Overlay"` (roads and names) and `"UGRC.AddressPoints"`, which
+    draw without a background to go over another map;
+  - imagery: `"UGRC.Imagery"` (the latest statewide imagery, 15 cm from
+    Hexagon), `"UGRC.ImageryHexagon15cm"` / `30cm`, `"UGRC.ImageryGoogle"`
+    and its archives `"UGRC.ImageryGoogle2011"` to `2018` (some years cover
+    only parts of the state), NAIP 2006 to 2024 (`"UGRC.NAIP2024"`, and
+    `"UGRC.NAIP2024NRG"` for false colour), `"UGRC.HRO2012"` (Wasatch Front)
+    and `"UGRC.DOQ1990s"`; `labels = "only"` gives UGRC's overlay for them.
+
+  A quad word opens the layers UGRC gives it, as an API key's plan does; a
+  missing key's error names the variable and where to get one.
+* A tile server that refuses every tile (HTTP 401 or 403, a key without
+  access), or answers with a web page instead of tiles (as some do for a
+  wrong key), is now an error that says to check the key, instead of an
+  empty map. The message leaves out the tile URL, which may carry the key.
 * `labels`, `features` and `layers` treat a stack of styles as one basemap
   (e.g. UGRC's hillshade, base and labels services): a style they leave
   nothing of is skipped, and it is an error only when they leave nothing of

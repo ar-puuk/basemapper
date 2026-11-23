@@ -52,12 +52,19 @@ view(hybrid)
 
 ArcGIS basemaps are often published as separate services, drawn in order.
 The Utah Geospatial Resource Center's *Lite* basemap is a hillshade, a base
-map and labels:
+map and labels; its catalogue name stands for the three:
 
 ```{r}
-ugrc <- "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services"
-lite <- file.path(ugrc, c("VectorHillshade", "LiteBase", "LiteLabels"), "VectorTileServer/resources/styles/root.json")
-basemap(lite, 720, 405, center = c(-111.75, 40.62), zoom = 10.5)
+basemap_provider("UGRC.Lite")
+basemap("UGRC.Lite", 720, 405, center = c(-111.75, 40.62), zoom = 10.5)
+```
+
+Filters treat a stack as one basemap: a service they leave nothing of is
+skipped. Without labels, the labels service drops out, and the base map's
+own labels go too:
+
+```{r}
+basemap("UGRC.Lite", 720, 405, center = c(-111.75, 40.62), zoom = 10.5, labels = FALSE)
 ```
 
 ## Features

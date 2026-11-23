@@ -20,10 +20,13 @@ basemap_provider(
 default the vector form when there is one, else raster. Asking for a
 form a basemap lacks is an error, never a silent fallback.}
 
-\item{api_key}{API key for CARTO, MapTiler and Stadia; by default read
-from \code{CARTO_API_KEY}, \code{MAPTILER_API_KEY} or \code{STADIA_API_KEY}. The keys
-are free for moderate use; \code{\link[=list_providers]{list_providers()}} shows which basemaps
-need one.}
+\item{api_key}{API key for CARTO, MapTiler and Stadia, or the quad word
+for UGRC Discover's basemaps (\code{"UGRC.Terrain"}, \code{"UGRC.Topo"},
+\code{"UGRC.Hillshade"}, \code{"UGRC.Imagery"}, ...); by default read from
+\code{CARTO_API_KEY}, \code{MAPTILER_API_KEY}, \code{STADIA_API_KEY} or
+\code{UGRC_QUAD_WORD}. The keys are free for moderate use (UGRC's for
+Utah's government and partners); \code{\link[=list_providers]{list_providers()}} shows which
+basemaps need one.}
 
 \item{tiles}{Your own tile data to draw with this basemap's style: a
 \code{.pmtiles} archive (URL or path), tile URL or TileJSON. It must use the
@@ -40,7 +43,11 @@ drop (\code{"-buildings"}); see \code{\link[=list_layers]{list_layers()}}.}
 }
 \value{
 A style string: a URL, or inline style JSON (the raster form, or
-with \code{tiles}, \code{labels} or \code{features}).
+with \code{tiles}, \code{labels} or \code{features}). A basemap published as separate
+services (\code{"UGRC.Lite"}: hillshade, base and labels) returns a character
+vector of styles, bottom to top, which \code{\link[=basemap]{basemap()}}, \code{\link[=geom_basemap]{geom_basemap()}} and
+\code{\link[=tm_basemap]{tm_basemap()}} take as a stack; \code{labels} and \code{features} apply to the
+stack as one basemap, leaving out a style they empty.
 }
 \description{
 \code{basemap_provider()} returns the style of a named basemap, for
