@@ -14,6 +14,62 @@ use std::sync::{Arc, Mutex};
 
 use once_cell::sync::Lazy;
 
+/// A font file, read with skrifa (Google Fonts' fontations), for what SVG
+/// text needs: which characters it has, a few metrics, and its names,
+/// weight and style. Glyph IDs are 16-bit, as the subsetter takes them.
+struct Face<'a>(skrifa::FontRef<'a>);
+
+impl<'a> Face<'a> {
+    /// The first font of a .ttf / .otf / .ttc file, if it is one: skrifa
+    /// reads tables lazily, so the core ones are required here (a web page
+    /// saved under a font's name is not a font).
+    fn parse(data: &'a [u8]) -> Option<Self> {
+        let font = skrifa::FontRef::from_index(data, 0).ok()?;
+        let has = |t: &[u8; 4]| font.table_data(skrifa::Tag::new(t)).is_some();
+        (has(b"head") && has(b"cmap") && has(b"maxp")).then_some(Face(font))
+    }
+
+    fn glyph_index(&self, c: char) -> Option<u16> {
+        use skrifa::MetadataProvider;
+        self.0.charmap().map(c).and_then(|g| u16::try_from(g.to_u32()).ok())
+    }
+
+    fn metrics(&self) -> skrifa::metrics::Metrics {
+        use skrifa::MetadataProvider;
+        self.0.metrics(skrifa::instance::Size::unscaled(), skrifa::instance::LocationRef::default())
+    }
+
+    /// The top of a glyph's outline in font units; None for an empty glyph
+    /// (a space).
+    fn glyph_top(&self, gid: u16) -> Option<f64> {
+        use skrifa::MetadataProvider;
+        let metrics = self.0.glyph_metrics(skrifa::instance::Size::unscaled(), skrifa::instance::LocationRef::default());
+        let b = metrics.bounds(skrifa::GlyphId::new(gid as u32))?;
+        let empty = b.x_min == 0.0 && b.y_min == 0.0 && b.x_max == 0.0 && b.y_max == 0.0;
+        (!empty).then_some(b.y_max as f64)
+    }
+
+    /// The family, full and typographic family names (name IDs 1, 4, 16).
+    fn names(&self) -> Vec<String> {
+        use skrifa::{string::StringId, MetadataProvider};
+        [StringId::FAMILY_NAME, StringId::FULL_NAME, StringId::TYPOGRAPHIC_FAMILY_NAME]
+            .into_iter()
+            .flat_map(|id| self.0.localized_strings(id).map(|s| s.to_string()).collect::<Vec<_>>())
+            .collect()
+    }
+
+    /// The OS/2 weight class (400 regular, 700 bold).
+    fn weight(&self) -> u16 {
+        use skrifa::MetadataProvider;
+        self.0.attributes().weight.value().round() as u16
+    }
+
+    fn is_italic(&self) -> bool {
+        use skrifa::MetadataProvider;
+        self.0.attributes().style == skrifa::attribute::Style::Italic
+    }
+}
+
 /// How SVG output writes label text.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum SvgText {
@@ -186,7 +242,7 @@ impl SvgFonts {
         }
         let Some(&first) = self.stacks.get(stack).and_then(|idx| idx.first()) else { return false };
         let Some(data) = &self.faces[first].data else { return false };
-        let Ok(face) = ttf_parser::Face::parse(data, 0) else { return false };
+        let Some(face) = Face::parse(data) else { return false };
         text.chars().all(|c| c.is_whitespace() || face.glyph_index(c).is_some())
     }
 
@@ -198,18 +254,18 @@ impl SvgFonts {
     pub fn baseline_shift(&self, stack: &str, tops: &[(u32, f64)]) -> f64 {
         let face = self.stacks.get(stack).and_then(|idx| idx.iter().find_map(|&i| self.faces[i].data.clone()));
         let Some(data) = face else { return 22.0 };
-        let Ok(f) = ttf_parser::Face::parse(&data, 0) else { return 22.0 };
-        let scale = 24.0 / f.units_per_em() as f64;
+        let Some(f) = Face::parse(&data) else { return 22.0 };
+        let metrics = f.metrics();
+        let scale = 24.0 / metrics.units_per_em as f64;
         let mut d: Vec<f64> = tops
             .iter()
             .filter_map(|&(cp, top)| {
                 let g = f.glyph_index(char::from_u32(cp)?)?;
-                let bb = f.glyph_bounding_box(g)?;
-                Some(bb.y_max as f64 * scale - top)
+                Some(f.glyph_top(g)? * scale - top)
             })
             .collect();
         if d.is_empty() {
-            return f.ascender() as f64 * scale;
+            return metrics.ascent as f64 * scale;
         }
         d.sort_by(|a, b| a.partial_cmp(b).unwrap());
         d[d.len() / 2]
@@ -238,7 +294,7 @@ impl SvgFonts {
                         self.faces[i].data = find_font(client, &family, weight, italic, opts).await;
                     }
                     let Some(data) = &self.faces[i].data else { continue };
-                    let Ok(face) = ttf_parser::Face::parse(data, 0) else { continue };
+                    let Some(face) = Face::parse(data) else { continue };
                     // Spaces go to the first embedded font (layout uses explicit positions).
                     if ch.is_whitespace() || face.glyph_index(ch).is_some() {
                         chosen = Some(i);
@@ -288,12 +344,12 @@ fn subset_font(data: &[u8], chars: &BTreeSet<char>) -> Option<Vec<u8>> {
     use allsorts::binary::read::ReadScope;
     use allsorts::font_data::FontData;
     use allsorts::subset::{subset, CmapTarget, SubsetProfile};
-    let face = ttf_parser::Face::parse(data, 0).ok()?;
+    let face = Face::parse(data)?;
     let mut gids: Vec<u16> = vec![0];
     for &c in chars {
         if let Some(g) = face.glyph_index(c) {
-            if !gids.contains(&g.0) {
-                gids.push(g.0);
+            if !gids.contains(&g) {
+                gids.push(g);
             }
         }
     }
@@ -382,17 +438,12 @@ fn from_dirs(dirs: &[PathBuf], family: &str, weight: u16, italic: bool) -> Optio
     let mut best: Option<(u32, Vec<u8>)> = None;
     for path in files {
         let Ok(data) = std::fs::read(&path) else { continue };
-        let Ok(face) = ttf_parser::Face::parse(&data, 0) else { continue };
-        let names: Vec<String> = face
-            .names()
-            .into_iter()
-            .filter(|n| matches!(n.name_id, 1 | 4 | 16))
-            .filter_map(|n| n.to_string())
-            .collect();
+        let Some(face) = Face::parse(&data) else { continue };
+        let names = face.names();
         if !names.iter().any(|n| n.eq_ignore_ascii_case(family) || n.to_ascii_lowercase().starts_with(&family.to_ascii_lowercase())) {
             continue;
         }
-        let w = face.weight().to_number();
+        let w = face.weight();
         let score = (w as i32 - weight as i32).unsigned_abs() + if face.is_italic() == italic { 0 } else { 1000 };
         if best.as_ref().map_or(true, |b| score < b.0) {
             best = Some((score, data));
@@ -461,7 +512,7 @@ async fn download(client: &reqwest::Client, family: &str, weight: u16, italic: b
             continue;
         }
         let Ok(bytes) = crate::net::read_limited(r, crate::net::limit::ASSET).await else { continue };
-        if ttf_parser::Face::parse(&bytes, 0).is_err() {
+        if Face::parse(&bytes).is_none() {
             continue;
         }
         if let Some(p) = cache_path(family, weight, italic) {
@@ -491,6 +542,30 @@ mod tests {
         assert_eq!(google_family("Arial"), None);
     }
 
+    /// The values ttf-parser 0.25 read from the fixture font, which this
+    /// crate used before skrifa: the switch must not change them.
+    #[test]
+    fn font_reading_matches_ttf_parser() {
+        let data = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/fonts/OpenSans-Bold-subset.ttf")).unwrap();
+        let f = Face::parse(&data).expect("a font");
+        let m = f.metrics();
+        assert_eq!((m.units_per_em, m.ascent), (2048, 2189.0));
+        assert_eq!((f.weight(), f.is_italic()), (700, false));
+        for (c, gid, top) in [('S', 38, 1483.0), ('a', 46, 1141.0), ('l', 57, 1556.0), ('t', 65, 1356.0), ('L', 31, 1462.0),
+                              ('k', 56, 1556.0), ('e', 50, 1139.0), ('Q', 36, 1485.0), ('1', 11, 1462.0)] {
+            assert_eq!(f.glyph_index(c), Some(gid), "{c:?}");
+            assert_eq!(f.glyph_top(gid), Some(top), "{c:?}");
+        }
+        // A space has a glyph but no outline; é is not in the subset.
+        assert_eq!(f.glyph_index(' '), Some(1));
+        assert_eq!(f.glyph_top(1), None);
+        assert_eq!(f.glyph_index('é'), None);
+        let names = f.names();
+        assert!(names.contains(&"Open Sans".to_owned()) && names.contains(&"Open Sans Bold".to_owned()), "{names:?}");
+        // Not a font: rejected, as ttf-parser rejected it.
+        assert!(Face::parse(b"<!doctype html><html>sign in</html>").is_none());
+    }
+
     #[test]
     fn fonts_from_a_folder_are_subset_and_embedded() {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fonts");
@@ -509,7 +584,7 @@ mod tests {
         assert!(css.starts_with("@font-face{font-family:'Open Sans';font-weight:700;font-style:normal;"), "{}", &css[..80]);
         let b64 = css.split("base64,").nth(1).unwrap().split(')').next().unwrap();
         let bytes = decode_b64(b64);
-        let face = ttf_parser::Face::parse(&bytes, 0).expect("embedded subset parses");
+        let face = Face::parse(&bytes).expect("embedded subset parses");
         for c in "SaltLake".chars() {
             assert!(face.glyph_index(c).is_some(), "{c} kept");
         }

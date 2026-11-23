@@ -1,3 +1,8 @@
+# basemapper (development version)
+
+* SVG text reads fonts with skrifa (Google Fonts' fontations) instead of
+  the unmaintained ttf-parser; the SVGs written are the same.
+
 # basemapper 0.2.0
 
 ## New interface for download settings

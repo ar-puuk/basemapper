@@ -1,5 +1,10 @@
 # Changelog
 
+## Development version
+
+- SVG text reads fonts with skrifa (Google Fonts' fontations) instead of
+  the unmaintained ttf-parser; the SVGs written are the same.
+
 ## 0.2.0 (2026-11-23)
 
 ### New interface for download settings
