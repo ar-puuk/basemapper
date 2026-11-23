@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["PROVIDERS"],"fn":["basemap_provider","find_provider","list_providers","wms_style","wmts_style"],"struct":["ApiKey","Provider","ProviderOptions","Raster"]};

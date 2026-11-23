@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["TILE_PX"],"fn":["covering_tiles","device_px","render","render_svg","scale_zoom","tile_zoom"],"struct":["RasterTiles","RenderOutput","SourceTiles","SvgParts"]};

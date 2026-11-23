@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["ATLAS_W","EXTENT"],"enum":["Cap","Join"],"fn":["raster_gl_line","raster_polygon","raster_triangle","smoothstep"],"struct":["Clip","Dash","Framebuffer","LineBuilder","LineVertex","Vert"]};

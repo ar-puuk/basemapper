@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["TileSource"],"fn":["build_tile_coords","build_tile_urls","expand_url","fetch_all_tiles","local_path","tile_url"],"struct":["ArchiveBackend","TileCoord","TileUrls"],"type":["TileData"]};

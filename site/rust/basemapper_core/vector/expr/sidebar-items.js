@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Kind","Val"],"fn":["eval_expr","eval_filter","eval_property","is_data_driven","is_expression_filter","layout_enum"],"struct":["Color","Ctx"]};

@@ -26,10 +26,9 @@
                     "C:\Users\<you>\AppData\Roaming\Python\Python313\Scripts;" +
                     $env:PATH
 
-    After running, commit and push to deploy:
-        git add site/
-        git commit -m "docs: rebuild site"
-        git push
+    site/ is for previewing (it is not committed): the Documentation
+    workflow (.github/workflows/docs.yml) builds and deploys the site from
+    main.
 
 .EXAMPLE
     .\scripts\build-docs.ps1
@@ -175,7 +174,6 @@ if ($LASTEXITCODE -ne 0) { Write-Error 'docs post-processing failed' }
 
 # -- Done ---------------------------------------------------------------------
 Write-Host ''
-Write-Host 'Build complete. Commit and push to deploy:' -ForegroundColor Green
-Write-Host '    git add site/'
-Write-Host "    git commit -m 'docs: rebuild site'"
-Write-Host '    git push'
+Write-Host 'Build complete: site/ is ready to preview, e.g.' -ForegroundColor Green
+Write-Host '    python -m http.server 8765 --directory site'
+Write-Host 'It is not committed; CI (.github/workflows/docs.yml) deploys the site from main.'

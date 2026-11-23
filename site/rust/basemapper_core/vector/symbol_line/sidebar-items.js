@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["GlyphsPlacement","WritingMode"],"fn":["check_max_angle","clip_line","collision_path","get_anchors","get_center_anchor","merge_lines","place_glyph_along_line","place_glyphs_for_render"],"struct":["Anchor","LineFeature","PathInterpolator","PlacedGlyph","ProjectedLine","ProjectionCache"],"type":["P"]};

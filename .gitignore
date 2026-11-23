@@ -74,3 +74,6 @@ Rplots.pdf
 # Copies of core/guide/styles made by scripts/build-docs.ps1
 r-basemapper/vignettes/articles/styles/
 py-basemapper/user_guide/styles/
+
+# The documentation site: built and deployed by .github/workflows/docs.yml
+site/

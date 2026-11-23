@@ -342,10 +342,14 @@ build: every map and plot on the site is the output of the code shown with
 it. Building therefore needs network access (tiles are fetched from the
 providers).
 
-**Deploying:** the `Deploy documentation` workflow publishes the committed
-`site/` on every push to `main` that changes it. The `Build documentation`
-workflow builds the whole site in CI (on pushes to `dev`, or by hand) and
-uploads it as an artifact to check; it does not deploy yet.
+**Deploying:** the `Documentation` workflow (`.github/workflows/docs.yml`)
+builds the site on Ubuntu and deploys it to GitHub Pages on every push to
+`main` that touches the packages, docs or scripts. On `dev` and on pull
+requests it only builds, and uploads the site as an artifact to check.
+`site/` is not committed (it is git-ignored): a local build is for
+previewing. Build on Linux or in CI for anything published: on Windows,
+whose file names ignore case, the Python reference's `Basemap.html` (the
+class) overwrites `basemap.html` (the function).
 
 ### Building by hand
 
@@ -392,8 +396,9 @@ It stops at the first step that fails. In order, it:
 
 Open `site/index.html` through a local server to check it, for example
 `python -m http.server 8765 --directory site`, then
-<http://127.0.0.1:8765/>. To deploy, commit `site/` (and `py-basemapper/_freeze/`,
-see below) and push to `main`.
+<http://127.0.0.1:8765/>. To publish, push the source changes (and any
+updated `py-basemapper/_freeze/`, see below) and merge them into `main`; CI
+builds and deploys the site.
 
 ### Python pages and the freeze cache
 
@@ -414,13 +419,16 @@ no such cache: they run on every build.
 
 ### Building in CI by hand
 
-The `Build documentation` workflow runs the same script on Ubuntu. Start it
-from the repository's **Actions** tab (**Build documentation**, then **Run
-workflow**), or with the GitHub CLI, and download the site it built:
+The `Documentation` workflow runs the same script on Ubuntu. Start it from
+the repository's **Actions** tab (**Documentation**, then **Run workflow**),
+or with the GitHub CLI. Run on `main`, it also deploys; on another branch it
+only builds. To get the site it built (download it on Linux or macOS, or
+open the zip without extracting it on Windows, because of the case clash
+above):
 
 ```sh
-gh workflow run docs-build.yml --ref dev
-gh run list --workflow docs-build.yml          # find the run
+gh workflow run docs.yml --ref dev
+gh run list --workflow docs.yml                # find the run
 gh run download <run-id> --name site --dir site-ci
 ```
 
