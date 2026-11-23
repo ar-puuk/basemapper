@@ -6,9 +6,9 @@ argument names, with R's ``verb(m, ...)`` written ``m.verb(...)`` here.
 
 from .exceptions import BasemapError, NetworkError, StyleError, ValidationError
 from ._basemap import Basemap, basemap
+from ._fetch import FetchOptions
 from ._render import render_basemap_raw
 from .layer_utils import get_attribution, list_layers
-from .matplotlib_integration import add_basemap
 from .styles import basemap_provider, list_providers, providers, tile_cache, tile_style, wms_style, wmts_style
 
 # The version R, Python and the Rust core share (the release tag is v + it).
@@ -19,17 +19,38 @@ try:
 except Exception:  # not installed as a package (a source checkout)
     __version__ = "0.0.0"
 
-# plotnine integration is optional — base package usable without plotnine installed.
+# The plot integrations need optional packages (pip extras
+# `basemapper[matplotlib]`, `[plotnine]`); the package itself needs only
+# numpy and pyproj. Plain imports (not lazy ones) so documentation tools
+# see them; when the extra is missing, using the name says what to install.
 try:
-    from .plotnine_integration import geom_basemap  # noqa: F401
-    __all_plotnine__ = ["geom_basemap"]
+    from .matplotlib_integration import add_basemap
 except ImportError:
-    __all_plotnine__ = []
+    pass
+try:
+    from .plotnine_integration import geom_basemap
+except ImportError:
+    pass
+
+_EXTRAS = {"add_basemap": "matplotlib", "geom_basemap": "plotnine"}
+
+
+def __getattr__(name):
+    # Reached only when the import above failed.
+    if name in _EXTRAS:
+        extra = _EXTRAS[name]
+        raise ImportError(
+            f"basemapper.{name} needs {extra} and xarray: pip install 'basemapper[{extra}]'"
+            f" (or install {extra} and xarray)"
+        )
+    raise AttributeError(f"module 'basemapper' has no attribute {name!r}")
+
 
 __all__ = [
     "__version__",
     "basemap",
     "Basemap",
+    "FetchOptions",
     "render_basemap_raw",
     "list_layers",
     "get_attribution",
@@ -41,7 +62,7 @@ __all__ = [
     "wms_style",
     "wmts_style",
     "add_basemap",
-    *__all_plotnine__,
+    "geom_basemap",
     "BasemapError",
     "ValidationError",
     "StyleError",

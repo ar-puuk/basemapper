@@ -33,9 +33,11 @@ pub struct RenderRequest {
     /// Feature filter: plain names keep those features, `-`-prefixed names
     /// drop them (see [`crate::features::FEATURES`]).
     pub features: Option<Vec<String>>,
-    /// Optional authentication token. Sent as `Authorization: Bearer <token>`
-    /// for raster sources; appended as `?access_token=<token>` for Mapbox
-    /// vector sources.
+    /// Optional authentication token, sent only to the style's own origin
+    /// and the tile servers a TileJSON from there names (see
+    /// [`crate::net`]): as `Authorization: Bearer <token>` for styles,
+    /// TileJSON and raster tiles; appended as `?access_token=<token>` to
+    /// vector tile URLs.
     pub auth_token: Option<String>,
     /// When `false`, individual tile fetch failures are logged and skipped
     /// rather than aborting the entire render.
@@ -110,7 +112,7 @@ impl RenderRequest {
             return Err(BasemapError::InvalidDimensions(self.width, self.height));
         }
         if !self.pixel_ratio.is_finite() || self.pixel_ratio <= 0.0 || self.pixel_ratio > 16.0 {
-            return Err(BasemapError::InvalidBbox(format!(
+            return Err(BasemapError::InvalidInput(format!(
                 "pixel_ratio {} must be > 0 and at most 16",
                 self.pixel_ratio
             )));
@@ -121,10 +123,16 @@ impl RenderRequest {
         }
         if let Some(z) = self.tile_zoom {
             if z > 22 {
-                return Err(BasemapError::InvalidBbox(format!(
-                    "zoom {z} out of range 0–22"
+                return Err(BasemapError::InvalidInput(format!(
+                    "tile_zoom {z} out of range 0–22"
                 )));
             }
+        }
+        if self.tile_concurrency == 0 {
+            return Err(BasemapError::InvalidInput("tile_concurrency must be at least 1".into()));
+        }
+        if self.max_tiles == 0 {
+            return Err(BasemapError::InvalidInput("max_tiles must be at least 1".into()));
         }
         if let Some(ref layers) = self.layers {
             validate_layers(layers)?;

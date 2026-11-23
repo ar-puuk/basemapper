@@ -24,7 +24,7 @@
 #'   `.pmtiles` archive (URL or path), tile URL or TileJSON. It must use the
 #'   same schema as the provider's tiles (OpenMapTiles for OpenFreeMap and
 #'   Stadia).
-#' @param labels `TRUE` keeps every layer, `FALSE` drops the labels,
+#' @param labels `"all"` (or `TRUE`) keeps every layer, `"none"` (or `FALSE`) drops the labels,
 #'   `"only"` keeps only the labels, to stack this basemap's labels over
 #'   another map. Raster tiles switch to the provider's label-free or
 #'   label-only tiles (an error when it has none).
@@ -52,9 +52,8 @@
 basemap_provider <- function(name, type = NULL, api_key = NULL, tiles = NULL, labels = TRUE,
                              features = NULL) {
   chr <- function(x) if (is.null(x)) NULL else as.character(x)[1L]
-  .Call("wrap__basemap_provider_raw", as.character(name)[1L], chr(type), chr(api_key), chr(tiles),
-        labels_arg(labels), if (is.null(features)) NULL else as.character(features),
-        PACKAGE = "basemapper")
+  call_core("wrap__basemap_provider_raw", as.character(name)[1L], chr(type), chr(api_key), chr(tiles),
+        labels_arg(labels), if (is.null(features)) NULL else as.character(features))
 }
 
 #' The built-in basemaps
@@ -72,8 +71,7 @@ basemap_provider <- function(name, type = NULL, api_key = NULL, tiles = NULL, la
 #' list_providers()
 #' list_providers("vector")$name
 list_providers <- function(type = NULL) {
-  x <- .Call("wrap__list_providers_raw", if (is.null(type)) NULL else as.character(type)[1L],
-             PACKAGE = "basemapper")
+  x <- call_core("wrap__list_providers_raw", if (is.null(type)) NULL else as.character(type)[1L])
   key <- attr(x, "api_key_env")
   key[key == ""] <- NA_character_
   data.frame(name = as.vector(x), vector = attr(x, "vector"), raster = attr(x, "raster"),
@@ -121,17 +119,17 @@ providers <- NULL
 tile_cache <- function(dir = NULL, clear = FALSE, max_size = NULL) {
   d <- if (isFALSE(dir)) "" else if (is.null(dir)) NULL else path.expand(as.character(dir)[1L])
   mb <- if (is.null(max_size)) NULL else as.numeric(max_size)[1L]
-  out <- .Call("wrap__tile_cache_raw", d, isTRUE(clear), mb, PACKAGE = "basemapper")
+  out <- call_core("wrap__tile_cache_raw", d, isTRUE(clear), mb)
   if (is.null(dir) && !isTRUE(clear) && is.null(max_size)) out else invisible(out)
 }
 
 .onLoad <- function(libname, pkgname) {
   ns <- asNamespace(pkgname)
-  names <- as.vector(.Call("wrap__list_providers_raw", NULL, PACKAGE = "basemapper"))
+  names <- as.vector(call_core("wrap__list_providers_raw", NULL))
   assign("providers", stats::setNames(as.list(names), names), envir = ns)
   # CRAN policy: user files go under R_user_dir() unless the user chose a place.
   if (is.na(Sys.getenv("BASEMAPPER_CACHE_DIR", NA_character_))) {
-    .Call("wrap__tile_cache_raw", tools::R_user_dir("basemapper", "cache"), FALSE, NULL, PACKAGE = "basemapper")
+    call_core("wrap__tile_cache_raw", tools::R_user_dir("basemapper", "cache"), FALSE, NULL)
   }
   invisible()
 }
@@ -170,7 +168,7 @@ tile_cache <- function(dir = NULL, clear = FALSE, max_size = NULL) {
 #' @param paint Vector tiles: a named list of paint properties for the
 #'   generated `fill-*`, `line-*` and `circle-*` layers, e.g.
 #'   `list("fill-color" = "#cccccc")`. Others are dropped with a warning.
-#' @param auth_token Optional access token for the tile service.
+#' @param auth_token Optional access token for the tile service (sent only to the style's own server).
 #' @return The style JSON string.
 #' @export
 #' @examples
@@ -189,9 +187,9 @@ tile_style <- function(source, type = NULL, tile_size = NULL, scheme = NULL, min
   int_or_null <- function(x) if (is.null(x)) NULL else as.integer(x)
   chr_or_null <- function(x) if (is.null(x)) NULL else as.character(x)
   paint_json <- if (length(paint) == 0L) "{}" else as.character(jsonlite::toJSON(paint, auto_unbox = TRUE))
-  s <- .Call("wrap__tile_style_raw", as.character(source)[1L], chr_or_null(type), int_or_null(tile_size),
+  s <- call_core("wrap__tile_style_raw", as.character(source)[1L], chr_or_null(type), int_or_null(tile_size),
              chr_or_null(scheme), int_or_null(minzoom), int_or_null(maxzoom), chr_or_null(attribution),
-             chr_or_null(source_layers), paint_json, chr_or_null(auth_token), PACKAGE = "basemapper")
+             chr_or_null(source_layers), paint_json, chr_or_null(auth_token))
   dropped <- attr(s, "dropped")
   if (length(dropped) > 0L) {
     warning("tile_style: paint key(s) that match no generated layer dropped: ",
@@ -230,16 +228,16 @@ NULL
 #' @export
 wms_style <- function(url, layers, styles = "", version = "1.3.0", format = "image/png",
                       transparent = FALSE, extra_params = NULL) {
-  .Call("wrap__wms_style_raw", as.character(url), as.character(layers), as.character(styles),
+  call_core("wrap__wms_style_raw", as.character(url), as.character(layers), as.character(styles),
         as.character(version), as.character(format), isTRUE(transparent),
-        if (is.null(extra_params)) NULL else as.character(extra_params), PACKAGE = "basemapper")
+        if (is.null(extra_params)) NULL else as.character(extra_params))
 }
 
 #' @rdname ogc_styles
 #' @export
 wmts_style <- function(url, layer, tilematrixset = "GoogleMapsCompatible", format = "image/png",
                        style = "default", version = "1.0.0", extra_params = NULL) {
-  .Call("wrap__wmts_style_raw", as.character(url), as.character(layer), as.character(tilematrixset),
+  call_core("wrap__wmts_style_raw", as.character(url), as.character(layer), as.character(tilematrixset),
         as.character(format), as.character(style), as.character(version),
-        if (is.null(extra_params)) NULL else as.character(extra_params), PACKAGE = "basemapper")
+        if (is.null(extra_params)) NULL else as.character(extra_params))
 }

@@ -1,19 +1,23 @@
 """The version of basemapper's packages, kept the same everywhere.
 
 R, Python and the Rust core share one version, which the release tag
-(`v0.1.0`) names. It is written in six files; this script reads, checks
+(`v0.1.0`) names. It is written in seven files (CITATION.cff too); this script reads, checks
 and sets them together.
 
 Usage:
   python tools/version.py                 print the version
   python tools/version.py check [--tag T] fail unless every file has the
                                           same version (and it matches tag
-                                          T, e.g. v0.1.0, when given)
-  python tools/version.py set 0.2.0       write the version to every file,
-                                          and the install commands in the
-                                          READMEs to the release v0.2.0
+                                          T, e.g. v0.1.0, when given), or
+                                          an install page names a release
+  python tools/version.py set 0.2.0       write the version to every file
+
+Install instructions never name a version: they install the latest release
+(the `main` branch, which changes only when a release is merged), so they
+need no update when one is made.
 """
 
+import datetime
 import pathlib
 import re
 import sys
@@ -30,12 +34,15 @@ FILES = [
     ("py-basemapper/Cargo.toml", r'(\[package\][^\[]*?\nversion\s*=\s*")([^"]+)(")'),
     ("py-basemapper/pyproject.toml", r'(\[project\][^\[]*?\nversion\s*=\s*")([^"]+)(")'),
     ("r-basemapper/DESCRIPTION", r"(\nVersion:\s*)(\S+)()"),
+    ("CITATION.cff", r'(\nversion:\s*")([^"]+)(")'),
 ]
+# CITATION.cff's release date, written by `set` (the day of the release).
+CFF_DATE = re.compile(r'(\ndate-released:\s*")([^"]+)(")')
 
 
-# Pages whose install commands name the release: pak's `@v0.1.0`,
-# remotes' `ref = "v0.1.0"`, pip's `@v0.1.0#subdirectory`, Cargo's
-# `tag = "v0.1.0"` / `--tag v0.1.0`, and the prose that names it (the
+# Pages with install commands, which must not pin a release: pak's
+# `@v0.1.0`, remotes' `ref = "v0.1.0"`, pip's `@v0.1.0#subdirectory`,
+# Cargo's `tag = "v0.1.0"` / `--tag v0.1.0`, and prose naming one (the
 # landing page's code is highlighted HTML, hence the optional span).
 READMES = [
     "README.md",
@@ -74,6 +81,16 @@ def check(tag: str | None) -> None:
         name = tag.removeprefix("refs/tags/")
         if name != f"v{version}":
             sys.exit(f"tag {name} does not match the packages' version {version} (expected v{version})")
+    pinned = [
+        f"{path}:{text.count(chr(10), 0, m.start()) + 1}: {m.group(0)}"
+        for path in READMES
+        for text in [(ROOT / path).read_text(encoding="utf-8")]
+        for m in PIN.finditer(text)
+    ]
+    if pinned:
+        for p in pinned:
+            print(f"  {p}")
+        sys.exit("install instructions pin a release; they should install the latest (no version)")
     print(f"basemapper {version}: the same in all {len(found)} files" + (f", and tag {tag}" if tag else ""))
 
 
@@ -88,12 +105,13 @@ def set_version(version: str) -> None:
             sys.exit(f"{path}: no version found")
         file.write_bytes(new.encode("utf-8"))
         print(f"  {version:<12} {path}")
-    for path in READMES:
-        file = ROOT / path
-        text = file.read_text(encoding="utf-8")
-        new, n = PIN.subn(lambda m: m.group(1) + version, text)
-        file.write_bytes(new.encode("utf-8"))
-        print(f"  v{version:<11} {path} ({n} install pins)")
+    cff = ROOT / "CITATION.cff"
+    today = datetime.date.today().isoformat()
+    new, n = CFF_DATE.subn(lambda m: m.group(1) + today + m.group(3), cff.read_text(encoding="utf-8"), count=1)
+    if n != 1:
+        sys.exit("CITATION.cff: no date-released found")
+    cff.write_bytes(new.encode("utf-8"))
+    print(f"  {today:<12} CITATION.cff (date-released)")
 
 
 def main(argv: list[str]) -> None:

@@ -35,7 +35,7 @@ class geom_basemap(geom):
         layers: Optional layer filter list — plain IDs keep only those layers;
             minus-prefixed IDs drop those layers; ``*`` and ``?`` are
             wildcards.
-        labels: ``True`` keeps every layer, ``False`` drops the labels (text
+        labels: ``"all"`` (or ``True``) keeps every layer, ``"none"`` (or ``False``) drops the labels (text
             and icons), ``"only"`` keeps only the labels on a transparent
             background, to stack over another map. Catalogue raster
             basemaps switch to their label-free or label-only tiles.
@@ -46,9 +46,10 @@ class geom_basemap(geom):
             boundaries, places, poi, terrain, other (see the ``feature``
             of :func:`list_layers`).
         pixel_ratio: Device pixels per CSS pixel; default output dpi / 96.
-        auth_token: Optional access token for the tile service.
-        tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
-        max_tiles: Maximum tile downloads per style.
+        auth_token: Optional access token for the tile service (sent only to the style's own server).
+        fetch: How tiles are downloaded: a :class:`FetchOptions`. (The
+            replaced ``tile_timeout_ms`` and ``max_tiles`` are still
+            accepted, with a DeprecationWarning.)
         attribution: The credit line the basemap's providers ask for, drawn
             small in the bottom-right corner over the plot: ``True`` (the
             default) for the styles' own (see :func:`get_attribution`),
@@ -79,6 +80,7 @@ class geom_basemap(geom):
     def __init__(
         self,
         style: Any,
+        *,
         tile_zoom: Optional[int] = None,
         alpha: float = 1.0,
         layers: Optional[List[str]] = None,
@@ -86,8 +88,7 @@ class geom_basemap(geom):
         features: Optional[List[str]] = None,
         pixel_ratio: Optional[float] = None,
         auth_token: Optional[str] = None,
-        tile_timeout_ms: int = 10_000,
-        max_tiles: int = 256,
+        fetch: Optional[Any] = None,
         attribution: Union[bool, str] = True,
         crs: object = "EPSG:4326",
         **kwargs: object,
@@ -100,8 +101,11 @@ class geom_basemap(geom):
         self.features = _features_arg(features)
         self.pixel_ratio = pixel_ratio
         self.auth_token = auth_token
-        self.tile_timeout_ms = tile_timeout_ms
-        self.max_tiles = max_tiles
+        from ._fetch import _DEPRECATED, _resolve_fetch
+
+        # Other keyword arguments are plotnine's own (passed on below).
+        deprecated = {k: kwargs.pop(k) for k in list(kwargs) if k in _DEPRECATED}
+        self.fetch = _resolve_fetch(fetch, "geom_basemap", deprecated)
         self.attribution = attribution
         self.crs = crs
         super().__init__(mapping=None, data=None, **kwargs)
@@ -133,7 +137,7 @@ class geom_basemap(geom):
         img = BasemapImage(
             ax, self.style, crs, self.pixel_ratio, self.tile_zoom,
             dict(layers=self.layers, labels=self.labels, features=self.features, auth_token=self.auth_token,
-                 tile_timeout_ms=self.tile_timeout_ms, max_tiles=self.max_tiles),
+                 **self.fetch._core()),
             alpha=self.alpha,
         )
         img.set_extent((x_range[0], x_range[1], y_range[0], y_range[1]))

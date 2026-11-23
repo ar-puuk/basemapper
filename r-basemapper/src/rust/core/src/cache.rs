@@ -201,8 +201,10 @@ fn path_in(dir: &Path, url: &str) -> PathBuf {
     dir.join("tiles").join(&k[..2]).join(k)
 }
 
-/// Whether tiles from `url` may be cached: remote http(s) only.
-fn cacheable(url: &str) -> bool {
+/// Whether responses from `url` may be cached (on disk and in memory):
+/// remote http(s) only. A server on the local machine is often a
+/// development server whose data changes, and is fast anyway.
+pub(crate) fn cacheable(url: &str) -> bool {
     let Ok(u) = reqwest::Url::parse(url) else { return false };
     if !matches!(u.scheme(), "http" | "https") {
         return false;
@@ -245,7 +247,7 @@ fn read_entry(path: &Path) -> Option<Vec<u8>> {
 }
 
 /// How long the server lets a response be cached; `None` for not at all.
-fn ttl(headers: &reqwest::header::HeaderMap) -> Option<Duration> {
+pub(crate) fn ttl(headers: &reqwest::header::HeaderMap) -> Option<Duration> {
     use reqwest::header::{CACHE_CONTROL, EXPIRES};
     if let Some(cc) = headers.get(CACHE_CONTROL).and_then(|v| v.to_str().ok()) {
         let cc = cc.to_ascii_lowercase();

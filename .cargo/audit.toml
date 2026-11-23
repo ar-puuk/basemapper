@@ -1,0 +1,14 @@
+# cargo audit settings (the CI "Dependency audit" job).
+#
+# Every advisory ignored here must name why it cannot reach users, and be
+# dropped once the dependency is updated.
+
+[advisories]
+ignore = [
+    # h2 0.3 (unbounded empty DATA frames, an HTTP/2 server-side DoS) comes
+    # only from httptest -> hyper 0.14: the mock tile server of the test
+    # suite (a dev-dependency). The R and Python packages do not depend on
+    # h2 at all (`cargo tree -i h2 -e normal` is empty). Drop when httptest
+    # moves to hyper 1.
+    "RUSTSEC-2026-0258",
+]

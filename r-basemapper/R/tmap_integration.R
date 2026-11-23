@@ -17,7 +17,9 @@
 #'   `tmap::tm_credits()` element in the bottom-right corner: `TRUE` (the
 #'   default) for the styles' own (see [get_attribution()]), `FALSE` for
 #'   none, or your own text.
-#' @param ... Reserved for future use.
+#' @param ... Not used: the arguments after `style` must be named. (The
+#'   deprecated `tile_timeout_ms` and `max_tiles` are still accepted, with a
+#'   warning: use `fetch`.)
 #'
 #' @return A composable tmap element (class `"tmap"`). Put it before `tm_shape()`
 #'   so it renders behind subsequent layers.
@@ -33,21 +35,21 @@
 #' }
 tm_basemap <- function(
     style,
-    tile_zoom       = NULL,
-    alpha           = 1,
-    layers          = NULL,
-    labels          = TRUE,
-    features        = NULL,
-    pixel_ratio     = NULL,
-    auth_token      = NULL,
-    tile_timeout_ms = 10000L,
-    max_tiles       = 256L,
-    attribution     = TRUE,
-    width           = NULL,
-    height          = NULL,
-    ...
+    ...,
+    tile_zoom   = NULL,
+    alpha       = 1,
+    layers      = NULL,
+    labels      = TRUE,
+    features    = NULL,
+    pixel_ratio = NULL,
+    auth_token  = NULL,
+    fetch       = fetch_options(),
+    attribution = TRUE,
+    width       = NULL,
+    height      = NULL
 ) {
-  if (!requireNamespace("tmap", quietly = TRUE)) stop("Package 'tmap' is required.")
+  fetch <- fetch_with_deprecated(fetch, list(...), "tm_basemap", after = "style")$fetch
+  rlang::check_installed("tmap", "to add a basemap to a tmap map.")
 
   el <- tmap::tm_element_list(
     tmap::tm_element(
@@ -60,8 +62,7 @@ tm_basemap <- function(
         features        = features,
         pixel_ratio     = pixel_ratio,
         auth_token      = auth_token,
-        tile_timeout_ms = tile_timeout_ms,
-        max_tiles       = max_tiles,
+        fetch           = fetch,
         width           = width,
         height          = height
       ),
@@ -87,7 +88,7 @@ tm_basemap <- function(
 
 #' @exportS3Method tmap::tmapGridAuxPrepare
 tmapGridAuxPrepare.tm_basemap_rust <- function(a, bs, id, o) {
-  if (!requireNamespace("terra", quietly = TRUE)) stop("Package 'terra' is required.")
+  rlang::check_installed("terra", "to draw a basemap in tmap.")
 
   crs         <- sf::st_crs(bs[[1]])
   isproj      <- !sf::st_is_longlat(crs)
@@ -108,9 +109,8 @@ tmapGridAuxPrepare.tm_basemap_rust <- function(a, bs, id, o) {
         unname(c(b_3857["xmin"], b_3857["ymin"], b_3857["xmax"], b_3857["ymax"])),
         w, h, a$style, ratio,
         tile_zoom = a$tile_zoom,
-        options   = list(layers = a$layers, labels = a$labels, features = a$features,
-                         auth_token = a$auth_token,
-                         tile_timeout_ms = a$tile_timeout_ms, max_tiles = a$max_tiles)
+        options   = c(list(layers = a$layers, labels = a$labels, features = a$features,
+                           auth_token = a$auth_token), fetch_core(a$fetch))
       )),
       error = function(e) {
         warning("basemapper: basemap render failed: ", conditionMessage(e))

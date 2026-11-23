@@ -18,14 +18,21 @@ impl StyleInput {
 
     /// The style JSON: inline JSON as is; otherwise a style URL or file is
     /// loaded, or a style is built for tile data (see [`crate::tile_style()`]).
-    pub async fn resolve(
+    /// The style string, as [`crate::net::Auth::for_input`] scopes a token to.
+    pub(crate) fn as_input(&self) -> &str {
+        match self {
+            StyleInput::Url(u) | StyleInput::InlineJson(u) => u,
+        }
+    }
+
+    pub(crate) async fn resolve(
         &self,
         client: &reqwest::Client,
-        auth_token: Option<&str>,
+        auth: &crate::net::Auth,
     ) -> Result<String, BasemapError> {
         match self {
             StyleInput::InlineJson(json) => Ok(json.clone()),
-            StyleInput::Url(url) => crate::tile_style::resolve_style_input(url, client, auth_token).await,
+            StyleInput::Url(url) => crate::tile_style::resolve_style_input(url, client, auth).await,
         }
     }
 }

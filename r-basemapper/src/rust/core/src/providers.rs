@@ -717,7 +717,7 @@ pub fn basemap_provider_styles(name: &str, options: &ProviderOptions) -> Result<
         let mut kept = Vec::new();
         let mut present: Vec<&'static str> = Vec::new();
         for part in &parts {
-            let style = crate::tile_style::resolve_style_input(part, &client, None).await?;
+            let style = crate::tile_style::resolve_style_input(part, &client, &crate::net::Auth::none()).await?;
             let selection = crate::features::select(&style, options.labels, features)?;
             for f in &selection.present {
                 if !present.contains(f) {
@@ -796,7 +796,7 @@ pub fn basemap_provider(name: &str, options: &ProviderOptions) -> Result<String,
         let client = crate::http_client(std::time::Duration::from_secs(30))?;
         let style = match &options.tiles {
             Some(tiles) => replace_tiles(&style, kind, tiles, &client).await?,
-            None => crate::tile_style::resolve_style_input(&style, &client, None).await?,
+            None => crate::tile_style::resolve_style_input(&style, &client, &crate::net::Auth::none()).await?,
         };
         crate::features::select_layers(&style, options.labels, features)
     })
@@ -854,7 +854,7 @@ async fn replace_tiles(
         None => {
             // The source tile_style() builds for this data, without probing.
             let opts = TileStyleOptions { kind: Some(kind), source_layers: Some(Vec::new()), ..Default::default() };
-            let (built, _) = crate::tile_style::tile_style(tiles, &opts, client, None).await?;
+            let (built, _) = crate::tile_style::tile_style(tiles, &opts, client, &crate::net::Auth::none()).await?;
             let v: Value = serde_json::from_str(&built).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
             match v.pointer("/sources/tiles") {
                 Some(s) => s.clone(),
@@ -869,7 +869,7 @@ async fn replace_tiles(
     let mut v: Value = if style.trim_start().starts_with('{') {
         serde_json::from_str(style).map_err(|e| BasemapError::StyleParseError(e.to_string()))?
     } else {
-        let resolved = crate::tile_style::resolve_style_input(style, client, None).await?;
+        let resolved = crate::tile_style::resolve_style_input(style, client, &crate::net::Auth::none()).await?;
         serde_json::from_str(&resolved).map_err(|e| BasemapError::StyleParseError(e.to_string()))?
     };
     if let Some(m) = v["metadata"].as_object_mut() {

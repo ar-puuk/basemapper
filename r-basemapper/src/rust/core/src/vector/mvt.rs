@@ -120,15 +120,33 @@ pub struct Tile {
     pub layers: HashMap<String, Layer>,
 }
 
+/// Decoded tiles kept across renders (see [`super::memo`]); weighed at
+/// eight times their encoded size, about what decoding expands them to.
+static DECODED: once_cell::sync::Lazy<std::sync::Mutex<super::memo::Memo<Tile>>> =
+    once_cell::sync::Lazy::new(|| std::sync::Mutex::new(super::memo::Memo::new(256 << 20)));
+
+/// [`decode`] for many tiles: tiles decoded before are shared, the others
+/// decoded in parallel. Results are in input order.
+pub fn decode_shared(tiles: &[&[u8]]) -> Vec<Result<std::sync::Arc<Tile>, String>> {
+    super::memo::decode_all(&DECODED, tiles, decode, |b, _| b.len() * 8)
+}
+
 /// Decode an MVT. Gzip-compressed input is accepted.
 pub fn decode(bytes: &[u8]) -> Result<Tile, String> {
     let raw;
     let data = if bytes.starts_with(&[0x1f, 0x8b]) {
         use std::io::Read;
+        // A tile inflates to at most MAX_INFLATED bytes (a gzip bomb would
+        // otherwise exhaust memory).
+        const MAX_INFLATED: u64 = 64 << 20;
         let mut out = Vec::new();
         flate2::read::GzDecoder::new(bytes)
+            .take(MAX_INFLATED + 1)
             .read_to_end(&mut out)
             .map_err(|e| format!("gzip: {e}"))?;
+        if out.len() as u64 > MAX_INFLATED {
+            return Err(format!("gzip: tile inflates past {} MB", MAX_INFLATED >> 20));
+        }
         raw = out;
         &raw[..]
     } else {

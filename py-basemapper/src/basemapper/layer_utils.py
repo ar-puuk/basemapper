@@ -18,7 +18,7 @@ def get_attribution(style: Any, auth_token: Optional[str] = None) -> str:
     Args:
         style: A style (anything :func:`basemap` takes), or a list of
             styles stacked bottom to top.
-        auth_token: Optional access token for the tile service.
+        auth_token: Optional access token for the tile service (sent only to the style's own server).
 
     Returns:
         The attribution; an empty string when the styles give none.
@@ -58,7 +58,7 @@ def list_layers(
         auth_token: Optional access token for the style URL.
         layers: Layer filter to preview: plain IDs keep, ``-`` prefixed IDs
             drop; ``*`` and ``?`` are wildcards.
-        labels: ``True``, ``False`` or ``"only"``, as the renderers take it.
+        labels: ``"all"``, ``"none"`` or ``"only"`` (or ``True`` / ``False``), as the renderers take it.
         features: Feature filter to preview, as the renderers take it.
 
     Returns:

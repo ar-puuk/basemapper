@@ -71,6 +71,7 @@ pub mod bbox;
 pub mod cache;
 pub mod error;
 pub mod features;
+pub mod net;
 pub mod providers;
 pub mod renderer;
 pub mod style;
@@ -103,14 +104,35 @@ pub(crate) static RUNTIME: Lazy<Runtime> =
 pub(crate) const USER_AGENT: &str =
     concat!("basemapper/", env!("CARGO_PKG_VERSION"), " (+https://github.com/ar-puuk/basemapper)");
 
-/// The HTTP client for styles, tiles, glyphs and sprites.
+/// The HTTP client for styles, tiles, glyphs and sprites, with `timeout`
+/// per request.
+///
+/// Clients are built once per timeout and shared by every render (a
+/// `reqwest::Client` is a handle to one connection pool): renders reuse
+/// open connections and TLS sessions instead of building a client (and
+/// loading the TLS root store) and connecting again each time.
 pub(crate) fn http_client(timeout: std::time::Duration) -> Result<reqwest::Client, BasemapError> {
-    reqwest::Client::builder()
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+    static CLIENTS: Lazy<Mutex<HashMap<std::time::Duration, reqwest::Client>>> = Lazy::new(Default::default);
+    let mut clients = CLIENTS.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(c) = clients.get(&timeout) {
+        return Ok(c.clone());
+    }
+    let client = reqwest::Client::builder()
         .timeout(timeout)
         .use_rustls_tls()
         .user_agent(USER_AGENT)
         .build()
-        .map_err(|e| BasemapError::RenderError(e.to_string()))
+        .map_err(|e| BasemapError::RenderError(e.to_string()))?;
+    clients.insert(timeout, client.clone());
+    Ok(client)
+}
+
+/// The request's access token, scoped to its style's origin (see
+/// [`net::Auth`]).
+fn request_auth(request: &RenderRequest) -> net::Auth {
+    net::Auth::for_input(request.auth_token.as_deref(), request.style_input.as_input())
 }
 
 /// Render a basemap tile mosaic to a flat RGBA byte array.
@@ -167,11 +189,25 @@ pub fn render_stack(requests: Vec<RenderRequest>) -> Result<RenderResult, Basema
     for q in &requests {
         q.validate()?;
     }
+    // The styles download and render concurrently, then composite in
+    // order (the first error in stack order is the one reported).
+    let parts: Vec<Result<StackPart, BasemapError>> = RUNTIME.block_on(async {
+        let mut set = tokio::task::JoinSet::new();
+        for (i, q) in requests.into_iter().enumerate() {
+            set.spawn(async move { (i, render_part(q).await) });
+        }
+        let mut parts: Vec<(usize, Result<StackPart, BasemapError>)> = Vec::new();
+        while let Some(joined) = set.join_next().await {
+            parts.push(joined.map_err(|e| BasemapError::RenderError(format!("stack render task failed: {e}")))?);
+        }
+        parts.sort_by_key(|p| p.0);
+        Ok::<_, BasemapError>(parts.into_iter().map(|p| p.1).collect())
+    })?;
     let mut acc: Option<RenderResult> = None;
     let mut warnings: Option<Vec<String>> = None;
     let mut present: Vec<&'static str> = Vec::new();
-    for q in requests {
-        let part = RUNTIME.block_on(render_part(q))?;
+    for part in parts {
+        let part = part?;
         warnings = Some(match warnings {
             None => part.warnings,
             Some(prev) => prev.into_iter().filter(|w| part.warnings.contains(w)).collect(),
@@ -230,7 +266,7 @@ pub fn tile_style(
 ) -> Result<(String, Vec<String>), BasemapError> {
     RUNTIME.block_on(async {
         let client = http_client(std::time::Duration::from_secs(30))?;
-        tile_style::tile_style(input, options, &client, auth_token).await
+        tile_style::tile_style(input, options, &client, &net::Auth::for_input(auth_token, input)).await
     })
 }
 
@@ -271,7 +307,7 @@ pub fn list_layers(style: &str, auth_token: Option<&str>, filter: &LayerFilter) 
     }
     let json = RUNTIME.block_on(async {
         let client = http_client(std::time::Duration::from_secs(30))?;
-        StyleInput::detect(style).resolve(&client, auth_token).await
+        StyleInput::detect(style).resolve(&client, &net::Auth::for_input(auth_token, style)).await
     })?;
     if let Some(f) = &filter.features {
         features::validate_features(f)?;
@@ -371,7 +407,7 @@ struct StackPart {
 
 async fn render_part(request: RenderRequest) -> Result<StackPart, BasemapError> {
     let client = http_client(std::time::Duration::from_millis(request.tile_timeout_ms as u64))?;
-    let raw_json = request.style_input.resolve(&client, request.auth_token.as_deref()).await?;
+    let raw_json = request.style_input.resolve(&client, &request_auth(&request)).await?;
     style::validate_maplibre_style(&raw_json)?;
     let (selection, warnings) =
         apply_filters(&raw_json, request.layers.as_deref(), request.labels, request.features.as_deref())?;
@@ -387,10 +423,7 @@ async fn render_async(request: RenderRequest) -> Result<RenderResult, BasemapErr
     let client = http_client(std::time::Duration::from_millis(request.tile_timeout_ms as u64))?;
 
     // Resolve style once — shared across both halves for anti-meridian renders.
-    let raw_json = request
-        .style_input
-        .resolve(&client, request.auth_token.as_deref())
-        .await?;
+    let raw_json = request.style_input.resolve(&client, &request_auth(&request)).await?;
     style::validate_maplibre_style(&raw_json)?;
 
     let (style_json, warnings) = select_style_layers(&raw_json, &request)?;
@@ -413,13 +446,7 @@ async fn render_style(request: RenderRequest, client: reqwest::Client, style_jso
         StyleInput::Url(u) => Some(u.as_str()),
         StyleInput::InlineJson(_) => None,
     };
-    let tile_source = extract_tile_source_from_style(
-        &style_val,
-        &client,
-        request.auth_token.as_deref(),
-        style_base_url,
-    )
-    .await?;
+    let tile_source = extract_tile_source_from_style(&style_val, &client, &request_auth(&request), style_base_url).await?;
 
     // Compute zoom for the full bbox — handles anti-meridian via compute_zoom.
     let zoom = {
@@ -433,19 +460,17 @@ async fn render_style(request: RenderRequest, client: reqwest::Client, style_jso
         tile_source.maxzoom().map_or(raw, |mz| raw.min(mz))
     };
 
-    // Guard: tile_count handles anti-meridian correctly now.
-    let total_tiles = bbox::tile_count(request.bbox, zoom);
-    if total_tiles > request.max_tiles {
-        return Err(BasemapError::MaxTilesExceeded {
-            requested: total_tiles,
-            limit: request.max_tiles,
-        });
+    let is_vector = matches!(tile_source, TileSource::MapboxVectorTile { .. });
+    // Raster sources: tiles on this zoom's grid (handles anti-meridian
+    // bboxes). The vector path checks each source's own tiles as it
+    // fetches them (fetch_vector_inputs).
+    if !is_vector {
+        check_max_tiles(bbox::tile_count(request.bbox, zoom), request.max_tiles)?;
     }
 
     let [xmin, _ymin, xmax, _ymax] = request.bbox;
     let half = 20_037_508.342_789_244;
     let wraps = xmin < xmax && (xmin < -half || xmax > half);
-    let is_vector = matches!(tile_source, TileSource::MapboxVectorTile { .. });
     if xmin > xmax {
         render_antimeridian_split(&request, &client, &style_json, &tile_source, transparent, zoom)
             .await
@@ -474,6 +499,14 @@ async fn render_style(request: RenderRequest, client: reqwest::Client, style_jso
         )
         .await
     }
+}
+
+/// Error when a source needs more than `limit` tiles for the view.
+fn check_max_tiles(requested: u32, limit: u32) -> Result<(), BasemapError> {
+    if requested > limit {
+        return Err(BasemapError::MaxTilesExceeded { requested, limit });
+    }
+    Ok(())
 }
 
 /// Render one non-crossing bbox at the given zoom level and pixel dimensions.
@@ -531,7 +564,8 @@ async fn render_single_bbox(
     // PMTiles: fetch via HTTP range requests.
     if let TileSource::PMTiles { ref url, .. } = tile_source {
         let coords = tile_fetcher::build_tile_coords(bbox, zoom);
-        let tiles = fetch_pmtiles_tiles(url, &coords, client).await?;
+        let tiles =
+            fetch_pmtiles_tiles(url, &coords, client, request.tile_concurrency, request.fail_on_tile_error).await?;
         let canvas =
             renderer::composite_raster_tiles(&tiles, bbox, zoom, width, height, transparent, request.pixel_ratio)?;
         return Ok(RenderResult {
@@ -594,16 +628,11 @@ async fn render_antimeridian_split(
     let west_px = ((request.width as f64 * west_m / total_m).round() as u32).max(1);
     let east_px = request.width.saturating_sub(west_px).max(1);
 
-    let west = render_single_bbox(
-        request, client, style_json, tile_source, transparent,
-        west_bbox, west_px, request.height, zoom,
-    )
-    .await?;
-    let east = render_single_bbox(
-        request, client, style_json, tile_source, transparent,
-        east_bbox, east_px, request.height, zoom,
-    )
-    .await?;
+    let (west, east) = tokio::join!(
+        render_single_bbox(request, client, style_json, tile_source, transparent, west_bbox, west_px, request.height, zoom),
+        render_single_bbox(request, client, style_json, tile_source, transparent, east_bbox, east_px, request.height, zoom),
+    );
+    let (west, east) = (west?, east?);
 
     // Stitch row by row: west pixels then east pixels per scanline.
     let row_w = west.width as usize * 4;
@@ -639,7 +668,7 @@ async fn render_antimeridian_split(
 async fn extract_tile_source_from_style(
     style: &serde_json::Value,
     client: &reqwest::Client,
-    auth_token: Option<&str>,
+    auth: &net::Auth,
     style_base_url: Option<&str>,
 ) -> Result<TileSource, BasemapError> {
     let sources = style
@@ -686,7 +715,7 @@ async fn extract_tile_source_from_style(
             })?
     };
 
-    let resolved = resolve_source(source, src_type, client, auth_token, style_base_url).await?.source;
+    let resolved = resolve_source(source, src_type, client, auth, style_base_url).await?.source;
     Ok(match resolved {
         // A vector archive: the vector path, which fetches every source
         // itself (from the archive), with the archive's max zoom.
@@ -726,7 +755,7 @@ async fn resolve_source(
     source: &serde_json::Value,
     src_type: &str,
     client: &reqwest::Client,
-    auth_token: Option<&str>,
+    auth: &net::Auth,
     style_base_url: Option<&str>,
 ) -> Result<ResolvedSource, BasemapError> {
     let num = |v: &serde_json::Value, k: &str| v.get(k).and_then(|x| x.as_f64());
@@ -741,6 +770,9 @@ async fn resolve_source(
     // `scheme` from the source, else from its TileJSON (as MapLibre's
     // loadTileJson, where explicit source options take precedence).
     let mut scheme = source.get("scheme").and_then(|v| v.as_str()).map(str::to_owned);
+    // The scope the tiles' token is checked against: widened to the tile
+    // hosts of a TileJSON that came from a trusted host.
+    let mut tile_auth = auth.clone();
     // Resolve the tile URL templates and maxzoom.
     let (tiles, source_maxzoom): (Vec<String>, Option<u8>) = if !tile_list(source).is_empty() {
         let mz = source
@@ -752,6 +784,7 @@ async fn resolve_source(
         // The pmtiles protocol's TileJSON: zoom range from the archive
         // header; the source's own minzoom / maxzoom take precedence.
         let url = resolve_url(archive, style_base_url);
+        check_archive_origin(&url, style_base_url)?;
         let reader = open_pmtiles(&url, client).await?;
         let header = reader.get_header();
         minzoom = minzoom.or(Some(header.min_zoom as f64));
@@ -763,28 +796,18 @@ async fn resolve_source(
         (vec![format!("pmtiles://{url}")], Some(mz))
     } else if let Some(tilejson_url_raw) = source.get("url").and_then(|u| u.as_str()) {
         let tilejson_url = resolve_url(tilejson_url_raw, style_base_url);
-        let mut tilejson_req = client.get(&tilejson_url);
-        if let Some(token) = auth_token {
-            tilejson_req = tilejson_req.header("Authorization", format!("Bearer {token}"));
-        }
-        let resp = tilejson_req
-            .send()
-            .await
-            .map_err(|_| BasemapError::StyleFetchFailed {
-                url: tilejson_url.clone(),
-                status: 0,
-            })?;
-        if !resp.status().is_success() {
-            return Err(BasemapError::StyleFetchFailed {
-                url: tilejson_url.clone(),
-                status: resp.status().as_u16(),
-            });
-        }
-        let tilejson: serde_json::Value = resp.json().await.map_err(|_| {
+        let body = net::get(client, &tilejson_url, auth, net::limit::JSON).await.map_err(|e| match e {
+            net::FetchError::Status(status) => BasemapError::StyleFetchFailed { url: tilejson_url.clone(), status },
+            net::FetchError::Network(_) => BasemapError::StyleFetchFailed { url: tilejson_url.clone(), status: 0 },
+        })?;
+        let tilejson: serde_json::Value = serde_json::from_slice(&body.body).map_err(|_| {
             BasemapError::StyleParseError("could not parse TileJSON response".into())
         })?;
         let base = tilejson_base(&tilejson_url);
         let tiles: Vec<String> = tile_list(&tilejson).iter().map(|t| resolve_url(t, Some(&base))).collect();
+        if auth.token_for(&tilejson_url).is_some() {
+            tile_auth = auth.with_hosts(tiles.iter().map(String::as_str));
+        }
         if tiles.is_empty() {
             return Err(BasemapError::StyleParseError("TileJSON missing \"tiles\" array".into()));
         }
@@ -804,20 +827,15 @@ async fn resolve_source(
     };
 
     let urls = TileUrls { templates: tiles, tms: scheme.as_deref() == Some("tms") };
+    // The token goes with the tiles only when every tile host may have it.
+    let token = if tile_auth.allows_all(urls.templates.iter().map(String::as_str)) { tile_auth.token() } else { None };
     let source = if let Some(archive) = urls.templates.first().and_then(|t| t.strip_prefix("pmtiles://")) {
+        check_archive_origin(archive, style_base_url)?;
         TileSource::PMTiles { url: archive.to_owned(), maxzoom: source_maxzoom }
     } else if src_type == "vector" {
-        TileSource::MapboxVectorTile {
-            urls,
-            api_key: auth_token.map(str::to_owned),
-            maxzoom: source_maxzoom,
-        }
+        TileSource::MapboxVectorTile { urls, api_key: token.map(str::to_owned), maxzoom: source_maxzoom }
     } else {
-        TileSource::XyzRaster {
-            urls,
-            auth_header: auth_token.map(|t| format!("Bearer {t}")),
-            maxzoom: source_maxzoom,
-        }
+        TileSource::XyzRaster { urls, auth_header: token.map(|t| format!("Bearer {t}")), maxzoom: source_maxzoom }
     };
     Ok(ResolvedSource {
         source,
@@ -826,38 +844,58 @@ async fn resolve_source(
     })
 }
 
+/// A style downloaded from the web may name only remote archives: a local
+/// path or `file://` URL in it would let any web page read the user's files.
+fn check_archive_origin(archive: &str, style_base_url: Option<&str>) -> Result<(), BasemapError> {
+    let remote_style = style_base_url.is_some_and(|b| b.starts_with("http://") || b.starts_with("https://"));
+    let remote_archive = archive.starts_with("http://") || archive.starts_with("https://");
+    if remote_style && !remote_archive {
+        return Err(BasemapError::StyleParseError(format!(
+            "a style loaded from the web may not read local archives ({archive})"
+        )));
+    }
+    Ok(())
+}
+
 /// Fetch tiles from a PMTiles archive over HTTP using range requests.
 ///
 /// Opens the archive (header + root directory via two range requests), then
-/// fetches each requested tile.  Tiles absent from the archive (sparse
-/// coverage) are silently skipped.
+/// fetches each requested tile, `concurrency` at a time. Tiles absent from
+/// the archive (sparse coverage) are skipped; tiles that fail to load are
+/// skipped too, unless `fail_on_tile_error`.
 async fn fetch_pmtiles_tiles(
     url: &str,
     coords: &[tile_fetcher::TileCoord],
     client: &reqwest::Client,
+    concurrency: u32,
+    fail_on_tile_error: bool,
 ) -> Result<Vec<(tile_fetcher::TileCoord, tile_fetcher::TileData)>, BasemapError> {
     let reader = std::sync::Arc::new(open_pmtiles(url, client).await?);
+    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency.max(1) as usize));
     // Tiles are fetched concurrently and decompressed (tile_compression).
     let mut set = tokio::task::JoinSet::new();
     for (i, &coord) in coords.iter().enumerate() {
         let pm_coord = pmtiles::TileCoord::new(coord.z, coord.x, coord.y)
             .map_err(|e| BasemapError::RenderError(format!("PMTiles coord error: {e}")))?;
         let reader = reader.clone();
-        set.spawn(async move { (i, coord, reader.get_tile_decompressed(pm_coord).await) });
+        let semaphore = semaphore.clone();
+        set.spawn(async move {
+            let _permit = semaphore.acquire_owned().await;
+            (i, coord, reader.get_tile_decompressed(pm_coord).await)
+        });
     }
     let mut results = Vec::new();
     while let Some(joined) = set.join_next().await {
-        let Ok((i, coord, res)) = joined else { continue };
+        let (i, coord, res) = joined.map_err(|e| BasemapError::RenderError(format!("PMTiles fetch task failed: {e}")))?;
         match res {
             Ok(Some(bytes)) => results.push((i, coord, bytes.to_vec())),
             Ok(None) => {}
             Err(e) => {
-                log::warn!(
-                    "PMTiles tile {}/{}/{} fetch error (skipped): {e}",
-                    coord.z,
-                    coord.x,
-                    coord.y,
-                );
+                let msg = format!("PMTiles tile {}/{}/{} from {}: {e}", coord.z, coord.x, coord.y, net::redact(url));
+                if fail_on_tile_error {
+                    return Err(BasemapError::TileDecodeError(msg));
+                }
+                log::warn!("{msg} (skipped)");
             }
         }
     }
@@ -873,7 +911,7 @@ pub(crate) async fn open_pmtiles(
     let backend = tile_fetcher::ArchiveBackend::new(url.to_owned(), client.clone());
     pmtiles::AsyncPmTilesReader::try_from_source(backend)
         .await
-        .map_err(|e| BasemapError::RenderError(format!("PMTiles open failed ({url}): {e}")))
+        .map_err(|e| BasemapError::RenderError(format!("PMTiles open failed ({}): {e}", net::redact(url))))
 }
 
 /// Resolve a potentially-relative URL against a base URL.
@@ -928,9 +966,13 @@ async fn fetch_glyphs(
     let mut map = vector::symbol::GlyphMap::default();
     let Some(template) = style["glyphs"].as_str() else { return map };
     let template = resolve_url(template, style_base_url);
-    let decoded: Vec<vector::mvt::Tile> = tiles.iter().filter_map(|(_, b)| vector::mvt::decode(b).ok()).collect();
+    // Decoded once for the whole render: the renderer gets the same tiles
+    // from the shared cache.
+    let bytes: Vec<&[u8]> = tiles.iter().map(|(_, b)| b.as_slice()).collect();
+    let decoded: Vec<std::sync::Arc<vector::mvt::Tile>> =
+        vector::mvt::decode_shared(&bytes).into_iter().filter_map(Result::ok).collect();
     let mut needed: Vec<(String, u32)> =
-        vector::symbol::required_glyph_ranges(style, decoded.iter(), zoom).into_iter().collect();
+        vector::symbol::required_glyph_ranges(style, decoded.iter().map(|t| t.as_ref()), zoom).into_iter().collect();
     needed.sort();
     let mut set = tokio::task::JoinSet::new();
     for (stack, start) in needed {
@@ -939,12 +981,13 @@ async fn fetch_glyphs(
             .replace("{range}", &format!("{}-{}", start, start + 255));
         let client = client.clone();
         set.spawn(async move {
-            let resp = client.get(&url).send().await.ok()?;
-            if !resp.status().is_success() {
-                log::warn!("glyphs {url}: HTTP {}", resp.status());
-                return None;
+            match net::get(&client, &url, &net::Auth::none(), net::limit::ASSET).await {
+                Ok(f) => Some((stack, f.body)),
+                Err(e) => {
+                    log::warn!("glyphs {}: {e}", net::redact(&url));
+                    None
+                }
             }
-            Some((stack, resp.bytes().await.ok()?.to_vec()))
         });
     }
     let mut results = Vec::new();
@@ -988,12 +1031,11 @@ async fn fetch_sprite(
         let get = |url: String| {
             let client = client.clone();
             async move {
-                let resp = client.get(&url).send().await.ok()?;
-                if !resp.status().is_success() {
-                    log::warn!("sprite {url}: HTTP {}", resp.status());
-                    return None;
-                }
-                resp.bytes().await.ok().map(|b| b.to_vec())
+                net::get(&client, &url, &net::Auth::none(), net::limit::ASSET)
+                    .await
+                    .map_err(|e| log::warn!("sprite {}: {e}", net::redact(&url)))
+                    .ok()
+                    .map(|f| f.body)
             }
         };
         let mut fetched = None;
@@ -1070,102 +1112,114 @@ async fn fetch_vector_inputs(
             }
         }
     }
-    let mut sources = vector::render::SourceTiles::default();
-    let mut all_vector: Vec<(tile_fetcher::TileCoord, tile_fetcher::TileData)> = Vec::new();
-    for id in used {
-        let src = &style_val["sources"][&id];
-        let kind = src["type"].as_str().unwrap_or("");
-        if kind == "geojson" {
-            if src["cluster"].as_bool() == Some(true) {
-                log::warn!("source {id}: GeoJSON clustering is not supported; drawing unclustered features");
-            }
-            let data = match &src["data"] {
-                serde_json::Value::String(url) => {
-                    let url = resolve_url(url, style_base_url_of(request));
-                    match client.get(&url).send().await {
-                        Ok(r) if r.status().is_success() => r.json::<serde_json::Value>().await.unwrap_or_default(),
-                        Ok(r) => {
-                            log::warn!("source {id}: GeoJSON {url}: HTTP {}", r.status());
-                            continue;
-                        }
-                        Err(e) => {
-                            log::warn!("source {id}: GeoJSON {url}: {e}");
-                            continue;
+    // The sprite does not depend on the tiles: it downloads meanwhile.
+    let tiles = async {
+        let mut sources = vector::render::SourceTiles::default();
+        let mut all_vector: Vec<(tile_fetcher::TileCoord, tile_fetcher::TileData)> = Vec::new();
+        for id in used {
+            let src = &style_val["sources"][&id];
+            let kind = src["type"].as_str().unwrap_or("");
+            if kind == "geojson" {
+                if src["cluster"].as_bool() == Some(true) {
+                    log::warn!("source {id}: GeoJSON clustering is not supported; drawing unclustered features");
+                }
+                let data = match &src["data"] {
+                    serde_json::Value::String(url) => {
+                        let url = resolve_url(url, style_base_url_of(request));
+                        let shown = net::redact(&url);
+                        match net::get(client, &url, &net::Auth::none(), net::limit::GEOJSON).await {
+                            Ok(f) => serde_json::from_slice(&f.body).unwrap_or_default(),
+                            Err(e) => {
+                                log::warn!("source {id}: GeoJSON {shown}: {e}");
+                                continue;
+                            }
                         }
                     }
-                }
-                other => other.clone(),
-            };
-            let opts = vector::geojson::GeoJsonOptions::from_source(src);
-            let index = vector::geojson::GeoJsonIndex::new(&data, opts);
-            let tz = match vector_tz(Some(opts.max_zoom), 0) {
-                Some(z) => z,
-                None => continue,
-            };
-            let tiles: Vec<_> = vector::render::covering_tiles(bbox, tz)
-                .into_iter()
-                .map(|(c, wrap)| (c, wrap, index.tile(c.z, c.x, c.y)))
-                .collect();
-            all_vector.extend(tiles.iter().map(|(c, _, b)| (*c, b.clone())));
-            sources.vector.insert(id, tiles);
-            continue;
-        }
-        if kind != "vector" && kind != "raster" && kind != "raster-dem" {
-            if !kind.is_empty() {
-                log::warn!("source {id}: type {kind} is not supported yet");
-            }
-            continue;
-        }
-        let resolved = resolve_source(src, kind, client, request.auth_token.as_deref(), style_base_url_of(request)).await?;
-        let source = &resolved.source;
-        let fetch = |coords: Vec<tile_fetcher::TileCoord>| async move {
-            if let TileSource::PMTiles { url, .. } = source {
-                return fetch_pmtiles_tiles(url, &coords, client).await;
-            }
-            let urls = tile_fetcher::build_tile_urls(source, &coords, request.pixel_ratio);
-            tile_fetcher::fetch_all_tiles(
-                client,
-                urls,
-                source,
-                request.tile_timeout_ms,
-                request.tile_concurrency,
-                request.fail_on_tile_error,
-            )
-            .await
-        };
-        if kind == "vector" {
-            let Some(tz) = vector_tz(resolved.source.maxzoom(), resolved.minzoom) else { continue };
-            let covering = vector::render::covering_tiles(bbox, tz);
-            let mut coords: Vec<tile_fetcher::TileCoord> = covering.iter().map(|c| c.0).collect();
-            coords.sort_by_key(|c| (c.z, c.x, c.y));
-            coords.dedup();
-            let tiles = fetch(coords).await?;
-            let by_coord: std::collections::HashMap<(u8, u32, u32), &tile_fetcher::TileData> =
-                tiles.iter().map(|(c, d)| ((c.z, c.x, c.y), d)).collect();
-            let placed: Vec<_> = covering
-                .iter()
-                .filter_map(|(c, wrap)| by_coord.get(&(c.z, c.x, c.y)).map(|d| (*c, *wrap, (*d).clone())))
-                .collect();
-            all_vector.extend(tiles);
-            sources.vector.insert(id, placed);
-        } else {
-            let z = bbox::raster_tile_zoom(bbox, width, resolved.tile_size);
-            let z = resolved.source.maxzoom().map_or(z, |m| z.min(m));
-            if z < resolved.minzoom {
+                    other => other.clone(),
+                };
+                let opts = vector::geojson::GeoJsonOptions::from_source(src);
+                let index = vector::geojson::GeoJsonIndex::new(&data, opts);
+                let tz = match vector_tz(Some(opts.max_zoom), 0) {
+                    Some(z) => z,
+                    None => continue,
+                };
+                let tiles: Vec<_> = vector::render::covering_tiles(bbox, tz)
+                    .into_iter()
+                    .map(|(c, wrap)| (c, wrap, index.tile(c.z, c.x, c.y)))
+                    .collect();
+                all_vector.extend(tiles.iter().map(|(c, _, b)| (*c, b.clone())));
+                sources.vector.insert(id, tiles);
                 continue;
             }
-            let tiles = fetch(tile_fetcher::build_tile_coords(bbox, z)).await?;
-            if kind == "raster-dem" {
-                let unpack = vector::hillshade::unpack_vector(src);
-                sources.dem.insert(id, vector::hillshade::DemTiles { zoom: z, tiles, unpack });
+            if kind != "vector" && kind != "raster" && kind != "raster-dem" {
+                if !kind.is_empty() {
+                    log::warn!("source {id}: type {kind} is not supported yet");
+                }
+                continue;
+            }
+            let resolved = resolve_source(src, kind, client, &request_auth(request), style_base_url_of(request)).await?;
+            let source = &resolved.source;
+            let fetch = |coords: Vec<tile_fetcher::TileCoord>| async move {
+                if let TileSource::PMTiles { url, .. } = source {
+                    return fetch_pmtiles_tiles(url, &coords, client, request.tile_concurrency, request.fail_on_tile_error)
+                        .await;
+                }
+                let urls = tile_fetcher::build_tile_urls(source, &coords, request.pixel_ratio);
+                tile_fetcher::fetch_all_tiles(
+                    client,
+                    urls,
+                    source,
+                    request.tile_timeout_ms,
+                    request.tile_concurrency,
+                    request.fail_on_tile_error,
+                )
+                .await
+            };
+            if kind == "vector" {
+                let Some(tz) = vector_tz(resolved.source.maxzoom(), resolved.minzoom) else { continue };
+                let covering = vector::render::covering_tiles(bbox, tz);
+                let mut coords: Vec<tile_fetcher::TileCoord> = covering.iter().map(|c| c.0).collect();
+                coords.sort_by_key(|c| (c.z, c.x, c.y));
+                coords.dedup();
+                check_max_tiles(coords.len().try_into().unwrap_or(u32::MAX), request.max_tiles)?;
+                let tiles = fetch(coords).await?;
+                let by_coord: std::collections::HashMap<(u8, u32, u32), &tile_fetcher::TileData> =
+                    tiles.iter().map(|(c, d)| ((c.z, c.x, c.y), d)).collect();
+                let placed: Vec<_> = covering
+                    .iter()
+                    .filter_map(|(c, wrap)| by_coord.get(&(c.z, c.x, c.y)).map(|d| (*c, *wrap, (*d).clone())))
+                    .collect();
+                all_vector.extend(tiles);
+                sources.vector.insert(id, placed);
             } else {
-                sources.raster.insert(id, vector::render::RasterTiles { zoom: z, tiles });
+                let z = bbox::raster_tile_zoom(bbox, width, resolved.tile_size);
+                let mut z = resolved.source.maxzoom().map_or(z, |m| z.min(m));
+                // As raster basemaps: coarser tiles rather than more than max_tiles.
+                while z > resolved.minzoom && bbox::tile_count(bbox, z) > request.max_tiles {
+                    z -= 1;
+                }
+                if z < resolved.minzoom {
+                    continue;
+                }
+                let coords = tile_fetcher::build_tile_coords(bbox, z);
+                check_max_tiles(coords.len().try_into().unwrap_or(u32::MAX), request.max_tiles)?;
+                let tiles = fetch(coords).await?;
+                if kind == "raster-dem" {
+                    let unpack = vector::hillshade::unpack_vector(src);
+                    sources.dem.insert(id, vector::hillshade::DemTiles { zoom: z, tiles, unpack });
+                } else {
+                    sources.raster.insert(id, vector::render::RasterTiles { zoom: z, tiles });
+                }
             }
         }
-    }
+        Ok::<_, BasemapError>((sources, all_vector))
+    };
+    let (tiles, sprite) =
+        tokio::join!(tiles, fetch_sprite(client, &style_val, style_base_url_of(request), request.pixel_ratio));
+    let (sources, all_vector) = tiles?;
     let assets = vector::symbol::SymbolAssets {
         glyphs: fetch_glyphs(client, &style_val, style_base_url_of(request), &all_vector, sz).await,
-        sprite: fetch_sprite(client, &style_val, style_base_url_of(request), request.pixel_ratio).await,
+        sprite,
     };
     Ok((style_val, sources, assets, primary_tz))
 }
@@ -1220,7 +1274,7 @@ pub fn render_svg_stack_with(requests: Vec<RenderRequest>, options: &SvgOptions)
         let mut present: Vec<&'static str> = Vec::new();
         let mut inputs = Vec::new();
         for request in &requests {
-            let raw_json = request.style_input.resolve(&client, request.auth_token.as_deref()).await?;
+            let raw_json = request.style_input.resolve(&client, &request_auth(request)).await?;
             style::validate_maplibre_style(&raw_json)?;
             let style_json = if stacked {
                 let (selection, _) =
@@ -1240,7 +1294,7 @@ pub fn render_svg_stack_with(requests: Vec<RenderRequest>, options: &SvgOptions)
             let style_val: serde_json::Value =
                 serde_json::from_str(&style_json).map_err(|e| BasemapError::StyleParseError(e.to_string()))?;
             let tile_source =
-                extract_tile_source_from_style(&style_val, &client, request.auth_token.as_deref(), style_base_url_of(request)).await?;
+                extract_tile_source_from_style(&style_val, &client, &request_auth(request), style_base_url_of(request)).await?;
             // Raster-only styles take the same path: raster layers are
             // embedded as images (vector layers are paths and text).
             let (style_val, sources, assets, _) =

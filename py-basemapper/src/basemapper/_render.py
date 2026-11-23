@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from ._fetch import FetchOptions
 
 
 def _render_buffer(
@@ -41,14 +44,15 @@ def render_call(*args: Any, **kwargs: Any) -> Tuple[bytes, int, int]:
 
 
 def labels_arg(labels: Union[bool, str]) -> str:
-    """``labels`` (True, False or "only") as the core's "all" / "none" / "only"."""
+    """``labels`` as the core's "all" / "none" / "only" (True and False are
+    shorthand for "all" and "none", as in R)."""
     if labels is True:
         return "all"
     if labels is False:
         return "none"
-    if isinstance(labels, str) and labels.lower() == "only":
-        return "only"
-    raise ValueError(f'labels must be True, False or "only", not {labels!r}')
+    if isinstance(labels, str) and labels.lower() in ("all", "none", "only"):
+        return labels.lower()
+    raise ValueError(f'labels must be "all", "none" or "only" (or True / False), not {labels!r}')
 
 
 def _features_arg(features: Optional[Any]) -> Optional[List[str]]:
@@ -69,17 +73,16 @@ def render_basemap_raw(
     labels: Union[bool, str] = True,
     features: Optional[List[str]] = None,
     auth_token: Optional[str] = None,
-    tile_timeout_ms: int = 10_000,
-    max_tiles: int = 256,
-    tile_concurrency: int = 16,
-    fail_on_tile_error: bool = False,
+    fetch: Optional["FetchOptions"] = None,
+    **deprecated: Any,
 ) -> np.ndarray:
     """Render a basemap for bounds in one call.
 
     A one-shot render: fit ``bounds`` into a ``width`` x ``height`` CSS-pixel
-    view and return the pixels. :func:`basemap` with
-    :meth:`Basemap.render_array` gives the same result with a reusable view.
-    The same function exists in R (``render_basemap_raw()``).
+    view and return the pixels. This is the low-level one-shot render; for
+    most uses :func:`basemap` with :meth:`Basemap.render_array` is simpler
+    and gives a view to reuse. The same function exists in R
+    (``render_basemap_raw()``).
 
     Args:
         bounds: Bounding box: a ``[xmin, ymin, xmax, ymax]`` sequence in
@@ -101,7 +104,7 @@ def render_basemap_raw(
         layers: Optional layer filter: plain IDs keep only those layers,
             ``-`` prefixed IDs drop them; ``*`` and ``?`` are wildcards
             (``"-label_*"``).
-        labels: ``True`` keeps every layer, ``False`` drops the labels (text
+        labels: ``"all"`` (or ``True``) keeps every layer, ``"none"`` (or ``False``) drops the labels (text
             and icons), ``"only"`` keeps only the labels on a transparent
             background, to stack over another map. Catalogue raster
             basemaps switch to their label-free or label-only tiles.
@@ -111,11 +114,11 @@ def render_basemap_raw(
             background, water, landcover, parks, buildings, roads, rail,
             boundaries, places, poi, terrain, other (see the ``feature``
             of :func:`list_layers`).
-        auth_token: Optional access token for the tile service.
-        tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
-        max_tiles: Maximum tiles fetched per style.
-        tile_concurrency: Parallel tile downloads.
-        fail_on_tile_error: Abort on a failed tile instead of leaving it empty.
+        auth_token: Optional access token for the tile service (sent only to the style's own server).
+        fetch: How tiles are downloaded: a :class:`FetchOptions`.
+        **deprecated: ``tile_timeout_ms``, ``max_tiles``,
+            ``tile_concurrency`` and ``fail_on_tile_error`` are still
+            accepted, with a DeprecationWarning: use ``fetch``.
 
     Returns:
         numpy.ndarray: ``(height * pixel_ratio, width * pixel_ratio, 4)``
@@ -124,10 +127,12 @@ def render_basemap_raw(
     Raises:
         BasemapError: On any rendering or network failure.
     """
+    from ._fetch import _resolve_fetch
+
+    fetch = _resolve_fetch(fetch, "render_basemap_raw", deprecated)
     buf, w, h = _render_buffer(
         bounds, width, height, style, crs=crs, pixel_ratio=pixel_ratio, tile_zoom=tile_zoom,
         layers=layers, labels=labels_arg(labels), features=_features_arg(features), auth_token=auth_token,
-        tile_timeout_ms=tile_timeout_ms, max_tiles=max_tiles,
-        tile_concurrency=tile_concurrency, fail_on_tile_error=fail_on_tile_error,
+        **fetch._core(),
     )
     return np.frombuffer(buf, dtype=np.uint8).reshape(h, w, 4).copy()

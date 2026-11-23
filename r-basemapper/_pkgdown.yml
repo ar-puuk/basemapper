@@ -89,9 +89,14 @@ reference:
       - list_layers
       - get_attribution
 
-  - title: Tile cache
+  - title: Downloads and errors
+    desc: >
+      How tiles download (`fetch_options()`, the `fetch` argument), the tile
+      cache, and the classes of the errors basemapper raises.
     contents:
+      - fetch_options
       - tile_cache
+      - basemapper-errors
 
   - title: Coordinate utilities
     desc: Internal helpers exposed for advanced use.

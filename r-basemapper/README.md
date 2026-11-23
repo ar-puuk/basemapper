@@ -1,6 +1,7 @@
 # basemapper <img src="man/figures/logo.svg" align="right" height="139" alt="" />
 
 <!-- badges: start -->
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24457061.svg)](https://doi.org/10.5281/zenodo.24457061)
 <!-- badges: end -->
 
 > **Also available for Python** — the same Rust core, and the same functions
@@ -49,14 +50,15 @@ if not already present.
 ### Install the package
 
 ```r
-# Any one of these installs the v0.1.1 release; each compiles the Rust core.
-pak::pak("ar-puuk/basemapper/r-basemapper@v0.1.1")
-remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper", ref = "v0.1.1")
-devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper", ref = "v0.1.1")
+# Any one of these installs the latest release; each compiles the Rust core.
+pak::pak("ar-puuk/basemapper/r-basemapper")
+remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
+devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
 ```
 
-These install the latest release, v0.1.1 ([all releases](https://github.com/ar-puuk/basemapper/releases)).
-For the development version, leave out the version: `pak::pak("ar-puuk/basemapper/r-basemapper")`.
+These install the latest release: the `main` branch, which changes only when a
+release is made ([all releases](https://github.com/ar-puuk/basemapper/releases)).
+For the development version, install from the `dev` branch: `pak::pak("ar-puuk/basemapper/r-basemapper@dev")`.
 
 ## Quick example
 

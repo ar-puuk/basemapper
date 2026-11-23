@@ -10,12 +10,26 @@ thread_local! {
     static QUIET_PANIC: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
-/// An error for R. extendr raises a returned `Err` as a panic that it
-/// catches and turns into an R error; the default panic hook would also
-/// print "thread panicked at ..." to the console. Errors made here mark
-/// the next panic on this thread as expected, which the hook then keeps
-/// quiet; real panics still print.
+/// An input error found here (a validation error).
 fn err(e: impl std::fmt::Display) -> extendr_api::Error {
+    kind_err("validation", e)
+}
+
+/// A core error, with its kind (validation, style, network, render).
+fn core_err(e: basemapper_core::BasemapError) -> extendr_api::Error {
+    kind_err(e.kind(), e)
+}
+
+/// An error for R, its message prefixed with its kind (`[network] ...`):
+/// the R side raises it as a condition of class `basemapper_<kind>_error`
+/// (see `call_core()` in R/errors.R).
+///
+/// extendr raises a returned `Err` as a panic that it catches and turns
+/// into an R error; the default panic hook would also print "thread
+/// panicked at ..." to the console. Errors made here mark the next panic on
+/// this thread as expected, which the hook then keeps quiet; real panics
+/// still print.
+fn kind_err(kind: &str, e: impl std::fmt::Display) -> extendr_api::Error {
     static HOOK: std::sync::Once = std::sync::Once::new();
     HOOK.call_once(|| {
         let default = std::panic::take_hook();
@@ -26,7 +40,13 @@ fn err(e: impl std::fmt::Display) -> extendr_api::Error {
         }));
     });
     QUIET_PANIC.with(|q| q.set(true));
-    extendr_api::Error::Other(e.to_string())
+    extendr_api::Error::Other(format!("[{kind}] {e}"))
+}
+
+/// A count or size from R that must be at least 1 (R integers are signed:
+/// a plain `as u32` would turn -1 into 4294967295).
+fn positive(name: &str, v: i32) -> Result<u32> {
+    u32::try_from(v).ok().filter(|&n| n >= 1).ok_or_else(|| err(format!("{name} must be a positive integer, not {v}")))
 }
 
 fn opt<T>(v: Nullable<T>) -> Option<T> {
@@ -54,7 +74,7 @@ fn stack_requests(
     fail_on_tile_error: bool,
     tile_concurrency: i32,
 ) -> Result<Vec<RenderRequest>> {
-    let labels = basemapper_core::Labels::parse(labels).map_err(err)?;
+    let labels = basemapper_core::Labels::parse(labels).map_err(core_err)?;
     let features = opt(features);
     if bbox_3857.len() != 4 {
         return Err(err("bounds must have exactly 4 elements"));
@@ -62,21 +82,28 @@ fn stack_requests(
     if styles.is_empty() {
         return Err(err("at least one style is required"));
     }
-    // Not clamped: the core rejects out-of-range tile zooms with a clear error.
-    let tile_zoom = opt(tile_zoom).map(|z| z as u8);
+    let tile_zoom = match opt(tile_zoom) {
+        Some(z) if (0..=22).contains(&z) => Some(z as u8),
+        Some(z) => return Err(err(format!("tile_zoom must be between 0 and 22, not {z}"))),
+        None => None,
+    };
+    let (width, height) = (positive("width", width)?, positive("height", height)?);
+    let tile_timeout_ms = positive("tile_timeout_ms", tile_timeout_ms)?;
+    let max_tiles = positive("max_tiles", max_tiles)?;
+    let tile_concurrency = positive("tile_concurrency", tile_concurrency)?;
     let layers = opt(layers);
     let auth_token = opt(auth_token);
     Ok(styles
         .iter()
         .map(|s| RenderRequest {
             bbox: [bbox_3857[0], bbox_3857[1], bbox_3857[2], bbox_3857[3]],
-            width: width as u32,
-            height: height as u32,
+            width,
+            height,
             style_input: StyleInput::detect(s),
             tile_zoom,
-            tile_timeout_ms: tile_timeout_ms as u32,
-            max_tiles: max_tiles as u32,
-            tile_concurrency: tile_concurrency.max(1) as u32,
+            tile_timeout_ms,
+            max_tiles,
+            tile_concurrency,
             layers: layers.clone(),
             labels,
             features: features.clone(),
@@ -114,7 +141,7 @@ fn render_raw(
         &bbox_3857, width, height, styles, pixel_ratio, tile_zoom, tile_timeout_ms, max_tiles, layers, labels, features,
         auth_token, fail_on_tile_error, tile_concurrency,
     )?;
-    let r = render_stack(reqs).map_err(err)?;
+    let r = render_stack(reqs).map_err(core_err)?;
     let mut out: Robj = Raw::from_bytes(&r.pixels).into();
     out.set_attrib("width", r.width as i32)?;
     out.set_attrib("height", r.height as i32)?;
@@ -126,10 +153,11 @@ fn render_raw(
 #[extendr]
 fn encode_png_raw(pixels: Raw, width: i32, height: i32) -> Result<Raw> {
     let px = pixels.as_slice();
+    let (width, height) = (positive("width", width)?, positive("height", height)?);
     if px.len() != width as usize * height as usize * 4 {
         return Err(err("pixel buffer size does not match width * height * 4"));
     }
-    let png = basemapper_core::encode_png(px, width as u32, height as u32).map_err(err)?;
+    let png = basemapper_core::encode_png(px, width, height).map_err(core_err)?;
     Ok(Raw::from_bytes(&png))
 }
 
@@ -176,13 +204,14 @@ fn render_svg_raw(
         d.extend(opts.font_dirs);
         opts.font_dirs = d;
     }
-    render_svg_stack_with(reqs, &opts).map_err(err)
+    render_svg_stack_with(reqs, &opts).map_err(core_err)
 }
 
 /// EPSG:3857 bbox of a width x height CSS-pixel view at a MapLibre zoom.
 #[extendr]
-fn bbox_from_center_raw(lon: f64, lat: f64, zoom: f64, width: i32, height: i32) -> Vec<f64> {
-    basemapper_core::bbox_from_center(lon, lat, zoom, width as u32, height as u32).to_vec()
+fn bbox_from_center_raw(lon: f64, lat: f64, zoom: f64, width: i32, height: i32) -> Result<Vec<f64>> {
+    let (width, height) = (positive("width", width)?, positive("height", height)?);
+    Ok(basemapper_core::bbox_from_center(lon, lat, zoom, width, height).to_vec())
 }
 
 /// c(lon, lat, zoom) of the view fitting EPSG:3857 bounds in width x height.
@@ -192,14 +221,15 @@ fn fit_bounds_raw(bounds_3857: Vec<f64>, width: i32, height: i32) -> Result<Vec<
         return Err(err("bounds must have exactly 4 elements"));
     }
     let b = [bounds_3857[0], bounds_3857[1], bounds_3857[2], bounds_3857[3]];
-    let (lon, lat, zoom) = basemapper_core::fit_bounds(b, width as u32, height as u32);
+    let (width, height) = (positive("width", width)?, positive("height", height)?);
+    let (lon, lat, zoom) = basemapper_core::fit_bounds(b, width, height);
     Ok(vec![lon, lat, zoom])
 }
 
 /// The attribution text of stacked styles (plain text joined with " | ").
 #[extendr]
 fn attribution_raw(styles: Vec<String>, auth_token: Nullable<String>) -> Result<String> {
-    basemapper_core::attribution(&styles, opt(auth_token).as_deref()).map_err(err)
+    basemapper_core::attribution(&styles, opt(auth_token).as_deref()).map_err(core_err)
 }
 
 /// A style's layer ids in drawing order, with their types and features as
@@ -214,10 +244,10 @@ fn list_layers_raw(
 ) -> Result<Robj> {
     let filter = basemapper_core::LayerFilter {
         layers: opt(layers),
-        labels: basemapper_core::Labels::parse(labels).map_err(err)?,
+        labels: basemapper_core::Labels::parse(labels).map_err(core_err)?,
         features: opt(features),
     };
-    let rows = basemapper_core::list_layers(style, opt(auth_token).as_deref(), &filter).map_err(err)?;
+    let rows = basemapper_core::list_layers(style, opt(auth_token).as_deref(), &filter).map_err(core_err)?;
     let ids: Vec<String> = rows.iter().map(|l| l.id.clone()).collect();
     let types: Vec<String> = rows.iter().map(|l| l.kind.clone()).collect();
     // "" for layers without a source layer (NA in R).
@@ -233,7 +263,7 @@ fn list_layers_raw(
 // ── Styles (basemapper_core::providers, basemapper_core::tile_style) ────────
 
 fn parse_kind(kind: Nullable<String>) -> Result<Option<basemapper_core::TileKind>> {
-    opt(kind).map(|k| basemapper_core::TileKind::parse(&k)).transpose().map_err(err)
+    opt(kind).map(|k| basemapper_core::TileKind::parse(&k)).transpose().map_err(core_err)
 }
 
 #[extendr]
@@ -249,11 +279,11 @@ fn basemap_provider_raw(
         kind: parse_kind(kind)?,
         api_key: opt(api_key),
         tiles: opt(tiles),
-        labels: basemapper_core::Labels::parse(labels).map_err(err)?,
+        labels: basemapper_core::Labels::parse(labels).map_err(core_err)?,
         features: opt(features),
     };
     // Several styles, bottom to top, for a stacked basemap (UGRC.Lite).
-    providers::basemap_provider_styles(name, &opts).map_err(err)
+    providers::basemap_provider_styles(name, &opts).map_err(core_err)
 }
 
 /// The catalogue's names, with the other columns as attributes: `vector`,
@@ -286,7 +316,7 @@ fn tile_cache_raw(dir: Nullable<String>, clear: bool, max_size_mb: Nullable<f64>
         basemapper_core::cache::set_max_size((mb * 1024.0 * 1024.0) as u64);
     }
     if clear {
-        basemapper_core::cache::clear().map_err(|e| err(format!("could not clear the tile cache: {e}")))?;
+        basemapper_core::cache::clear().map_err(|e| kind_err("render", format!("could not clear the tile cache: {e}")))?;
     }
     Ok(match basemapper_core::cache::dir() {
         Some(d) => Nullable::NotNull(d.to_string_lossy().into_owned()),
@@ -324,7 +354,7 @@ fn tile_style_raw(
         source_layers: opt(source_layers),
         paint,
     };
-    let (style, dropped) = basemapper_core::tile_style(input, &opts, opt(auth_token).as_deref()).map_err(err)?;
+    let (style, dropped) = basemapper_core::tile_style(input, &opts, opt(auth_token).as_deref()).map_err(core_err)?;
     let mut out: Robj = style.into();
     out.set_attrib("dropped", dropped)?;
     Ok(out)

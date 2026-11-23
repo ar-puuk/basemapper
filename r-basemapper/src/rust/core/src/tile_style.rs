@@ -118,7 +118,7 @@ pub(crate) async fn tile_style(
     input: &str,
     opts: &TileStyleOptions,
     client: &reqwest::Client,
-    auth_token: Option<&str>,
+    auth: &crate::net::Auth,
 ) -> Result<(String, Vec<String>), BasemapError> {
     let want = |found: TileKind, what: &str| match opts.kind {
         Some(k) if k != found => Err(BasemapError::InvalidInput(format!(
@@ -168,7 +168,7 @@ pub(crate) async fn tile_style(
             let (kind, names) = match opts.kind.or_else(|| kind_from_template(&template)) {
                 Some(TileKind::Raster) => (TileKind::Raster, Vec::new()),
                 Some(TileKind::Vector) if opts.source_layers.is_some() => (TileKind::Vector, Vec::new()),
-                _ => probe(&urls, opts, client, auth_token).await?,
+                _ => probe(&urls, opts, client, auth).await?,
             };
             want(kind, "the tile URL")?;
             let mut source = json!({"type": kind.name(), "tiles": [template]});
@@ -188,11 +188,11 @@ pub(crate) async fn tile_style(
         }
         Input::VectorTileServer(base) => {
             want(TileKind::Vector, "an ArcGIS VectorTileServer")?;
-            let (style, url) = load_json(&format!("{base}/resources/styles/root.json"), client, auth_token).await?;
+            let (style, url) = load_json(&format!("{base}/resources/styles/root.json"), client, auth).await?;
             Ok((absolutize(style, &url).to_string(), Vec::new()))
         }
         Input::Resource(r) => {
-            let (v, url) = load_json(&r, client, auth_token).await?;
+            let (v, url) = load_json(&r, client, auth).await?;
             if v.get("layers").is_some() {
                 return Ok((absolutize(v, &url).to_string(), Vec::new()));
             }
@@ -232,7 +232,7 @@ pub(crate) async fn tile_style(
 pub(crate) async fn resolve_style_input(
     input: &str,
     client: &reqwest::Client,
-    auth_token: Option<&str>,
+    auth: &crate::net::Auth,
 ) -> Result<String, BasemapError> {
     let named = crate::providers::bare_name_style(input)?;
     let input = match &named {
@@ -240,7 +240,7 @@ pub(crate) async fn resolve_style_input(
         Some(url) => url.as_str(),
         None => input,
     };
-    tile_style(input, &TileStyleOptions::default(), client, auth_token).await.map(|(s, _)| s)
+    tile_style(input, &TileStyleOptions::default(), client, auth).await.map(|(s, _)| s)
 }
 
 /// An archive location the backend reads: URLs as they are, paths as
@@ -275,25 +275,25 @@ async fn probe(
     urls: &TileUrls,
     opts: &TileStyleOptions,
     client: &reqwest::Client,
-    auth_token: Option<&str>,
+    auth: &crate::net::Auth,
 ) -> Result<(TileKind, Vec<String>), BasemapError> {
     let url = urls.url(TileCoord { z: opts.minzoom.unwrap_or(0), x: 0, y: 0 }, 1.0);
-    let mut req = client.get(&url);
-    if let Some(t) = auth_token {
-        req = req.header("Authorization", format!("Bearer {t}"));
-    }
+    let req = crate::net::bearer(client.get(&url), auth, &url);
+    let shown = crate::net::redact(&url);
     let hint = "; give type = \"raster\" or \"vector\" (and source_layers for vector tiles)";
     let resp = req
         .send()
         .await
-        .map_err(|e| BasemapError::InvalidInput(format!("could not fetch a tile to detect its type ({url}: {e}){hint}")))?;
+        .map_err(|e| BasemapError::InvalidInput(format!("could not fetch a tile to detect its type ({shown}: {}){hint}", e.without_url())))?;
     if !resp.status().is_success() {
         return Err(BasemapError::InvalidInput(format!(
-            "could not fetch a tile to detect its type ({url}: HTTP {}){hint}",
+            "could not fetch a tile to detect its type ({shown}: HTTP {}){hint}",
             resp.status()
         )));
     }
-    let bytes = resp.bytes().await.map_err(|e| BasemapError::InvalidInput(format!("{url}: {e}")))?;
+    let bytes = crate::net::read_limited(resp, crate::net::limit::TILE)
+        .await
+        .map_err(|e| BasemapError::InvalidInput(format!("{shown}: {e}")))?;
     let b = &bytes[..];
     let image = b.starts_with(&[0x89, b'P', b'N', b'G'])
         || b.starts_with(&[0xff, 0xd8, 0xff])
@@ -304,11 +304,11 @@ async fn probe(
         return Ok((TileKind::Raster, Vec::new()));
     }
     let tile = crate::vector::mvt::decode(b)
-        .map_err(|e| BasemapError::InvalidInput(format!("{url}: neither an image nor a vector tile ({e}){hint}")))?;
+        .map_err(|e| BasemapError::InvalidInput(format!("{shown}: neither an image nor a vector tile ({e}){hint}")))?;
     let mut names: Vec<String> = tile.layers.into_keys().collect();
     names.sort();
     if names.is_empty() {
-        return Err(BasemapError::InvalidInput(format!("{url}: the probed vector tile is empty{hint}")));
+        return Err(BasemapError::InvalidInput(format!("{shown}: the probed vector tile is empty{hint}")));
     }
     Ok((TileKind::Vector, names))
 }
@@ -401,32 +401,22 @@ fn build_style(kind: TileKind, mut source: Value, names: Vec<String>, opts: &Til
 async fn load_json(
     input: &str,
     client: &reqwest::Client,
-    auth_token: Option<&str>,
+    auth: &crate::net::Auth,
 ) -> Result<(Value, String), BasemapError> {
     if is_http(input) {
-        let mut req = client.get(input);
-        if let Some(token) = auth_token {
-            req = req.header("Authorization", format!("Bearer {token}"));
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|_| BasemapError::StyleFetchFailed { url: input.to_owned(), status: 0 })?;
-        if !resp.status().is_success() {
-            return Err(BasemapError::StyleFetchFailed { url: input.to_owned(), status: resp.status().as_u16() });
-        }
-        let url = resp.url().to_string();
-        let text = resp
-            .text()
-            .await
-            .map_err(|_| BasemapError::StyleParseError("could not read style response body".into()))?;
-        let v = serde_json::from_str(&text).map_err(|e| BasemapError::StyleParseError(format!("{input}: {e}")))?;
-        return Ok((v, url));
+        let fetched = crate::net::get(client, input, auth, crate::net::limit::JSON).await.map_err(|e| match e {
+            crate::net::FetchError::Status(status) => BasemapError::StyleFetchFailed { url: input.to_owned(), status },
+            crate::net::FetchError::Network(_) => BasemapError::StyleFetchFailed { url: input.to_owned(), status: 0 },
+        })?;
+        let v = serde_json::from_slice(&fetched.body)
+            .map_err(|e| BasemapError::StyleParseError(format!("{}: {e}", crate::net::redact(input))))?;
+        return Ok((v, fetched.url));
     }
     let path = local_path(input);
     let text = std::fs::read_to_string(&path).map_err(|_| {
         BasemapError::InvalidInput(format!(
-            "style {input:?} is not a style, a tile URL, a .pmtiles archive or an existing file"
+            "style {:?} is not a style, a tile URL, a .pmtiles archive or an existing file",
+            crate::net::redact(input)
         ))
     })?;
     let v = serde_json::from_str(&text).map_err(|e| BasemapError::StyleParseError(format!("{input}: {e}")))?;

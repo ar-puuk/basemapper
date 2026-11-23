@@ -16,6 +16,9 @@ on:
       - 'r-basemapper/src/rust/core/src/**'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   drift-check:
     runs-on: ubuntu-latest

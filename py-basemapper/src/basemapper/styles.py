@@ -48,7 +48,7 @@ def basemap_provider(
             ``.pmtiles`` archive (URL or path), tile URL or TileJSON. It must
             use the same schema as the provider's tiles (OpenMapTiles for
             OpenFreeMap and Stadia).
-        labels: ``True`` keeps every layer, ``False`` drops the labels,
+        labels: ``"all"`` (or ``True``) keeps every layer, ``"none"`` (or ``False``) drops the labels,
             ``"only"`` keeps only the labels, to stack this basemap's labels
             over another map. Raster tiles switch to the provider's
             label-free or label-only tiles (an error when it has none).
@@ -205,7 +205,7 @@ def tile_style(
         paint: Vector tiles: paint properties for the generated ``fill-*``,
             ``line-*`` and ``circle-*`` layers, e.g. ``{"fill-color": "#ccc"}``.
             Others are dropped with a warning.
-        auth_token: Optional access token for the tile service.
+        auth_token: Optional access token for the tile service (sent only to the style's own server).
 
     Returns:
         The style JSON.

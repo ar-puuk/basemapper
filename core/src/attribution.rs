@@ -78,7 +78,7 @@ async fn source_attribution(
     source: &Value,
     base: Option<&str>,
     client: &reqwest::Client,
-    auth_token: Option<&str>,
+    auth: &crate::net::Auth,
 ) -> Option<String> {
     if let Some(a) = source["attribution"].as_str() {
         return Some(a.to_owned());
@@ -90,11 +90,8 @@ async fn source_attribution(
         return meta["attribution"].as_str().map(str::to_owned);
     }
     let url = crate::resolve_url(url, base);
-    let mut req = client.get(&url);
-    if let Some(token) = auth_token {
-        req = req.header("Authorization", format!("Bearer {token}"));
-    }
-    let tilejson: Value = req.send().await.ok()?.error_for_status().ok()?.json().await.ok()?;
+    let fetched = crate::net::get(client, &url, auth, crate::net::limit::JSON).await.ok()?;
+    let tilejson: Value = serde_json::from_slice(&fetched.body).ok()?;
     tilejson["attribution"].as_str().or_else(|| tilejson["copyrightText"].as_str()).map(str::to_owned)
 }
 
@@ -129,7 +126,8 @@ pub(crate) async fn attribution(
             next_fixed += 1;
         }
         let input = StyleInput::detect(s);
-        let json = input.resolve(client, auth_token).await?;
+        let auth = crate::net::Auth::for_input(auth_token, s);
+        let json = input.resolve(client, &auth).await?;
         let base = match &input {
             StyleInput::Url(u) if u.starts_with("http") || u.starts_with("file://") => Some(u.as_str()),
             _ => None,
@@ -144,7 +142,7 @@ pub(crate) async fn attribution(
             }
         }
         for id in used {
-            if let Some(a) = source_attribution(&style["sources"][id], base, client, auth_token).await {
+            if let Some(a) = source_attribution(&style["sources"][id], base, client, &auth).await {
                 add_credit(&mut parts, plain_text(&a));
             }
         }

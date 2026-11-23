@@ -7,12 +7,45 @@ for users of each package,
 in more words: [R](r-basemapper/NEWS.md) and
 [Python](py-basemapper/CHANGELOG.md).
 
-## v0.1.1
+## v0.2.0
 
-Tagged v0.1.1 when merged into `main`; until then on `dev`.
+Tagged v0.2.0 when merged into `main`; until then on `dev`.
+
+### Features
+
+- fetch options, named arguments, classed R errors, optional sf/terra/matplotlib ([a70bc71](https://github.com/ar-puuk/basemapper/commit/a70bc71e7d7a129737c0deb7177aa333db4f7b13))
+
+### Fixes
+
+- **python:** plot integrations import plainly; CI installs the plot extras ([36b11f1](https://github.com/ar-puuk/basemapper/commit/36b11f115906f160b08498dabb164133dde40814))
+- **deps:** update dependencies with security advisories; PyO3 0.29 ([bfa32fc](https://github.com/ar-puuk/basemapper/commit/bfa32fc3bf0a8150e63541cde803bffdca16f361))
+- **cache:** never keep responses from the local machine in memory ([94ca02c](https://github.com/ar-puuk/basemapper/commit/94ca02caa53ce7fac5a9698a95533cd98061bece))
+- enforce max_tiles for vector tiles; scope tokens; harden downloads ([5dcba03](https://github.com/ar-puuk/basemapper/commit/5dcba03aa61101ceef89057c2f7fc6d6d4ab8c3e))
+
+### Performance
+
+- cache resources and decoded tiles, share the HTTP client, decode in parallel ([77fc81c](https://github.com/ar-puuk/basemapper/commit/77fc81c2acce25d7669ec31f414a2583067be2da))
 
 ### Documentation
 
+- **changelog:** the v0.2.0 section ([db73aee](https://github.com/ar-puuk/basemapper/commit/db73aeee1861197937fcde914e43baff91421469))
+- install instructions install the latest release, never a pinned version ([ffb22df](https://github.com/ar-puuk/basemapper/commit/ffb22df731dd656e4bf9868b8a2327e47ced7a94))
+- CITATION.cff for GitHub's "Cite this repository" ([6a69b01](https://github.com/ar-puuk/basemapper/commit/6a69b01e76eb6847301e861f4e9b47e0c5d8e189))
+- Zenodo DOI badge for the package (all versions) ([6e6f112](https://github.com/ar-puuk/basemapper/commit/6e6f112646f10df4a8cd4688b563503a262f1fae))
+
+### CI
+
+- read-only token, clippy bug lints, RustSec audit; R builds --locked ([7ff4e3a](https://github.com/ar-puuk/basemapper/commit/7ff4e3a45e586354292fd19125ced044e03a5fa2))
+
+### Maintenance
+
+- release 0.2.0 ([196ecdb](https://github.com/ar-puuk/basemapper/commit/196ecdbf8e1e27aee356ef05c80adb7b36844d36))
+
+## [v0.1.1](https://github.com/ar-puuk/basemapper/releases/tag/v0.1.1) (2026-11-22): [#7](https://github.com/ar-puuk/basemapper/pull/7) Release v0.1.1: install pins, fresh Python docs builds
+
+### Documentation
+
+- **changelog:** the v0.1.1 section ([3e115af](https://github.com/ar-puuk/basemapper/commit/3e115af4f59d0c63cb5f4ff1856c8294414c3da7))
 - stop tracking great-docs' _freeze; CI runs every Python page ([fa0105b](https://github.com/ar-puuk/basemapper/commit/fa0105b6043d863de9074b3880e01913020de453))
 - install instructions pinned to the v0.1.0 release ([7cf2ff3](https://github.com/ar-puuk/basemapper/commit/7cf2ff33c09732e871a53da77f7c13f557854a0d))
 - **changelog:** link the v0.1.0 section to its tag ([4ae94d3](https://github.com/ar-puuk/basemapper/commit/4ae94d38bf2e77e06287736bbd831a70cffe9226))

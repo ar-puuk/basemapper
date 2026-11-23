@@ -1,5 +1,74 @@
 # Changelog
 
+## 0.2.0 (2026-11-23)
+
+### New interface for download settings
+
+- New `FetchOptions` gathers how tiles download: `timeout` (now in
+  seconds), `max_tiles`, `concurrency` and `on_error` (`"skip"` or
+  `"fail"`). `basemap()`, `Basemap`, `render_basemap_raw()`,
+  `add_basemap()` and `geom_basemap()` take it as
+  `fetch=FetchOptions(...)`, which shortens their argument lists.
+- `tile_timeout_ms`, `max_tiles`, `tile_concurrency` and
+  `fail_on_tile_error` are deprecated: they still work, with a
+  `DeprecationWarning` saying what to write instead. An unknown keyword
+  is a `TypeError`.
+- `add_basemap()` and `geom_basemap()` take their options as keywords only
+  (`add_basemap(ax, style, alpha=0.8)`).
+- `labels` also takes `"all"` and `"none"`, as in R (`True` and `False`
+  still work).
+- matplotlib and xarray are now optional: `pip install
+  'basemapper[matplotlib]'` (or `[plotnine]`, `[all]`) for `add_basemap()`
+  and `geom_basemap()`, which explain what to install if they are missing.
+  Rendering images and SVG needs only numpy and pyproj.
+
+### Performance
+
+- Rendering the same view again (a figure redrawn, a notebook re-run) no
+  longer downloads the style, TileJSON, glyphs, sprite or PMTiles
+  directories: they are kept in memory for as long as the server's caching
+  headers allow (at most an hour; never for servers on the local machine,
+  as for the disk cache). Decoded tiles are kept too, so a repeat render
+  makes no requests and skips decoding.
+- Tiles are decoded on all cores, raster layers and raster basemaps are
+  resized in parallel, and the styles of a stacked basemap (`"UGRC.Lite"`)
+  download and render concurrently. Connections and TLS sessions are reused
+  across renders.
+
+### Bug fixes
+
+- `max_tiles` now limits vector tiles too. It used to be checked against the
+  raster tile grid only, so a large vector view (or `render_svg()`, or a
+  style's extra raster, hillshade or vector sources) could fetch many more
+  tiles than the limit. Raster layers in vector styles drop to coarser tiles
+  to fit, as raster basemaps do; vector sources that need more tiles than
+  the limit raise `ValidationError`.
+- An invalid `pixel_ratio` or `tile_zoom` is reported as such, not as an
+  "invalid bbox".
+- PMTiles archives honour `fail_on_tile_error` and `tile_concurrency`.
+- A broken sprite index is skipped instead of stopping the render.
+
+### Security
+
+- Access tokens (`auth_token`) are sent only to the origin the style came
+  from (and to the tile servers a TileJSON from there names), no longer to
+  every server a style mentions, such as a third-party overlay. Styles given
+  as JSON or a local file are yours: their servers all get the token, as
+  before.
+- API keys in URLs (`key=`, `api_key=`, `access_token=`, UGRC's quad word,
+  ...) are replaced by `***` in error messages and logs.
+- Downloads have size limits, counted after decompression (tiles 32 MB,
+  styles 64 MB, GeoJSON 512 MB, glyphs, sprites and fonts 32 MB), and
+  gzip-compressed tiles may inflate to at most 64 MB.
+- A style downloaded from the web can no longer read local PMTiles files.
+- Downloaded fonts are cached in the tile cache's folder, so
+  `BASEMAPPER_CACHE_DIR=off` turns the font cache off too.
+
+### Documentation
+
+- The install instructions name no version: they install the latest
+  release, and `@dev` the development version.
+
 ## 0.1.1 (2026-11-22)
 
 - The install instructions in the README, the get-started guide and the

@@ -1,3 +1,91 @@
+# basemapper 0.2.0
+
+## New interface for download settings
+
+* New `fetch_options()` gathers how tiles download: `timeout` (now in
+  seconds), `max_tiles`, `concurrency` and `on_error` (`"skip"` or
+  `"fail"`). `basemap()`, `render_basemap_raw()`, `geom_basemap()` and
+  `tm_basemap()` take it as `fetch = fetch_options(...)`, which shortens
+  their argument lists by four.
+* `tile_timeout_ms`, `max_tiles`, `tile_concurrency` and
+  `fail_on_tile_error` are deprecated: they still work, with a warning
+  saying what to write instead.
+* Arguments after the first ones must now be named (`basemap(style, 800,
+  600, zoom = 12)`); an unknown argument name is an error rather than being
+  ignored. `geom_basemap()` and `tm_basemap()` now take `...` right after
+  `style`.
+* Errors carry classes, the same kinds as Python's exceptions:
+  `basemapper_validation_error`, `basemapper_style_error`,
+  `basemapper_network_error` and `basemapper_render_error`, each also a
+  `basemapper_error` (see `?basemapper-errors`).
+* `labels` takes `"all"`, `"none"` or `"only"`, with `TRUE` and `FALSE` as
+  shorthand (as before).
+* sf and terra are now suggested rather than required: views, bounds in
+  EPSG:4326 or EPSG:3857, and `get_bounds(lonlat = TRUE)` work without
+  them. Bounds in another CRS or as `sf` objects need sf; `render_raster()`
+  needs terra. You are offered to install them when needed. On Linux this
+  saves installing GDAL, GEOS and PROJ.
+
+## Performance
+
+* Redrawing a plot (resizing it, `ggsave()`, re-knitting) no longer
+  downloads the style, TileJSON, glyphs, sprite or PMTiles directories
+  again: they are kept in memory for as long as the server's caching
+  headers allow (at most an hour; never for servers on the local machine,
+  as for the disk cache). Decoded tiles are kept too, so a redraw makes no
+  requests and skips decoding.
+* Tiles are decoded on all cores, raster layers and raster basemaps are
+  resized in parallel, and the styles of a stacked basemap (`"UGRC.Lite"`)
+  download and render concurrently. Connections and TLS sessions are reused
+  across renders.
+* `plot()` and `geom_basemap()` draw the basemap as a `nativeRaster`: a
+  4000 x 3000 px map (e.g. `ggsave(dpi = 300)`) no longer builds an 800 MB
+  intermediate array, and the conversion takes milliseconds instead of
+  about 8 seconds.
+
+## Bug fixes
+
+* `max_tiles` now limits vector tiles too. It used to be checked against the
+  raster tile grid only, so a large vector view (or `render_svg()`, or a
+  style's extra raster, hillshade or vector sources) could fetch many more
+  tiles than the limit. Raster layers in vector styles drop to coarser tiles
+  to fit, as raster basemaps do; vector sources that need more tiles than
+  the limit are an error.
+* Out-of-range integers are errors instead of wrapping: `tile_zoom = 256`
+  used to render at zoom 0, and a negative `max_tiles` or `tile_timeout_ms`
+  turned the limit off.
+* A failed attribution lookup (a network blip) is retried after a minute,
+  rather than leaving every later plot of the session without its credit
+  line.
+* An invalid `pixel_ratio` or `tile_zoom` is reported as such, not as an
+  "invalid bbox".
+* PMTiles archives honour `fail_on_tile_error` and `tile_concurrency`.
+* A broken sprite index is skipped instead of stopping the render.
+
+## Security
+
+* Access tokens (`auth_token`) are sent only to the origin the style came
+  from (and to the tile servers a TileJSON from there names), no longer to
+  every server a style mentions, such as a third-party overlay. Styles given
+  as JSON or a local file are yours: their servers all get the token, as
+  before.
+* API keys in URLs (`key=`, `api_key=`, `access_token=`, UGRC's quad word,
+  ...) are replaced by `***` in error messages and logs.
+* Downloads have size limits, counted after decompression (tiles 32 MB,
+  styles 64 MB, GeoJSON 512 MB, glyphs, sprites and fonts 32 MB), and
+  gzip-compressed tiles may inflate to at most 64 MB.
+* A style downloaded from the web can no longer read local PMTiles files.
+* Downloaded fonts are cached in the tile cache's folder
+  (`tools::R_user_dir("basemapper", "cache")`), so turning the cache off
+  turns the font cache off too.
+* The Rust library is built with `cargo build --locked`, from the exact
+  dependency versions in `Cargo.lock`.
+
+## Documentation
+
+* The install instructions name no version: `pak::pak("ar-puuk/basemapper/r-basemapper")`
+  installs the latest release, and `@dev` the development version.
+
 # basemapper 0.1.1
 
 * The install instructions in the README, the getting-started article and

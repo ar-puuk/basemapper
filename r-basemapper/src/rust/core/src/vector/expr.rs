@@ -1000,6 +1000,6 @@ mod tests {
         assert_eq!(e(json!(["slice", ["get", "name"], -4])), Val::Str("Lake".into()));
         assert_eq!(e(json!(["index-of", "Lake", ["get", "name"]])), Val::Num(5.0));
         assert_eq!(e(json!(["at", 1, ["literal", [10, 20, 30]]])), Val::Num(20.0));
-        assert_eq!(e(json!(["number-format", 3.14159, {"max-fraction-digits": 2}])), Val::Str("3.14".into()));
+        assert_eq!(e(json!(["number-format", 1.23456, {"max-fraction-digits": 2}])), Val::Str("1.23".into()));
     }
 }

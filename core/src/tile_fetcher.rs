@@ -12,6 +12,11 @@ use tokio::task::JoinSet;
 static TILE_CACHE: Lazy<Mutex<LruCache<String, Vec<u8>>>> =
     Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(512).unwrap())));
 
+/// Byte ranges of remote PMTiles archives (header, directories, tiles), so
+/// redrawing a view does not read them again.
+static PMTILES_RANGES: Lazy<Mutex<crate::net::ResourceCache>> =
+    Lazy::new(|| Mutex::new(crate::net::ResourceCache::new(128 << 20)));
+
 /// A source's tile URL templates (MapLibre's `tiles`) and `scheme`.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct TileUrls {
@@ -126,6 +131,14 @@ impl pmtiles::AsyncBackend for ArchiveBackend {
             match location {
                 Ok((url, client)) => {
                     let end = offset + length - 1;
+                    // Header, directories and tiles are re-read on every
+                    // render: keep the ranges in memory (not for archives on
+                    // the local machine, as the disk cache).
+                    let key = format!("{url}\n{offset}-{end}");
+                    let cache = crate::cache::cacheable(&url);
+                    if let Some(hit) = cache.then(|| PMTILES_RANGES.lock().ok().and_then(|mut c| c.get(&key))).flatten() {
+                        return Ok(pmtiles::BackendResponse::new(bytes::Bytes::copy_from_slice(&hit.body)));
+                    }
                     // Ranges of the file itself: a server free to compress
                     // (GitHub Pages) would otherwise return a range of the
                     // gzipped file, which is not the archive's bytes.
@@ -135,11 +148,25 @@ impl pmtiles::AsyncBackend for ArchiveBackend {
                         .header("Accept-Encoding", "identity")
                         .send()
                         .await
-                        .map_err(|e| read_error(e.to_string()))?;
+                        .map_err(|e| read_error(e.without_url().to_string()))?;
                     if !resp.status().is_success() {
-                        return Err(read_error(format!("HTTP {} fetching PMTiles range from {url}", resp.status())));
+                        return Err(read_error(format!(
+                            "HTTP {} fetching PMTiles range from {}",
+                            resp.status(),
+                            crate::net::redact(&url)
+                        )));
                     }
-                    let bytes = resp.bytes().await.map_err(|e| read_error(e.to_string()))?;
+                    let ttl = crate::cache::ttl(resp.headers()).map(|t| t.min(Duration::from_secs(3600)));
+                    // At most the range asked for: a server that ignores
+                    // `Range` would otherwise send the whole archive.
+                    let bytes = crate::net::read_limited(resp, length.max(1))
+                        .await
+                        .map_err(|e| read_error(format!("PMTiles range from {}: {e}", crate::net::redact(&url))))?;
+                    let bytes = bytes::Bytes::from(bytes);
+                    if let (true, Some(ttl), Ok(mut c)) = (cache, ttl, PMTILES_RANGES.lock()) {
+                        let body = std::sync::Arc::new(bytes.to_vec());
+                        c.put(key, ttl, crate::net::Fetched { body, url: String::new() });
+                    }
                     Ok(pmtiles::BackendResponse::new(bytes))
                 }
                 Err(path) => {
@@ -298,7 +325,7 @@ pub async fn fetch_all_tiles(
     fail_on_tile_error: bool,
 ) -> Result<Vec<(TileCoord, TileData)>, BasemapError> {
     let timeout = Duration::from_millis(timeout_ms as u64);
-    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency as usize));
+    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency.max(1) as usize));
     let mut set: JoinSet<Result<(TileCoord, TileData), BasemapError>> = JoinSet::new();
 
     for (coord, url) in urls {
@@ -312,20 +339,26 @@ pub async fn fetch_all_tiles(
         };
 
         set.spawn(async move {
-            let _permit = sem.acquire().await.unwrap();
+            let _permit = sem.acquire().await.map_err(|e| BasemapError::RenderError(e.to_string()))?;
 
-            // Cache hit — skip network entirely.
-            if let Ok(mut cache) = TILE_CACHE.lock() {
-                if let Some(cached) = cache.get(&url) {
-                    return Ok((coord, cached.clone()));
+            // Cache hit — skip network entirely. (Tiles from the local
+            // machine are not cached, in memory or on disk.)
+            let in_memory = crate::cache::cacheable(&url);
+            if in_memory {
+                if let Ok(mut cache) = TILE_CACHE.lock() {
+                    if let Some(cached) = cache.get(&url) {
+                        return Ok((coord, cached.clone()));
+                    }
                 }
             }
 
             let cache_on_disk = auth.is_none();
             if cache_on_disk {
                 if let Some(data) = crate::cache::get(&url) {
-                    if let Ok(mut cache) = TILE_CACHE.lock() {
-                        cache.put(url.clone(), data.clone());
+                    if in_memory {
+                        if let Ok(mut cache) = TILE_CACHE.lock() {
+                            cache.put(url.clone(), data.clone());
+                        }
                     }
                     return Ok((coord, data));
                 }
@@ -349,14 +382,10 @@ pub async fn fetch_all_tiles(
                 });
             }
             let headers = resp.headers().clone();
-            let bytes = resp
-                .bytes()
-                .await
-                .map_err(|_| BasemapError::TileFetchFailed {
-                    url: url.clone(),
-                    status: 0,
-                })?;
-            let data = bytes.to_vec();
+            let data = crate::net::read_limited(resp, crate::net::limit::TILE).await.map_err(|e| {
+                log::warn!("tile {}: {e}", crate::net::redact(&url));
+                BasemapError::TileFetchFailed { url: url.clone(), status: 0 }
+            })?;
             if is_web_page(&headers, &data) {
                 return Err(BasemapError::TileIsWebPage { url: url.clone() });
             }
@@ -365,8 +394,10 @@ pub async fn fetch_all_tiles(
             }
 
             // Populate cache for future renders.
-            if let Ok(mut cache) = TILE_CACHE.lock() {
-                cache.put(url, data.clone());
+            if in_memory {
+                if let Ok(mut cache) = TILE_CACHE.lock() {
+                    cache.put(url, data.clone());
+                }
             }
 
             Ok((coord, data))

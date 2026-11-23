@@ -31,6 +31,7 @@ sync-core:
 
 $(STATLIB): sync-core
 	cargo build --release \
+	  --locked \
 	  --target=$(TARGET_ARCH) \
 	  --manifest-path="$(CARGO_MANIFEST)" \
 	  --target-dir="$(CURDIR)/../../target"

@@ -1,15 +1,17 @@
 #' Render a basemap for bounds in one call
 #'
-#' A one-shot render: fit `bounds` into a `width` x `height` CSS-pixel view
-#' and return the pixels. [basemap()] with [render_array()] gives the same
-#' result with a reusable view; plot integrations use this function. The
-#' same function exists in Python (`basemapper.render_basemap_raw()`).
+#' The low-level one-shot render: fit `bounds` into a `width` x `height`
+#' CSS-pixel view and return the pixels, with the extent in the input's own
+#' CRS. For most uses, [basemap()] with [render_array()] or
+#' [render_raster()] is simpler and gives a view to reuse. The same function
+#' exists in Python (`basemapper.render_basemap_raw()`).
 #'
 #' @param bounds Bounding box: `c(xmin, ymin, xmax, ymax)` in `crs` (default
 #'   EPSG:4326, with a message when the values look projected), an
 #'   [sf::st_bbox()] result, or an `sf` / `sfc` / `sfg` object (CRS read from
 #'   the object).
 #' @param width,height View size in CSS pixels.
+#' @param style A style, as [basemap()] takes it.
 #' @inheritParams basemap
 #' @param tile_zoom Tile detail override: the tile zoom on the 256 px grid
 #'   (vector sources use one less, their tiles being 512 px), or `NULL` to
@@ -38,18 +40,17 @@ render_basemap_raw <- function(
     width,
     height,
     style,
-    crs                = NULL,
-    pixel_ratio        = 1,
-    tile_zoom          = NULL,
-    layers             = NULL,
-    labels             = TRUE,
-    features           = NULL,
-    auth_token         = NULL,
-    tile_timeout_ms    = 10000L,
-    max_tiles          = 256L,
-    tile_concurrency   = 16L,
-    fail_on_tile_error = FALSE
+    ...,
+    crs         = NULL,
+    pixel_ratio = 1,
+    tile_zoom   = NULL,
+    layers      = NULL,
+    labels      = TRUE,
+    features    = NULL,
+    auth_token  = NULL,
+    fetch       = fetch_options()
 ) {
+  fetch <- fetch_with_deprecated(fetch, list(...), "render_basemap_raw", after = "style")$fetch
   check_pixel_ratio(pixel_ratio)
   norm       <- normalize_bbox(bounds, crs)
   input_vals <- norm$vals
@@ -62,10 +63,8 @@ render_basemap_raw <- function(
   }
   px <- render_styles_3857(
     unname(bbox_3857), width, height, style, pixel_ratio, tile_zoom = tile_zoom,
-    options = list(layers = layers, labels = labels_arg(labels), features = features,
-                   auth_token = auth_token, tile_timeout_ms = tile_timeout_ms,
-                   max_tiles = max_tiles, tile_concurrency = tile_concurrency,
-                   fail_on_tile_error = fail_on_tile_error)
+    options = c(list(layers = layers, labels = labels_arg(labels), features = features,
+                     auth_token = auth_token), fetch_core(fetch))
   )
   with_extent(
     pixels_to_array(px),

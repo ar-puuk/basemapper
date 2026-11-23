@@ -12,6 +12,7 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
+from ._fetch import FetchOptions, _resolve_fetch
 from ._render import _features_arg, labels_arg
 
 StyleLike = Union[str, Any]
@@ -71,11 +72,10 @@ class Basemap:
         labels: Union[bool, str] = True,
         features: Optional[List[str]] = None,
         auth_token: Optional[str] = None,
-        tile_timeout_ms: int = 10_000,
-        max_tiles: int = 256,
-        tile_concurrency: int = 16,
-        fail_on_tile_error: bool = False,
+        fetch: Optional[FetchOptions] = None,
+        **deprecated: Any,
     ) -> None:
+        self.fetch = _resolve_fetch(fetch, "Basemap", deprecated)
         self.styles = _style_strings(style)
         if int(width) < 1 or int(height) < 1:
             raise ValueError("width and height must be positive integers")
@@ -88,10 +88,6 @@ class Basemap:
         self.labels = labels
         self.features = _features_arg(features)
         self.auth_token = auth_token
-        self.tile_timeout_ms = int(tile_timeout_ms)
-        self.max_tiles = int(max_tiles)
-        self.tile_concurrency = int(tile_concurrency)
-        self.fail_on_tile_error = bool(fail_on_tile_error)
         self._center: Tuple[float, float] = (0.0, 0.0)
         self._zoom: float = 0.0
         if bounds is not None:
@@ -182,10 +178,7 @@ class Basemap:
             labels=labels_arg(self.labels),
             features=self.features,
             auth_token=self.auth_token,
-            tile_timeout_ms=self.tile_timeout_ms,
-            max_tiles=self.max_tiles,
-            tile_concurrency=self.tile_concurrency,
-            fail_on_tile_error=self.fail_on_tile_error,
+            **self.fetch._core(),
         )
 
     def _render_buffer(self) -> Tuple[bytes, int, int]:
@@ -266,10 +259,8 @@ def basemap(
     labels: Union[bool, str] = True,
     features: Optional[List[str]] = None,
     auth_token: Optional[str] = None,
-    tile_timeout_ms: int = 10_000,
-    max_tiles: int = 256,
-    tile_concurrency: int = 16,
-    fail_on_tile_error: bool = False,
+    fetch: Optional[FetchOptions] = None,
+    **deprecated: Any,
 ) -> Basemap:
     """Create a basemap view.
 
@@ -298,7 +289,7 @@ def basemap(
         layers: Optional layer filter applied to every style: plain IDs keep
             only those layers, ``-`` prefixed IDs drop them; ``*`` and ``?``
             are wildcards (``"-label_*"``). See :func:`list_layers`.
-        labels: ``True`` keeps every layer, ``False`` drops the labels (text
+        labels: ``"all"`` (or ``True``) keeps every layer, ``"none"`` (or ``False``) drops the labels (text
             and icons), ``"only"`` keeps only the labels on a transparent
             background, to stack over another map. Catalogue raster
             basemaps switch to their label-free or label-only tiles.
@@ -308,11 +299,12 @@ def basemap(
             background, water, landcover, parks, buildings, roads, rail,
             boundaries, places, poi, terrain, other (see the ``feature``
             of :func:`list_layers`).
-        auth_token: Optional access token for the tile service.
-        tile_timeout_ms: Per-tile HTTP timeout in milliseconds.
-        max_tiles: Maximum tiles fetched per style.
-        tile_concurrency: Parallel tile downloads.
-        fail_on_tile_error: Abort on a failed tile instead of leaving it empty.
+        auth_token: Optional access token for the tile service (sent only to the style's own server).
+        fetch: How tiles are downloaded: a :class:`FetchOptions` (timeout,
+            tile limit, parallel downloads, what a failed tile does).
+        **deprecated: ``tile_timeout_ms``, ``max_tiles``,
+            ``tile_concurrency`` and ``fail_on_tile_error`` are still
+            accepted, with a DeprecationWarning: use ``fetch``.
 
     Returns:
         A :class:`Basemap`.
@@ -326,8 +318,8 @@ def basemap(
         >>> m.render_png("slc.png")   # 1600 x 1200
         >>> m.render_svg("slc.svg")   # vector
     """
+    fetch = _resolve_fetch(fetch, "basemap", deprecated)
     return Basemap(
         style, width, height, center=center, zoom=zoom, bounds=bounds, crs=crs, pixel_ratio=pixel_ratio,
-        layers=layers, labels=labels, features=features, auth_token=auth_token, tile_timeout_ms=tile_timeout_ms,
-        max_tiles=max_tiles, tile_concurrency=tile_concurrency, fail_on_tile_error=fail_on_tile_error,
+        layers=layers, labels=labels, features=features, auth_token=auth_token, fetch=fetch,
     )
