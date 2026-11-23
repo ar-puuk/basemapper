@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use basemapper, please cite it as below."
+type: software
+title: "basemapper: Headless Spatial Basemap Renderer"
+abstract: >-
+  Renders MapLibre GL styled basemaps (vector and raster tiles) headlessly
+  with a Rust core: a software port of MapLibre GL JS's renderer, tested
+  pixel by pixel against MapLibre GL JS. Packages for R (ggplot2, tmap)
+  and Python (matplotlib, plotnine, xarray) share the core.
+authors:
+  - given-names: Pukar
+    family-names: Bhandari
+# Zenodo's concept DOI: it covers every version and resolves to the latest.
+doi: 10.5281/zenodo.24457061
+repository-code: "https://github.com/ar-puuk/basemapper"
+url: "https://ar-puuk.github.io/basemapper/"
+license: MIT
+keywords:
+  - basemap
+  - maplibre
+  - vector tiles
+  - cartography
+  - rust
+  - r
+  - python
+version: "0.1.1"
+date-released: "2026-11-22"

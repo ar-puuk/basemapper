@@ -1,7 +1,7 @@
 """The version of basemapper's packages, kept the same everywhere.
 
 R, Python and the Rust core share one version, which the release tag
-(`v0.1.0`) names. It is written in six files; this script reads, checks
+(`v0.1.0`) names. It is written in seven files (CITATION.cff too); this script reads, checks
 and sets them together.
 
 Usage:
@@ -14,6 +14,7 @@ Usage:
                                           READMEs to the release v0.2.0
 """
 
+import datetime
 import pathlib
 import re
 import sys
@@ -30,7 +31,10 @@ FILES = [
     ("py-basemapper/Cargo.toml", r'(\[package\][^\[]*?\nversion\s*=\s*")([^"]+)(")'),
     ("py-basemapper/pyproject.toml", r'(\[project\][^\[]*?\nversion\s*=\s*")([^"]+)(")'),
     ("r-basemapper/DESCRIPTION", r"(\nVersion:\s*)(\S+)()"),
+    ("CITATION.cff", r'(\nversion:\s*")([^"]+)(")'),
 ]
+# CITATION.cff's release date, written by `set` (the day of the release).
+CFF_DATE = re.compile(r'(\ndate-released:\s*")([^"]+)(")')
 
 
 # Pages whose install commands name the release: pak's `@v0.1.0`,
@@ -88,6 +92,13 @@ def set_version(version: str) -> None:
             sys.exit(f"{path}: no version found")
         file.write_bytes(new.encode("utf-8"))
         print(f"  {version:<12} {path}")
+    cff = ROOT / "CITATION.cff"
+    today = datetime.date.today().isoformat()
+    new, n = CFF_DATE.subn(lambda m: m.group(1) + today + m.group(3), cff.read_text(encoding="utf-8"), count=1)
+    if n != 1:
+        sys.exit("CITATION.cff: no date-released found")
+    cff.write_bytes(new.encode("utf-8"))
+    print(f"  {today:<12} CITATION.cff (date-released)")
     for path in READMES:
         file = ROOT / path
         text = file.read_text(encoding="utf-8")
