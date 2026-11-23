@@ -27,11 +27,14 @@ GL JS (see [How rendering works](docs/rendering-engine.md)).
 ### R
 
 ```r
-# Any one of these; each compiles the Rust core from source.
-pak::pak("ar-puuk/basemapper/r-basemapper")
-remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
-devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper")
+# Any one of these installs the v0.1.0 release; each compiles the Rust core.
+pak::pak("ar-puuk/basemapper/r-basemapper@v0.1.0")
+remotes::install_github("ar-puuk/basemapper", subdir = "r-basemapper", ref = "v0.1.0")
+devtools::install_github("ar-puuk/basemapper", subdir = "r-basemapper", ref = "v0.1.0")
 ```
+
+These install the latest release, v0.1.0 ([all releases](https://github.com/ar-puuk/basemapper/releases)).
+For the development version, leave out the version: `pak::pak("ar-puuk/basemapper/r-basemapper")`.
 
 Building from source needs a [Rust toolchain](https://rustup.rs) and, on
 Windows, [RTools45](https://cran.r-project.org/bin/windows/Rtools/) plus the
@@ -48,15 +51,18 @@ Optional: `tmap (>= 4.0)` for `tm_basemap()`.
 With pip:
 
 ```sh
-pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+pip install "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.0#subdirectory=py-basemapper"
 ```
+
+These install the latest release, v0.1.0 ([all releases](https://github.com/ar-puuk/basemapper/releases)).
+For the development version, leave out `@v0.1.0`.
 
 With [uv](https://docs.astral.sh/uv/), into a project or the current
 environment:
 
 ```sh
-uv add "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
-uv pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+uv add "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.0#subdirectory=py-basemapper"
+uv pip install "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.0#subdirectory=py-basemapper"
 ```
 
 With conda (or mamba), conda-forge provides the dependencies and the Rust
@@ -65,7 +71,7 @@ toolchain, and pip builds basemapper from GitHub inside the environment:
 ```sh
 conda create -n basemapper -c conda-forge python numpy pyproj matplotlib xarray rust pip
 conda activate basemapper
-pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+pip install "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.0#subdirectory=py-basemapper"
 ```
 
 or as an `environment.yml` (`conda env create -f environment.yml`):
@@ -82,7 +88,7 @@ dependencies:
   - rust
   - pip
   - pip:
-      - "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"
+      - "basemapper @ git+https://github.com/ar-puuk/basemapper@v0.1.0#subdirectory=py-basemapper"
 ```
 
 For `geom_basemap()` in plotnine, install `basemapper[plotnine]` in place of
@@ -96,6 +102,17 @@ Depends on: `numpy`, `pyproj`, `matplotlib`, `xarray`.
 Optional: `plotnine >= 0.12` for `geom_basemap()`.
 
 > PyPI and conda packages are planned after an extended testing period.
+
+### Rust
+
+```toml
+[dependencies]
+basemapper-core = { git = "https://github.com/ar-puuk/basemapper", tag = "v0.1.0" }
+```
+
+The crate the R and Python packages are built on; its documentation is the
+[Rust guide](https://ar-puuk.github.io/basemapper/rust/). For the
+development version, use `branch = "main"` in place of the tag.
 
 ---
 
@@ -442,9 +459,10 @@ package reports: `packageVersion("basemapper")` in R,
 Releases are git tags, `v` and the version (`v0.1.0`); the earlier `v0.0.x`
 tags mark the milestones before it. To release:
 
-1. Set the new version in all six files that hold it, together:
-   `python tools/version.py set 0.2.0` (`python tools/version.py check`
-   confirms they agree; CI checks it on every pull request).
+1. Set the new version in all six files that hold it, together, and pin
+   the READMEs' install commands to it: `python tools/version.py set 0.2.0`
+   (`python tools/version.py check` confirms the versions agree; CI checks
+   it on every pull request).
 2. Write what changed for users in `r-basemapper/NEWS.md` and
    `py-basemapper/CHANGELOG.md`, and regenerate the root changelog from the
    commit history: `python tools/changelog.py --release v0.2.0`.

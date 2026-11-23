@@ -9,7 +9,9 @@ Usage:
   python tools/version.py check [--tag T] fail unless every file has the
                                           same version (and it matches tag
                                           T, e.g. v0.1.0, when given)
-  python tools/version.py set 0.2.0       write the version to every file
+  python tools/version.py set 0.2.0       write the version to every file,
+                                          and the install commands in the
+                                          READMEs to the release v0.2.0
 """
 
 import pathlib
@@ -29,6 +31,24 @@ FILES = [
     ("py-basemapper/pyproject.toml", r'(\[project\][^\[]*?\nversion\s*=\s*")([^"]+)(")'),
     ("r-basemapper/DESCRIPTION", r"(\nVersion:\s*)(\S+)()"),
 ]
+
+
+# Pages whose install commands name the release: pak's `@v0.1.0`,
+# remotes' `ref = "v0.1.0"`, pip's `@v0.1.0#subdirectory`, Cargo's
+# `tag = "v0.1.0"` / `--tag v0.1.0`, and the prose that names it (the
+# landing page's code is highlighted HTML, hence the optional span).
+READMES = [
+    "README.md",
+    "r-basemapper/README.md",
+    "py-basemapper/README.md",
+    "docs/index.html",
+    "r-basemapper/vignettes/articles/getting-started.Rmd",
+    "py-basemapper/user_guide/01-get-started.qmd",
+]
+PIN = re.compile(
+    r'(@v|(?:ref|tag) = (?:<span class="s">)?"v|--tag v|installs the v|latest release, v'
+    r'|releases">v)(\d+\.\d+\.\d+)'
+)
 
 
 def versions() -> dict[str, str]:
@@ -68,6 +88,12 @@ def set_version(version: str) -> None:
             sys.exit(f"{path}: no version found")
         file.write_bytes(new.encode("utf-8"))
         print(f"  {version:<12} {path}")
+    for path in READMES:
+        file = ROOT / path
+        text = file.read_text(encoding="utf-8")
+        new, n = PIN.subn(lambda m: m.group(1) + version, text)
+        file.write_bytes(new.encode("utf-8"))
+        print(f"  v{version:<11} {path} ({n} install pins)")
 
 
 def main(argv: list[str]) -> None:
