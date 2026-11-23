@@ -31,8 +31,9 @@
 * Redrawing a plot (resizing it, `ggsave()`, re-knitting) no longer
   downloads the style, TileJSON, glyphs, sprite or PMTiles directories
   again: they are kept in memory for as long as the server's caching
-  headers allow (at most an hour). Decoded tiles are kept too, so a redraw
-  makes no requests and skips decoding.
+  headers allow (at most an hour; never for servers on the local machine,
+  as for the disk cache). Decoded tiles are kept too, so a redraw makes no
+  requests and skips decoding.
 * Tiles are decoded on all cores, raster layers and raster basemaps are
   resized in parallel, and the styles of a stacked basemap (`"UGRC.Lite"`)
   download and render concurrently. Connections and TLS sessions are reused

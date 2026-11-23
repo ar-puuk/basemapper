@@ -109,14 +109,16 @@ static RESOURCES: once_cell::sync::Lazy<std::sync::Mutex<ResourceCache>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(ResourceCache::new(96 << 20)));
 
 /// The body of `url` (at most `max` bytes), from memory when an unexpired
-/// copy is there. Successful responses are kept for as long as the server's
-/// `Cache-Control` / `Expires` allow (an hour at most; never with
-/// `no-store` or `no-cache`). `auth`'s token is sent when it may be.
+/// copy is there. Successful responses from remote servers are kept for as
+/// long as the server's `Cache-Control` / `Expires` allow (an hour at most;
+/// never with `no-store` or `no-cache`, nor from the local machine, as the
+/// disk cache). `auth`'s token is sent when it may be.
 pub(crate) async fn get(client: &reqwest::Client, url: &str, auth: &Auth, max: usize) -> Result<Fetched, FetchError> {
     let token = auth.token_for(url);
     // Responses can differ by token: the key includes it (in memory only).
     let key = format!("{url}\n{}", token.unwrap_or(""));
-    if let Some(hit) = RESOURCES.lock().ok().and_then(|mut c| c.get(&key)) {
+    let cache = crate::cache::cacheable(url);
+    if let Some(hit) = cache.then(|| RESOURCES.lock().ok().and_then(|mut c| c.get(&key))).flatten() {
         return Ok(hit);
     }
     let resp = bearer(client.get(url), auth, url)
@@ -130,8 +132,8 @@ pub(crate) async fn get(client: &reqwest::Client, url: &str, auth: &Auth, max: u
     let final_url = resp.url().to_string();
     let body = read_limited(resp, max).await.map_err(FetchError::Network)?;
     let fetched = Fetched { body: std::sync::Arc::new(body), url: final_url };
-    if let (Some(ttl), Ok(mut cache)) = (ttl, RESOURCES.lock()) {
-        cache.put(key, ttl, fetched.clone());
+    if let (true, Some(ttl), Ok(mut c)) = (cache, ttl, RESOURCES.lock()) {
+        c.put(key, ttl, fetched.clone());
     }
     Ok(fetched)
 }

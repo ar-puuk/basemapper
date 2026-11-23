@@ -3,9 +3,11 @@
 //!
 //! For each case: one cold render (empty in-process caches), then warm
 //! renders of the same view, as a plot redrawn on resize. Reports the time
-//! and the HTTP requests each render makes: requests per warm render are
-//! what a real network makes slow, and the local server hides their
-//! latency.
+//! and the HTTP requests each render makes. Responses from the local
+//! machine are never cached (as tiles from a development server should not
+//! be), so the request counts are what a render asks for; from a remote
+//! server, the cached ones (all of them, on a warm render) never reach the
+//! network. Time is mostly CPU here: the local server hides latency.
 //!
 //! ```sh
 //! cargo run --release -p basemapper-core --example bench_render

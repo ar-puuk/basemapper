@@ -132,10 +132,11 @@ impl pmtiles::AsyncBackend for ArchiveBackend {
                 Ok((url, client)) => {
                     let end = offset + length - 1;
                     // Header, directories and tiles are re-read on every
-                    // render: keep the ranges in memory.
-                    let key = format!("{url}
-{offset}-{end}");
-                    if let Some(hit) = PMTILES_RANGES.lock().ok().and_then(|mut c| c.get(&key)) {
+                    // render: keep the ranges in memory (not for archives on
+                    // the local machine, as the disk cache).
+                    let key = format!("{url}\n{offset}-{end}");
+                    let cache = crate::cache::cacheable(&url);
+                    if let Some(hit) = cache.then(|| PMTILES_RANGES.lock().ok().and_then(|mut c| c.get(&key))).flatten() {
                         return Ok(pmtiles::BackendResponse::new(bytes::Bytes::copy_from_slice(&hit.body)));
                     }
                     // Ranges of the file itself: a server free to compress
@@ -162,9 +163,9 @@ impl pmtiles::AsyncBackend for ArchiveBackend {
                         .await
                         .map_err(|e| read_error(format!("PMTiles range from {}: {e}", crate::net::redact(&url))))?;
                     let bytes = bytes::Bytes::from(bytes);
-                    if let (Some(ttl), Ok(mut cache)) = (ttl, PMTILES_RANGES.lock()) {
+                    if let (true, Some(ttl), Ok(mut c)) = (cache, ttl, PMTILES_RANGES.lock()) {
                         let body = std::sync::Arc::new(bytes.to_vec());
-                        cache.put(key, ttl, crate::net::Fetched { body, url: String::new() });
+                        c.put(key, ttl, crate::net::Fetched { body, url: String::new() });
                     }
                     Ok(pmtiles::BackendResponse::new(bytes))
                 }
@@ -340,18 +341,24 @@ pub async fn fetch_all_tiles(
         set.spawn(async move {
             let _permit = sem.acquire().await.map_err(|e| BasemapError::RenderError(e.to_string()))?;
 
-            // Cache hit — skip network entirely.
-            if let Ok(mut cache) = TILE_CACHE.lock() {
-                if let Some(cached) = cache.get(&url) {
-                    return Ok((coord, cached.clone()));
+            // Cache hit — skip network entirely. (Tiles from the local
+            // machine are not cached, in memory or on disk.)
+            let in_memory = crate::cache::cacheable(&url);
+            if in_memory {
+                if let Ok(mut cache) = TILE_CACHE.lock() {
+                    if let Some(cached) = cache.get(&url) {
+                        return Ok((coord, cached.clone()));
+                    }
                 }
             }
 
             let cache_on_disk = auth.is_none();
             if cache_on_disk {
                 if let Some(data) = crate::cache::get(&url) {
-                    if let Ok(mut cache) = TILE_CACHE.lock() {
-                        cache.put(url.clone(), data.clone());
+                    if in_memory {
+                        if let Ok(mut cache) = TILE_CACHE.lock() {
+                            cache.put(url.clone(), data.clone());
+                        }
                     }
                     return Ok((coord, data));
                 }
@@ -387,8 +394,10 @@ pub async fn fetch_all_tiles(
             }
 
             // Populate cache for future renders.
-            if let Ok(mut cache) = TILE_CACHE.lock() {
-                cache.put(url, data.clone());
+            if in_memory {
+                if let Ok(mut cache) = TILE_CACHE.lock() {
+                    cache.put(url, data.clone());
+                }
             }
 
             Ok((coord, data))
