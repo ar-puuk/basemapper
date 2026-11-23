@@ -65,7 +65,7 @@ struct PlacedTile {
     coord: TileCoord,
     /// World copy: -1 west, 0 the primary world, +1 east.
     wrap: i32,
-    tile: Tile,
+    tile: std::sync::Arc<Tile>,
     /// Canvas position of the tile's top-left corner, in px.
     ox: f64,
     oy: f64,
@@ -153,8 +153,9 @@ fn place_tiles(
     let view_x0 = cx - width as f64 / 2.0;
     let view_y0 = cy - height as f64 / 2.0;
     let mut placed = Vec::with_capacity(tiles.len());
-    for (c, wrap, bytes) in tiles {
-        let tile = match mvt::decode(bytes) {
+    let decoded = mvt::decode_shared(&tiles.iter().map(|t| t.2.as_slice()).collect::<Vec<_>>());
+    for ((c, wrap, _), tile) in tiles.iter().zip(decoded) {
+        let tile = match tile {
             Ok(t) => t,
             Err(e) => {
                 log::warn!("skipping undecodable tile {}/{}/{}: {e}", c.z, c.x, c.y);
@@ -188,7 +189,7 @@ fn symbol_tiles(placed: &Placed) -> Vec<SymbolTile<'_>> {
             source: id.as_str(),
             coord: (p.coord.z, p.coord.x, p.coord.y),
             wrap: p.wrap,
-            tile: &p.tile,
+            tile: p.tile.as_ref(),
             ox: p.ox / p.ratio,
             oy: p.oy / p.ratio,
             unit_px: p.unit_px / p.ratio,

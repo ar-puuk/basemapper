@@ -89,7 +89,7 @@ makeContent.BasemapGrob <- function(x) {
   )
 
   img <- grid::rasterGrob(
-    grDevices::as.raster(pixels_to_array(px) / 255),
+    pixels_to_native(px),
     x             = 0.5,
     y             = 0.5,
     width         = grid::unit(1, "npc"),

@@ -245,7 +245,7 @@ fn read_entry(path: &Path) -> Option<Vec<u8>> {
 }
 
 /// How long the server lets a response be cached; `None` for not at all.
-fn ttl(headers: &reqwest::header::HeaderMap) -> Option<Duration> {
+pub(crate) fn ttl(headers: &reqwest::header::HeaderMap) -> Option<Duration> {
     use reqwest::header::{CACHE_CONTROL, EXPIRES};
     if let Some(cc) = headers.get(CACHE_CONTROL).and_then(|v| v.to_str().ok()) {
         let cc = cc.to_ascii_lowercase();

@@ -1,5 +1,21 @@
 # basemapper (development version)
 
+## Performance
+
+* Redrawing a plot (resizing it, `ggsave()`, re-knitting) no longer
+  downloads the style, TileJSON, glyphs, sprite or PMTiles directories
+  again: they are kept in memory for as long as the server's caching
+  headers allow (at most an hour). Decoded tiles are kept too, so a redraw
+  makes no requests and skips decoding.
+* Tiles are decoded on all cores, raster layers and raster basemaps are
+  resized in parallel, and the styles of a stacked basemap (`"UGRC.Lite"`)
+  download and render concurrently. Connections and TLS sessions are reused
+  across renders.
+* `plot()` and `geom_basemap()` draw the basemap as a `nativeRaster`: a
+  4000 x 3000 px map (e.g. `ggsave(dpi = 300)`) no longer builds an 800 MB
+  intermediate array, and the conversion takes milliseconds instead of
+  about 8 seconds.
+
 ## Bug fixes
 
 * `max_tiles` now limits vector tiles too. It used to be checked against the

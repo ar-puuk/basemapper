@@ -2,6 +2,18 @@
 
 ## Development version
 
+### Performance
+
+- Rendering the same view again (a figure redrawn, a notebook re-run) no
+  longer downloads the style, TileJSON, glyphs, sprite or PMTiles
+  directories: they are kept in memory for as long as the server's caching
+  headers allow (at most an hour). Decoded tiles are kept too, so a repeat
+  render makes no requests and skips decoding.
+- Tiles are decoded on all cores, raster layers and raster basemaps are
+  resized in parallel, and the styles of a stacked basemap (`"UGRC.Lite"`)
+  download and render concurrently. Connections and TLS sessions are reused
+  across renders.
+
 ### Bug fixes
 
 - `max_tiles` now limits vector tiles too. It used to be checked against the

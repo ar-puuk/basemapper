@@ -56,8 +56,15 @@ struct Dem {
 }
 
 impl Dem {
+    #[cfg(test)]
     fn decode(bytes: &[u8], unpack: [f64; 4]) -> Option<Dem> {
         let img = image::load_from_memory(bytes).map_err(|e| log::warn!("DEM tile: {e}")).ok()?.to_rgba8();
+        Dem::from_image(&img, unpack)
+    }
+
+    /// Elevations from a decoded DEM tile image, with a one-texel border
+    /// copied from the edge (until neighbours backfill it).
+    fn from_image(img: &image::RgbaImage, unpack: [f64; 4]) -> Option<Dem> {
         if img.width() != img.height() || img.width() == 0 {
             log::warn!("DEM tiles must be square");
             return None;
@@ -393,17 +400,28 @@ pub fn draw_layer(
     if sh.exaggeration == 0.0 {
         return;
     }
-    // Decode, then backfill borders from loaded neighbours.
+    // Decode (images shared across renders), then backfill borders from
+    // loaded neighbours.
+    let images = crate::renderer::decode_images(&dem.tiles.iter().map(|(_, b)| b.as_slice()).collect::<Vec<_>>());
     let mut dems: HashMap<(u32, u32), Dem> = HashMap::new();
-    for (c, bytes) in &dem.tiles {
-        if let Some(d) = Dem::decode(bytes, dem.unpack) {
-            dems.insert((c.x, c.y), d);
+    for ((c, _), img) in dem.tiles.iter().zip(images) {
+        match img {
+            Ok(img) => {
+                if let Some(d) = Dem::from_image(&img, dem.unpack) {
+                    dems.insert((c.x, c.y), d);
+                }
+            }
+            Err(e) => log::warn!("DEM tile: {e}"),
         }
     }
     let z = dem.zoom;
     let n = 1i64 << z;
     let keys: Vec<(u32, u32)> = dems.keys().copied().collect();
+    // Backfill writes a tile's border and reads only its neighbours'
+    // interiors, which no backfill changes: the neighbours are read in
+    // place (the tile itself is taken out of the map meanwhile).
     for &(x, y) in &keys {
+        let Some(mut me) = dems.remove(&(x, y)) else { continue };
         for dy in -1i64..=1 {
             for dx in -1i64..=1 {
                 if dx == 0 && dy == 0 {
@@ -414,12 +432,16 @@ pub fn draw_layer(
                     continue;
                 }
                 let nx = (x as i64 + dx).rem_euclid(n);
-                let Some(other) = dems.get(&(nx as u32, ny as u32)) else { continue };
-                // Borrow juggling: the neighbour is read while this tile is written.
-                let other = Dem { dim: other.dim, ele: other.ele.clone() };
-                dems.get_mut(&(x, y)).unwrap().backfill(&other, dx, dy);
+                if (nx as u32, ny as u32) == (x, y) {
+                    // Zoom 0: the world's one tile is its own neighbour.
+                    let own = Dem { dim: me.dim, ele: me.ele.clone() };
+                    me.backfill(&own, dx, dy);
+                } else if let Some(other) = dems.get(&(nx as u32, ny as u32)) {
+                    me.backfill(other, dx, dy);
+                }
             }
         }
+        dems.insert((x, y), me);
     }
 
     // MapLibre's pixel-aligned raster projection (alignedProjMatrix).

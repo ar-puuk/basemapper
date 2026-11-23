@@ -224,9 +224,9 @@ print.basemap <- function(x, ...) {
 #' @name plot.basemap
 #' @export
 plot.basemap <- function(x, ...) {
-  a <- render_array(x)
+  img <- pixels_to_native(render_pixels(x))
   grid::grid.newpage()
-  grid::grid.raster(a / 255, interpolate = TRUE)
+  grid::grid.raster(img, interpolate = TRUE)
   invisible(x)
 }
 
@@ -413,6 +413,17 @@ render_styles_3857 <- function(bbox_3857, width, height, styles, pixel_ratio,
   for (note in attr(raw, "warnings")) warning(note, call. = FALSE)
   attributes(raw) <- NULL
   list(pixels = raw, width = w, height = h)
+}
+
+# Straight-alpha RGBA bytes as a nativeRaster: R's own packed colour
+# format (one integer per pixel, 0xAABBGGRR), which is what RGBA bytes read
+# as little-endian integers are. Drawn without any conversion, at a quarter
+# of the memory of an integer array and an eighth of a double one.
+pixels_to_native <- function(px) {
+  n <- px$width * px$height
+  v <- readBin(px$pixels, what = "integer", n = n, size = 4L, endian = "little")
+  # nativeRaster data are row-major, as the pixels are.
+  structure(v, dim = c(px$height, px$width), class = "nativeRaster", channels = 4L)
 }
 
 pixels_to_array <- function(px) {

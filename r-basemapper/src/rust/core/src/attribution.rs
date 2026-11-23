@@ -90,9 +90,8 @@ async fn source_attribution(
         return meta["attribution"].as_str().map(str::to_owned);
     }
     let url = crate::resolve_url(url, base);
-    let resp = crate::net::bearer(client.get(&url), auth, &url).send().await.ok()?.error_for_status().ok()?;
-    let body = crate::net::read_limited(resp, crate::net::limit::JSON).await.ok()?;
-    let tilejson: Value = serde_json::from_slice(&body).ok()?;
+    let fetched = crate::net::get(client, &url, auth, crate::net::limit::JSON).await.ok()?;
+    let tilejson: Value = serde_json::from_slice(&fetched.body).ok()?;
     tilejson["attribution"].as_str().or_else(|| tilejson["copyrightText"].as_str()).map(str::to_owned)
 }
 

@@ -12,6 +12,11 @@ use tokio::task::JoinSet;
 static TILE_CACHE: Lazy<Mutex<LruCache<String, Vec<u8>>>> =
     Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(512).unwrap())));
 
+/// Byte ranges of remote PMTiles archives (header, directories, tiles), so
+/// redrawing a view does not read them again.
+static PMTILES_RANGES: Lazy<Mutex<crate::net::ResourceCache>> =
+    Lazy::new(|| Mutex::new(crate::net::ResourceCache::new(128 << 20)));
+
 /// A source's tile URL templates (MapLibre's `tiles`) and `scheme`.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct TileUrls {
@@ -126,6 +131,13 @@ impl pmtiles::AsyncBackend for ArchiveBackend {
             match location {
                 Ok((url, client)) => {
                     let end = offset + length - 1;
+                    // Header, directories and tiles are re-read on every
+                    // render: keep the ranges in memory.
+                    let key = format!("{url}
+{offset}-{end}");
+                    if let Some(hit) = PMTILES_RANGES.lock().ok().and_then(|mut c| c.get(&key)) {
+                        return Ok(pmtiles::BackendResponse::new(bytes::Bytes::copy_from_slice(&hit.body)));
+                    }
                     // Ranges of the file itself: a server free to compress
                     // (GitHub Pages) would otherwise return a range of the
                     // gzipped file, which is not the archive's bytes.
@@ -143,12 +155,18 @@ impl pmtiles::AsyncBackend for ArchiveBackend {
                             crate::net::redact(&url)
                         )));
                     }
+                    let ttl = crate::cache::ttl(resp.headers()).map(|t| t.min(Duration::from_secs(3600)));
                     // At most the range asked for: a server that ignores
                     // `Range` would otherwise send the whole archive.
                     let bytes = crate::net::read_limited(resp, length.max(1))
                         .await
                         .map_err(|e| read_error(format!("PMTiles range from {}: {e}", crate::net::redact(&url))))?;
-                    Ok(pmtiles::BackendResponse::new(bytes::Bytes::from(bytes)))
+                    let bytes = bytes::Bytes::from(bytes);
+                    if let (Some(ttl), Ok(mut cache)) = (ttl, PMTILES_RANGES.lock()) {
+                        let body = std::sync::Arc::new(bytes.to_vec());
+                        cache.put(key, ttl, crate::net::Fetched { body, url: String::new() });
+                    }
+                    Ok(pmtiles::BackendResponse::new(bytes))
                 }
                 Err(path) => {
                     use std::io::{Read, Seek, SeekFrom};

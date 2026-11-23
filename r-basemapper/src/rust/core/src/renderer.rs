@@ -36,28 +36,51 @@ pub fn composite_raster_tiles(
         .map(|(c, d)| ((c.x, c.y), d.as_slice()))
         .collect();
 
-    for (&(tx, ty), data) in &tile_map {
-        let img = image::load_from_memory(data)
-            .map_err(|e| BasemapError::TileDecodeError(e.to_string()))?
-            .to_rgba8();
-        // Tiles snap to the CSS pixel grid (MapLibre's alignedProjMatrix
-        // for raster tiles), then scale to device pixels. Each tile spans
-        // from its own snapped edge to its neighbour's, so tiles meet with
-        // no gap or overlap at any pixel ratio.
-        let snap = |v: f64| ((v / pixel_ratio).round() * pixel_ratio).round() as i64;
-        let edge_x = |i: f64| snap((i * tile_size_m - half_circ - bbox[0]) * scale_x);
-        let edge_y = |j: f64| snap((half_circ - j * tile_size_m - bbox[3]) * -scale_y);
+    // Tiles are decoded once per process (shared across renders), misses in
+    // parallel; then resized in parallel and drawn in order.
+    let entries: Vec<(&(u32, u32), &&[u8])> = tile_map.iter().collect();
+    let images = decode_images(&entries.iter().map(|(_, d)| **d).collect::<Vec<_>>());
+    // Tiles snap to the CSS pixel grid (MapLibre's alignedProjMatrix
+    // for raster tiles), then scale to device pixels. Each tile spans
+    // from its own snapped edge to its neighbour's, so tiles meet with
+    // no gap or overlap at any pixel ratio.
+    let snap = |v: f64| ((v / pixel_ratio).round() * pixel_ratio).round() as i64;
+    let edge_x = |i: f64| snap((i * tile_size_m - half_circ - bbox[0]) * scale_x);
+    let edge_y = |j: f64| snap((half_circ - j * tile_size_m - bbox[3]) * -scale_y);
+    let mut jobs = Vec::with_capacity(entries.len());
+    for ((&(tx, ty), _), img) in entries.iter().zip(images) {
+        let img = img.map_err(BasemapError::TileDecodeError)?;
         let (px_x, px_y) = (edge_x(tx as f64), edge_y(ty as f64));
         let (w, h) = (edge_x(tx as f64 + 1.0) - px_x, edge_y(ty as f64 + 1.0) - px_y);
         if w <= 0 || h <= 0 {
             continue;
         }
-        let resized = image::imageops::resize(&img, w as u32, h as u32, image::imageops::FilterType::Triangle);
-        image::imageops::overlay(&mut canvas, &resized, px_x, px_y);
+        jobs.push((img, px_x, px_y, w as u32, h as u32));
+    }
+    let resized = crate::vector::memo::par_map(&jobs, |(img, _, _, w, h)| {
+        image::imageops::resize(img.as_ref(), *w, *h, image::imageops::FilterType::Triangle)
+    });
+    for ((_, px_x, px_y, _, _), tile) in jobs.iter().zip(&resized) {
+        image::imageops::overlay(&mut canvas, tile, *px_x, *px_y);
     }
 
     Ok(canvas)
 }
+
+/// Decode raster tile images (PNG, JPEG, WebP) through the shared cache:
+/// tiles decoded before are shared, the others decoded in parallel.
+pub(crate) fn decode_images(tiles: &[&[u8]]) -> Vec<Result<std::sync::Arc<RgbaImage>, String>> {
+    crate::vector::memo::decode_all(
+        &DECODED_IMAGES,
+        tiles,
+        |d| image::load_from_memory(d).map(|i| i.to_rgba8()).map_err(|e| e.to_string()),
+        |_, img| img.as_raw().len(),
+    )
+}
+
+/// Decoded raster tiles kept across renders (see [`crate::vector::memo`]).
+static DECODED_IMAGES: once_cell::sync::Lazy<std::sync::Mutex<crate::vector::memo::Memo<RgbaImage>>> =
+    once_cell::sync::Lazy::new(|| std::sync::Mutex::new(crate::vector::memo::Memo::new(256 << 20)));
 
 #[cfg(test)]
 mod tests {

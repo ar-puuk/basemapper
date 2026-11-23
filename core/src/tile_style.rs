@@ -404,20 +404,13 @@ async fn load_json(
     auth: &crate::net::Auth,
 ) -> Result<(Value, String), BasemapError> {
     if is_http(input) {
-        let resp = crate::net::bearer(client.get(input), auth, input)
-            .send()
-            .await
-            .map_err(|_| BasemapError::StyleFetchFailed { url: input.to_owned(), status: 0 })?;
-        if !resp.status().is_success() {
-            return Err(BasemapError::StyleFetchFailed { url: input.to_owned(), status: resp.status().as_u16() });
-        }
-        let url = resp.url().to_string();
-        let body = crate::net::read_limited(resp, crate::net::limit::JSON)
-            .await
+        let fetched = crate::net::get(client, input, auth, crate::net::limit::JSON).await.map_err(|e| match e {
+            crate::net::FetchError::Status(status) => BasemapError::StyleFetchFailed { url: input.to_owned(), status },
+            crate::net::FetchError::Network(_) => BasemapError::StyleFetchFailed { url: input.to_owned(), status: 0 },
+        })?;
+        let v = serde_json::from_slice(&fetched.body)
             .map_err(|e| BasemapError::StyleParseError(format!("{}: {e}", crate::net::redact(input))))?;
-        let v = serde_json::from_slice(&body)
-            .map_err(|e| BasemapError::StyleParseError(format!("{}: {e}", crate::net::redact(input))))?;
-        return Ok((v, url));
+        return Ok((v, fetched.url));
     }
     let path = local_path(input);
     let text = std::fs::read_to_string(&path).map_err(|_| {
