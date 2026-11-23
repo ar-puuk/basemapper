@@ -1,5 +1,9 @@
 # basemapper <img src="logo.svg" align="right" height="139" alt="" />
 
+<!-- badges: start -->
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24457061.svg)](https://doi.org/10.5281/zenodo.24457061)
+<!-- badges: end -->
+
 **basemapper** renders MapLibre GL basemaps (vector and raster styles)
 headlessly with a Rust core: to PNG, NumPy arrays or true vector SVG, at any
 fractional zoom and pixel ratio, and as matplotlib and plotnine layers that

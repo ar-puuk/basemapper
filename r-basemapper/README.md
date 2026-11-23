@@ -1,6 +1,7 @@
 # basemapper <img src="man/figures/logo.svg" align="right" height="139" alt="" />
 
 <!-- badges: start -->
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24457061.svg)](https://doi.org/10.5281/zenodo.24457061)
 <!-- badges: end -->
 
 > **Also available for Python** — the same Rust core, and the same functions

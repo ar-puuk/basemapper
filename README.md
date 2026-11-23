@@ -1,5 +1,9 @@
 # basemapper
 
+<!-- badges: start -->
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24457061.svg)](https://doi.org/10.5281/zenodo.24457061)
+<!-- badges: end -->
+
 A headless spatial basemap renderer for **R** and **Python**.
 
 basemapper renders styled basemaps (MapLibre / Mapbox GL styles, raster XYZ,
