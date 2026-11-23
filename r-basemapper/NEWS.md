@@ -1,4 +1,4 @@
-# basemapper (development version)
+# basemapper 0.2.0
 
 ## New interface for download settings
 
@@ -79,6 +79,11 @@
   turns the font cache off too.
 * The Rust library is built with `cargo build --locked`, from the exact
   dependency versions in `Cargo.lock`.
+
+## Documentation
+
+* The install instructions name no version: `pak::pak("ar-puuk/basemapper/r-basemapper")`
+  installs the latest release, and `@dev` the development version.
 
 # basemapper 0.1.1
 

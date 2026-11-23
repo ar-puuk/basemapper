@@ -1,6 +1,6 @@
 # Changelog
 
-## Development version
+## 0.2.0 (2026-11-23)
 
 ### New interface for download settings
 
@@ -62,6 +62,11 @@
 - A style downloaded from the web can no longer read local PMTiles files.
 - Downloaded fonts are cached in the tile cache's folder, so
   `BASEMAPPER_CACHE_DIR=off` turns the font cache off too.
+
+### Documentation
+
+- The install instructions name no version: they install the latest
+  release, and `@dev` the development version.
 
 ## 0.1.1 (2026-11-22)
 
