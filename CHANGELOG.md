@@ -9,7 +9,7 @@ in more words: [R](r-basemapper/NEWS.md) and
 
 ## v0.3.0
 
-Tagged v0.3.0 when merged into `main`; until then on `feat/coherent-api`.
+Tagged v0.3.0 when merged into `main`; until then on `dev`.
 
 ### Features
 
@@ -29,6 +29,7 @@ Tagged v0.3.0 when merged into `main`; until then on `feat/coherent-api`.
 
 ### Documentation
 
+- **changelog:** the v0.3.0 section ([a2c92d1](https://github.com/ar-puuk/basemapper/commit/a2c92d1702d110552858aa064ef3fbcf0f3d865e))
 - the 0.3 contract, guides, migration guide and version 0.3.0 (phase 5) ([4aaa7d5](https://github.com/ar-puuk/basemapper/commit/4aaa7d5b3913b61c0f7fb43d9207d19c39e6bed2))
 - **design:** API and design review, and the 0.3.0 implementation plan ([b8ca3d5](https://github.com/ar-puuk/basemapper/commit/b8ca3d52083074b5062400f09a03aa7a31c7bfd5))
 
