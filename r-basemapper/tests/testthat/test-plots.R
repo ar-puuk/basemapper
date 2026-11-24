@@ -59,15 +59,41 @@ test_that("the plot's device sets the dpi (D16): ggsave dpi, and 300 for PDF", {
   expect_true("default_dpi" %in% pdf$notes$kind)
 })
 
-test_that("a zoom chosen in a plot gives an effective dpi, reported", {
+test_that("a zoom chosen in a plot sets what is drawn; the device keeps its dpi", {
   skip_if_not_installed("sf")
-  rlang::reset_message_verbosity("basemapper_effective_dpi")
-  expect_message(
-    r <- with_rendering(ggplot2::ggplot(sf::st_sf(geometry = slc_box())) + basemap(credited, zoom = 14) +
-                          ggplot2::geom_sf(fill = NA, colour = NA) + ggplot2::coord_sf(expand = FALSE, datum = NA), width = 3, height = 3, dpi = 100),
-    "effective", class = "basemapper_adjustment"
-  )
-  expect_equal(r$zoom, 14)
+  r <- with_rendering(ggplot2::ggplot(sf::st_sf(geometry = slc_box())) + basemap(credited, zoom = 14) +
+                        ggplot2::geom_sf(fill = NA, colour = NA) + ggplot2::coord_sf(expand = FALSE, datum = NA),
+                      width = 3, height = 3, dpi = 100)
+  expect_equal(c(r$zoom, r$dpi), c(14, 100))
+  # The size of lines and labels it gives is a decided note, without "dpi".
+  n <- r$notes[r$notes$kind == "symbol_scale", ]
+  expect_equal(nrow(n), 1)
+  expect_equal(n$level, "decided")
+  expect_false(grepl("dpi", n$message))
+})
+
+test_that("in a plot the device sets the dpi; symbol_scale sets the size of lines and labels", {
+  skip_if_not_installed("sf")
+  plot_of <- function(layer) {
+    ggplot2::ggplot(sf::st_sf(geometry = slc_box())) + layer +
+      ggplot2::geom_sf(fill = NA, colour = NA) + ggplot2::coord_sf(expand = FALSE, datum = NA)
+  }
+  expect_error(plot_of(basemap(credited, dpi = 168)), "device sets the dpi.*symbol_scale")
+  expect_error(geom_basemap(credited, dpi = 168), "device sets the dpi")
+  expect_error(plot_of(geom_basemap(credited, zoom = 12, symbol_scale = 0.8)), "zoom or symbol_scale")
+  expect_error(render(basemap(credited)), NA)
+  # The same map at any dpi; a smaller scale shows more detail.
+  r200 <- with_rendering(plot_of(geom_basemap(credited, symbol_scale = 0.84)), width = 3, height = 3, dpi = 200)
+  r300 <- with_rendering(plot_of(geom_basemap(credited, symbol_scale = 0.84)), width = 3, height = 3, dpi = 300)
+  r1 <- with_rendering(plot_of(basemap(credited)), width = 3, height = 3, dpi = 200)
+  expect_equal(c(r200$dpi, r300$dpi), c(200, 300))
+  expect_equal(r200$zoom, r300$zoom, tolerance = 1e-3)
+  expect_equal(r200$zoom - r1$zoom, log2(1 / 0.84), tolerance = 1e-3)
+  # The 1:N scale is the printed one: smaller lines and labels, a larger N.
+  expect_equal(r200$scale * 0.84 * 2^(r200$zoom - r1$zoom), r1$scale, tolerance = 1e-3)
+  tm <- tm_basemap(credited, symbol_scale = 0.84)
+  expect_s3_class(tm, "tmap")
+  expect_error(tm_basemap(credited, dpi = 168), "device sets the dpi")
 })
 
 test_that("the plot gives the extent and CRS (D15)", {
@@ -147,7 +173,7 @@ test_that("alpha fades the basemap on any device, and a clip masks it in a plot"
 })
 
 # The WFRC tract view's Web Mercator limits: a 3.6 x 5 in panel, 720 x
-# 1000 px at 200 dpi, drawn at dpi 168.
+# 1000 px at 200 dpi, at symbol_scale 0.84 (1.75 map pixels per CSS pixel).
 tract <- c(xmin = -12469979, ymin = 5026396.805555556, xmax = -12466414, ymax = 5031348.194444444)
 
 # A white map with a black vertical line `width_css` CSS px wide at Web
@@ -184,14 +210,15 @@ test_that("a Web Mercator ggplot2 panel shows the rendering pixel for pixel", {
   mx <- (tract[["xmax"]] - tract[["xmin"]]) / 720
   style <- line_style(tract[["xmin"]] + 300.5 * mx, 1 / 1.75)
   box <- sf::st_as_sfc(sf::st_bbox(tract, crs = sf::st_crs(3857)))
-  p <- ggplot2::ggplot(sf::st_sf(geometry = box)) + basemap(style, dpi = 168) +
+  # 168 dpi of map pixels on a 200 dpi device: symbol_scale 0.84.
+  p <- ggplot2::ggplot(sf::st_sf(geometry = box)) + geom_basemap(style, symbol_scale = 0.84) +
     ggplot2::geom_sf(fill = NA, colour = NA) +
     ggplot2::coord_sf(crs = 3857, expand = FALSE, datum = NA) + ggplot2::theme_void() +
     ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, 0))
   f <- tempfile(fileext = ".png")
   ggplot2::ggsave(f, p + ggplot2::theme(legend.position = "none"), width = 3.6, height = 5, dpi = 200)
   r <- basemapper:::.BASEMAPPER_LAST$rendering
-  expect_equal(r$dpi, 168)
+  expect_equal(r$dpi, 200)
   expect_equal(unname(r$bounds), unname(tract), tolerance = 1e-12)
   expect_panel_is_the_rendering(f, r)
 })
@@ -205,11 +232,60 @@ test_that("a Web Mercator tmap panel shows the rendering pixel for pixel", {
   box <- sf::st_as_sfc(sf::st_bbox(tract, crs = sf::st_crs(3857)))
 
   tm <- tmap::tm_shape(sf::st_sf(geometry = box), crs = 3857, bbox = sf::st_bbox(box)) + tmap::tm_borders(col = NA, lwd = 0) +
-    basemapper::tm_basemap(style, dpi = 168, attribution = FALSE) +
+    basemapper::tm_basemap(style, symbol_scale = 0.84, attribution = FALSE) +
     tmap::tm_layout(outer.margins = 0, inner.margins = 0, frame = FALSE, asp = 0)
   f <- tempfile(fileext = ".png")
   tmap::tmap_save(tm, f, width = 3.6, height = 5, units = "in", dpi = 200)
   r <- basemapper:::.BASEMAPPER_LAST$rendering
-  expect_equal(r$dpi, 168)
+  expect_equal(r$dpi, 200)
   expect_panel_is_the_rendering(f, r)
+})
+
+# A Web Mercator plot of the tract view, `width` inches wide, saved at 200
+# dpi; the rendering it drew.
+tract_plot <- function(layer, width) {
+  box <- sf::st_as_sfc(sf::st_bbox(tract, crs = sf::st_crs(3857)))
+  p <- ggplot2::ggplot(sf::st_sf(geometry = box)) + layer + ggplot2::geom_sf(fill = NA, colour = NA) +
+    ggplot2::coord_sf(crs = 3857, expand = FALSE, datum = NA) + ggplot2::theme_void() +
+    ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, 0))
+  f <- tempfile(fileext = ".png")
+  height <- width * (tract[["ymax"]] - tract[["ymin"]]) / (tract[["xmax"]] - tract[["xmin"]])
+  ggplot2::ggsave(f, p, width = width, height = height, dpi = 200)
+  list(file = f, rendering = last_rendering())
+}
+
+test_that("zoom_for() is the zoom a plot of that width draws; last_rendering() reads it", {
+  skip_if_not_installed("sf")
+  box <- sf::st_as_sfc(sf::st_bbox(tract, crs = sf::st_crs(3857)))
+  for (s in c(1, 0.84)) {
+    d <- tract_plot(geom_basemap(credited, symbol_scale = s, attribution = FALSE), 3.6)
+    expect_equal(d$rendering$symbol_scale, s, tolerance = 1e-9)
+    # The panel's width as drawn (ggplot2 may round it to a pixel less).
+    expect_equal(zoom_for(box, d$rendering$width / 200, symbol_scale = s), d$rendering$zoom, tolerance = 1e-6)
+  }
+  expect_s3_class(last_rendering(), "basemapper_rendering")
+  expect_equal(zoom_for(box, 3.6 * 2.54, units = "cm"), zoom_for(box, 3.6), tolerance = 1e-9)
+  expect_error(zoom_for(box, 720, units = "px"), "printed width")
+})
+
+test_that("the same zoom draws the same picture at two panel sizes", {
+  skip_if_not_installed("sf")
+  skip_if_not_installed("png")
+  box <- sf::st_as_sfc(sf::st_bbox(tract, crs = sf::st_crs(3857)))
+  z <- zoom_for(box, 3.6, symbol_scale = 0.84)
+  style <- line_style(tract[["xmin"]] + 0.4 * (tract[["xmax"]] - tract[["xmin"]]), 1)
+  page <- tract_plot(geom_basemap(style, zoom = z, attribution = FALSE), 3.6)
+  thumb <- tract_plot(geom_basemap(style, zoom = z, attribution = FALSE), 2.27)
+  expect_equal(c(page$rendering$zoom, thumb$rendering$zoom), c(z, z), tolerance = 1e-9)
+  expect_equal(page$rendering$symbol_scale, 0.84, tolerance = 0.005)
+  expect_equal(thumb$rendering$symbol_scale / page$rendering$symbol_scale,
+               thumb$rendering$width / page$rendering$width, tolerance = 1e-9)
+  # The line is at the same place, relative to the width.
+  line_at <- function(f) {
+    img <- png::readPNG(f)
+    row <- 1 - img[nrow(img) %/% 2, , 1]
+    sum(row * seq_along(row)) / sum(row) / length(row)
+  }
+  # Within a pixel of the thumbnail.
+  expect_lt(abs(line_at(page$file) - line_at(thumb$file)), 1 / thumb$rendering$width)
 })

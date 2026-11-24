@@ -65,7 +65,7 @@ test_that("any three give the fourth", {
 })
 
 test_that("conflicts are errors that say what to drop", {
-  expect_error(basemap(plain(), bounds = slc, zoom = 11, width = 800, height = 600, dpi = 96), "over-determine")
+  expect_error(basemap(plain(), bounds = slc, zoom = 11, width = 800, height = 600, dpi = 96, symbol_scale = 1), "over-determine")
   expect_error(basemap(plain(), bounds = slc, center = c(-111.9, 40.7), zoom = 11), "bounds")
   expect_error(basemap(plain(), width = 800), "both `width` and `height`")
   expect_error(basemap(plain(), bounds = c(-12500000, 4900000, -12400000, 5000000)), "longitude / latitude")
@@ -241,4 +241,18 @@ test_that("fetch_options() validates", {
   expect_error(fetch_options(on_error = "retry"))
   expect_error(basemap(plain(), fetch = list(timeout = 3)), "fetch_options")
   expect_output(print(fetch_options()), "timeout 10s")
+})
+
+test_that("on its own, dpi only sharpens a printed size; 0.3's pixel renders are unchanged", {
+  slc <- c(-112.1, 40.6, -111.7, 40.9)
+  a <- basemap(plain(), bounds = slc, width = 3.6, height = 5, units = "in", dpi = 150, symbol_scale = 0.84)
+  b <- set_view(a, dpi = 300)
+  expect_equal(get_zoom(a), get_zoom(b), tolerance = 1e-12)
+  expect_equal(c(get_size(a), get_size(b)), c(width = 540, height = 750, width = 1080, height = 1500))
+  # 1600 x 1200 px at 192 dpi, as in 0.3: the same with symbol_scale 1.
+  old <- basemap(plain(), bounds = slc, width = 1600, height = 1200, dpi = 192)
+  same <- set_view(old, symbol_scale = 1)
+  expect_equal(get_zoom(old), get_zoom(same))
+  expect_identical(render(old)$pixels, render(same)$pixels)
+  expect_equal(render(old)$symbol_scale, 1)
 })

@@ -5,7 +5,7 @@
 \alias{set_bounds}
 \title{Change a basemap}
 \usage{
-set_view(m, ..., center, zoom, width, height, units, dpi)
+set_view(m, ..., center, zoom, width, height, units, dpi, symbol_scale)
 
 set_bounds(m, bounds)
 }
@@ -14,8 +14,8 @@ set_bounds(m, bounds)
 
 \item{...}{Not used: the arguments after \code{m} must be named.}
 
-\item{center, zoom, width, height, units, dpi}{As in \code{\link[=basemap]{basemap()}}; left out,
-they keep their value.}
+\item{center, zoom, width, height, units, dpi, symbol_scale}{As in \code{\link[=basemap]{basemap()}};
+left out, they keep their value.}
 
 \item{bounds}{As in \code{\link[=basemap]{basemap()}}.}
 }

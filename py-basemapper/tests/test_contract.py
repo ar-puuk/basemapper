@@ -25,7 +25,7 @@ def _cases():
 
 def _inputs(c):
     i = c["inputs"]
-    out = {k: i[k] for k in ("center", "zoom", "width", "height", "units", "dpi") if k in i}
+    out = {k: i[k] for k in ("center", "zoom", "width", "height", "units", "dpi", "symbol_scale") if k in i}
     if "bounds_lonlat" in i:
         w, s, e, n = i["bounds_lonlat"]
         out["bounds"] = [*TO_3857.transform(w, s), *TO_3857.transform(e, n)]
@@ -56,6 +56,7 @@ def test_view_cases(case):
     assert v["width"] == pytest.approx(want["width"], abs=tol["px"])
     assert v["height"] == pytest.approx(want["height"], abs=tol["px"])
     assert v["dpi"] == pytest.approx(want["dpi"], abs=tol["dpi"])
+    assert v["symbol_scale"] == pytest.approx(want["symbol_scale"], abs=1e-9)
     assert v["zoom"] == pytest.approx(want["zoom"], abs=tol["zoom"])
     assert v["bounds"] == pytest.approx(want["bounds_3857"], abs=tol["metres"])
     assert v["provenance"] == want["provenance"]

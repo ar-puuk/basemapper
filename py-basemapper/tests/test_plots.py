@@ -61,13 +61,42 @@ def test_savefig_renders_natively_at_the_export_dpi():
     plt.close(fig)
 
 
-def test_a_chosen_zoom_gives_an_effective_dpi():
+def test_a_chosen_zoom_sets_what_is_drawn_and_the_device_keeps_its_dpi():
     fig, ax = axes()
-    with pytest.warns(basemapper.BasemapAdjustment, match="effective") as caught:
-        artist = basemap(PLAIN, zoom=14).add_to(ax, crs="EPSG:4326", attribution=False)
-    assert caught[0].filename == __file__, "warnings point at the user's add_to()"
-    assert artist.rendering.zoom == 14 and artist.rendering.dpi != 100
+    artist = basemap(PLAIN, zoom=14).add_to(ax, crs="EPSG:4326", attribution=False)
+    r = artist.rendering
+    assert r.zoom == 14 and r.dpi == 100
+    # The size of lines and labels it gives is a decided note, without "dpi".
+    (n,) = [n for n in r.notes if n.kind == "symbol_scale"]
+    assert n.level == "decided" and "dpi" not in n.message
     plt.close(fig)
+
+
+def test_in_a_plot_the_device_sets_the_dpi_and_symbol_scale_the_size_of_lines_and_labels():
+    fig, ax = axes()
+    with pytest.raises(ValidationError, match="device sets the dpi.*symbol_scale"):
+        basemap(PLAIN, dpi=168).add_to(ax, crs="EPSG:4326")
+    with pytest.raises(ValidationError, match="zoom or symbol_scale"):
+        basemap(PLAIN, zoom=12, symbol_scale=0.8).add_to(ax, crs="EPSG:4326")
+    plt.close(fig)
+
+    def zoom_at(dpi, scale=None):
+        fig, ax = axes()
+        artist = basemap(PLAIN, symbol_scale=scale).add_to(ax, crs="EPSG:4326", attribution=False)
+        fig.savefig(io.BytesIO(), format="png", dpi=dpi)
+        r = artist.rendering
+        plt.close(fig)
+        return r
+
+    r200, r300, r1 = zoom_at(200, 0.84), zoom_at(300, 0.84), zoom_at(200)
+    assert (r200.dpi, r300.dpi) == (200, 300)
+    assert (r200.symbol_scale, r1.symbol_scale) == (pytest.approx(0.84), 1)
+    assert r200.zoom == pytest.approx(r300.zoom, abs=1e-3), "the same map at any dpi"
+    assert r200.zoom - r1.zoom == pytest.approx(np.log2(1 / 0.84), abs=1e-3)
+    # The 1:N scale is the printed one.
+    assert r200.scale * 0.84 * 2 ** (r200.zoom - r1.zoom) == pytest.approx(r1.scale, rel=1e-3)
+    a = basemapper.add_basemap(*axes()[1:], PLAIN, crs=4326, symbol_scale=0.84, attribution=False)
+    assert a.rendering.dpi == 100
 
 
 def test_the_plot_gives_extent_and_crs_d15():
@@ -173,10 +202,11 @@ def test_a_web_mercator_panel_shows_the_rendering_pixel_for_pixel():
     ax.set_axis_off()
     ax.set_xlim(x0, x1)
     ax.set_ylim(y0, y1)
-    artist = basemap(style, dpi=168).add_to(ax, crs=3857, attribution=False)
+    # 1.75 map pixels per CSS pixel on a 100 dpi figure: symbol_scale 1.68.
+    artist = basemap(style, symbol_scale=1.68).add_to(ax, crs=3857, attribution=False)
     fig.canvas.draw()
     r = artist.rendering
-    assert (r.width, r.height, r.dpi, r.crs.to_epsg()) == (720, 1000, 168, 3857)
+    assert (r.width, r.height, r.dpi, r.crs.to_epsg()) == (720, 1000, 100, 3857)
     assert r.bounds == pytest.approx(TRACT, abs=1e-6)
     drawn = np.asarray(fig.canvas.buffer_rgba())[..., :3]
     assert np.array_equal(drawn, r.to_numpy()[..., :3]), "the panel shows the rendering's pixels"
@@ -194,7 +224,7 @@ def test_a_plotnine_web_mercator_panel_shows_the_rendering_pixel_for_pixel():
 
     x0, y0, x1, y1 = TRACT
     mx = (x1 - x0) / 720
-    layer = basemapper.geom_basemap(line_style(x0 + 300.5 * mx, 1 / 1.75), dpi=168, attribution=False)
+    layer = basemapper.geom_basemap(line_style(x0 + 300.5 * mx, 1 / 1.75), symbol_scale=1.68, attribution=False)
     df = gpd.GeoDataFrame({"x": [x0, x1], "y": [y0, y1]}, geometry=[Point(x0, y0), Point(x1, y1)], crs=3857)
     p = (ggplot(df, aes("x", "y")) + layer + geom_blank()
          + scale_x_continuous(expand=(0, 0)) + scale_y_continuous(expand=(0, 0))
@@ -217,3 +247,83 @@ def test_a_plotnine_web_mercator_panel_shows_the_rendering_pixel_for_pixel():
     for y in (10, r.height // 2, r.height - 10):
         assert abs(dark_centre(panel[y, :, 0], int(col) - 10, int(col) + 11) - (col - 0.5)) < 0.1
     plt.close(fig)
+
+
+
+def tract_axes(width_in, dpi=200):
+    """A Web Mercator panel over the WFRC tract view, ``width_in`` wide."""
+    x0, y0, x1, y1 = TRACT
+    fig = plt.figure(figsize=(width_in, width_in * (y1 - y0) / (x1 - x0)), dpi=dpi)
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_axis_off()
+    ax.set_xlim(x0, x1)
+    ax.set_ylim(y0, y1)
+    return fig, ax
+
+
+def tract_lonlat():
+    import pyproj
+
+    t = pyproj.Transformer.from_crs(3857, 4326, always_xy=True)
+    x0, y0, x1, y1 = TRACT
+    (w, e), (s_, n) = t.transform([x0, x1], [y0, y1])
+    return (w, s_, e, n)
+
+
+def test_zoom_for_is_the_zoom_a_plot_of_that_width_draws():
+    # zoom_for(bounds, 3.6 in, symbol_scale) is the zoom a 3.6 in plot draws
+    # with that symbol scale: a fixed-view map can be planned in advance.
+    for s in (1.0, 0.84):
+        fig, ax = tract_axes(3.6)
+        basemap(PLAIN, symbol_scale=s).add_to(ax, crs=3857, attribution=False)
+        fig.savefig(io.BytesIO(), format="png", dpi=200)
+        plt.close(fig)
+        drawn = basemapper.last_rendering()
+        assert drawn.symbol_scale == pytest.approx(s)
+        assert basemapper.zoom_for(tract_lonlat(), 3.6, symbol_scale=s) == pytest.approx(drawn.zoom, abs=1e-6)
+    # Centimetres, and the units zoom_for needs.
+    assert basemapper.zoom_for(tract_lonlat(), 3.6 * 2.54, units="cm") == pytest.approx(
+        basemapper.zoom_for(tract_lonlat(), 3.6), abs=1e-9)
+    with pytest.raises(ValidationError, match="printed width"):
+        basemapper.zoom_for(tract_lonlat(), 720, units="px")
+
+
+def test_the_same_zoom_draws_the_same_picture_at_two_panel_sizes():
+    # A page map and its thumbnail: the same zoom, so the thumbnail is the
+    # page map shrunk (labels too), not a different map.
+    z = basemapper.zoom_for(tract_lonlat(), 3.6, symbol_scale=0.84)
+    x0, _, x1, _ = TRACT
+    style = line_style(x0 + 0.4 * (x1 - x0), 1.0)
+
+    def drawn(width_in):
+        fig, ax = tract_axes(width_in)
+        artist = basemap(style, zoom=z).add_to(ax, crs=3857, attribution=False)
+        fig.canvas.draw()
+        img = np.asarray(fig.canvas.buffer_rgba())[..., :3].astype(float)
+        plt.close(fig)
+        return artist.rendering, img
+
+    page, page_img = drawn(3.6)
+    thumb, thumb_img = drawn(2.27)
+    assert page.zoom == thumb.zoom == pytest.approx(z)
+    assert page.symbol_scale == pytest.approx(0.84)
+    assert thumb.symbol_scale == pytest.approx(0.84 * 2.27 / 3.6, rel=1e-3)
+    # The line (one CSS px wide) is at the same place, relative to the width.
+    def line_at(img):
+        row = 255 - img[img.shape[0] // 2, :, 0]
+        return float((row * np.arange(row.size)).sum() / row.sum()) / row.size
+
+    assert line_at(page_img) == pytest.approx(line_at(thumb_img), abs=0.003)
+
+
+def test_symbol_scale_on_its_own_dpi_only_sharpens():
+    # A printed size and a symbol scale: the dpi changes only the pixels.
+    a = basemap(PLAIN, bounds=tract_lonlat(), width=3.6, height=5, units="in", dpi=150, symbol_scale=0.84)
+    b = a.set_view(dpi=300)
+    assert a.zoom == pytest.approx(b.zoom, abs=1e-9) and a.symbol_scale == b.symbol_scale == 0.84
+    assert (a.size, b.size) == ((540, 750), (1080, 1500))
+    # Pixels at a dpi print at px / dpi: 1600 x 1200 px at 192 dpi is as in 0.3.
+    old = basemap(PLAIN, bounds=tract_lonlat(), width=1600, height=1200, dpi=192)
+    same = old.set_view(symbol_scale=1)
+    assert (old.zoom, old.size, old.symbol_scale) == (same.zoom, same.size, 1)
+    assert np.array_equal(old.render().to_numpy(), same.render().to_numpy())

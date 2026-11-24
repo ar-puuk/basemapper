@@ -46,7 +46,7 @@ impl Level {
 #[non_exhaustive]
 pub struct Note {
     pub level: Level,
-    /// A stable identifier, e.g. `"effective_dpi"`, `"tile_skipped"`.
+    /// A stable identifier, e.g. `"zoom_auto"`, `"tile_skipped"`.
     pub kind: &'static str,
     pub message: String,
     /// Each occurrence's message, when the kind happened more than once (the

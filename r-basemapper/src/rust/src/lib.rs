@@ -255,6 +255,9 @@ fn inputs_of(json: &str) -> Result<ViewInputs> {
     if let Some(d) = num(&l, "dpi")? {
         v = v.dpi(d);
     }
+    if let Some(s) = num(&l, "symbol_scale")? {
+        v = v.symbol_scale(s);
+    }
     Ok(v)
 }
 
@@ -381,7 +384,7 @@ fn view_json(v: &View, crs_bounds: Option<[f64; 4]>, warp: Option<(String, [f64;
     let (lon, lat) = v.center();
     json!({
         "bounds": v.bounds, "width": v.width, "height": v.height, "dpi": v.dpi, "zoom": v.zoom,
-        "scale": v.scale(), "center": [lon, lat],
+        "symbol_scale": v.symbol_scale, "scale": v.scale(), "center": [lon, lat],
         "provenance": {
             "extent": v.provenance.extent.name(), "size": v.provenance.size.name(),
             "dpi": v.provenance.dpi.name(), "zoom": v.provenance.zoom.name(),
@@ -400,7 +403,7 @@ fn view_json(v: &View, crs_bounds: Option<[f64; 4]>, warp: Option<(String, [f64;
 fn rendering_robj(r: Rendering) -> Result<Robj> {
     let meta = json!({
         "width": r.width, "height": r.height, "bounds": r.bounds, "crs": r.crs, "zoom": r.zoom,
-        "tile_zoom": r.tile_zoom, "dpi": r.dpi, "scale": r.scale(), "notes": notes_json(&r.notes),
+        "tile_zoom": r.tile_zoom, "dpi": r.dpi, "symbol_scale": r.symbol_scale, "scale": r.scale(), "notes": notes_json(&r.notes),
     })
     .to_string();
     let mut out: Robj = Raw::from_bytes(&r.pixels).into();

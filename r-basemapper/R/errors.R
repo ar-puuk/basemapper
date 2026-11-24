@@ -17,8 +17,8 @@
 #'
 #' * *decided* (a value nothing gave, such as the automatic zoom): in
 #'   `print()`, and as messages with `options(basemapper.verbose = TRUE)`;
-#' * *adjusted* (something asked for was changed, such as an effective dpi
-#'   for a zoom chosen in a plot): a message of class
+#' * *adjusted* (something asked for was changed, such as the zoom raised
+#'   to keep the view inside the world): a message of class
 #'   `basemapper_adjustment`, once per kind per session;
 #' * *problem* (the output is incomplete, such as tiles that failed): a
 #'   warning of class `basemapper_problem`, every time, or an error with

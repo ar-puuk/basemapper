@@ -20,7 +20,7 @@ use crate::bbox::RenderRequest;
 use crate::fetch::{FetchOptions, OnError};
 use crate::mask::Shape;
 use crate::notes::Level;
-use crate::view::{self, Context, Units, View, ViewInputs, CSS_DPI};
+use crate::view::{self, Context, Units, View, ViewInputs};
 use crate::warp::{self, Image, Mesh, Warp};
 use crate::{BasemapError, Rendering, Style, SvgOptions};
 
@@ -110,9 +110,19 @@ impl Basemap {
         self
     }
 
-    /// Image pixels per inch: the sharpness (96 = one pixel per CSS pixel).
+    /// Image pixels per inch: the sharpness, and nothing else (a size in
+    /// pixels prints smaller at a higher dpi; see [`symbol_scale`](Self::symbol_scale)).
     pub fn dpi(mut self, dpi: f64) -> Self {
         self.inputs = self.inputs.dpi(dpi);
+        self
+    }
+
+    /// Lines, labels and icons at `symbol_scale` times the style's designed
+    /// size (1: a CSS pixel is 1/96 inch on the page). With the extent and
+    /// printed size fixed (always so in a plot), a smaller symbol scale shows
+    /// more detail: it and the zoom each set the other.
+    pub fn symbol_scale(mut self, symbol_scale: f64) -> Self {
+        self.inputs = self.inputs.symbol_scale(symbol_scale);
         self
     }
 
@@ -171,7 +181,7 @@ impl Basemap {
     /// over the mesh's area at the view's zoom and dpi, then resampled.
     pub fn render_view(&self, view: &View, warp: Option<&Warp>) -> Result<Rendering, BasemapError> {
         self.fetch.validate()?;
-        let ratio = view.dpi / CSS_DPI;
+        let ratio = view.pixel_ratio();
         let mut before = view.notes.clone();
         before.extend(view.decided());
         let mut r = match warp {
@@ -181,13 +191,13 @@ impl Basemap {
                 // grid, from the view's top-left corner, and cropped: the
                 // pixels are the renderer's own, never resampled.
                 if let Some((bbox, css)) = covering(view, ratio) {
-                    let r = crate::rendering::render_collecting(|| self.requests(bbox, css, ratio), view.zoom, view.dpi, before)?;
+                    let r = crate::rendering::render_collecting(|| self.requests(bbox, css, ratio), view.zoom, view.dpi, view.symbol_scale, before)?;
                     cropped(r, view)?
                 } else {
                     // A view too close to a whole world (or the poles) to
                     // draw larger: resampled, pixel centres to centres.
                     let css = css_px(view.width, view.height, ratio);
-                    let r = crate::rendering::render_collecting(|| self.requests(view.bounds, css, ratio), view.zoom, view.dpi, before)?;
+                    let r = crate::rendering::render_collecting(|| self.requests(view.bounds, css, ratio), view.zoom, view.dpi, view.symbol_scale, before)?;
                     let b = view.bounds;
                     // The image covers its device pixels, from the top-left
                     // corner, not exactly the bounds asked for.
@@ -214,7 +224,7 @@ impl Basemap {
                     )));
                 }
                 let css = (css.0 as u32, css.1 as u32);
-                let r = crate::rendering::render_collecting(|| self.requests(src, css, ratio), view.zoom, view.dpi, before)?;
+                let r = crate::rendering::render_collecting(|| self.requests(src, css, ratio), view.zoom, view.dpi, view.symbol_scale, before)?;
                 let r = Rendering { bounds: drawn_bounds(src, css, ratio, r.width, r.height), ..r };
                 let mut out = resampled(r, &w.mesh, view.width, view.height)?;
                 out.bounds = w.bounds;
@@ -267,10 +277,10 @@ impl Basemap {
             )));
         }
         self.fetch.validate()?;
-        let css = css_px(view.width, view.height, view.dpi / CSS_DPI);
+        let css = css_px(view.width, view.height, view.pixel_ratio());
         // At the view's ratio: layers that stay raster are embedded at the
         // output's dpi. Paths and text are in CSS pixels either way.
-        crate::render_svg_document(self.requests(view.bounds, css, view.dpi / CSS_DPI)?, options, self.clip.as_ref())
+        crate::render_svg_document(self.requests(view.bounds, css, view.pixel_ratio())?, options, self.clip.as_ref())
     }
 
     /// The attribution text the styles ask maps to show.
@@ -399,7 +409,7 @@ fn resampled(r: Rendering, mesh: &Mesh, width: u32, height: u32) -> Result<Rende
 mod tests {
     use super::*;
     use crate::mask::Keep;
-    use crate::view::{Device, Provenance};
+    use crate::view::{Device, Provenance, CSS_DPI};
 
     const WORLD: f64 = view::HALF;
 

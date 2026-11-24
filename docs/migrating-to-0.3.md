@@ -75,8 +75,10 @@ ggplot(nc) + basemap("OpenFreeMap.Positron", zoom = 8) + geom_sf()   # or geom_b
 
 ## Behaviour changes
 
-- **The view is one rule.** Any three of extent, zoom, image size and dpi
-  give the fourth; what nothing gives is defaulted (dpi 96, then 800 × 600 at
+- **The view is one rule.** (Since 0.4: any three of extent, zoom, printed
+  size and symbol scale give the fourth, and dpi only turns the printed size
+  into pixels; with `symbol_scale` 1 it resolves as below.) Any three of
+  extent, zoom, image size and dpi give the fourth; what nothing gives is defaulted (dpi 96, then 800 × 600 at
   that dpi, then the world). New: `basemap(s, bounds = nc, zoom = 9)` gives
   the image size for that area at that detail. Giving all four, or `bounds`
   with `center`, is an error.
@@ -93,9 +95,10 @@ ggplot(nc) + basemap("OpenFreeMap.Positron", zoom = 8) + geom_sf()   # or geom_b
   over the panel, which misplaced it in any other CRS (by tens of pixels on a
   longitude / latitude plot). 0.3 warps it into the plot's CRS in ggplot2,
   tmap, matplotlib and plotnine. tmap no longer forces Web Mercator.
-- **A zoom chosen in a plot gives an effective dpi** instead of 0.2's tile
-  zoom: the plot fixes the extent and the pixels, so the dpi follows, and the
-  map's labels are drawn at that dpi. It is reported once.
+- **A zoom chosen in a plot** replaces 0.2's tile zoom. The plot fixes the
+  extent, so the zoom sets the size of the map's lines and labels. Since 0.4,
+  `symbol_scale` sets that size instead (and the zoom follows), and a
+  basemap's `dpi` is an error in a plot: the device sets the sharpness.
 - **Plot dpi.** On screen 96 (× the pixel ratio in Python), in raster
   exports the device's dpi, in PDF / SVG 300: the export shows the preview's
   map, sharper.

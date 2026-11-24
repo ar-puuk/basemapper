@@ -93,7 +93,7 @@ def test_any_three_give_the_fourth():
 def test_conflicts_are_errors_that_say_what_to_drop():
     slc = [-112.1, 40.6, -111.7, 40.9]
     with pytest.raises(ValidationError, match="over-determine"):
-        basemap(plain(), bounds=slc, zoom=11, width=800, height=600, dpi=96)
+        basemap(plain(), bounds=slc, zoom=11, width=800, height=600, dpi=96, symbol_scale=1)
     with pytest.raises(ValidationError, match="bounds .* center"):
         basemap(plain(), bounds=slc, center=(-111.9, 40.7), zoom=11)
     with pytest.raises(ValidationError, match="around"):

@@ -27,16 +27,20 @@ pub struct Rendering {
     pub dpi: f64,
     /// What basemapper decided, adjusted, or could not do.
     pub notes: Vec<Note>,
+    /// Lines, labels and icons as a multiple of the style's designed size
+    /// (1: a CSS pixel is 1/96 inch on the page): given, or what the zoom
+    /// made it.
+    pub symbol_scale: f64,
     /// The Web Mercator northing of the map's centre, for [`scale`](Self::scale).
     pub(crate) web_mercator_y: f64,
 }
 
 impl Rendering {
     /// The true map scale at the centre latitude, as N of 1:N: the zoom
-    /// fixes the ground size of a CSS pixel (1/96 inch), so the scale is the
-    /// same at any dpi.
+    /// fixes the ground size of a CSS pixel (`symbol_scale` / 96 inch), so
+    /// the scale is the same at any dpi.
     pub fn scale(&self) -> f64 {
-        crate::view::scale_at(self.zoom, self.web_mercator_y)
+        crate::view::scale_at(self.zoom, self.web_mercator_y) / self.symbol_scale
     }
 
     /// The notes at `level`.
@@ -58,6 +62,7 @@ pub(crate) fn render_collecting(
     requests: impl FnOnce() -> Result<Vec<RenderRequest>, BasemapError>,
     zoom: f64,
     dpi: f64,
+    symbol_scale: f64,
     before: Vec<Note>,
 ) -> Result<Rendering, BasemapError> {
     let collector = Collector::new();
@@ -79,6 +84,7 @@ pub(crate) fn render_collecting(
         tile_zoom: result.zoom_used,
         dpi,
         notes: collector.notes(),
+        symbol_scale,
         web_mercator_y: (b.ymin + b.ymax) / 2.0,
     })
 }

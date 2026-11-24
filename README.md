@@ -142,10 +142,14 @@ Coming from 0.2? See [Migrating to 0.3](docs/migrating-to-0.3.md).
 
 ### A map on its own
 
-A basemap is a style plus what you know of the map. **Any three of extent,
-zoom, image size and dpi give the fourth**; what nothing gives is defaulted
-(dpi 96, then 800 × 600, then the world), and the zoom is always derived
-when not given.
+A basemap is a style plus what you know of the map. Each setting has one
+meaning: `zoom` is the detail, `symbol_scale` the size of lines and labels,
+and `dpi` the sharpness. **Any three of extent, zoom, printed size and
+symbol scale give the fourth**, and the dpi turns the printed size into
+pixels. What nothing gives is defaulted (dpi 96, symbol scale 1, then 800 ×
+600 px, then the world), and the zoom is always derived when not given. In a
+plot, the plot gives the extent and size and the device the dpi: set `zoom`
+or `symbol_scale`.
 
 ```r
 library(basemapper)

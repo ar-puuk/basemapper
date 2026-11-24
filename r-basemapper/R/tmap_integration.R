@@ -4,12 +4,13 @@
 #' ...)` builds the basemap from [basemap()]'s arguments (tmap only accepts
 #' its own elements, so this is the way in). As in ggplot2, the map gives the
 #' extent, the CRS (the basemap is warped into it), the image size and the
-#' dpi; the basemap may give a `zoom` or a `dpi`. Put it before
+#' sharpness (the device's dpi); what the map shows is set by the basemap's
+#' `zoom` or `symbol_scale`, and a basemap's `dpi` is an error. Put it before
 #' `tm_shape()`, so it draws behind the layers.
 #'
 #' @param x A [basemap()], or a style (anything [basemap()] takes).
 #' @param ... With a style: [basemap()]'s arguments that apply in a plot
-#'   (`zoom` or `dpi`, `clip`, `fetch`).
+#'   (`zoom` or `symbol_scale`, `clip`, `fetch`).
 #' @param alpha The basemap's opacity (0--1).
 #' @param attribution The providers' credit line, as a `tmap::tm_credits()`
 #'   element in the bottom-right corner: `TRUE` (their own), `FALSE`, or your

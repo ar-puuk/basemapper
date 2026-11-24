@@ -26,20 +26,34 @@ the R and Python test suites check their package against it, and
 |---|---|---|
 | What to show | the extent: `bounds` (an area), or `center` with `zoom` (the camera) | the part of the Earth on the map |
 | How much detail | `zoom` | the MapLibre zoom (512 px tiles, fractional): which roads, places and labels the style draws |
-| How sharp | `dpi` | image pixels per inch (96 is one pixel per CSS pixel) |
+| How big the symbols are | `symbol_scale` | lines, labels and icons as a multiple of the style's designed size (1: a CSS pixel is 1/96 inch, so a 12 px label prints at 9 pt) |
+| How sharp | `dpi` | image pixels per inch, and nothing else |
 
 Two helpers say the same things in other terms: `width` / `height` (the
 image size, in `units`: `"px"`, `"in"`, `"cm"` or `"mm"`) and
 `around(center, span, units)` (an area of a ground distance, in `"m"`,
 `"km"`, `"mi"` or `"ft"`).
 
-**Any three of extent, zoom, image size and dpi give the fourth:**
-`ground width = image px × 96 / dpi × metres per CSS px at the zoom`. What
-nothing gives is defaulted, in this order: dpi (96), image size (800 × 600
-at 96 dpi, scaled with the dpi), extent (the world). The zoom is never a
-default. Over-determined requests (all four, `bounds` with `center`,
-`center` without `zoom`) are errors that say what to drop. The view never
-reaches past the poles.
+**Any three of extent, zoom, printed size and symbol scale give the
+fourth:** `ground width = printed inches × 96 / symbol_scale × metres per
+CSS px at the zoom`. The dpi only turns the printed size into pixels
+(`px = inches × dpi`). A `width` / `height` in `"in"`, `"cm"` or `"mm"` is
+the printed size; in pixels it is a printed size through the dpi (`px /
+dpi` inches), so with the pixels fixed, a higher dpi prints the map smaller
+(and, with the extent fixed, at a lower zoom). With `symbol_scale` 1 this is
+0.3's rule, and 0.3's renders are unchanged.
+
+What nothing gives is defaulted, in this order: dpi (96), symbol scale (1),
+image size (800 × 600 px at 96 dpi, scaled with the dpi), extent (the world).
+The zoom is never a default. Extent, zoom and a printed size derive the
+symbol scale (a *decided* note). Over-determined requests (extent, zoom,
+printed size and symbol scale together; `bounds` with `center`; `center`
+without `zoom`) are errors that say what to drop. The view never reaches
+past the poles.
+
+`zoom_for(bounds, width, units = "in", symbol_scale = 1, crs = NULL)` is the
+zoom at which `bounds` drawn `width` wide has that symbol scale, by the same
+rules: the zoom to give a plot whose maps must match at several sizes.
 
 ### Coordinates and CRSs
 
@@ -57,11 +71,28 @@ reaches past the poles.
 ### In a plot
 
 The plot gives the extent (the panel's limits), the CRS (the basemap is
-warped into it), the image size (the panel) and the dpi: on a screen 96 ×
-its pixel ratio, in a raster export the device's dpi, in PDF / SVG 300. The
-basemap may give a `zoom` (then the dpi is derived: an *effective dpi*,
-reported once) or a `dpi`. A basemap with its own extent, CRS or size is an
-error in a plot. A clip is a mask there, in the plot's CRS.
+warped into it), the image size (the panel) and the resolution: on a screen
+96 dpi × its pixel ratio, in a raster export the device's dpi, in PDF / SVG
+300 dpi. The device's dpi sets the resolution and nothing else, so a
+basemap's `dpi` is an error in a plot.
+
+What the map shows is set in one place: the basemap's `zoom` or its
+`symbol_scale` (in R, both go in `geom_basemap()`). The plot fixes the
+extent and the printed size, so each sets the other; giving both is an
+error. With neither, the symbol scale is 1, and the same plot shows the same
+map at any dpi. A larger symbol scale means a lower zoom (fewer roads and
+labels), a smaller one more detail. With `symbol_scale` fixed, a smaller
+panel shows less detail at the same label size; with `zoom` fixed, it shows
+the same picture, shrunk.
+
+`ggsave(dpi = 200)` with `geom_basemap(symbol_scale = 0.84)` draws 1.75 map
+pixels per CSS pixel, which is what `dpi = 168` drew in 0.3: to convert,
+`symbol_scale = d / D`. A chosen `zoom` reports the symbol scale it gives as
+a *decided* note. `last_rendering()` returns what a drawn plot used (its
+`zoom`, `symbol_scale`, `dpi`, and the printed 1:N `scale`).
+
+A basemap with its own extent, CRS or size is an error in a plot. A clip is
+a mask there, in the plot's CRS.
 
 ### Clipping
 
@@ -78,8 +109,8 @@ and, for one that happened several times, a count and details.
 
 | Level | When | R | Python |
 |---|---|---|---|
-| decided | a value nothing gave (the automatic zoom, the default dpi) | `print()`; messages with `options(basemapper.verbose = TRUE)` | `repr()`; the `basemapper` logger at INFO |
-| adjusted | something asked for was changed (the view kept inside the world, an effective dpi, coarser tiles for `max_tiles`, tiles enlarged past the source's zoom, 300 dpi for PDF / SVG) | a `basemapper_adjustment` message, once per kind per session | a `BasemapAdjustment` warning (once per call site) |
+| decided | a value nothing gave (the automatic zoom, the default dpi, the scale a plot's zoom gives) | `print()`; messages with `options(basemapper.verbose = TRUE)` | `repr()`; the `basemapper` logger at INFO |
+| adjusted | something asked for was changed (the view kept inside the world, coarser tiles for `max_tiles`, tiles enlarged past the source's zoom, 300 dpi for PDF / SVG) | a `basemapper_adjustment` message, once per kind per session | a `BasemapAdjustment` warning (once per call site) |
 | problem | the output is incomplete (tiles, glyphs, sprites or DEM missing, unsupported style features, filter names matching nothing) | a `basemapper_problem` warning, every time | a `BasemapProblem` warning, every time |
 
 `fetch_options(on_error = "fail")` / `FetchOptions(on_error="fail")` turns
@@ -89,9 +120,9 @@ problems into errors.
 
 | | R | Python | Rust |
 |---|---|---|---|
-| Create | `basemap(style, ..., bounds, center, zoom, width, height, units, dpi, crs, clip, fetch)` | `basemap(style, *, bounds, center, zoom, width, height, units, dpi, crs, clip, fetch)` | `Basemap::new(style)` / `Basemap::stack(styles)`, then `.bounds(b, Crs)`, `.center(lon, lat)`, `.zoom(z)`, `.size(w, h)` / `.size_in(w, h, Units)`, `.dpi(d)`, `.fetch(..)`, `.clip(Shape)` |
-| Change the view (a new basemap) | `set_view(m, center =, zoom =, width =, height =, units =, dpi =)`, `set_bounds(m, bounds)` | `m.set_view(center=, zoom=, width=, height=, units=, dpi=)`, `m.set_bounds(bounds)` | `m.with_inputs(ViewInputs)` |
-| Read the view | `get_bounds(m)`, `get_center(m)`, `get_zoom(m)`, `get_size(m)`; `print(m)` shows the dpi, CRS, scale and provenance | `m.bounds`, `m.center`, `m.zoom`, `m.size`, `m.dpi`, `m.crs`, `m.scale`, `m.provenance`, `m.notes` | `m.view(&Context::Standalone)?`: a `View` |
+| Create | `basemap(style, ..., bounds, center, zoom, width, height, units, dpi, symbol_scale, crs, clip, fetch)` | `basemap(style, *, bounds, center, zoom, width, height, units, dpi, symbol_scale, crs, clip, fetch)` | `Basemap::new(style)` / `Basemap::stack(styles)`, then `.bounds(b, Crs)`, `.center(lon, lat)`, `.zoom(z)`, `.size(w, h)` / `.size_in(w, h, Units)`, `.dpi(d)`, `.symbol_scale(s)`, `.fetch(..)`, `.clip(Shape)` |
+| Change the view (a new basemap) | `set_view(m, center =, zoom =, width =, height =, units =, dpi =, symbol_scale =)`, `set_bounds(m, bounds)` | `m.set_view(center=, zoom=, width=, height=, units=, dpi=, symbol_scale=)`, `m.set_bounds(bounds)` | `m.with_inputs(ViewInputs)` |
+| Read the view | `get_bounds(m)`, `get_center(m)`, `get_zoom(m)`, `get_size(m)`; `print(m)` shows the dpi, symbol scale, CRS, scale and provenance | `m.bounds`, `m.center`, `m.zoom`, `m.size`, `m.dpi`, `m.symbol_scale`, `m.crs`, `m.scale`, `m.provenance`, `m.notes` | `m.view(&Context::Standalone)?`: a `View` |
 | Render | `render(m, dpi =)` | `m.render(dpi=)` | `m.render(&Context::Standalone)?`; in another CRS `m.render_view(&view, Some(&warp))?` |
 | SVG | `render_svg(m, path =, text =, embed_fonts =, font_dirs =)` | `m.render_svg(path=, text=, embed_fonts=, font_dirs=)` | `m.render_svg(&context, &SvgOptions)?` |
 | Credit line | `get_attribution(m)` | `get_attribution(m)` | `m.attribution()?` |
@@ -105,14 +136,15 @@ both R and Python. `set_view(center = ...)` replaces the bounds;
 
 | | R | Python | Rust (`Rendering`) |
 |---|---|---|---|
-| Size, place, detail | `r$width`, `r$height`, `r$bounds`, `r$crs`, `r$zoom`, `r$tile_zoom`, `r$dpi`, `r$scale` | `r.width`, `r.height`, `r.bounds`, `r.crs` (`pyproj.CRS`), `r.zoom`, `r.tile_zoom`, `r.dpi`, `r.scale` | the same fields; `scale()` a method |
+| Size, place, detail | `r$width`, `r$height`, `r$bounds`, `r$crs`, `r$zoom`, `r$tile_zoom`, `r$dpi`, `r$symbol_scale`, `r$scale` | `r.width`, `r.height`, `r.bounds`, `r.crs` (`pyproj.CRS`), `r.zoom`, `r.tile_zoom`, `r.dpi`, `r.symbol_scale`, `r.scale` | the same fields; `scale()` a method |
 | Notes | `r$notes`: a data frame (`level`, `kind`, `message`, `count`, `details`) | `r.notes`: `Note` tuples; `r.notes_at(level)` | `notes: Vec<Note>`; `notes_at(Level)` |
 | PNG | `write_png(r, path)` | `r.save(path)`, `r.to_png()` | `to_png()?` |
 | Pixels | `as_array(r)`: integer `[h, w, 4]` with `bounds` and `crs` attributes | `r.to_numpy()`: uint8 `(h, w, 4)`, a read-only view without a copy | `pixels` (RGBA, straight alpha) |
 | Georeferenced raster | `as_raster(r)`: a terra SpatRaster | `r.to_xarray()`: an xarray DataArray | — |
 | Show | `plot(r)`; knitr shows it at its CSS size | Jupyter shows it at its CSS size | — |
 
-The scale is 1:N at the map's centre, from the zoom, the same at any dpi.
+The scale is 1:N at the map's centre, from the zoom and the symbol scale (a
+CSS pixel prints at `symbol_scale / 96` inch), the same at any dpi.
 
 ## Plots
 
@@ -120,9 +152,11 @@ The scale is 1:N at the map's centre, from the zoom, the same at any dpi.
 |---|---|---|
 | Place a basemap | `ggplot(nc) + m` (ggplot2); `tm_basemap(m)` (tmap v4) | `m.add_to(ax, crs=, alpha=, attribution=)` (matplotlib); `ggplot(df) + m` (plotnine) |
 | Aliases | `geom_basemap(style, ..., alpha =, attribution =)`; `tm_basemap(style, ..., alpha =, attribution =)` | `add_basemap(ax, style, *, crs=, alpha=, attribution=, **basemap_args)`; `geom_basemap(style, *, crs=, alpha=, attribution=, ...)` |
+| What a plot drew | `last_rendering()` | `last_rendering()`; the artist's `.rendering` |
+| Plan a zoom | `zoom_for(bounds, width, units =, symbol_scale =, crs =)` | `zoom_for(bounds, width, units=, symbol_scale=, crs=)` |
 
 The aliases build the basemap from `basemap()`'s arguments that apply in a
-plot (`zoom` or `dpi`, `clip`, `fetch`). Each library draws the credit line
+plot (`zoom` or `symbol_scale`, `clip`, `fetch`). Each library draws the credit line
 in the panel's bottom-right corner with the core's layout (`attribution =
 TRUE` by default, `FALSE` for none, or your text). The basemap renders when
 the plot is drawn, for the panel's limits, pixels and device, so panning,

@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.4.0 (2026-11-24)
+
+Each setting now has one meaning everywhere: `zoom` is the detail,
+`symbol_scale` the size of lines, labels and icons, and `dpi` the sharpness.
+
+### Breaking changes
+
+- **A basemap's `dpi` is an error in a plot.** The device sets the sharpness
+  (`savefig(dpi=)`, 300 dpi for PDF / SVG), and changes nothing else. In 0.3,
+  `basemap(s, dpi=168).add_to(ax)` on a 200 dpi device also set the size of the map's lines and
+  labels, and through it the zoom. Use `symbol_scale = d / D` for that now:
+  `dpi = 168` saved at 200 dpi is `symbol_scale = 0.84`.
+- **Extent, zoom and a size used to be over-determined; now they give the
+  symbol scale.** `basemap(s, bounds=..., zoom=..., width=6, height=4, units="in")` was an error in 0.3; it now derives the
+  symbol scale (a *decided* note), as a plot with a chosen zoom does.
+
+### New features
+
+- **`symbol_scale` in `basemap()` and `set_view()`** (and so in
+  `m.add_to()`, `add_basemap()` and plotnine's `geom_basemap()`): lines, labels and icons as a multiple of the style's designed
+  size. At 1, the default, a CSS pixel is 1/96 inch, so a label the style
+  sizes at 12 px prints at 9 pt. The rule is now: any three of extent, zoom,
+  printed size and symbol scale give the fourth, and the dpi turns the
+  printed size into pixels. A size in pixels is a printed size through the
+  dpi (`px / dpi` inches).
+- **In a plot, give `zoom` or `symbol_scale`.** The plot fixes the extent and
+  printed size, so each sets the other: a larger symbol scale means a lower
+  zoom (fewer roads and labels), a smaller one more detail. With neither, the
+  map is the same at any device dpi.
+- **`zoom_for(bounds, width, units="in", symbol_scale=1)`**: the zoom at
+  which `bounds` drawn `width` wide has that symbol scale, by the same rules
+  as `basemap()`, in any CRS. Give it as the zoom to make a page map and its
+  thumbnail the same picture.
+- **`last_rendering()`** returns the rendering a plot last drew, to read its
+  `zoom`, `symbol_scale` and `dpi`. Renderings and views carry
+  `symbol_scale`, and in a plot a rendering's `dpi` is the device's and its
+  1:N `scale` the printed one.
+- **A chosen zoom in a plot is a decided note**, "zoom 13.1 draws lines,
+  labels and icons at 0.84x their designed size", no longer an "effective
+  dpi" adjustment.
+
+### Unchanged
+
+- **Renders on their own are the same as 0.3's** with `symbol_scale` left out
+  (it is 1): every 0.3 view resolves identically, which the contract cases
+  check in R, Python and Rust.
+
 ## 0.3.2 (2026-11-24)
 
 SVG output has no seams in PDFs, and every output is now checked against

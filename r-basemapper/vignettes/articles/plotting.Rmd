@@ -70,12 +70,49 @@ ggplot(nc) +
   theme_void()
 ```
 
-### More detail, or sharper
+### Sharpness and detail
 
-The plot fixes the extent and the image's pixels, so the zoom follows from
-the dpi. A `zoom` of your own gives more (or less) detail: the dpi then
-follows (an *effective dpi*, which basemapper reports once), and the style's
-labels are drawn at that dpi.
+Each has one place:
+
+- **Sharpness** is the device's dpi: `ggsave(dpi = 300)`, `png(res = 200)`,
+  or 300 dpi for PDF and SVG. It makes the map sharper and changes nothing
+  else. A basemap's `dpi` is an error in a plot.
+- **What the map shows** goes in `geom_basemap()`: either `zoom` (the
+  detail) or `symbol_scale` (the size of lines, labels and icons). The plot
+  fixes the extent and the panel, so each sets the other: a larger symbol
+  scale also means a lower zoom (fewer roads and labels drawn), and a smaller
+  one more detail. Give one. With neither, the symbol scale is 1 and the map
+  is the same at any dpi.
+
+| I want | Set | What else changes |
+|---|---|---|
+| A sharper image of the same map | the device's dpi: `ggsave(dpi = 300)` | nothing |
+| Bigger or smaller lines and labels | `symbol_scale` | the detail: a smaller symbol scale shows more roads and labels (a higher zoom), a larger one fewer |
+| Exactly this level of detail | `zoom` | the size of lines and labels follows the panel size |
+| The same map on a page and in a thumbnail | the same `zoom` for both, e.g. `zoom_for(bbox, 3.6, symbol_scale = 0.84)` | the thumbnail is the page map shrunk, labels too |
+| Labels the same printed size on maps of different sizes | the same `symbol_scale` for all | each map gets the zoom that fits its panel |
+
+When the panel size changes (`ggsave()` width and height, facets):
+
+- with `symbol_scale` fixed (or left at 1), labels keep their printed size
+  and the zoom changes: a smaller panel shows less detail;
+- with `zoom` fixed, the picture stays the same and is resized, labels
+  included.
+
+`symbol_scale = 1` draws the style at its designed sizes, with a CSS pixel
+1/96 inch: a label the style sizes at 12 px prints at 9 pt. `0.84` prints it
+at 84% of that. To keep the look of 0.3's `geom_basemap(dpi = d)` saved with
+`ggsave(dpi = D)`, use `symbol_scale = d / D`.
+
+```r
+p <- ggplot(nc) +
+  geom_basemap("OpenFreeMap.Liberty", symbol_scale = 0.8) +  # smaller labels, more detail
+  geom_sf(fill = NA)
+ggsave("nc.png", p, width = 8, height = 3.5, dpi = 300)       # sharpness only
+last_rendering()$zoom                                          # the zoom it drew at
+```
+
+A `zoom` of your own gives a chosen detail:
 
 ```{r, fig.alt = "Central North Carolina from Greensboro to Rocky Mount and Fayetteville, in OpenFreeMap Liberty at zoom 8: county outlines over highways, lakes and town names, with Raleigh, Durham and Cary in the middle."}
 ggplot(nc) +

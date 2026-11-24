@@ -8,7 +8,7 @@ matplotlib one (and R's ggplot2) show the same map.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from plotnine import aes
 from plotnine.geoms.geom import geom
@@ -18,9 +18,11 @@ class geom_basemap(geom):
     """A basemap under a plotnine plot's layers: ``ggplot(df) + m``, or this
     alias, which builds the basemap from :func:`basemap`'s arguments.
 
-    The plot gives the extent, the image size and the dpi; the basemap may
-    give a ``zoom`` (then the dpi is derived) or a ``dpi``. The same layer
-    exists in R (``ggplot(nc) + basemap(s)``, alias ``geom_basemap()``).
+    The plot gives the extent, the printed size and the sharpness (the
+    figure's dpi; a basemap's ``dpi`` is an error here). What the map shows
+    is set by ``zoom`` or ``symbol_scale`` (see :meth:`Basemap.add_to`). The
+    same layer exists in R (``ggplot(nc) + basemap(s)``, alias
+    ``geom_basemap()``).
 
     Args:
         style: A style, a list of styles, or a :class:`Basemap`.
@@ -31,7 +33,8 @@ class geom_basemap(geom):
         attribution: The providers' credit line in the bottom-right corner:
             True (their own), False (none), or your text.
         **kwargs: :func:`basemap`'s arguments that apply in a plot (``zoom``
-            or ``dpi``, ``clip``, ``fetch``), and plotnine's layer arguments.
+            or ``symbol_scale``, ``clip``, ``fetch``), and plotnine's layer
+            arguments.
 
     Example:
         >>> import pandas as pd, basemapper
@@ -47,7 +50,7 @@ class geom_basemap(geom):
     DEFAULT_PARAMS = {"stat": "identity", "position": "identity", "na_rm": False}
     GROUP = -1
 
-    _BASEMAP_ARGS = ("zoom", "dpi", "clip", "fetch")
+    _BASEMAP_ARGS = ("zoom", "symbol_scale", "dpi", "clip", "fetch")
 
     def __init__(self, style: Any, *, crs: Any = None, alpha: float = 1.0, attribution: Any = True, **kwargs: Any) -> None:
         from ._basemap import Basemap, basemap

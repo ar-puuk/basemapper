@@ -14,6 +14,7 @@ basemap(
   height = NULL,
   units = "px",
   dpi = NULL,
+  symbol_scale = NULL,
   crs = NULL,
   clip = NULL,
   fetch = fetch_options()
@@ -41,7 +42,18 @@ labels the style draws.}
 \item{units}{\code{"px"} (default), \code{"in"}, \code{"cm"} or \code{"mm"}; with a physical
 unit, \code{dpi} sets only the pixel count.}
 
-\item{dpi}{Image pixels per inch: the sharpness (default 96).}
+\item{dpi}{Image pixels per inch: the sharpness (default 96). In a plot
+the device sets it, and a basemap's \code{dpi} is an error.}
+
+\item{symbol_scale}{The size of lines, labels and icons on the page, as a
+multiple of the style's designed size. At 1 (the default) a CSS pixel is
+1/96 inch, so a label the style sizes at 12 px prints at 9 pt; 0.84
+prints it at 84\% of that. It changes what is drawn, not the sharpness:
+with the extent and printed size fixed (always so in a plot), a smaller
+symbol scale leaves room for more detail (a higher zoom), a larger one
+for less. \code{zoom} and \code{symbol_scale} each set the other there, so give
+one. To keep the look of 0.3's \code{geom_basemap(dpi = d)} saved at
+\code{ggsave(dpi = D)}, use \code{symbol_scale = d / D}.}
 
 \item{crs}{The map's CRS (anything \code{\link[sf:st_crs]{sf::st_crs()}} takes, or an object with
 a CRS). Default: the \code{bounds} layer's CRS when it is projected, else Web
@@ -65,13 +77,24 @@ its own (\code{\link[=render]{render()}}) or goes into a plot (\code{ggplot(nc) 
 in Python (\code{basemapper.basemap()}) and Rust (\code{Basemap}).
 }
 \details{
-Three controls, each with one meaning everywhere: the extent (\code{bounds}, or
-\code{center} with \code{zoom}), \code{zoom} (the feature detail) and \code{dpi} (the
-sharpness); \code{width} / \code{height} and \code{\link[=around]{around()}} express them in other terms.
-\strong{Any three of extent, zoom, image size and dpi give the fourth.} What
-nothing gives is defaulted, in this order: dpi (96), image size (800 x 600
-at 96 dpi, scaled with the dpi), extent (the world); the zoom is never a
-default. Over-determined requests are errors that say what to drop.
+Each control has one meaning everywhere:
+\itemize{
+\item the extent (\code{bounds}, or \code{center} with \code{zoom}): where;
+\item \code{zoom}: the detail (which roads, places and labels the style draws);
+\item \code{symbol_scale}: the size of lines, labels and icons on the page;
+\item \code{dpi}: the sharpness (image pixels per inch), and nothing else.
+}
+
+\strong{Any three of extent, zoom, printed size and symbol scale give the
+fourth}; the dpi turns the printed size into pixels. A \code{width} /
+\code{height} in \code{"in"}, \code{"cm"} or \code{"mm"} is the printed size; in pixels it is a
+printed size through the dpi (\code{px / dpi} inches), so with the pixels fixed,
+a higher dpi prints the map smaller. What nothing gives is defaulted, in
+this order: dpi (96), symbol scale (1), image size (800 x 600 px at 96 dpi,
+scaled with the dpi), extent (the world); the zoom is never a default.
+Over-determined requests are errors that say what to drop. In a plot, the
+plot gives the extent and printed size and the device the dpi: give a
+\code{zoom} or a \code{symbol_scale} (see \code{\link[=geom_basemap]{geom_basemap()}}).
 }
 \examples{
 \dontrun{

@@ -14,7 +14,7 @@ fn cases() -> Value {
     serde_json::from_str(&std::fs::read_to_string(path).expect("contract cases")).expect("valid JSON")
 }
 
-const INPUTS: &[&str] = &["bounds_lonlat", "center", "zoom", "width", "height", "units", "dpi"];
+const INPUTS: &[&str] = &["bounds_lonlat", "center", "zoom", "width", "height", "units", "dpi", "symbol_scale"];
 const PROVENANCE: &[&str] = &["given", "derived", "default", "context"];
 const LEVELS: &[&str] = &["decided", "adjusted", "problem"];
 
@@ -99,6 +99,9 @@ fn inputs_of(c: &Value) -> ViewInputs {
     if let (Some(w), Some(h)) = (num(&i["width"]), num(&i["height"])) {
         v = v.size(w, h, i["units"].as_str().map(|u| Units::parse(u).unwrap()).unwrap_or_default());
     }
+    if let Some(s) = num(&i["symbol_scale"]) {
+        v = v.symbol_scale(s);
+    }
     if let Some(d) = num(&i["dpi"]) {
         v = v.dpi(d);
     }
@@ -156,6 +159,7 @@ fn contract_cases_resolve() {
         check("width", v.width as f64, e["width"].as_f64().unwrap(), tol["px"].as_f64().unwrap());
         check("height", v.height as f64, e["height"].as_f64().unwrap(), tol["px"].as_f64().unwrap());
         check("dpi", v.dpi, e["dpi"].as_f64().unwrap(), tol["dpi"].as_f64().unwrap());
+        check("symbol_scale", v.symbol_scale, e["symbol_scale"].as_f64().unwrap(), 1e-9);
         check("zoom", v.zoom, e["zoom"].as_f64().unwrap(), tol["zoom"].as_f64().unwrap());
         for (k, want) in e["bounds_3857"].as_array().unwrap().iter().enumerate() {
             check(&format!("bounds[{k}]"), v.bounds[k], want.as_f64().unwrap(), tol["metres"].as_f64().unwrap());

@@ -68,10 +68,13 @@ reference:
     desc: >
       A basemap in a ggplot2 or tmap plot, warped into the plot's CRS and
       rendered at the output resolution: `ggplot(df) + m`, `geom_basemap()`,
-      `tm_basemap()`.
+      `tm_basemap()`. `zoom_for()` plans a zoom; `last_rendering()` reads
+      what a drawn plot used.
     contents:
       - geom_basemap
       - tm_basemap
+      - zoom_for
+      - last_rendering
 
   - title: Styles
     desc: >
