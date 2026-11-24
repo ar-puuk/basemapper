@@ -2,7 +2,7 @@
 # D18, D19, D20, D21): the map CRS rule, the warp's alignment and clips.
 
 square_style <- function(lon0, lat0, lon1, lat1, color = "#ff0000") {
-  ring <- sprintf("[[%g,%g],[%g,%g],[%g,%g],[%g,%g],[%g,%g]]", lon0, lat0, lon1, lat0, lon1, lat1, lon0, lat1, lon0, lat0)
+  ring <- sprintf("[[%.12g,%.12g],[%.12g,%.12g],[%.12g,%.12g],[%.12g,%.12g],[%.12g,%.12g]]", lon0, lat0, lon1, lat0, lon1, lat1, lon0, lat1, lon0, lat0)
   paste0(
     '{"version":8,"sources":{"sq":{"type":"geojson","data":{"type":"Polygon","coordinates":[', ring, ']}}},',
     '"layers":[{"id":"bg","type":"background","paint":{"background-color":"#ffffff"}},',
@@ -78,4 +78,24 @@ test_that("clips need polygons", {
   pts <- sf::st_sfc(sf::st_point(c(-111.9, 40.7)), crs = 4326)
   expect_error(basemap(square_style(0, 0, 1, 1), bounds = c(-112, 40, -111, 41), clip = pts), "st_buffer")
   expect_error(outside(sf::st_sfc(sf::st_point(c(0, 0)))), "no CRS")
+})
+
+test_that("a size that is not whole CSS pixels is drawn, not resampled", {
+  skip_if_not_installed("sf")
+  # 720 px at 168 dpi is 411.43 CSS pixels: 0.3.0 drew 719 x 999 px and
+  # stretched them, blurring every edge by a pixel.
+  area <- c(-112.02, 41.05, -111.99, 41.08)
+  b <- get_bounds(basemap(square_style(0, 0, 1, 1), bounds = area, width = 720, height = 1000, dpi = 168))
+  mx <- (b[["xmax"]] - b[["xmin"]]) / 720
+  my <- (b[["ymax"]] - b[["ymin"]]) / 1000
+  # A square with its edges on pixel boundaries: columns 201-500, rows 301-700.
+  ll <- sf::sf_project("EPSG:3857", "EPSG:4326",
+                       rbind(c(b[["xmin"]] + 200 * mx, b[["ymax"]] - 700 * my), c(b[["xmin"]] + 500 * mx, b[["ymax"]] - 300 * my)))
+  m <- basemap(square_style(ll[1, 1], ll[1, 2], ll[2, 1], ll[2, 2]), bounds = area, width = 720, height = 1000, dpi = 168)
+  a <- as_array(render(m))
+  red <- a[, , 1] == 255 & a[, , 2] == 0 & a[, , 3] == 0
+  white <- a[, , 1] == 255 & a[, , 2] == 255 & a[, , 3] == 255
+  expect_true(all(red | white))
+  expect_true(all(red[301:700, 201:500]))
+  expect_equal(sum(red), 400 * 300)
 })

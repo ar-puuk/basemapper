@@ -136,3 +136,35 @@ def test_clips_need_polygons(gpd):
         basemap(square_style(0, 0, 1, 1), bounds=[-112, 40, -111, 41], clip=points)
     with pytest.raises(ValidationError, match="no CRS"):
         basemapper.outside(gpd.GeoDataFrame(geometry=[Point(0, 0).buffer(1)]))
+
+
+def test_a_size_that_is_not_whole_css_pixels_is_drawn_not_resampled():
+    # 720 px at 168 dpi is 411.43 CSS pixels: 0.3.0 drew 719 x 999 px and
+    # stretched them, blurring every edge by a pixel.
+    probe = basemap(square_style(0, 0, 1, 1), bounds=(-112.02, 41.05, -111.99, 41.08), width=720, height=1000, dpi=168)
+    x0, y0, x1, y1 = probe.bounds
+    mx, my = (x1 - x0) / 720, (y1 - y0) / 1000
+    # A square with its edges on pixel boundaries: columns 200-499, rows 300-699.
+    to_ll = pyproj.Transformer.from_crs(3857, 4326, always_xy=True)
+    lon0, lat1 = to_ll.transform(x0 + 200 * mx, y1 - 300 * my)
+    lon1, lat0 = to_ll.transform(x0 + 500 * mx, y1 - 700 * my)
+    m = basemap(square_style(lon0, lat0, lon1, lat1), bounds=(-112.02, 41.05, -111.99, 41.08), width=720, height=1000, dpi=168)
+    img = m.render().to_numpy()[..., :3].astype(int)
+    red = (img == [255, 0, 0]).all(axis=-1)
+    white = (img == [255, 255, 255]).all(axis=-1)
+    assert (red | white).all(), f"{(~(red | white)).sum()} blended pixels"
+    assert red[300:700, 200:500].all() and red.sum() == 400 * 300
+
+
+def test_a_warped_map_samples_pixel_centres():
+    # A square in UTM at a size that is not whole CSS pixels: its centroid
+    # lands within a tenth of a pixel of where UTM puts it.
+    style = square_style(-111.95, 40.72, -111.85, 40.80)
+    r = basemap(style, center=(-111.9, 40.76), zoom=11, width=401, height=301, dpi=168, crs=32612).render()
+    to_utm = pyproj.Transformer.from_crs(4326, 32612, always_xy=True)
+    corners = [to_utm.transform(x, y) for x, y in [(-111.95, 40.72), (-111.85, 40.72), (-111.85, 40.80), (-111.95, 40.80)]]
+    cx, cy = np.mean([c[0] for c in corners]), np.mean([c[1] for c in corners])
+    x0, y0, x1, y1 = r.bounds
+    want = np.array([(cx - x0) / (x1 - x0) * r.width, (y1 - cy) / (y1 - y0) * r.height])
+    got = red_centroid(r.to_numpy())
+    assert np.hypot(*(got - want)) < 0.1, f"the square is {np.hypot(*(got - want)):.3f} px off"

@@ -176,18 +176,26 @@ impl Basemap {
         before.extend(view.decided());
         let mut r = match warp {
             None => {
-                // CSS pixels are whole numbers; a size that is not a whole
-                // number of them is resampled to the exact pixels below.
-                let css = css_px(view.width, view.height, ratio);
-                let r = crate::rendering::render_collecting(|| self.requests(view.bounds, css, ratio), view.zoom, view.dpi, before)?;
-                if (r.width, r.height) == (view.width, view.height) {
-                    r
+                // CSS pixels are whole numbers. A size that is not a whole
+                // number of them is drawn a little larger on the same pixel
+                // grid, from the view's top-left corner, and cropped: the
+                // pixels are the renderer's own, never resampled.
+                if let Some((bbox, css)) = covering(view, ratio) {
+                    let r = crate::rendering::render_collecting(|| self.requests(bbox, css, ratio), view.zoom, view.dpi, before)?;
+                    cropped(r, view)?
                 } else {
-                    let b = r.bounds;
+                    // A view too close to a whole world (or the poles) to
+                    // draw larger: resampled, pixel centres to centres.
+                    let css = css_px(view.width, view.height, ratio);
+                    let r = crate::rendering::render_collecting(|| self.requests(view.bounds, css, ratio), view.zoom, view.dpi, before)?;
+                    let b = view.bounds;
+                    // The image covers its device pixels, from the top-left
+                    // corner, not exactly the bounds asked for.
+                    let r = Rendering { bounds: drawn_bounds(b, css, ratio, r.width, r.height), ..r };
                     let mesh = Mesh::from_fn(2, 2, view.width, view.height, |x, y| {
-                        (b[0] + x / view.width as f64 * (b[2] - b[0]), b[3] - y / view.height as f64 * (b[3] - b[1]))
+                        (b[0] + x / view.width as f64 * span_x(b), b[3] - y / view.height as f64 * (b[3] - b[1]))
                     })?;
-                    resampled(r, &mesh, view.width, view.height)?
+                    Rendering { bounds: b, web_mercator_y: (b[1] + b[3]) / 2.0, ..resampled(r, &mesh, view.width, view.height)? }
                 }
             }
             Some(w) => {
@@ -207,6 +215,7 @@ impl Basemap {
                 }
                 let css = (css.0 as u32, css.1 as u32);
                 let r = crate::rendering::render_collecting(|| self.requests(src, css, ratio), view.zoom, view.dpi, before)?;
+                let r = Rendering { bounds: drawn_bounds(src, css, ratio, r.width, r.height), ..r };
                 let mut out = resampled(r, &w.mesh, view.width, view.height)?;
                 out.bounds = w.bounds;
                 out.crs = w.crs.clone();
@@ -315,6 +324,69 @@ fn css_px(width: u32, height: u32, ratio: f64) -> (u32, u32) {
     (((width as f64 / ratio).round() as u32).max(1), ((height as f64 / ratio).round() as u32).max(1))
 }
 
+/// West-to-east width of `b` (across the date line when `xmin > xmax`).
+fn span_x(b: [f64; 4]) -> f64 {
+    if b[0] > b[2] { b[2] + 2.0 * view::HALF - b[0] } else { b[2] - b[0] }
+}
+
+/// A render of the view's pixels without resampling: a bbox and a whole
+/// CSS size whose device pixels are the view's own pixel grid from its
+/// top-left corner, at least as large as the view (cropped by
+/// [`cropped`]). The renderer lays device pixels `1 / ratio` CSS pixel wide
+/// from the bbox's top-left corner, and the zoom it derives from the bbox
+/// and CSS size is the view's. The view's own bounds when its size is whole
+/// CSS pixels; `None` when the larger bbox would leave Web Mercator's area
+/// (a view of nearly the whole world, or reaching the poles).
+fn covering(view: &View, ratio: f64) -> Option<([f64; 4], (u32, u32))> {
+    let b = view.bounds;
+    let (w, h) = (view.width as f64, view.height as f64);
+    let css = ((w / ratio).ceil().max(1.0), (h / ratio).ceil().max(1.0));
+    if css.0 * ratio == w && css.1 * ratio == h {
+        return Some((b, (css.0 as u32, css.1 as u32)));
+    }
+    // Metres per device pixel, and the bbox those CSS pixels span.
+    let (mx, my) = (span_x(b) / w, (b[3] - b[1]) / h);
+    let (bw, bh) = (css.0 * ratio * mx, css.1 * ratio * my);
+    if bw >= 2.0 * view::HALF || b[3] - bh < -view::HALF {
+        return None;
+    }
+    let mut xmax = b[0] + bw;
+    if b[0] > b[2] {
+        xmax -= 2.0 * view::HALF;
+    }
+    Some(([b[0], b[3] - bh, xmax, b[3]], (css.0 as u32, css.1 as u32)))
+}
+
+/// The top-left `view.width x view.height` pixels of `r` (from
+/// [`covering`]), which are the view's.
+fn cropped(r: Rendering, view: &View) -> Result<Rendering, BasemapError> {
+    let (w, h) = (view.width as usize, view.height as usize);
+    if (r.width as usize, r.height as usize) == (w, h) {
+        return Ok(Rendering { bounds: view.bounds, ..r });
+    }
+    if (r.width as usize) < w || (r.height as usize) < h {
+        return Err(BasemapError::RenderError(format!(
+            "internal: a {} x {} px render is smaller than the {w} x {h} px view",
+            r.width, r.height
+        )));
+    }
+    let stride = r.width as usize * 4;
+    let pixels = r.pixels.chunks_exact(stride).take(h).flat_map(|row| &row[..w * 4]).copied().collect();
+    let b = view.bounds;
+    Ok(Rendering { pixels, width: view.width, height: view.height, bounds: b, web_mercator_y: (b[1] + b[3]) / 2.0, ..r })
+}
+
+/// What a render of `b` at `css` CSS pixels and `ratio` covers with its
+/// `dw x dh` device pixels, laid from the top-left corner.
+fn drawn_bounds(b: [f64; 4], css: (u32, u32), ratio: f64, dw: u32, dh: u32) -> [f64; 4] {
+    let (mx, my) = (span_x(b) / (css.0 as f64 * ratio), (b[3] - b[1]) / (css.1 as f64 * ratio));
+    let mut xmax = b[0] + dw as f64 * mx;
+    if b[0] > b[2] {
+        xmax -= 2.0 * view::HALF;
+    }
+    [b[0], b[3] - dh as f64 * my, xmax, b[3]]
+}
+
 /// `r` resampled through `mesh` into `width x height` pixels.
 fn resampled(r: Rendering, mesh: &Mesh, width: u32, height: u32) -> Result<Rendering, BasemapError> {
     let pixels = warp::warp(&Image { pixels: &r.pixels, width: r.width, height: r.height, bounds: r.bounds }, mesh, width, height)?;
@@ -392,6 +464,111 @@ mod tests {
         let plot = Context::Plot { extent: [-4.0 * d, -4.0 * d, 4.0 * d, 4.0 * d], panel_px: (80, 80), device: Device::Screen { pixel_ratio: 1.0 } };
         let v = Basemap::new(plain("#ff0000")).clip(inside).view(&plot).unwrap();
         assert_eq!(v.provenance.extent, Provenance::Context);
+    }
+
+    /// A white map with a black vertical line `width_css` CSS pixels wide at
+    /// Web Mercator `x`.
+    fn line_at(x: f64, width_css: f64) -> String {
+        let lon = x / WORLD * 180.0;
+        format!(
+            r##"{{"version":8,"sources":{{"l":{{"type":"geojson","data":{{"type":"Feature","properties":{{}},"geometry":{{"type":"LineString","coordinates":[[{lon},-80],[{lon},80]]}}}}}}}},"layers":[{{"id":"bg","type":"background","paint":{{"background-color":"#ffffff"}}}},{{"id":"l","type":"line","source":"l","paint":{{"line-color":"#000000","line-width":{width_css}}}}}]}}"##
+        )
+    }
+
+    /// 0.3.0 drew a size that is not whole CSS pixels (720 px at 168 dpi is
+    /// 411.43) one pixel smaller and resampled it, blurring every edge.
+    #[test]
+    fn a_size_that_is_not_whole_css_pixels_is_not_resampled() {
+        let b = [-12_469_979.0, 5_026_397.0, -12_466_414.0, 5_031_348.0];
+        let probe = Basemap::new(plain("#ffffff")).bounds(b, Crs::WebMercator).size(720, 1000).dpi(168.0);
+        let v = probe.view(&Context::Standalone).unwrap();
+        let ratio = 168.0 / CSS_DPI;
+        let mx = (v.bounds[2] - v.bounds[0]) / 720.0;
+        // A line one device pixel wide on the centre of column 300.
+        let style = line_at(v.bounds[0] + 300.5 * mx, 1.0 / ratio);
+        let m = Basemap::new(style.clone()).bounds(b, Crs::WebMercator).size(720, 1000).dpi(168.0);
+        let r = m.render(&Context::Standalone).unwrap();
+        assert_eq!((r.width, r.height, r.bounds), (720, 1000, v.bounds));
+        assert!((r.zoom - v.zoom).abs() < 1e-12);
+        let lum = |x: usize, y: usize| r.pixels[(y * 720 + x) * 4] as i32;
+        for y in [10, 500, 990] {
+            assert!(lum(300, y) < 30, "the line's column is black, not smeared: {}", lum(300, y));
+            assert!(lum(299, y) > 225 && lum(301, y) > 225, "its neighbours stay white: {} {}", lum(299, y), lum(301, y));
+        }
+        // The pixels are a raw render's: the top-left of a render of the
+        // same grid at a whole number of CSS pixels (412 x 572, 721 x 1001).
+        let (bbox, css) = covering(&v, ratio).unwrap();
+        assert_eq!(css, (412, 572));
+        let raw = Basemap::new(style).bounds(bbox, Crs::WebMercator).size(721, 1001).dpi(168.0).render(&Context::Standalone).unwrap();
+        assert_eq!((raw.width, raw.height), (721, 1001));
+        assert!((raw.zoom - v.zoom).abs() < 1e-9, "the same zoom: {} {}", raw.zoom, v.zoom);
+        let top_left: Vec<u8> = raw.pixels.chunks_exact(721 * 4).take(1000).flat_map(|row| &row[..720 * 4]).copied().collect();
+        assert!(top_left == r.pixels, "pixel-identical to the raw render");
+    }
+
+    /// The column, in pixel-centre coordinates, at the centre of darkness of
+    /// row `y` between columns `from..to`.
+    fn dark_centre(r: &Rendering, y: usize, from: usize, to: usize) -> f64 {
+        let w = r.width as usize;
+        let (mut sum, mut at) = (0.0, 0.0);
+        for x in from..to {
+            let d = 255.0 - r.pixels[(y * w + x) * 4] as f64;
+            sum += d;
+            at += d * x as f64;
+        }
+        at / sum
+    }
+
+    /// Plots: a Web Mercator panel is the plain render, pixel for pixel; a
+    /// warped one (lon/lat, or any CRS through its mesh) samples pixel
+    /// centres, so a line stays centred where it belongs.
+    #[test]
+    fn plot_panels_keep_pixels_where_they_belong() {
+        use crate::plot::{Panel, PanelCrs};
+        let screen = Device::Screen { pixel_ratio: 1.75 };
+        let b = [-12_469_979.0, 5_026_397.0, -12_466_414.0, 5_031_348.0];
+        let v = Basemap::new(plain("#fff")).bounds(b, Crs::WebMercator).size(720, 1000).dpi(168.0).view(&Context::Standalone).unwrap();
+        let mx = (v.bounds[2] - v.bounds[0]) / 720.0;
+        let style = line_at(v.bounds[0] + 300.5 * mx, 1.0 / 1.75);
+        let alone = Basemap::new(style.clone()).bounds(b, Crs::WebMercator).size(720, 1000).dpi(168.0).render(&Context::Standalone).unwrap();
+        let panel = Panel::new(v.bounds, PanelCrs::WebMercator, (720, 1000), screen).unwrap();
+        let plotted = Basemap::new(style.clone()).render_panel(&panel).unwrap();
+        assert!(plotted.pixels == alone.pixels, "a Web Mercator panel is the plain render");
+
+        // Through a mesh (an "other" CRS whose units happen to be metres of
+        // Web Mercator): the line's darkness is centred on column 300.
+        let mesh = Mesh::from_fn(4, 4, 720, 1000, |x, y| (v.bounds[0] + x * mx, v.bounds[3] - y * mx)).unwrap();
+        let other = Panel::new(v.bounds, PanelCrs::Other { name: "EPSG:32612".into(), mesh }, (720, 1000), screen).unwrap();
+        let warped = Basemap::new(style).render_panel(&other).unwrap();
+        for y in [10, 500, 990] {
+            let c = dark_centre(&warped, y, 290, 311);
+            assert!((c - 300.0).abs() < 0.05, "row {y}: centred at {c}");
+        }
+
+        // Lon/lat: a meridian at the centre of column 123 of a 400 px panel.
+        let lon = -2.0 + 123.5 / 400.0 * 4.0;
+        let style = line_at(lon / 180.0 * WORLD, 1.0 / 1.75);
+        let p = Panel::new([-2.0, 50.0, 2.0, 52.0], PanelCrs::LonLat, (400, 300), screen).unwrap();
+        let r = Basemap::new(style).render_panel(&p).unwrap();
+        for y in [5, 150, 295] {
+            let c = dark_centre(&r, y, 113, 134);
+            assert!((c - 123.0).abs() < 0.05, "row {y}: centred at {c}");
+        }
+    }
+
+    #[test]
+    fn the_covering_render_wraps_at_the_date_line_and_gives_up_near_the_world() {
+        let v = Basemap::new(plain("#fff")).bounds([WORLD - 5000.0, 0.0, -WORLD + 5000.0, 7000.0], Crs::WebMercator).size(720, 500).dpi(168.0);
+        let v = v.view(&Context::Standalone).unwrap();
+        let (bbox, _) = covering(&v, 168.0 / CSS_DPI).unwrap();
+        assert!(bbox[0] > bbox[2] && bbox[2] > v.bounds[2] && bbox[2] < 0.0, "{bbox:?}");
+        assert!((bbox[3] - v.bounds[3]).abs() < 1e-9 && bbox[1] < v.bounds[1]);
+        // The whole world at 168 dpi: drawn and resampled instead.
+        let w = Basemap::new(plain("#123456")).size(800, 600).dpi(168.0);
+        let wv = w.view(&Context::Standalone).unwrap();
+        assert!(covering(&wv, 168.0 / CSS_DPI).is_none());
+        let r = w.render(&Context::Standalone).unwrap();
+        assert_eq!((r.width, r.height, &r.pixels[(300 * 800 + 400) * 4..][..4]), (800, 600, &[0x12, 0x34, 0x56, 0xff][..]));
     }
 
     #[test]

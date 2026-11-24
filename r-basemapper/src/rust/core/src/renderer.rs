@@ -7,13 +7,19 @@ use std::collections::HashMap;
 ///
 /// Each tile occupies an exact (tile_px × tile_px) region on the canvas.
 /// The canvas extends from bbox[0..3] at the given zoom; pixel offsets
-/// are computed from the tile index relative to the top-left tile.
+/// are computed from the tile index relative to the top-left tile. As in
+/// MapLibre, the bbox spans `css` CSS pixels and a device pixel is
+/// `1 / pixel_ratio` of one, laid from the top-left corner: the canvas
+/// (`width x height`, the device size rounded) covers the bbox to within
+/// a fraction of a pixel at its right and bottom edges, on the same pixel
+/// grid as a vector render.
 pub fn composite_raster_tiles(
     tiles: &[(TileCoord, TileData)],
     bbox: [f64; 4],
     zoom: u8,
     width: u32,
     height: u32,
+    css: (u32, u32),
     transparent_background: bool,
     pixel_ratio: f64,
 ) -> Result<RgbaImage, BasemapError> {
@@ -29,8 +35,8 @@ pub fn composite_raster_tiles(
 
     let half_circ = 20_037_508.342789244_f64;
     let tile_size_m = (2.0 * half_circ) / 2u64.pow(zoom as u32) as f64;
-    let scale_x = width as f64 / (bbox[2] - bbox[0]);
-    let scale_y = height as f64 / (bbox[3] - bbox[1]);
+    let scale_x = css.0 as f64 * pixel_ratio / (bbox[2] - bbox[0]);
+    let scale_y = css.1 as f64 * pixel_ratio / (bbox[3] - bbox[1]);
     let tile_map: HashMap<(u32, u32), &[u8]> = tiles
         .iter()
         .map(|(c, d)| ((c.x, c.y), d.as_slice()))
@@ -110,7 +116,7 @@ mod tests {
         for ratio in [1.0, 1.04, 1.146, 1.5, 2.0, 2.37] {
             let w = (300.0 * ratio) as u32;
             let h = (225.0 * ratio) as u32;
-            let img = composite_raster_tiles(&tiles, bbox, 2, w, h, false, ratio).unwrap();
+            let img = composite_raster_tiles(&tiles, bbox, 2, w, h, (300, 225), false, ratio).unwrap();
             let white = img.pixels().filter(|p| p.0 == [255, 255, 255, 255]).count();
             assert_eq!(white, 0, "ratio {ratio}: {white} canvas pixels show between tiles");
         }
