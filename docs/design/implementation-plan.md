@@ -220,6 +220,32 @@ outside, holes) renders; bench within noise.
 **Exit:** contract cases for plots (screen / export / vector, a chosen zoom →
 effective dpi) pass in Rust.
 
+**Done (2026-11-23):**
+
+- `core/src/plot.rs`: a `Panel` (limits in the plot's CRS, pixels, device)
+  goes through `plan()` to a `View` and an optional `Warp`.
+  - **Web Mercator panels** are their own extent.
+  - **Lon/lat panels:** the core builds the mesh itself (interpolation
+    error under 0.1 px, measured on a tall high-latitude panel). The scale
+    comes from the exact formula at the centre's latitude, so R and Python
+    need no projection library for them.
+  - **Other CRSs** take the host's mesh; the zoom follows the mesh's scale
+    at the panel's centre. A host mesh gives the same zoom as the formula.
+  - `Basemap::plan` and `render_panel` render for a panel. A clip is in the
+    plot's CRS and is only a mask there.
+- D16 was already in `view.rs` (`Device`). The contract gains a dpi chosen
+  in a plot, a plain screen, and the zoom + dpi and size conflicts. All 24
+  view cases pass.
+- `attribution_layout()`: the credit line as R and Python draw it today (6
+  pt, a 70% white box, bottom right, wrapped to the panel width), computed
+  once. It wraps at words and never splits one.
+- `core/tests/warp_mask.rs` renders a lon/lat panel end to end through the
+  plan: the checkerboard is aligned, and a clip in degrees masks the right
+  pixels (reference `plot_lonlat.png`).
+
+The warp mesh density for host CRSs (UTM, Albers) is measured in phases
+3–4, where the hosts compute those meshes.
+
 ---
 
 ## Phase 3: the Python package as an adapter

@@ -258,3 +258,35 @@ fn clipped_inside_outside_and_with_holes() {
 fn the_web_mercator_constant_is_the_cores() {
     assert!((lonlat_to_mercator(180.0, 0.0).0 - HALF).abs() < 1e-6);
 }
+
+#[test]
+fn a_lonlat_plot_panel_through_the_plan_is_aligned_and_clipped_in_its_crs() {
+    use basemapper_core::{Device, Panel, PanelCrs};
+    // The F1 case end to end: a lon/lat plot panel, the core building the
+    // mesh itself; the clip is in the plot's CRS (degrees).
+    let (w, h) = (280, 280);
+    let (lon0, lat1, deg_px) = (-113.5, 43.5, 40.0);
+    let panel = Panel::new([-113.5, 36.5, -106.5, 43.5], PanelCrs::LonLat, (w, h), Device::Screen { pixel_ratio: 1.0 }).unwrap();
+    let r = Basemap::new(checkerboard_style()).render_panel(&panel).unwrap();
+    assert_eq!((r.width, r.height, r.crs.as_str(), r.bounds), (w, h, "EPSG:4326", [-113.5, 36.5, -106.5, 43.5]));
+    let mut wrong = 0;
+    for y in 0..h {
+        for x in 0..w {
+            let (lon, lat) = (lon0 + (x as f64 + 0.5) / deg_px, lat1 - (y as f64 + 0.5) / deg_px);
+            let near_edge = |v: f64| (v - v.round()).abs() * deg_px < 1.5;
+            if !near_edge(lon) && !near_edge(lat) && rgb(&r.pixels, w, x, y) != colour_at(lon, lat) {
+                wrong += 1;
+            }
+        }
+    }
+    assert_eq!(wrong, 0, "pixels of the wrong square through the plot plan");
+    matches_reference("plot_lonlat", &r.pixels, w, h);
+
+    // A clip in degrees: the square lon -111..-109, lat 39..41 is kept.
+    let clip = Shape::new(vec![vec![vec![(-111.0, 39.0), (-109.0, 39.0), (-109.0, 41.0), (-111.0, 41.0)]]], Keep::Inside).unwrap();
+    let c = Basemap::new(checkerboard_style()).clip(clip).render_panel(&panel).unwrap();
+    let px = |lon: f64, lat: f64| (((lon - lon0) * deg_px) as u32, ((lat1 - lat) * deg_px) as u32);
+    let (ix, iy) = px(-110.0, 40.0);
+    let (ox, oy) = px(-112.0, 42.0);
+    assert_eq!((alpha(&c.pixels, w, ix, iy), alpha(&c.pixels, w, ox, oy)), (255, 0));
+}

@@ -78,6 +78,7 @@ pub mod fetch;
 pub mod net;
 pub mod mask;
 pub mod notes;
+pub mod plot;
 pub mod rendering;
 pub mod providers;
 #[doc(hidden)]
@@ -100,6 +101,7 @@ pub use warp::{Mesh, Warp};
 pub use bbox::{bbox_from_center, compute_zoom, constrain_view, fit_bounds, RenderRequest, RenderResult, SpatialBounds};
 pub use error::BasemapError;
 pub use notes::{Level, Note};
+pub use plot::{Panel, PanelCrs};
 pub use rendering::Rendering;
 pub use style::{Source, Style};
 #[doc(hidden)]

@@ -732,6 +732,178 @@
       }
     },
     {
+      "name": "plot_dpi_given",
+      "doc": "\u00a74.2 In a plot: a dpi chosen for the basemap replaces the device's; the zoom follows from it",
+      "inputs": {
+        "dpi": 150
+      },
+      "context": {
+        "plot": {
+          "extent_3857": [
+            -12478914.917925967,
+            4960718.623207294,
+            -12434387.12160866,
+            4990403.820752165
+          ],
+          "panel_px": [
+            1800,
+            1200
+          ],
+          "device": "raster_export",
+          "dpi": 300,
+          "pixel_ratio": 1
+        }
+      },
+      "expect": {
+        "width": 1800,
+        "height": 1200,
+        "dpi": 150,
+        "zoom": 10.983706192659419,
+        "bounds_3857": [
+          -12478914.917925967,
+          4960718.623207294,
+          -12434387.12160866,
+          4990403.820752165
+        ],
+        "provenance": {
+          "extent": "context",
+          "size": "context",
+          "dpi": "given",
+          "zoom": "derived"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "plot_screen_plain",
+      "doc": "\u00a74.2 In a plot (D16): a screen without a pixel ratio is 96 dpi",
+      "inputs": {},
+      "context": {
+        "plot": {
+          "extent_3857": [
+            -12478914.917925967,
+            4960718.623207294,
+            -12434387.12160866,
+            4990403.820752165
+          ],
+          "panel_px": [
+            576,
+            384
+          ],
+          "device": "screen",
+          "dpi": null,
+          "pixel_ratio": 1
+        }
+      },
+      "expect": {
+        "width": 576,
+        "height": 384,
+        "dpi": 96,
+        "zoom": 9.983706192659419,
+        "bounds_3857": [
+          -12478914.917925967,
+          4960718.623207294,
+          -12434387.12160866,
+          4990403.820752165
+        ],
+        "provenance": {
+          "extent": "context",
+          "size": "context",
+          "dpi": "context",
+          "zoom": "derived"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "plot_zoom_and_dpi",
+      "doc": "\u00a74.2 Conflicts: in a plot the extent and pixels are fixed, so zoom and dpi cannot both be chosen",
+      "inputs": {
+        "zoom": 12,
+        "dpi": 300
+      },
+      "context": {
+        "plot": {
+          "extent_3857": [
+            -12478914.917925967,
+            4960718.623207294,
+            -12434387.12160866,
+            4990403.820752165
+          ],
+          "panel_px": [
+            1800,
+            1200
+          ],
+          "device": "raster_export",
+          "dpi": 300,
+          "pixel_ratio": 1
+        }
+      },
+      "error": {
+        "kind": "validation",
+        "contains": [
+          "zoom",
+          "dpi"
+        ]
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "plot_with_size",
+      "doc": "\u00a74.2 Conflicts: in a plot the panel gives the image size",
+      "inputs": {
+        "width": 800,
+        "height": 600
+      },
+      "context": {
+        "plot": {
+          "extent_3857": [
+            -12478914.917925967,
+            4960718.623207294,
+            -12434387.12160866,
+            4990403.820752165
+          ],
+          "panel_px": [
+            1800,
+            1200
+          ],
+          "device": "raster_export",
+          "dpi": 300,
+          "pixel_ratio": 1
+        }
+      },
+      "error": {
+        "kind": "validation",
+        "contains": [
+          "width",
+          "plot"
+        ]
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
       "name": "plot_with_bounds",
       "doc": "\u00a74.2 Conflicts / D15: a basemap with its own extent in a plot",
       "inputs": {

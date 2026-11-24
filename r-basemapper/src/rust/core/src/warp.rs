@@ -53,7 +53,7 @@ impl Mesh {
 
     /// The Web Mercator position of output pixel position `(x, y)` in a
     /// `width x height` image, or `None` near an invalid node.
-    fn at(&self, x: f64, y: f64, width: f64, height: f64) -> Option<(f64, f64)> {
+    pub fn position(&self, x: f64, y: f64, width: f64, height: f64) -> Option<(f64, f64)> {
         let gx = (x / width * (self.nx - 1) as f64).clamp(0.0, (self.nx - 1) as f64);
         let gy = (y / height * (self.ny - 1) as f64).clamp(0.0, (self.ny - 1) as f64);
         let (i, j) = ((gx as usize).min(self.nx - 2), (gy as usize).min(self.ny - 2));
@@ -145,7 +145,7 @@ pub fn warp(source: &Image, mesh: &Mesh, width: u32, height: u32) -> Result<Vec<
     let out = crate::vector::memo::par_map(&rows, |&py| {
         let mut row = vec![0u8; width as usize * 4];
         for px in 0..width {
-            let Some((mx, my)) = mesh.at(px as f64 + 0.5, py as f64 + 0.5, width as f64, height as f64) else { continue };
+            let Some((mx, my)) = mesh.position(px as f64 + 0.5, py as f64 + 0.5, width as f64, height as f64) else { continue };
             // Into the source's pixels, x measured east from its west edge
             // (any longitude, across the date line).
             let dx = if whole_world { (mx - b[0]).rem_euclid(CIRC) } else { wrap_east(mx - b[0]) };

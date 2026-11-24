@@ -223,6 +223,20 @@ impl Basemap {
         Ok(r)
     }
 
+    /// The view and warp for a plot `panel` (see [`crate::plot`]): the plot
+    /// gives the extent, size and dpi; the basemap may give a zoom or a dpi.
+    /// A clip is only a mask in a plot.
+    pub fn plan(&self, panel: &crate::Panel) -> Result<(View, Option<Warp>), BasemapError> {
+        crate::plot::plan(panel, &self.inputs)
+    }
+
+    /// Render for a plot `panel`, in the plot's CRS: the image to draw over
+    /// the panel's limits.
+    pub fn render_panel(&self, panel: &crate::Panel) -> Result<Rendering, BasemapError> {
+        let (view, warp) = self.plan(panel)?;
+        self.render_view(&view, warp.as_ref())
+    }
+
     /// An SVG document of the map in `context` (Web Mercator, CSS pixels).
     pub fn render_svg(&self, context: &Context, options: &SvgOptions) -> Result<String, BasemapError> {
         self.render_svg_view(&self.view(context)?, None, options)

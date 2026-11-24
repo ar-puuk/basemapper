@@ -212,6 +212,24 @@ case("plot_zoom_given", "§4.2 Conflicts: a zoom chosen in a plot gives an effec
                         "notes": [{"level": "adjusted", "kind": "effective_dpi"}]},
      context=plot([1800, 1200], 300, "raster_export"))
 
+case("plot_dpi_given", "§4.2 In a plot: a dpi chosen for the basemap replaces the device's; the zoom follows from it",
+     {"dpi": 150}, {"width": 1800, "height": 1200, "dpi": 150, "zoom": zp + 1, "bounds_3857": ext,
+                    "provenance": {"extent": "context", "size": "context", "dpi": "given", "zoom": "derived"}, "notes": []},
+     context=plot([1800, 1200], 300, "raster_export"))
+
+case("plot_screen_plain", "§4.2 In a plot (D16): a screen without a pixel ratio is 96 dpi",
+     {}, {"width": 576, "height": 384, "dpi": 96, "zoom": zp, "bounds_3857": ext,
+          "provenance": {"extent": "context", "size": "context", "dpi": "context", "zoom": "derived"}, "notes": []},
+     context=plot([576, 384], None, "screen"))
+
+case("plot_zoom_and_dpi", "§4.2 Conflicts: in a plot the extent and pixels are fixed, so zoom and dpi cannot both be chosen",
+     {"zoom": 12, "dpi": 300}, error={"kind": "validation", "contains": ["zoom", "dpi"]},
+     context=plot([1800, 1200], 300, "raster_export"))
+
+case("plot_with_size", "§4.2 Conflicts: in a plot the panel gives the image size",
+     {"width": 800, "height": 600}, error={"kind": "validation", "contains": ["width", "plot"]},
+     context=plot([1800, 1200], 300, "raster_export"))
+
 case("plot_with_bounds", "§4.2 Conflicts / D15: a basemap with its own extent in a plot",
      {"bounds_lonlat": SLC}, error={"kind": "validation", "contains": ["plot"]},
      context=plot([1800, 1200], 300, "raster_export"))
