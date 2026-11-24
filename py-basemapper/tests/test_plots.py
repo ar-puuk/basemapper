@@ -115,8 +115,11 @@ def test_plotnine_ggplot_plus_a_basemap():
     df = pd.DataFrame({"lon": [-111.95, -111.85], "lat": [40.70, 40.80]})
     for layer in (basemap(PLAIN), basemapper.geom_basemap(PLAIN, attribution=False)):
         fig = (ggplot(df, aes("lon", "lat")) + layer + geom_point(color="red")).draw()
-        fig.canvas.draw()
-        px = np.asarray(fig.canvas.buffer_rgba())[..., :3].astype(int)
+        # plotnine's figure may have a bare FigureCanvasBase (CI): draw with Agg.
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        canvas = FigureCanvasAgg(fig)
+        canvas.draw()
+        px = np.asarray(canvas.buffer_rgba())[..., :3].astype(int)
         share = (np.abs(px - [0x33, 0x66, 0x99]).max(axis=2) <= 2).mean()
         assert share > 0.2, f"basemap colour covers {share:.2%} of the figure"
         plt.close(fig)

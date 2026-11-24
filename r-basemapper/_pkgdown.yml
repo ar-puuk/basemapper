@@ -40,69 +40,62 @@ reference:
     contents:
       - basemapper-package
 
-  - title: Basemap views
+  - title: Basemaps
     desc: >
-      Create a view (`basemap()`), change it (`set_view()`, `set_bounds()`),
-      read it (`get_bounds()`, `get_center()`, `get_zoom()`, `get_size()`)
-      and render it (`render_png()`, `render_svg()`, `render_array()`,
-      `render_raster()`). The same functions and arguments exist in Python.
+      A basemap is styles plus what you know of the view: any three of
+      extent, zoom, image size and dpi give the fourth. Change the view with
+      `set_view()` / `set_bounds()` and read it with `get_bounds()`,
+      `get_center()`, `get_zoom()` and `get_size()`. The same functions and
+      arguments exist in Python and Rust.
     contents:
       - basemap
       - set_view
       - get_bounds
-      - render_png
+      - around
+      - outside
+
+  - title: Renderings
+    desc: >
+      `render()` draws a basemap once; the rendering knows where it is and
+      converts to PNG, arrays and terra rasters. `render_svg()` draws true
+      vector SVG.
+    contents:
+      - render
+      - rendering
       - plot.basemap
 
-  - title: One-shot rendering
-    desc: Render bounds to a georeferenced RGBA array in one call.
-    contents:
-      - render_basemap_raw
-
-  - title: Plot integrations
+  - title: Plots
     desc: >
-      Drop a basemap layer into an existing plot, rendered at the output
-      resolution. `geom_basemap()` takes the same arguments in ggplot2 and
-      plotnine (Python).
+      A basemap in a ggplot2 or tmap plot, warped into the plot's CRS and
+      rendered at the output resolution: `ggplot(df) + m`, `geom_basemap()`,
+      `tm_basemap()`.
     contents:
       - geom_basemap
-      - GeomBasemap
       - tm_basemap
 
   - title: Styles
     desc: >
-      Named basemaps (leaflet-providers names, usable as `style`), styles
-      for your own tile data, and OGC services. Tile
-      data (tile URLs, TileJSON, PMTiles, ArcGIS services) also works as
-      `style` directly.
+      What to draw: `style()` with its filters and key, and the source
+      helpers `provider()`, `tiles()`, `wms()` and `wmts()`. A catalogue
+      name, MapLibre style or tile data also works as a style directly.
     contents:
-      - basemap_provider
+      - style
+      - sources
       - list_providers
       - providers
-      - tile_style
-      - ogc_styles
-
-  - title: Style layers and attribution
-    desc: >
-      A style's layers with their features, for the `layers` and `features`
-      filters, and the attribution text it asks maps to show.
-    contents:
       - list_layers
       - get_attribution
 
   - title: Downloads and errors
     desc: >
       How tiles download (`fetch_options()`, the `fetch` argument), the tile
-      cache, and the classes of the errors basemapper raises.
+      cache, the classes of the errors basemapper raises, and the 0.2
+      functions removed in 0.3.
     contents:
       - fetch_options
       - tile_cache
       - basemapper-errors
-
-  - title: Coordinate utilities
-    desc: Internal helpers exposed for advanced use.
-    contents:
-      - reproject_bbox_to_3857
-      - detect_crs_from_coord
+      - basemapper-defunct
 
 articles:
   - title: Guides
