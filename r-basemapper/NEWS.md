@@ -46,6 +46,9 @@ for every change.
   `geom_basemap()` and `tm_basemap()` also take a basemap.
 * `print()` shows the view, and where each value came from (given, derived,
   default).
+* In R Markdown and Quarto, a basemap or rendering shown by a chunk gets
+  alt text describing the map (its styles, centre, zoom, scale and CRS)
+  unless the chunk sets `fig.alt`.
 * Notes: what basemapper decided, adjusted or could not draw. Adjustments
   are `basemapper_adjustment` messages; problems (failed tiles, missing
   glyphs, unsupported style features, filter names that match nothing) are

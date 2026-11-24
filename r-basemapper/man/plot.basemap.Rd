@@ -23,5 +23,7 @@
 \code{plot()} renders the basemap and draws it on the current graphics device.
 In R Markdown and Quarto documents, a basemap printed by a chunk renders
 and shows as an image at its CSS size, sharp at any dpi; \code{print(m)}
-describes it instead.
+describes it instead. The image's alt text is the chunk's \code{fig.alt}, or
+else a description of the map: its styles, where it is centred, its zoom
+and scale, and its CRS when not Web Mercator.
 }

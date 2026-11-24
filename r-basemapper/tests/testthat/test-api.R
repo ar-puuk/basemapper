@@ -180,8 +180,32 @@ test_that("plot() draws a rendering, and knitr shows it at its CSS size", {
   expect_invisible(plot(m))
   grDevices::dev.off()
   skip_if_not_installed("knitr")
-  out <- knit_print.basemap(m, options = list(fig.path = file.path(tempdir(), "fig-"), label = "x"))
+  opts <- list(fig.path = file.path(tempdir(), "fig-"), label = "x")
+  # A chunk's own fig.alt: the image, left to knitr.
+  out <- knit_print.basemap(m, options = c(opts, fig.alt = "mine"))
   expect_true(file.exists(out))
+  expect_equal(knitr::opts_chunk$get("fig.alt"), NULL)
+  # Without one: the image with a description of the map as its alt text
+  # (with Markdown's plot hook, as in R Markdown).
+  knitr::render_markdown()
+  withr::defer(knitr::knit_hooks$restore())
+  out <- knit_print.basemap(m, options = opts)
+  expect_s3_class(out, "knit_asis")
+  expect_match(out, "Basemap of an inline style around 0.00° N, 0.00° E at zoom 2.0", fixed = TRUE)
+  expect_match(out, "-basemap.png", fixed = TRUE)
+})
+
+test_that("the default alt text names the styles, the place, the detail and a CRS", {
+  named <- sub('"version":8,', '"version":8,"name":"Plain",', plain("#123456"), fixed = TRUE)
+  m <- basemap(list(plain(), style(named, features = "-labels")),
+               center = c(-111.89, -40.76), zoom = 12, width = 16, height = 8)
+  expect_equal(basemap_alt(m), sprintf(
+    "Basemap of an inline style under Plain (features: -labels) around 40.76° S, 111.89° W at zoom 12.0 (1:%s)",
+    format(round(m$.prepared$view$scale), big.mark = ",")))
+  expect_equal(style_label(list(source = "https://tile.example.com/{z}/{x}/{y}.png")), "tile.example.com")
+  expect_equal(style_label(list(source = "styles/protomaps-light.json")), "protomaps-light.json")
+  utm <- basemap(plain(), center = c(-111.9, 40.7), zoom = 10, crs = 32612)
+  expect_match(basemap_alt(utm), ", in EPSG:32612$")
 })
 
 # ── Notes ────────────────────────────────────────────────────────────────────

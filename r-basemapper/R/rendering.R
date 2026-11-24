@@ -128,7 +128,13 @@ knit_print.basemapper_rendering <- function(x, options = list(), ...) {
   path <- knitr::fig_path("-basemap.png", options, number = .BASEMAPPER_KNIT$n)
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   write_png(x, path)
-  knitr::include_graphics(path, dpi = x$dpi)
+  img <- knitr::include_graphics(path, dpi = x$dpi)
+  # knitr takes a figure's alt text from the chunk's `fig.alt`; without one,
+  # describe the map (render() attaches the description).
+  options <- utils::modifyList(knitr::opts_chunk$get(), options)
+  if (!is.null(options$fig.alt) || is.null(attr(x, "alt"))) return(img)
+  options$fig.alt <- attr(x, "alt")
+  knitr::asis_output(knitr::sew(img, options))
 }
 
 .BASEMAPPER_KNIT <- new.env(parent = emptyenv())

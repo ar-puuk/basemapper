@@ -291,7 +291,37 @@ render <- function(m, ..., dpi = NULL) {
   if (!is.null(dpi)) m <- set_view(m, dpi = dpi)
   p <- m$.prepared
   mesh <- if (is.null(p$frame)) NULL else crs_mesh(p$crs, p$view$crs_bounds, p$view$width, p$view$height)
-  rendering_of(core_render(m$styles, p$inputs, m$fetch, p$clip, p$frame, mesh, call = call), p$crs)
+  r <- rendering_of(core_render(m$styles, p$inputs, m$fetch, p$clip, p$frame, mesh, call = call), p$crs)
+  attr(r, "alt") <- basemap_alt(m)
+  r
+}
+
+# A style in a few words: a catalogue name, a service's host or a file's
+# name, and its features filter.
+style_label <- function(s) {
+  src <- if (is.character(s$source)) s$source else s$source$name %||% s$source$input %||% s$source$url
+  src <- if (grepl("^\\s*\\{", src)) {
+    name <- tryCatch(jsonlite::fromJSON(src, simplifyVector = FALSE)$name, error = function(e) NULL)
+    if (is.character(name) && length(name) == 1L && nzchar(name)) name else "an inline style"
+  } else if (grepl("^[a-z]+://", src)) {
+    sub("^[a-z]+://([^/?#]+).*$", "\\1", src)
+  } else {
+    basename(src)
+  }
+  if (is.null(s$features)) src else sprintf("%s (features: %s)", src, paste(s$features, collapse = ", "))
+}
+
+# The default alt text of a basemap's figure in knitr (a chunk's `fig.alt`
+# wins): what it shows, where, and at what detail.
+basemap_alt <- function(m) {
+  v <- m$.prepared$view
+  c0 <- v$center
+  crs <- crs_name(m$.prepared$crs)
+  sprintf("Basemap of %s around %.2f° %s, %.2f° %s at zoom %.1f (1:%s)%s",
+          paste(vapply(m$styles, style_label, character(1)), collapse = " under "),
+          abs(c0[2]), if (c0[2] >= 0) "N" else "S", abs(c0[1]), if (c0[1] >= 0) "E" else "W",
+          v$zoom, format(round(v$scale), big.mark = ","),
+          if (identical(crs, "EPSG:3857")) "" else paste0(", in ", crs))
 }
 
 #' @rdname render
@@ -330,7 +360,9 @@ render_svg <- function(m, path = NULL, ..., text = c("editable", "bitmap", "path
 #' `plot()` renders the basemap and draws it on the current graphics device.
 #' In R Markdown and Quarto documents, a basemap printed by a chunk renders
 #' and shows as an image at its CSS size, sharp at any dpi; `print(m)`
-#' describes it instead.
+#' describes it instead. The image's alt text is the chunk's `fig.alt`, or
+#' else a description of the map: its styles, where it is centred, its zoom
+#' and scale, and its CRS when not Web Mercator.
 #'
 #' @param x A [basemap()] object.
 #' @param ... Unused.
