@@ -1,5 +1,78 @@
 # Changelog
 
+## 0.3.0 (2026-11-23)
+
+basemapper 0.3 replaces the 0.2 API with one model shared by Python, R and
+Rust: a **basemap** of **styles**, whose **view** is any three of extent,
+zoom, image size and dpi, rendered to a **rendering** or placed in a plot.
+Every rule lives in the Rust core. Removed names and arguments are errors
+that name their replacement: see
+[Migrating to 0.3](https://ar-puuk.github.io/basemapper/migrating-to-0.3.html)
+for every change.
+
+### Breaking changes
+
+- `m.render()` returns a `Rendering` (pixels, bounds, CRS, zoom, dpi,
+  scale, notes): `save()`, `to_png()`, `to_numpy()` (a read-only view, no
+  copy) and `to_xarray()`. `render_png()`, `render_array()` and
+  `render_basemap_raw()` are removed.
+- `basemap(style, *, bounds, center, zoom, width, height, units, dpi, crs,
+  clip, fetch)`: `width` / `height` are the image's size and keyword-only;
+  `pixel_ratio` is `dpi` (96 x the ratio). Any three of extent, zoom, size
+  and dpi give the fourth; giving all four is an error.
+- `Basemap` is immutable: `set_view()` and `set_bounds()` return a new one.
+  The view is read from properties (`bounds`, `center`, `zoom`, `size`,
+  `dpi`, `crs`, `scale`, `provenance`, `notes`); the `get_*()` methods are
+  removed (`basemapper.get_attribution(m)` stays).
+- Styles are values: `style(source, layers=, features=, key=)`, with the
+  source helpers `provider()`, `tiles()`, `wms()` and `wmts()`. Filters and
+  keys belong to each style of a stack. `basemap_provider()`,
+  `tile_style()`, `wms_style()` and `wmts_style()` are removed, as are the
+  `labels`, `layers`, `features`, `auth_token` and `api_key` arguments
+  (labels are the feature `"labels"`: `features="-labels"`).
+- `crs` is the map's CRS. Numbers in `bounds` are always longitude /
+  latitude; projected coordinates come as a GeoDataFrame or GeoSeries.
+- `m.add_to(ax)` places a basemap in matplotlib axes and returns its
+  artist; `add_basemap()` builds one and does the same (0.2 returned an
+  xarray of the first render: use `artist.rendering.to_xarray()`). Plot
+  layers take `zoom` (the MapLibre zoom) in place of `tile_zoom`.
+- The 0.2 download arguments (`tile_timeout_ms`, `max_tiles`,
+  `tile_concurrency`, `fail_on_tile_error`) are removed: use
+  `fetch=FetchOptions()`.
+
+### New features
+
+- Maps in any CRS: `crs`, or a projected GeoDataFrame as `bounds`, draws
+  the map in that CRS, warped from Web Mercator (with pyproj).
+- `clip=layer` draws only inside a layer's polygons; `clip=outside(layer)`
+  only outside.
+- `around(center, span, units)`: an area of a ground distance.
+- A basemap is a plotnine layer itself: `ggplot(df) + basemap(...)`.
+- Basemaps and renderings show themselves in Jupyter, at their CSS size.
+- Notes: what basemapper decided, adjusted or could not draw. Decisions go
+  to the `basemapper` logger; adjustments are `BasemapAdjustment` warnings;
+  problems (failed tiles, missing glyphs, unsupported style features,
+  filter names that match nothing) are `BasemapProblem` warnings, every
+  time, and errors with `FetchOptions(on_error="fail")`. They were logged
+  or dropped in 0.2.
+- A style is checked when it is made (unknown names, missing keys, bad
+  filters), and a basemap that cannot go in a plot is an error when added.
+
+### Bug fixes
+
+- Plots are aligned in their CRS. 0.2 stretched the Web Mercator image over
+  the axes, which misplaced it outside Web Mercator (by tens of pixels on a
+  longitude / latitude plot). The basemap is now warped into the axes' CRS
+  in matplotlib and plotnine.
+- A box crossing the date line (west > east) renders as one map.
+- In PDF and SVG output the basemap is drawn at 300 dpi; on screen at 96 x
+  the screen's pixel ratio.
+- A view never reaches past the poles, as in MapLibre: when the world is
+  smaller than the view the zoom rises until the world fills it, and a
+  centre near a pole moves so the view stops at it.
+- SVG text reads fonts with skrifa (Google Fonts' fontations) instead of
+  the unmaintained ttf-parser; the SVGs written are the same.
+
 ## 0.2.0 (2026-11-23)
 
 ### New interface for download settings

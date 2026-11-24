@@ -1,15 +1,17 @@
 Package: basemapper
 Title: Headless Spatial Basemap Renderer
-Version: 0.2.0
+Version: 0.3.0
 Authors@R: person("Pukar", "Bhandari", email = "arpuuuk@gmail.com",
   role = c("aut", "cre"))
 Description: Renders MapLibre GL styled basemaps (vector and raster tiles)
     headlessly with a Rust core: a software port of MapLibre GL JS's
-    renderer, tested pixel by pixel against MapLibre GL JS. Renders at any
-    fractional zoom and pixel ratio to PNG, rasters and arrays, or to true
-    vector SVG; several styles can be stacked. Integrates with ggplot2 via
-    geom_basemap() and with tmap v4 via tm_basemap(), rendering at the
-    output device's resolution.
+    renderer, tested pixel by pixel against MapLibre GL JS. A basemap is an
+    extent, a zoom (the detail) and a dpi (the sharpness), any three of
+    extent, zoom, image size and dpi giving the fourth; it renders to PNG,
+    arrays and rasters in any coordinate reference system, or to true vector
+    SVG, and several styles can be stacked. In 'ggplot2' (ggplot() + m) and
+    'tmap' v4 (tm_basemap()) plots it is warped into the plot's coordinate
+    reference system and rendered at the output device's resolution.
 URL: https://ar-puuk.github.io/basemapper/r/, https://github.com/ar-puuk/basemapper
 BugReports: https://github.com/ar-puuk/basemapper/issues
 License: MIT + file LICENSE
@@ -24,11 +26,11 @@ Imports:
     grDevices,
     grid,
     jsonlite (>= 1.8),
-    lifecycle (>= 1.0),
     rlang (>= 1.1),
     stats,
     tools
 Suggests:
+    png,
     sf (>= 1.0),
     terra (>= 1.7),
     roxygen2 (>= 7.3),
@@ -36,6 +38,7 @@ Suggests:
     rextendr (>= 0.3),
     tmap (>= 4.0),
     knitr,
-    rmarkdown
+    rmarkdown,
+    withr
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.1.1

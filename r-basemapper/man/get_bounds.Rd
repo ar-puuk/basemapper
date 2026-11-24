@@ -5,9 +5,9 @@
 \alias{get_center}
 \alias{get_zoom}
 \alias{get_size}
-\title{Read a basemap view}
+\title{Read a basemap's view}
 \usage{
-get_bounds(m, lonlat = FALSE)
+get_bounds(m)
 
 get_center(m)
 
@@ -17,22 +17,24 @@ get_size(m)
 }
 \arguments{
 \item{m}{A \code{\link[=basemap]{basemap()}} object.}
-
-\item{lonlat}{Return degrees (EPSG:4326) instead of EPSG:3857 metres.}
 }
 \value{
-A named numeric vector.
+A named numeric vector (one number for \code{get_zoom()}).
 }
 \description{
-\itemize{
-\item \code{get_bounds()}: the view's extent, \code{c(xmin, ymin, xmax, ymax)} in
-EPSG:3857 metres, or degrees with \code{lonlat = TRUE}.
-\item \code{get_center()}: \code{c(longitude, latitude)} of the centre.
-\item \code{get_zoom()}: the MapLibre zoom.
-\item \code{get_size()}: \code{c(width, height)} of rendered images in device pixels.
-}
+The view's values, each given, derived or defaulted by the core's one
+rule. The view never reaches past the poles. Python: the properties
+\code{m.bounds}, \code{m.center}, \code{m.zoom}, \code{m.size}.
 }
 \details{
-Python: \code{m.get_bounds()}, \code{m.get_center()}, \code{m.get_zoom()},
-\code{m.get_size()}.
+\itemize{
+\item \code{get_bounds()}: \code{c(xmin, ymin, xmax, ymax)} of the map in its CRS: at
+least the extent given, grown to the image's shape.
+\item \code{get_center()}: \code{c(longitude, latitude)} of the centre.
+\item \code{get_zoom()}: the MapLibre zoom.
+\item \code{get_size()}: \code{c(width, height)} of the image in pixels.
+}
+
+\code{print(m)} shows these with the dpi, CRS, scale and where each value came
+from.
 }

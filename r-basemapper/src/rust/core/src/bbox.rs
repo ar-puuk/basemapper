@@ -39,6 +39,14 @@ pub struct RenderRequest {
     /// TileJSON and raster tiles; appended as `?access_token=<token>` to
     /// vector tile URLs.
     pub auth_token: Option<String>,
+    /// The input whose origin `auth_token` is scoped to, when it is not
+    /// `style_input` (a style built inline for tile data is scoped to that
+    /// data's URL).
+    pub auth_scope: Option<String>,
+    /// Which style of a stack the request draws: [`crate::render_stack`]
+    /// filters the requests of one group as one map (a catalogue basemap
+    /// published as several services), and each group on its own.
+    pub group: u32,
     /// When `false`, individual tile fetch failures are logged and skipped
     /// rather than aborting the entire render.
     pub fail_on_tile_error: bool,
@@ -68,6 +76,8 @@ impl RenderRequest {
             labels: crate::Labels::All,
             features: None,
             auth_token: None,
+            auth_scope: None,
+            group: 0,
             fail_on_tile_error: false,
             pixel_ratio: 1.0,
         }
@@ -240,7 +250,34 @@ pub fn bbox_from_center(lon: f64, lat: f64, zoom: f64, width: u32, height: u32) 
     let cy = (std::f64::consts::FRAC_PI_4 + lat.to_radians() / 2.0).tan().ln() * r;
     let mpp = EARTH_CIRC / (512.0 * 2f64.powf(zoom));
     let (hw, hh) = (width as f64 * mpp / 2.0, height as f64 * mpp / 2.0);
-    [cx - hw, cy - hh, cx + hw, cy + hh]
+    // A view constrained to stop at a pole (constrain_view) can land a few
+    // nanometres past it through rounding: snap that to the edge.
+    let snap = |y: f64| if (y.abs() - EARTH_HALF).abs() < 1e-3 { EARTH_HALF.copysign(y) } else { y };
+    [cx - hw, snap(cy - hh), cx + hw, snap(cy + hh)]
+}
+
+/// The view shown when asked for centre (`lon`, `lat`) at `zoom` in a
+/// `width x height` CSS-pixel view. As in MapLibre, it never shows space
+/// beyond the poles: the centre's latitude is clamped so the view stops at
+/// them. And the world (512 px at zoom 0) always fills the view: when it is
+/// smaller, the zoom rises until it fills both the height (as MapLibre) and
+/// the width (where MapLibre would draw copies of the world side by side,
+/// which a render, at most one world wide, does not). Returns (lon, lat,
+/// zoom).
+pub fn constrain_view(lon: f64, lat: f64, zoom: f64, width: u32, height: u32) -> (f64, f64, f64) {
+    let h = height.max(1) as f64;
+    let zoom = zoom.max((width.max(height).max(1) as f64 / 512.0).log2());
+    let world = 512.0 * 2f64.powf(zoom);
+    // Centre in world pixels from the top (y grows south).
+    let max_lat = 85.051_128_779_806_59;
+    let clamped = lat.clamp(-max_lat, max_lat);
+    let y0 = (1.0 - (std::f64::consts::FRAC_PI_4 + clamped.to_radians() / 2.0).tan().ln() / std::f64::consts::PI) / 2.0 * world;
+    let y = if world <= h { world / 2.0 } else { y0.clamp(h / 2.0, world - h / 2.0) };
+    if y == y0 && clamped == lat {
+        return (lon, lat, zoom); // unconstrained: exactly as asked
+    }
+    let lat = (std::f64::consts::PI * (1.0 - 2.0 * y / world)).sinh().atan().to_degrees();
+    (lon, lat, zoom)
 }
 
 /// MapLibre zoom at which a `width x height` CSS-pixel view fits the

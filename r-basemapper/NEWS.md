@@ -1,3 +1,79 @@
+# basemapper 0.3.0
+
+basemapper 0.3 replaces the 0.2 API with one model shared by R, Python and
+Rust: a **basemap** of **styles**, whose **view** is any three of extent,
+zoom, image size and dpi, rendered to a **rendering** or placed in a plot.
+Every rule lives in the Rust core. Removed names and arguments are errors
+that name their replacement: see
+[Migrating to 0.3](https://ar-puuk.github.io/basemapper/migrating-to-0.3.html)
+for every change.
+
+## Breaking changes
+
+* `render()` returns a rendering (pixels, bounds, CRS, zoom, dpi, scale,
+  notes), converted with `write_png()`, `as_array()`, `as_raster()` or
+  `plot()`. `render_png()`, `render_array()`, `render_raster()` and
+  `render_basemap_raw()` are removed.
+* `basemap(style, ..., bounds, center, zoom, width, height, units, dpi, crs,
+  clip, fetch)`: `width` / `height` are the image's size and are named;
+  `pixel_ratio` is `dpi` (96 x the ratio). Any three of extent, zoom, size
+  and dpi give the fourth; giving all four is an error.
+* Styles are values: `style(source, layers =, features =, key =)`, with
+  the source helpers `provider()`, `tiles()`, `wms()` and `wmts()`.
+  Filters and keys belong to each style of a stack. `basemap_provider()`,
+  `tile_style()`, `wms_style()` and `wmts_style()` are removed, as are the
+  `labels`, `layers`, `features`, `auth_token` and `api_key` arguments
+  (labels are the feature `"labels"`: `features = "-labels"`).
+* `crs` is the map's CRS. Numbers in `bounds` are always longitude /
+  latitude; projected coordinates come as an `sf` object.
+  `get_bounds(lonlat =)` is removed: `get_bounds()` is in the map's CRS,
+  `get_center()` in longitude / latitude.
+* Plot layers take `zoom` (the MapLibre zoom) in place of `tile_zoom`, and
+  `tm_basemap()` no longer takes `width` / `height`.
+* The 0.2 download arguments (`tile_timeout_ms`, `max_tiles`,
+  `tile_concurrency`, `fail_on_tile_error`) are removed: use
+  `fetch = fetch_options()`.
+* lifecycle is no longer a dependency.
+
+## New features
+
+* Maps in any CRS: `crs`, or a projected `sf` layer as `bounds`, draws the
+  map in that CRS, warped from Web Mercator.
+* `clip = layer` draws only inside a layer's polygons; `clip =
+  outside(layer)` only outside.
+* `around(center, span, units)`: an area of a ground distance.
+* A basemap is a ggplot2 layer itself: `ggplot(nc) + basemap(...)`.
+  `geom_basemap()` and `tm_basemap()` also take a basemap.
+* `print()` shows the view, and where each value came from (given, derived,
+  default).
+* In R Markdown and Quarto, a basemap or rendering shown by a chunk gets
+  alt text describing the map (its styles, centre, zoom, scale and CRS)
+  unless the chunk sets `fig.alt`.
+* Notes: what basemapper decided, adjusted or could not draw. Adjustments
+  are `basemapper_adjustment` messages; problems (failed tiles, missing
+  glyphs, unsupported style features, filter names that match nothing) are
+  `basemapper_problem` warnings, every time, and errors with
+  `fetch_options(on_error = "fail")`. They were logged or dropped in 0.2.
+* A style is checked when it is made (unknown names, missing keys, bad
+  filters), and a basemap that cannot go in a plot is an error when added.
+
+## Bug fixes
+
+* Plots are aligned in their CRS. 0.2 stretched the Web Mercator image over
+  the panel, which misplaced it outside Web Mercator (by tens of pixels on a
+  longitude / latitude plot). The basemap is now warped into the plot's CRS
+  in ggplot2 and tmap, and tmap no longer forces Web Mercator.
+* A box crossing the date line (west > east) renders as one map.
+* `alpha` fades the basemap on every graphics device; some (the one knitr
+  uses on Windows) ignored it.
+* In PDF and SVG exports the basemap is drawn at 300 dpi; in raster exports
+  at the device's dpi.
+* A view never reaches past the poles, as in MapLibre: when the world is
+  smaller than the view the zoom rises until the world fills it, and a
+  centre near a pole moves so the view stops at it.
+* SVG text reads fonts with skrifa (Google Fonts' fontations) instead of
+  the unmaintained ttf-parser; the SVGs written are the same.
+
 # basemapper 0.2.0
 
 ## New interface for download settings

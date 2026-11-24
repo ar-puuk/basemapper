@@ -167,6 +167,22 @@ Copy-Item -Recurse $gdocOut $sitePy
 Write-Host '==> Copying landing page -> site/index.html ...' -ForegroundColor Cyan
 Copy-Item $docsIndex $siteIndex -Force
 
+# -- The migration guide, at the address 0.3's errors link to ----------------
+Write-Host '==> Rendering docs/migrating-to-0.3.md -> site/migrating-to-0.3.html ...' -ForegroundColor Cyan
+$migWork = Join-Path ([IO.Path]::GetTempPath()) ('basemapper-migration-' + [guid]::NewGuid())
+New-Item -ItemType Directory $migWork | Out-Null
+Copy-Item (Join-Path (Join-Path $repoRoot 'docs') 'migrating-to-0.3.md') $migWork
+Push-Location $migWork
+try {
+    # One self-contained page (no _files folder to copy).
+    quarto render migrating-to-0.3.md --to html -M embed-resources:true
+    if ($LASTEXITCODE -ne 0) { Write-Error 'quarto failed on the migration guide' }
+} finally {
+    Pop-Location
+}
+Copy-Item (Join-Path $migWork 'migrating-to-0.3.html') (Join-Path $siteDir 'migrating-to-0.3.html') -Force
+Remove-Item -Recurse -Force $migWork
+
 # -- One navigation for the three sites ---------------------------------------
 Write-Host '==> Adding the R | Python | Rust switcher to every page ...' -ForegroundColor Cyan
 python (Join-Path $PSScriptRoot 'docs_postprocess.py') $siteDir

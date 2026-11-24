@@ -2,7 +2,7 @@
 % Please edit documentation in R/fetch_options.R
 \name{fetch_options}
 \alias{fetch_options}
-\title{How basemaps download tiles}
+\title{How basemaps download their data}
 \usage{
 fetch_options(
   timeout = 10,
@@ -12,31 +12,27 @@ fetch_options(
 )
 }
 \arguments{
-\item{timeout}{Seconds to wait for each tile.}
+\item{timeout}{Seconds to wait for each download.}
 
 \item{max_tiles}{Most tiles fetched per style. A view needing more is an
-error for vector tiles; raster tiles are fetched one zoom level
-coarser instead.}
+error for vector tiles; raster tiles are fetched one zoom level coarser
+instead (an \emph{adjusted} note).}
 
-\item{concurrency}{Tiles downloaded at once.}
+\item{concurrency}{Downloads at once.}
 
-\item{on_error}{What a tile that fails to download does: \code{"skip"} leaves
-it empty (the map is drawn without it), \code{"fail"} stops with an error.}
+\item{on_error}{\code{"skip"} draws what there is, each gap a warning of class
+\code{basemapper_problem}; \code{"fail"} stops with an error for a failed tile or
+any other problem.}
 }
 \value{
 A \code{basemapper_fetch_options} object.
 }
 \description{
-Settings for downloading a basemap's tiles, given to the \code{fetch}
-argument of \code{\link[=basemap]{basemap()}}, \code{\link[=render_basemap_raw]{render_basemap_raw()}}, \code{\link[=geom_basemap]{geom_basemap()}} and
-\code{\link[=tm_basemap]{tm_basemap()}}. The defaults suit most maps; change them for slow
-servers, very large maps, or to stop on a missing tile. Python:
-\code{basemapper.FetchOptions}.
+Settings for downloading a basemap's data, given to the \code{fetch} argument
+of \code{\link[=basemap]{basemap()}}. The defaults suit most maps; change them for slow
+servers, very large maps, or to stop on missing data. Python:
+\code{basemapper.FetchOptions}; Rust: \code{FetchOptions}.
 }
 \examples{
 fetch_options(timeout = 30, on_error = "fail")
-\dontrun{
-m <- basemap("OpenFreeMap.Liberty", center = c(-111.89, 40.76), zoom = 12,
-             fetch = fetch_options(timeout = 30))
-}
 }

@@ -2,98 +2,92 @@
 % Please edit documentation in R/basemap.R
 \name{basemap}
 \alias{basemap}
-\title{Create a basemap view}
+\title{Create a basemap}
 \usage{
 basemap(
   style,
-  width = 800L,
-  height = 600L,
   ...,
+  bounds = NULL,
   center = NULL,
   zoom = NULL,
-  bounds = NULL,
+  width = NULL,
+  height = NULL,
+  units = "px",
+  dpi = NULL,
   crs = NULL,
-  pixel_ratio = 1,
-  layers = NULL,
-  labels = TRUE,
-  features = NULL,
-  auth_token = NULL,
+  clip = NULL,
   fetch = fetch_options()
 )
 }
 \arguments{
-\item{style}{A MapLibre GL style URL or JSON string, a catalogue name
-(see \code{\link[=basemap_provider]{basemap_provider()}}), or a character vector / list of those
-stacked bottom to top (e.g. a basemap published as separate hillshade,
-base and label services; \code{"UGRC.Lite"} names such a stack).}
+\item{style}{A style, or a list (or character vector) of styles stacked
+bottom to top: a catalogue name (\code{"OpenFreeMap.Liberty"}), a style URL
+or JSON, tile data, or a \code{\link[=style]{style()}}.}
 
-\item{width, height}{View size in CSS pixels.}
+\item{...}{Not used: the arguments after \code{style} must be named.}
 
-\item{...}{Not used: the arguments after \code{height} must be named. (The
-deprecated \code{tile_timeout_ms}, \code{max_tiles}, \code{tile_concurrency} and
-\code{fail_on_tile_error} are still accepted, with a warning: use \code{fetch}.)}
+\item{bounds}{The area to show: \code{c(west, south, east, north)} in longitude
+/ latitude (west > east across the date line), \code{\link[=around]{around()}} (a ground
+distance around a point), or a spatial layer (\code{sf}, \code{sfc}, \code{bbox}; its
+CRS is read).}
 
-\item{center}{\code{c(longitude, latitude)} of the view centre.}
+\item{center}{\code{c(longitude, latitude)} of the camera; needs \code{zoom}.}
 
-\item{zoom}{MapLibre zoom (0--22, fractional allowed).}
+\item{zoom}{The MapLibre zoom (0--22, fractional): which roads, places and
+labels the style draws.}
 
-\item{bounds}{Bounds to fit instead of \code{center}/\code{zoom}: \code{c(xmin, ymin, xmax, ymax)} in \code{crs} (default EPSG:4326), an \code{\link[sf:st_bbox]{sf::st_bbox()}} result, or
-an \code{sf} / \code{sfc} object.}
+\item{width, height}{The image size, in \code{units}.}
 
-\item{crs}{CRS of \code{bounds} (anything \code{\link[sf:st_crs]{sf::st_crs()}} accepts).}
+\item{units}{\code{"px"} (default), \code{"in"}, \code{"cm"} or \code{"mm"}; with a physical
+unit, \code{dpi} sets only the pixel count.}
 
-\item{pixel_ratio}{Device pixels per CSS pixel.}
+\item{dpi}{Image pixels per inch: the sharpness (default 96).}
 
-\item{layers}{Optional layer filter applied to every style: plain IDs keep
-only those layers, minus-prefixed IDs drop them; \code{*} and \verb{?} are
-wildcards (\code{"-label_*"}). See \code{\link[=list_layers]{list_layers()}}. Names that match no
-layer of any style warn.}
+\item{crs}{The map's CRS (anything \code{\link[sf:st_crs]{sf::st_crs()}} takes, or an object with
+a CRS). Default: the \code{bounds} layer's CRS when it is projected, else Web
+Mercator. In another CRS the map is drawn in Web Mercator and warped
+into it (sf needed).}
 
-\item{labels}{\code{"all"} (or \code{TRUE}) keeps every layer, \code{"none"} (or \code{FALSE}) drops the labels (text and
-icons), \code{"only"} keeps only the labels on a transparent background, to
-stack over another map. Catalogue raster basemaps switch to their
-label-free or label-only tiles.}
+\item{clip}{Draw only inside a layer's polygons (an \code{sf} or \code{sfc} object),
+or outside them with \code{\link[=outside]{outside()}}. An inside clip also gives the default
+extent (and CRS, when projected).}
 
-\item{features}{Optional feature filter applied to every style: plain
-names keep those features, minus-prefixed names drop them, e.g.
-\code{c("water", "roads")} or \code{"-buildings"}. Features: background, water,
-landcover, parks, buildings, roads, rail, boundaries, places, poi,
-terrain, other (the \code{feature} column of \code{\link[=list_layers]{list_layers()}}). Features no
-layer of any style belongs to warn.}
-
-\item{auth_token}{Optional access token for the tile service (sent only to the style's own server).}
-
-\item{fetch}{How tiles are downloaded: a \code{\link[=fetch_options]{fetch_options()}} object
-(timeout, tile limit, parallel downloads, what a failed tile does).}
+\item{fetch}{How the data is downloaded: a \code{\link[=fetch_options]{fetch_options()}} object.}
 }
 \value{
 A \code{basemap} object.
 }
 \description{
-A map view to render headlessly: one style, or several stacked. The view
-is a centre and MapLibre zoom (512 px tiles; fractional zooms are rendered
-natively, not resampled), or bounds to fit. \code{width} and \code{height} are CSS
-pixels; images are \code{pixel_ratio} times larger with the same view and label
-layout (MapLibre's \code{devicePixelRatio}): \code{pixel_ratio = 2} gives a sharp 2x
-image, \code{pixel_ratio = dpi / 96} matches a print resolution.
+A basemap is what to draw (one style, or several stacked bottom to top),
+what is given of its view, its CRS, a clip and fetch options. It renders on
+its own (\code{\link[=render]{render()}}) or goes into a plot (\code{ggplot(nc) + m},
+\code{tm_basemap(m)}), which supplies what it leaves out. The same object exists
+in Python (\code{basemapper.basemap()}) and Rust (\code{Basemap}).
 }
 \details{
-Render it with \code{\link[=render_png]{render_png()}}, \code{\link[=render_svg]{render_svg()}}, \code{\link[=render_raster]{render_raster()}} or
-\code{\link[=render_array]{render_array()}}. The same function exists in Python
-(\code{basemapper.basemap()}) and Rust (\code{Basemap::new()}), with the same
-arguments.
+Three controls, each with one meaning everywhere: the extent (\code{bounds}, or
+\code{center} with \code{zoom}), \code{zoom} (the feature detail) and \code{dpi} (the
+sharpness); \code{width} / \code{height} and \code{\link[=around]{around()}} express them in other terms.
+\strong{Any three of extent, zoom, image size and dpi give the fourth.} What
+nothing gives is defaulted, in this order: dpi (96), image size (800 x 600
+at 96 dpi, scaled with the dpi), extent (the world); the zoom is never a
+default. Over-determined requests are errors that say what to drop.
 }
 \examples{
 \dontrun{
-# UGRC's Lite basemap: its hillshade, base and labels services, stacked
-m <- basemap("UGRC.Lite", 800, 600, center = c(-111.8887, 40.7556), zoom = 12.4,
-             pixel_ratio = 2)
-render_png(m, "slc.png")   # 1600 x 1200
-render_svg(m, "slc.svg")   # vector
-r <- render_raster(m)      # terra SpatRaster in EPSG:3857
+m <- basemap("OpenFreeMap.Liberty", center = c(-111.8887, 40.7556), zoom = 12.4, dpi = 192)
+img <- render(m)              # 1600 x 1200 px, sharp
+write_png(img, "slc.png")
+render_svg(m, "slc.svg")      # vector
 
-# Fit a layer's extent
+# This area at this detail: the size follows
 nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-m <- basemap("OpenFreeMap.Positron", bounds = nc)
+basemap("OpenFreeMap.Positron", bounds = nc, zoom = 7)
+
+# 20 x 15 km around a point
+basemap("OpenFreeMap.Liberty", bounds = around(c(-111.9, 40.76), c(20, 15), units = "km"))
 }
+}
+\seealso{
+\code{\link[=render]{render()}}, \code{\link[=set_view]{set_view()}}, \code{\link[=get_bounds]{get_bounds()}}.
 }

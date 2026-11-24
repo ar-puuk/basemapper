@@ -131,3 +131,13 @@ jobs:
           working-directory: r-basemapper
           error-on: '"error"'
           args: 'c("--no-manual")'
+      # R CMD check tests a copy of the package, where the repository's shared
+      # contracts (core/tests/fixtures/contract/, docs/api-contract.json) are
+      # out of reach and those tests skip. Run them here, against the package
+      # installed from this checkout, so R cannot drift from Rust and Python.
+      - name: Contract tests (shared with Rust and Python)
+        run: |
+          R CMD INSTALL r-basemapper
+          Rscript -e 'library(testthat); library(basemapper);
+            for (f in c("test-contract.R", "test-contract-api.R"))
+              test_file(file.path("r-basemapper/tests/testthat", f), stop_on_failure = TRUE)'

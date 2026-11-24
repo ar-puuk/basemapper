@@ -4,8 +4,8 @@ title: "Basemap gallery"
 
 Every basemap in the catalogue that needs no API key, rendered for the same
 view of the San Francisco Bay Area (the Utah basemaps [below](#utah), over
-Salt Lake City). The names work as `style` anywhere: in `basemap()`,
-`add_basemap()`, `geom_basemap()` and in R and Rust.
+Salt Lake City). The names work as a style anywhere: in `basemap()`,
+`style()`, plots, and in R and Rust.
 
 ```{python}
 import basemapper as bm
@@ -18,8 +18,8 @@ print(len(world), "basemaps")
 
 images = {}
 for p in world:
-    m = bm.basemap(p["name"], 340, 220, center=(-122.25, 37.75), zoom=9)
-    images[p["name"]] = m.render_png()
+    m = bm.basemap(p["name"], center=(-122.25, 37.75), zoom=9, width=340, height=220)
+    images[p["name"]] = m.render().to_png()
 ```
 
 ```{python}
@@ -44,22 +44,22 @@ gallery(world)
 
 The vector basemaps (OpenFreeMap, and Esri's vector styles) are drawn from
 vector tiles by basemapper's port of MapLibre GL JS; the raster ones are
-tile images. Esri's names have both forms; `basemap_provider(name,
-type="raster")` picks the other one.
+tile images. Esri's names have both forms; `style(provider(name,
+form="raster"))` picks the other one.
 
 ## Utah {#utah}
 
 The Utah Geospatial Resource Center's vector basemaps cover Utah. Each is
 published as separate services (a hillshade, a base map and labels, or
-imagery and an overlay), and its name stands for the whole stack:
-`basemap_provider("UGRC.Lite")` returns the three styles, and `labels` and
-`features` treat them as one basemap.
+imagery and an overlay), and its name stands for the whole stack: one
+style, whose filters (`style("UGRC.Lite", features="-labels")`) treat its
+services as one map.
 
 ```{python}
 print([p["name"] for p in utah])
 for p in utah:
-    m = bm.basemap(p["name"], 340, 220, center=(-111.89, 40.70), zoom=10)
-    images[p["name"]] = m.render_png()
+    m = bm.basemap(p["name"], center=(-111.89, 40.70), zoom=10, width=340, height=220)
+    images[p["name"]] = m.render().to_png()
 ```
 
 ```{python}
@@ -72,8 +72,8 @@ gallery(utah)
 CARTO, Stadia Maps and MapTiler need a free API key, and UGRC Discover's
 raster basemaps of Utah (terrain, topographic, hillshade and imagery,
 with UGRC's road and label overlay as their labels) its quad word. Each is
-read from the environment variable in `api_key_env` (or given as
-`api_key=` to `basemap_provider()`):
+read from the environment variable in `api_key_env`, or given to the style:
+`style("MapTiler.Streets", key="...")`.
 
 ```{python}
 for p in providers:

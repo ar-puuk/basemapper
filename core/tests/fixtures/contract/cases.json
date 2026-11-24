@@ -1,0 +1,1002 @@
+{
+  "version": 1,
+  "about": "Write the view-resolution contract cases (core/tests/fixtures/contract/).",
+  "views": [
+    {
+      "name": "nothing_given",
+      "doc": "\u00a74.2 Defaults: the whole world, 800 x 600 px at 96 dpi, zoom derived (and constrained)",
+      "inputs": {},
+      "expect": {
+        "width": 800,
+        "height": 600,
+        "dpi": 96,
+        "zoom": 0.6438561897747247,
+        "bounds_3857": [
+          -20037508.342789244,
+          -15028131.257091934,
+          20037508.342789244,
+          15028131.257091934
+        ],
+        "provenance": {
+          "extent": "default",
+          "size": "default",
+          "dpi": "default",
+          "zoom": "derived"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "bounds_only",
+      "doc": "\u00a74.2: extent + image size + dpi give the zoom (automatic zoom); size and dpi default",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ]
+      },
+      "expect": {
+        "width": 800,
+        "height": 600,
+        "dpi": 96,
+        "zoom": 10.057074840092945,
+        "bounds_3857": [
+          -12486039.86668455,
+          4953519.586791802,
+          -12427262.172850078,
+          4997602.857167657
+        ],
+        "provenance": {
+          "extent": "given",
+          "size": "default",
+          "dpi": "default",
+          "zoom": "derived"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "bounds_and_zoom",
+      "doc": "\u00a74.2: extent + zoom + dpi give the image size: this area at this detail",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ],
+        "zoom": 12
+      },
+      "expect": {
+        "width": 2330,
+        "height": 2307,
+        "dpi": 96,
+        "zoom": 12,
+        "bounds_3857": [
+          -12478914.917925967,
+          4953519.586791803,
+          -12434387.12160866,
+          4997602.857167657
+        ],
+        "provenance": {
+          "extent": "given",
+          "size": "derived",
+          "dpi": "default",
+          "zoom": "given"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "bounds_zoom_and_size",
+      "doc": "\u00a74.2: extent + zoom + image size give the dpi",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ],
+        "zoom": 12,
+        "width": 800,
+        "height": 600
+      },
+      "expect": {
+        "width": 800,
+        "height": 600,
+        "dpi": 24.96850160893279,
+        "zoom": 12,
+        "bounds_3857": [
+          -12486039.86668455,
+          4953519.586791802,
+          -12427262.172850078,
+          4997602.857167657
+        ],
+        "provenance": {
+          "extent": "given",
+          "size": "given",
+          "dpi": "derived",
+          "zoom": "given"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "inches_dpi_is_only_sharpness",
+      "doc": "\u00a74.2: with width / height in inches, dpi changes only the pixel count",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ],
+        "width": 6,
+        "height": 4,
+        "units": "in",
+        "dpi": 300
+      },
+      "expect": {
+        "width": 1800,
+        "height": 1200,
+        "dpi": 300,
+        "zoom": 9.41321865031822,
+        "bounds_3857": [
+          -12489713.472549206,
+          4953519.586791802,
+          -12423588.566985423,
+          4997602.857167657
+        ],
+        "provenance": {
+          "extent": "given",
+          "size": "given",
+          "dpi": "given",
+          "zoom": "derived"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "inches_at_default_dpi",
+      "doc": "\u00a74.2: the same layout at the default dpi: the same zoom, fewer pixels",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ],
+        "width": 6,
+        "height": 4,
+        "units": "in"
+      },
+      "expect": {
+        "width": 576,
+        "height": 384,
+        "dpi": 96,
+        "zoom": 9.41321865031822,
+        "bounds_3857": [
+          -12489713.472549206,
+          4953519.586791802,
+          -12423588.566985423,
+          4997602.857167657
+        ],
+        "provenance": {
+          "extent": "given",
+          "size": "given",
+          "dpi": "default",
+          "zoom": "derived"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "inches_with_zoom_overdetermined",
+      "doc": "\u00a74.2 Conflicts: extent + zoom + a physical size fix everything but the pixel count",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ],
+        "zoom": 12,
+        "width": 6,
+        "height": 4,
+        "units": "in"
+      },
+      "error": {
+        "kind": "validation",
+        "contains": [
+          "zoom",
+          "width"
+        ]
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "all_four_given",
+      "doc": "\u00a74.2 Conflicts: over-determined, an error listing the alternatives",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ],
+        "zoom": 12,
+        "width": 800,
+        "height": 600,
+        "dpi": 96
+      },
+      "error": {
+        "kind": "validation",
+        "contains": [
+          "zoom",
+          "dpi"
+        ]
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "default_size_scales_with_dpi",
+      "doc": "\u00a74.2 Defaults: the default image size is 800 x 600 at 96 dpi, scaled with the dpi",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ],
+        "dpi": 300
+      },
+      "expect": {
+        "width": 2500,
+        "height": 1875,
+        "dpi": 300,
+        "zoom": 10.057074840092945,
+        "bounds_3857": [
+          -12486039.86668455,
+          4953519.586791802,
+          -12427262.172850078,
+          4997602.857167657
+        ],
+        "provenance": {
+          "extent": "given",
+          "size": "default",
+          "dpi": "given",
+          "zoom": "derived"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "pixels_fixed_dpi_changes_zoom",
+      "doc": "\u00a74.2: with the image size fixed in pixels and no zoom, dpi decides how much detail fits",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ],
+        "width": 800,
+        "height": 600,
+        "dpi": 192
+      },
+      "expect": {
+        "width": 800,
+        "height": 600,
+        "dpi": 192,
+        "zoom": 9.057074840092945,
+        "bounds_3857": [
+          -12486039.86668455,
+          4953519.586791802,
+          -12427262.172850078,
+          4997602.857167657
+        ],
+        "provenance": {
+          "extent": "given",
+          "size": "given",
+          "dpi": "given",
+          "zoom": "derived"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "camera",
+      "doc": "\u00a74.2: center + zoom + image size + dpi give the area shown (the MapLibre camera)",
+      "inputs": {
+        "center": [
+          -111.89,
+          40.76
+        ],
+        "zoom": 12
+      },
+      "expect": {
+        "width": 800,
+        "height": 600,
+        "dpi": 96,
+        "zoom": 12,
+        "bounds_3857": [
+          -12463181.527687898,
+          4971273.132633522,
+          -12447894.122030864,
+          4982738.686876299
+        ],
+        "provenance": {
+          "extent": "derived",
+          "size": "default",
+          "dpi": "default",
+          "zoom": "given"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "center_without_zoom",
+      "doc": "\u00a74.2 Conflicts: a centre says neither how much to show nor how detailed",
+      "inputs": {
+        "center": [
+          -111.89,
+          40.76
+        ]
+      },
+      "error": {
+        "kind": "validation",
+        "contains": [
+          "zoom",
+          "around"
+        ]
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "bounds_and_center",
+      "doc": "\u00a74.2 Conflicts: two extents",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ],
+        "center": [
+          -111.89,
+          40.76
+        ],
+        "zoom": 12
+      },
+      "error": {
+        "kind": "validation",
+        "contains": [
+          "bounds",
+          "center"
+        ]
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "camera_near_pole",
+      "doc": "\u00a74.2 / constrain_view: the view stops at the pole; an adjusted note",
+      "inputs": {
+        "center": [
+          10,
+          84
+        ],
+        "zoom": 3
+      },
+      "expect": {
+        "width": 800,
+        "height": 600,
+        "dpi": 96,
+        "zoom": 3,
+        "bounds_3857": [
+          -2800380.9402682884,
+          14167144.570487708,
+          5026770.75613376,
+          20037508.342789244
+        ],
+        "provenance": {
+          "extent": "derived",
+          "size": "default",
+          "dpi": "default",
+          "zoom": "given"
+        },
+        "notes": [
+          {
+            "level": "adjusted",
+            "kind": "view_constrained"
+          }
+        ]
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "date_line_bounds",
+      "doc": "F4: a box crossing the date line (xmin > xmax) is a valid extent",
+      "inputs": {
+        "bounds_lonlat": [
+          170,
+          -10,
+          -170,
+          10
+        ]
+      },
+      "expect": {
+        "width": 800,
+        "height": 600,
+        "dpi": 96,
+        "zoom": 4.391381729404398,
+        "bounds_3857": [
+          18545655.04297863,
+          -1118889.97485796,
+          -18545655.04297863,
+          1118889.9748579594
+        ],
+        "provenance": {
+          "extent": "given",
+          "size": "default",
+          "dpi": "default",
+          "zoom": "derived"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "plot_raster_export",
+      "doc": "\u00a74.2 In a plot: extent and size from the plot, the device's dpi, zoom derived",
+      "inputs": {},
+      "context": {
+        "plot": {
+          "extent_3857": [
+            -12478914.917925967,
+            4960718.623207294,
+            -12434387.12160866,
+            4990403.820752165
+          ],
+          "panel_px": [
+            1800,
+            1200
+          ],
+          "device": "raster_export",
+          "dpi": 300,
+          "pixel_ratio": 1
+        }
+      },
+      "expect": {
+        "width": 1800,
+        "height": 1200,
+        "dpi": 300,
+        "zoom": 9.983706192659419,
+        "bounds_3857": [
+          -12478914.917925967,
+          4960718.623207294,
+          -12434387.12160866,
+          4990403.820752165
+        ],
+        "provenance": {
+          "extent": "context",
+          "size": "context",
+          "dpi": "context",
+          "zoom": "derived"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "plot_screen_hidpi",
+      "doc": "\u00a74.2 In a plot (D16): on a screen 96 x its pixel ratio, so the preview derives the export's zoom",
+      "inputs": {},
+      "context": {
+        "plot": {
+          "extent_3857": [
+            -12478914.917925967,
+            4960718.623207294,
+            -12434387.12160866,
+            4990403.820752165
+          ],
+          "panel_px": [
+            1152,
+            768
+          ],
+          "device": "screen",
+          "dpi": null,
+          "pixel_ratio": 2
+        }
+      },
+      "expect": {
+        "width": 1152,
+        "height": 768,
+        "dpi": 192,
+        "zoom": 9.983706192659419,
+        "bounds_3857": [
+          -12478914.917925967,
+          4960718.623207294,
+          -12434387.12160866,
+          4990403.820752165
+        ],
+        "provenance": {
+          "extent": "context",
+          "size": "context",
+          "dpi": "context",
+          "zoom": "derived"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "plot_vector_export",
+      "doc": "\u00a74.2 In a plot (D16): PDF / SVG have no dpi, 300 is the default",
+      "inputs": {},
+      "context": {
+        "plot": {
+          "extent_3857": [
+            -12478914.917925967,
+            4960718.623207294,
+            -12434387.12160866,
+            4990403.820752165
+          ],
+          "panel_px": [
+            1800,
+            1200
+          ],
+          "device": "vector_export",
+          "dpi": null,
+          "pixel_ratio": 1
+        }
+      },
+      "expect": {
+        "width": 1800,
+        "height": 1200,
+        "dpi": 300,
+        "zoom": 9.983706192659419,
+        "bounds_3857": [
+          -12478914.917925967,
+          4960718.623207294,
+          -12434387.12160866,
+          4990403.820752165
+        ],
+        "provenance": {
+          "extent": "context",
+          "size": "context",
+          "dpi": "default",
+          "zoom": "derived"
+        },
+        "notes": [
+          {
+            "level": "adjusted",
+            "kind": "default_dpi"
+          }
+        ]
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "plot_zoom_given",
+      "doc": "\u00a74.2 Conflicts: a zoom chosen in a plot gives an effective dpi, reported once",
+      "inputs": {
+        "zoom": 10.983706192659419
+      },
+      "context": {
+        "plot": {
+          "extent_3857": [
+            -12478914.917925967,
+            4960718.623207294,
+            -12434387.12160866,
+            4990403.820752165
+          ],
+          "panel_px": [
+            1800,
+            1200
+          ],
+          "device": "raster_export",
+          "dpi": 300,
+          "pixel_ratio": 1
+        }
+      },
+      "expect": {
+        "width": 1800,
+        "height": 1200,
+        "dpi": 150,
+        "zoom": 10.983706192659419,
+        "bounds_3857": [
+          -12478914.917925967,
+          4960718.623207294,
+          -12434387.12160866,
+          4990403.820752165
+        ],
+        "provenance": {
+          "extent": "context",
+          "size": "context",
+          "dpi": "derived",
+          "zoom": "given"
+        },
+        "notes": [
+          {
+            "level": "adjusted",
+            "kind": "effective_dpi"
+          }
+        ]
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "plot_dpi_given",
+      "doc": "\u00a74.2 In a plot: a dpi chosen for the basemap replaces the device's; the zoom follows from it",
+      "inputs": {
+        "dpi": 150
+      },
+      "context": {
+        "plot": {
+          "extent_3857": [
+            -12478914.917925967,
+            4960718.623207294,
+            -12434387.12160866,
+            4990403.820752165
+          ],
+          "panel_px": [
+            1800,
+            1200
+          ],
+          "device": "raster_export",
+          "dpi": 300,
+          "pixel_ratio": 1
+        }
+      },
+      "expect": {
+        "width": 1800,
+        "height": 1200,
+        "dpi": 150,
+        "zoom": 10.983706192659419,
+        "bounds_3857": [
+          -12478914.917925967,
+          4960718.623207294,
+          -12434387.12160866,
+          4990403.820752165
+        ],
+        "provenance": {
+          "extent": "context",
+          "size": "context",
+          "dpi": "given",
+          "zoom": "derived"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "plot_screen_plain",
+      "doc": "\u00a74.2 In a plot (D16): a screen without a pixel ratio is 96 dpi",
+      "inputs": {},
+      "context": {
+        "plot": {
+          "extent_3857": [
+            -12478914.917925967,
+            4960718.623207294,
+            -12434387.12160866,
+            4990403.820752165
+          ],
+          "panel_px": [
+            576,
+            384
+          ],
+          "device": "screen",
+          "dpi": null,
+          "pixel_ratio": 1
+        }
+      },
+      "expect": {
+        "width": 576,
+        "height": 384,
+        "dpi": 96,
+        "zoom": 9.983706192659419,
+        "bounds_3857": [
+          -12478914.917925967,
+          4960718.623207294,
+          -12434387.12160866,
+          4990403.820752165
+        ],
+        "provenance": {
+          "extent": "context",
+          "size": "context",
+          "dpi": "context",
+          "zoom": "derived"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "plot_zoom_and_dpi",
+      "doc": "\u00a74.2 Conflicts: in a plot the extent and pixels are fixed, so zoom and dpi cannot both be chosen",
+      "inputs": {
+        "zoom": 12,
+        "dpi": 300
+      },
+      "context": {
+        "plot": {
+          "extent_3857": [
+            -12478914.917925967,
+            4960718.623207294,
+            -12434387.12160866,
+            4990403.820752165
+          ],
+          "panel_px": [
+            1800,
+            1200
+          ],
+          "device": "raster_export",
+          "dpi": 300,
+          "pixel_ratio": 1
+        }
+      },
+      "error": {
+        "kind": "validation",
+        "contains": [
+          "zoom",
+          "dpi"
+        ]
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "plot_with_size",
+      "doc": "\u00a74.2 Conflicts: in a plot the panel gives the image size",
+      "inputs": {
+        "width": 800,
+        "height": 600
+      },
+      "context": {
+        "plot": {
+          "extent_3857": [
+            -12478914.917925967,
+            4960718.623207294,
+            -12434387.12160866,
+            4990403.820752165
+          ],
+          "panel_px": [
+            1800,
+            1200
+          ],
+          "device": "raster_export",
+          "dpi": 300,
+          "pixel_ratio": 1
+        }
+      },
+      "error": {
+        "kind": "validation",
+        "contains": [
+          "width",
+          "plot"
+        ]
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "plot_with_bounds",
+      "doc": "\u00a74.2 Conflicts / D15: a basemap with its own extent in a plot",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ]
+      },
+      "context": {
+        "plot": {
+          "extent_3857": [
+            -12478914.917925967,
+            4960718.623207294,
+            -12434387.12160866,
+            4990403.820752165
+          ],
+          "panel_px": [
+            1800,
+            1200
+          ],
+          "device": "raster_export",
+          "dpi": 300,
+          "pixel_ratio": 1
+        }
+      },
+      "error": {
+        "kind": "validation",
+        "contains": [
+          "plot"
+        ]
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    }
+  ],
+  "around": [
+    {
+      "name": "km",
+      "center": [
+        -111.89,
+        40.76
+      ],
+      "span": [
+        20,
+        15
+      ],
+      "units": "km",
+      "expect_lonlat": [
+        -112.00872983342298,
+        40.69255097272066,
+        -111.77127016657703,
+        40.827449027279336
+      ]
+    },
+    {
+      "name": "metres_default",
+      "center": [
+        -111.89,
+        40.76
+      ],
+      "span": [
+        20000,
+        15000
+      ],
+      "expect_lonlat": [
+        -112.00872983342298,
+        40.69255097272066,
+        -111.77127016657703,
+        40.827449027279336
+      ]
+    },
+    {
+      "name": "square_miles",
+      "center": [
+        -111.89,
+        40.76
+      ],
+      "span": [
+        5
+      ],
+      "units": "mi",
+      "expect_lonlat": [
+        -111.93776928626006,
+        40.72381710421405,
+        -111.84223071373994,
+        40.79618289578595
+      ]
+    }
+  ]
+}

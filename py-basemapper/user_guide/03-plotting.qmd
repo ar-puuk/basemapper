@@ -2,12 +2,13 @@
 title: "Plots with matplotlib and plotnine"
 ---
 
-`add_basemap()` (matplotlib) and `geom_basemap()` (plotnine) add a basemap
-under your data. They render when the figure is drawn, for the axes' extent
-and at the output resolution: on screen, in this page, or in
-`savefig(dpi=300)` and `save(dpi=300)`, labels stay sharp and the right
-size. Both take the arguments of `basemap()`'s renderers (`labels`,
-`features`, `layers`, `alpha`, ...) and credit the provider in the corner.
+A basemap goes under your data: `m.add_to(ax)` in matplotlib,
+`ggplot(df) + m` in plotnine. The plot gives what a basemap on its own needs
+from you: the extent (the axes' limits), the CRS (the basemap is warped into
+it, so it lines up with the data), the image size (the axes) and the dpi (on
+screen 96 x the screen's pixel ratio, in `savefig(dpi=300)` 300, in PDF and
+SVG 300). It renders when the figure is drawn, so panning, zooming and
+saving draw it afresh, and it credits the provider in the corner.
 
 ```{python}
 import warnings
@@ -23,26 +24,30 @@ nc = gpd.read_file(geodatasets.get_path("geoda.sids"))
 
 ## matplotlib
 
-`add_basemap()` draws under what the axes already show. Give it the data's
-CRS with `crs=`:
+`m.add_to(ax)` draws under what the axes already show, and returns the
+basemap's artist. Plain axes carry no CRS, so give it the data's with
+`crs=` (cartopy GeoAxes are read). `bm.add_basemap(ax, style, ...)` is the
+same in one call:
 
 ```{python}
+#| fig-alt: "matplotlib choropleth of North Carolina's counties by sudden infant deaths per 1,000 births in 1979, in orange-red shades over the light grey OpenFreeMap Positron basemap, with a colour bar."
 fig, ax = plt.subplots(figsize=(8, 3.6))
 nc.assign(rate=nc.SID79 / nc.BIR79 * 1000).plot(
     ax=ax, column="rate", cmap="OrRd", alpha=0.8, edgecolor="white", linewidth=0.2,
     legend=True, legend_kwds={"label": "SIDS per 1,000 births, 1979", "shrink": 0.7},
 )
-bm.add_basemap(ax, "OpenFreeMap.Positron", crs=nc.crs)
+bm.basemap("OpenFreeMap.Positron").add_to(ax, crs=nc.crs)
 ax.set_axis_off()
 ```
 
 ### Projected data
 
-The basemap is rendered in Web Mercator and warped to the axes' CRS, so data
-in any CRS works. Here North Carolina's state plane (EPSG:32119), with the
-counties' centroids sized by births:
+The basemap is drawn in Web Mercator and warped into the axes' CRS, so it
+lines up with data in any CRS. Here North Carolina's state plane
+(EPSG:32119), with the counties' centroids sized by births:
 
 ```{python}
+#| fig-alt: "North Carolina in its state plane projection: county outlines and orange circles at the counties' centres sized by births in 1974, over Esri's World Topo Map, warped to the projection so roads and towns line up with the counties."
 nc_sp = nc.to_crs(32119)
 fig, ax = plt.subplots(figsize=(8, 3.6))
 nc_sp.boundary.plot(ax=ax, color="0.15", linewidth=0.3)
@@ -54,25 +59,46 @@ ax.set_axis_off()
 ### A quieter basemap
 
 For a data map, a basemap often reads better without its labels, faded, or
-with only some of its features (see [Stacking, labels and
-features](04-layers.qmd)):
+with only some of its features. Filters belong to the style (see [Stacking,
+labels and features](04-layers.qmd)); `alpha` fades the layer:
 
 ```{python}
+#| fig-alt: "North Carolina's counties coloured by the share of births to non-white mothers in 1974, on a viridis scale, over a faded OpenFreeMap Liberty basemap without labels, roads or rail."
+quiet = bm.style("OpenFreeMap.Liberty", features=["-labels", "-roads", "-rail"])
+
 fig, ax = plt.subplots(figsize=(8, 3.6))
 nc.assign(share=nc.NWBIR74 / nc.BIR74).plot(
     ax=ax, column="share", cmap="viridis", edgecolor="white", linewidth=0.2, legend=True,
     legend_kwds={"label": "Share of births, non-white, 1974", "shrink": 0.7},
 )
-bm.add_basemap(ax, "OpenFreeMap.Liberty", labels=False, features=["-roads", "-rail"], alpha=0.6, crs=nc.crs)
+bm.basemap(quiet).add_to(ax, crs=nc.crs, alpha=0.6)
 ax.set_axis_off()
 ```
 
-### Zooming in
+### More detail, or sharper
+
+The plot fixes the extent and the image's pixels, so the zoom follows from
+the dpi. A `zoom` of your own gives more (or less) detail: the dpi then
+follows (an *effective dpi*, reported once as a `BasemapAdjustment`), and
+the style's labels are drawn at that dpi.
+
+```{python}
+#| fig-alt: "Central North Carolina around Raleigh, Durham and Cary in OpenFreeMap Liberty at zoom 8: county outlines over highways, lakes and town names."
+fig, ax = plt.subplots(figsize=(8, 4.5))
+nc.boundary.plot(ax=ax, color="0.2", linewidth=0.3)
+ax.set_xlim(-80, -77.5)
+ax.set_ylim(35, 36.5)
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", bm.BasemapAdjustment)
+    bm.basemap("OpenFreeMap.Liberty", zoom=8).add_to(ax, crs=nc.crs)
+ax.set_axis_off()
+```
 
 The basemap follows the axes, so setting their limits zooms it in, with
 detail to match:
 
 ```{python}
+#| fig-alt: "Satellite imagery of North Carolina's Outer Banks and Pamlico Sound, with yellow county outlines and white county names such as Dare, Hyde and Tyrrell."
 fig, ax = plt.subplots(figsize=(8, 5.2))
 nc.boundary.plot(ax=ax, color="yellow", linewidth=1)
 for _, row in nc.iterrows():
@@ -85,30 +111,51 @@ bm.add_basemap(ax, "Esri.WorldImagery", crs=nc.crs)
 ax.set_axis_off()
 ```
 
+### Clipping
+
+`clip` draws the basemap only inside a layer's polygons, or outside them
+with `bm.outside()`. In a plot, the plot still gives the extent: the clip is
+a mask. Here the state in colour over a faded copy:
+
+```{python}
+#| fig-alt: "Satellite imagery of North Carolina in full colour inside the state's counties and faded outside them, with thin white county outlines."
+fig, ax = plt.subplots(figsize=(8, 3.6))
+nc.boundary.plot(ax=ax, color="white", linewidth=0.2)
+bm.basemap("Esri.WorldImagery").add_to(ax, crs=nc.crs, alpha=0.35, attribution=False)
+bm.basemap("Esri.WorldImagery", clip=nc).add_to(ax, crs=nc.crs)
+ax.set_axis_off()
+```
+
 ### Credits
 
 The credit line is on by default. `attribution=False` turns it off;
 `get_attribution()` returns the text, for a caption:
 
 ```{python}
+#| fig-alt: "North Carolina's county outlines in blue over Esri's light grey canvas basemap, with the provider's credit as small text below the map instead of in its corner."
+gray = bm.basemap("Esri.WorldGrayCanvas")
+
 fig, ax = plt.subplots(figsize=(8, 3.6))
 nc.boundary.plot(ax=ax, color="steelblue", linewidth=0.4)
-bm.add_basemap(ax, "Esri.WorldGrayCanvas", attribution=False, crs=nc.crs)
+gray.add_to(ax, crs=nc.crs, attribution=False)
 ax.set_axis_off()
-fig.text(0.98, 0.02, bm.get_attribution("Esri.WorldGrayCanvas"), ha="right", fontsize=6, color="0.4")
+fig.text(0.98, 0.02, bm.get_attribution(gray), ha="right", fontsize=6, color="0.4")
 ```
 
 ## plotnine
 
-`geom_basemap()` is a plotnine layer with the arguments of R's
-`geom_basemap()`:
+Add a basemap to a plotnine plot like a layer. plotnine has no spatial
+coordinates: the basemap reads the CRS of a GeoDataFrame's data, else takes
+`geom_basemap(crs=...)`, else longitude / latitude. `bm.geom_basemap()`
+builds one from `basemap()`'s arguments:
 
 ```{python}
-from plotnine import aes, geom_map, ggplot, labs, scale_fill_distiller, theme, theme_void
+#| fig-alt: "plotnine map of North Carolina's counties in shades of blue by births in 1979, with white borders, over the light grey OpenFreeMap Positron basemap, and a legend."
+from plotnine import aes, geom_map, ggplot, scale_fill_distiller, theme, theme_void
 
 (
     ggplot(nc)
-    + bm.geom_basemap("OpenFreeMap.Positron")
+    + bm.basemap("OpenFreeMap.Positron")
     + geom_map(aes(fill="BIR79"), alpha=0.75, color="white", size=0.2)
     + scale_fill_distiller(type="seq", palette="Blues", direction=1, name="Births, 1979")
     + theme_void()
@@ -116,22 +163,34 @@ from plotnine import aes, geom_map, ggplot, labs, scale_fill_distiller, theme, t
 )
 ```
 
-Raster and vector basemaps, stacks, labels and features work the same way;
-here shaded relief under a vector basemap's labels:
+Raster and vector basemaps, stacks and filters work the same way; here
+shaded relief under a vector basemap's labels:
 
 ```{python}
+#| fig-alt: "plotnine map of North Carolina: Esri's shaded relief with OpenFreeMap Liberty's place labels on top, county outlines, and orange dots at the counties' centres sized by births in 1974, with a legend."
 from plotnine import geom_point, scale_size_area
 
-relief = ["Esri.WorldShadedRelief", bm.basemap_provider("OpenFreeMap.Liberty", labels="only")]
+relief = ["Esri.WorldShadedRelief", bm.style("OpenFreeMap.Liberty", features="labels")]
 centroids = nc.assign(x=nc.centroid.x, y=nc.centroid.y)
 
 (
     ggplot(centroids)
-    + bm.geom_basemap(relief)
+    + bm.basemap(relief)
     + geom_map(fill=None, color="#333333", size=0.25)
     + geom_point(aes("x", "y", size="BIR74"), color="#D96E34", alpha=0.7)
     + scale_size_area(max_size=6, name="Births, 1974")
     + theme_void()
     + theme(figure_size=(8, 3.6))
 )
+```
+
+## Saving
+
+`savefig()` draws the basemap again at the file's dpi: the same map, sharp
+at that resolution. A PDF or SVG gets it at 300 dpi.
+
+```{python}
+#| eval: false
+fig.savefig("nc.png", dpi=300)
+fig.savefig("nc.pdf")
 ```

@@ -8,7 +8,7 @@
 \description{
 \if{html}{\figure{logo.svg}{options: style='float: right' alt='logo' width='120'}}
 
-Renders MapLibre GL styled basemaps (vector and raster tiles) headlessly with a Rust core: a software port of MapLibre GL JS's renderer, tested pixel by pixel against MapLibre GL JS. Renders at any fractional zoom and pixel ratio to PNG, rasters and arrays, or to true vector SVG; several styles can be stacked. Integrates with ggplot2 via geom_basemap() and with tmap v4 via tm_basemap(), rendering at the output device's resolution.
+Renders MapLibre GL styled basemaps (vector and raster tiles) headlessly with a Rust core: a software port of MapLibre GL JS's renderer, tested pixel by pixel against MapLibre GL JS. A basemap is an extent, a zoom (the detail) and a dpi (the sharpness), any three of extent, zoom, image size and dpi giving the fourth; it renders to PNG, arrays and rasters in any coordinate reference system, or to true vector SVG, and several styles can be stacked. In 'ggplot2' (ggplot() + m) and 'tmap' v4 (tm_basemap()) plots it is warped into the plot's coordinate reference system and rendered at the output device's resolution.
 }
 \seealso{
 Useful links:

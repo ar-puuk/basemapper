@@ -2,92 +2,36 @@
 % Please edit documentation in R/tmap_integration.R
 \name{tm_basemap}
 \alias{tm_basemap}
-\title{Add a styled basemap layer to a tmap v4 pipeline.}
+\title{Basemaps in tmap}
 \usage{
-tm_basemap(
-  style,
-  ...,
-  tile_zoom = NULL,
-  alpha = 1,
-  layers = NULL,
-  labels = TRUE,
-  features = NULL,
-  pixel_ratio = NULL,
-  auth_token = NULL,
-  fetch = fetch_options(),
-  attribution = TRUE,
-  width = NULL,
-  height = NULL
-)
+tm_basemap(x, ..., alpha = 1, attribution = TRUE)
 }
 \arguments{
-\item{style}{A MapLibre GL style URL or JSON string (e.g. from
-\code{\link[=basemap_provider]{basemap_provider()}}), or a vector / list of styles stacked bottom to
-top.}
+\item{x}{A \code{\link[=basemap]{basemap()}}, or a style (anything \code{\link[=basemap]{basemap()}} takes).}
 
-\item{...}{Not used: the arguments after \code{style} must be named. (The
-deprecated \code{tile_timeout_ms} and \code{max_tiles} are still accepted, with a
-warning: use \code{fetch}.)}
+\item{...}{With a style: \code{\link[=basemap]{basemap()}}'s arguments that apply in a plot
+(\code{zoom} or \code{dpi}, \code{clip}, \code{fetch}).}
 
-\item{tile_zoom}{Tile detail override: the tile zoom on the 256 px grid
-(vector sources use one less, their tiles being 512 px), or \code{NULL} to
-pick tiles as MapLibre does for the view.}
+\item{alpha}{The basemap's opacity (0--1).}
 
-\item{alpha}{Opacity of the basemap layer (0--1).}
-
-\item{layers}{Optional layer filter applied to every style: plain IDs keep
-only those layers, minus-prefixed IDs drop them; \code{*} and \verb{?} are
-wildcards (\code{"-label_*"}). See \code{\link[=list_layers]{list_layers()}}. Names that match no
-layer of any style warn.}
-
-\item{labels}{\code{"all"} (or \code{TRUE}) keeps every layer, \code{"none"} (or \code{FALSE}) drops the labels (text and
-icons), \code{"only"} keeps only the labels on a transparent background, to
-stack over another map. Catalogue raster basemaps switch to their
-label-free or label-only tiles.}
-
-\item{features}{Optional feature filter applied to every style: plain
-names keep those features, minus-prefixed names drop them, e.g.
-\code{c("water", "roads")} or \code{"-buildings"}. Features: background, water,
-landcover, parks, buildings, roads, rail, boundaries, places, poi,
-terrain, other (the \code{feature} column of \code{\link[=list_layers]{list_layers()}}). Features no
-layer of any style belongs to warn.}
-
-\item{pixel_ratio}{Device pixels per CSS pixel: the basemap raster is
-\code{width * pixel_ratio} by \code{height * pixel_ratio} pixels with the same zoom
-and label layout. Default: device dpi / 96 (300 dpi for PDF / SVG
-devices), so \code{tmap_save(dpi = 300)} gets a basemap rendered at 300 dpi.}
-
-\item{auth_token}{Optional access token for the tile service (sent only to the style's own server).}
-
-\item{fetch}{How tiles are downloaded: a \code{\link[=fetch_options]{fetch_options()}} object
-(timeout, tile limit, parallel downloads, what a failed tile does).}
-
-\item{attribution}{The credit line the basemap's providers ask for, as a
-\code{tmap::tm_credits()} element in the bottom-right corner: \code{TRUE} (the
-default) for the styles' own (see \code{\link[=get_attribution]{get_attribution()}}), \code{FALSE} for
-none, or your own text.}
-
-\item{width, height}{View size in CSS pixels (sets the zoom). By default
-the map panel's size is estimated from the device size, margins and
-facet layout, at 96 CSS px per inch.}
+\item{attribution}{The providers' credit line, as a \code{tmap::tm_credits()}
+element in the bottom-right corner: \code{TRUE} (their own), \code{FALSE}, or your
+text.}
 }
 \value{
-A composable tmap element (class \code{"tmap"}). Put it before \code{tm_shape()}
-so it renders behind subsequent layers.
+A tmap element.
 }
 \description{
-Returns a deferred tmap element that renders tiles at draw time using the
-bounding box resolved from the active \code{tm_shape()} — no explicit \code{bbox}
-argument is needed. This mirrors how tmap's own \code{tm_basemap()} works.
-Takes the same arguments as \code{\link[=geom_basemap]{geom_basemap()}}, plus the view size.
+\code{tm_basemap(m)} puts a \code{\link[=basemap]{basemap()}} under a tmap v4 map; \code{tm_basemap(style, ...)} builds the basemap from \code{\link[=basemap]{basemap()}}'s arguments (tmap only accepts
+its own elements, so this is the way in). As in ggplot2, the map gives the
+extent, the CRS (the basemap is warped into it), the image size and the
+dpi; the basemap may give a \code{zoom} or a \code{dpi}. Put it before
+\code{tm_shape()}, so it draws behind the layers.
 }
 \examples{
 \dontrun{
 library(tmap)
-library(sf)
-nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-basemapper::tm_basemap("OpenFreeMap.Positron") +
-  tm_shape(nc) +
-  tm_sf(fill = NA, col = "steelblue")
+nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
+tm_basemap("OpenFreeMap.Positron") + tm_shape(nc) + tm_polygons(fill = NA)
 }
 }

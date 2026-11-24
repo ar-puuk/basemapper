@@ -245,6 +245,8 @@ pub fn load(dir: &Path, case: &Value) -> Fixture {
         labels: basemapper_core::Labels::All,
         features: None,
         auth_token: None,
+        auth_scope: None,
+        group: 0,
         // Tiles outside a source's coverage are left out of fixtures (404);
         // MapLibre renders them as empty, so skip rather than fail.
         fail_on_tile_error: false,

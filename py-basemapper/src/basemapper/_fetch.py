@@ -1,10 +1,9 @@
-"""How basemaps download tiles: :class:`FetchOptions`."""
+"""How basemaps download their data: :class:`FetchOptions`."""
 
 from __future__ import annotations
 
-import warnings
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from .exceptions import ValidationError
 
@@ -13,22 +12,21 @@ __all__ = ["FetchOptions"]
 
 @dataclass(frozen=True)
 class FetchOptions:
-    """Settings for downloading a basemap's tiles.
+    """Settings for downloading a basemap's data.
 
-    Give one as ``fetch=`` to :func:`basemap`, :func:`render_basemap_raw`,
-    :func:`add_basemap` and :func:`geom_basemap`. The defaults suit most
-    maps; change them for slow servers, very large maps, or to stop on a
-    missing tile. R: ``fetch_options()``.
+    Give one as ``fetch=`` to :func:`basemap`. The defaults suit most maps;
+    change them for slow servers, very large maps, or to stop on missing
+    data. R: ``fetch_options()``; Rust: ``FetchOptions``.
 
     Args:
-        timeout: Seconds to wait for each tile.
+        timeout: Seconds to wait for each download.
         max_tiles: Most tiles fetched per style. A view needing more is an
             error for vector tiles; raster tiles are fetched one zoom level
-            coarser instead.
-        concurrency: Tiles downloaded at once.
-        on_error: What a tile that fails to download does: ``"skip"`` leaves
-            it empty (the map is drawn without it), ``"fail"`` raises an
-            error.
+            coarser instead (an *adjusted* note).
+        concurrency: Downloads at once.
+        on_error: ``"skip"`` draws what there is, each gap a
+            :class:`BasemapProblem` warning; ``"fail"`` raises an error for a
+            failed tile or any other problem.
 
     Example:
         >>> import basemapper
@@ -51,49 +49,16 @@ class FetchOptions:
         if self.on_error not in ("skip", "fail"):
             raise ValidationError(f'on_error must be "skip" or "fail", not {self.on_error!r}')
 
-    def _core(self) -> Dict[str, Any]:
-        """The Rust core's names for these settings."""
-        return dict(
-            tile_timeout_ms=min(int(round(self.timeout * 1000)), 2**31 - 1),
-            max_tiles=self.max_tiles,
-            tile_concurrency=self.concurrency,
-            fail_on_tile_error=self.on_error == "fail",
-        )
+    def _spec(self) -> Dict[str, Any]:
+        """As the core reads it."""
+        return {"timeout": float(self.timeout), "max_tiles": self.max_tiles, "concurrency": self.concurrency,
+                "on_error": self.on_error}
 
 
-# The keyword arguments `fetch` replaces, and the FetchOptions field each maps to.
-_DEPRECATED = {
-    "tile_timeout_ms": "timeout",
-    "max_tiles": "max_tiles",
-    "tile_concurrency": "concurrency",
-    "fail_on_tile_error": "on_error",
-}
-
-
-def _resolve_fetch(fetch: Optional[FetchOptions], fn: str, deprecated: Dict[str, Any], stacklevel: int = 3) -> FetchOptions:
-    """``fetch`` (default :class:`FetchOptions`) with the replaced keyword
-    arguments in ``deprecated`` applied, each with a DeprecationWarning;
-    any other keyword is a TypeError, as Python raises for unknown ones."""
+def fetch_arg(fetch: Any) -> FetchOptions:
+    """``fetch`` checked (None is the defaults)."""
     if fetch is None:
-        fetch = FetchOptions()
-    elif not isinstance(fetch, FetchOptions):
+        return FetchOptions()
+    if not isinstance(fetch, FetchOptions):
         raise ValidationError(f"fetch must be a basemapper.FetchOptions, not {type(fetch).__name__}")
-    unknown = [k for k in deprecated if k not in _DEPRECATED]
-    if unknown:
-        raise TypeError(f"{fn}() got an unexpected keyword argument {unknown[0]!r}")
-    if not deprecated:
-        return fetch
-    changes: Dict[str, Any] = {}
-    for old, value in deprecated.items():
-        new = _DEPRECATED[old]
-        hint = f"fetch=basemapper.FetchOptions({new}=...)" + (" (in seconds)" if old == "tile_timeout_ms" else "")
-        warnings.warn(f"{fn}({old}=) is deprecated; use {hint}", DeprecationWarning, stacklevel=stacklevel)
-        if old == "tile_timeout_ms":
-            changes[new] = value / 1000
-        elif old == "fail_on_tile_error":
-            changes[new] = "fail" if value else "skip"
-        else:
-            changes[new] = value
-    from dataclasses import replace
-
-    return replace(fetch, **changes)
+    return fetch

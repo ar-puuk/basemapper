@@ -11,8 +11,7 @@ providers
 }
 \description{
 A named list of every basemap name: \code{providers$CartoDB.Positron} is the
-string \code{"CartoDB.Positron"}, usable as \code{style} or with
-\code{\link[=basemap_provider]{basemap_provider()}}. The names match \code{leaflet::providers} where both
+string \code{"CartoDB.Positron"}, usable as a style or with \code{\link[=provider]{provider()}}. The names match \code{leaflet::providers} where both
 have a basemap. Python: \code{basemapper.providers.CartoDB.Positron}.
 }
 \examples{

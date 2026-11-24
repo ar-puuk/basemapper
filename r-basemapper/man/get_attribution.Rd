@@ -2,32 +2,23 @@
 % Please edit documentation in R/layer_utils.R
 \name{get_attribution}
 \alias{get_attribution}
-\title{The attribution a style asks maps to show}
+\title{The credit line a basemap's providers ask for}
 \usage{
-get_attribution(x, auth_token = NULL)
+get_attribution(x)
 }
 \arguments{
-\item{x}{A view from \code{\link[=basemap]{basemap()}}, or a style (anything \code{\link[=basemap]{basemap()}}
-takes) or vector of styles stacked bottom to top.}
-
-\item{auth_token}{Optional access token for the tile service (sent only to the style's own server) (for a view,
-its own is used).}
+\item{x}{A \code{\link[=basemap]{basemap()}}, a style, or a list of styles.}
 }
 \value{
-A character string; \code{""} when the styles give no attribution.
+A character string; \code{""} when the styles give none.
 }
 \description{
-Every source the styles' layers draw from contributes its attribution
-(from the style, the source's TileJSON or PMTiles metadata), as
-MapLibre's attribution control collects it: plain text, without
-duplicates, joined with \code{" | "}. Use it for a caption or credit line,
-e.g. \code{labs(caption = get_attribution(style))}. Python:
-\code{basemapper.get_attribution()} and \code{m.get_attribution()}.
+Every source the styles draw from contributes its attribution (from the
+style, its TileJSON or PMTiles metadata), as plain text without
+duplicates, joined with \code{" | "}. The plot layers draw it by default; use
+it for a caption, e.g. \code{labs(caption = get_attribution(m))}. Python:
+\code{basemapper.get_attribution()}.
 }
 \examples{
 get_attribution("Esri.WorldImagery")
-\dontrun{
-m <- basemap("OpenFreeMap.Liberty", center = c(-111.89, 40.76), zoom = 12)
-get_attribution(m)
-}
 }

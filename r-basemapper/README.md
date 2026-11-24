@@ -10,8 +10,9 @@
 
 **basemapper** renders MapLibre GL basemaps (vector and raster styles)
 headlessly with a Rust core: to PNG, arrays, {terra} rasters or true vector
-SVG, at any fractional zoom and pixel ratio, and as {ggplot2} and {tmap} v4
-layers that render at the output device's resolution.
+SVG, at any fractional zoom and dpi, in any CRS, and as {ggplot2} and {tmap}
+v4 layers that line up with your data and render at the output device's
+resolution.
 
 ## Installation
 
@@ -65,36 +66,39 @@ For the development version, install from the `dev` branch: `pak::pak("ar-puuk/b
 ```r
 library(basemapper)
 
-# Built-in basemaps by leaflet name (list_providers(), providers$...);
-# the name works as a style
-style <- "OpenFreeMap.Liberty"
-style <- basemap_provider("Esri.WorldGrayCanvas", type = "raster")   # pick the form
-style <- basemap_provider("OpenFreeMap.Liberty", tiles = "data/omt.pmtiles")   # your own tiles
-
-# Stack parts of basemaps: imagery under a vector basemap's labels
-hybrid <- c("Esri.WorldImagery", basemap_provider("OpenFreeMap.Liberty", labels = "only"))
-# labels = FALSE / "only", features = c("water", "roads") / "-buildings"
-
-# A view: centre + zoom, or bounds to fit
-m <- basemap(style, 800, 600, center = c(-122.45, 37.75), zoom = 12, pixel_ratio = 2)
-render_png(m, path = "sf.png")     # 1600 x 1200
+# A style plus what you know of the map; any three of extent, zoom, image
+# size and dpi give the fourth
+m <- basemap("OpenFreeMap.Liberty", center = c(-122.45, 37.75), zoom = 12, dpi = 192)
+m                                  # the view: what was given, derived or defaulted
+r <- render(m)                     # 1600 x 1200: the default 800 x 600 view, sharper
+write_png(r, "sf.png")
+a <- as_array(r)                   # [1200, 1600, 4], with bounds and CRS
 render_svg(m, path = "sf.svg")     # true vector
-get_bounds(set_view(m, zoom = 13), lonlat = TRUE)
+get_bounds(set_view(m, zoom = 13))
 
-# One-shot render of bounds to a georeferenced [height, width, 4] array
-a <- render_basemap_raw(c(-122.5, 37.7, -122.4, 37.8), 400, 300, style)
+# An area: bounds (longitude / latitude, or an sf object) or around()
+basemap("OpenFreeMap.Liberty", bounds = around(c(-122.45, 37.75), c(10, 6), units = "km"))
 
-# Your own tile data works as a style: tile URLs, TileJSON, PMTiles
-# archives (URL or local file), ArcGIS services
-m <- basemap("data/area.pmtiles", 800, 600, bounds = c(-122.5, 37.7, -122.4, 37.8))
-style <- tile_style("https://example.com/{z}/{x}/{y}.png", maxzoom = 16)   # with overrides
-style <- wms_style("https://gis.example.com/wms", layers = "imagery")
+# Styles: a catalogue name, a MapLibre style, or your own tiles; filters and
+# keys belong to the style; a list is stacked bottom to top
+hybrid <- list("Esri.WorldImagery", style("OpenFreeMap.Liberty", features = "labels"))
+quiet  <- style("OpenFreeMap.Liberty", features = c("-labels", "-poi"))
+own    <- style(provider("OpenFreeMap.Liberty", tiles = "https://tiles.openfreemap.org/planet"))
+relief <- style(wms("https://ows.terrestris.de/osm/service", layers = "SRTM30-Colored-Hillshade"))
+
+# In a plot: the plot gives the extent, CRS, size and dpi
+library(ggplot2)
+nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
+ggplot(nc) + basemap(quiet) + geom_sf(fill = NA)
 ```
+
+Coming from 0.2? See [Migrating to 0.3](https://ar-puuk.github.io/basemapper/migrating-to-0.3.html).
 
 ## Get started
 
 See the [Getting Started vignette](articles/getting-started.html) for a
-walkthrough of rendering basemaps with {ggplot2}, {tmap}, and raw RGBA output.
+walkthrough: views, renderings, CRSs, clipping, and basemaps in {ggplot2}
+and {tmap}.
 
 ## Related
 

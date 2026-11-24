@@ -1,438 +1,382 @@
-#' Create a basemap view
+#' Create a basemap
 #'
-#' A map view to render headlessly: one style, or several stacked. The view
-#' is a centre and MapLibre zoom (512 px tiles; fractional zooms are rendered
-#' natively, not resampled), or bounds to fit. `width` and `height` are CSS
-#' pixels; images are `pixel_ratio` times larger with the same view and label
-#' layout (MapLibre's `devicePixelRatio`): `pixel_ratio = 2` gives a sharp 2x
-#' image, `pixel_ratio = dpi / 96` matches a print resolution.
+#' A basemap is what to draw (one style, or several stacked bottom to top),
+#' what is given of its view, its CRS, a clip and fetch options. It renders on
+#' its own ([render()]) or goes into a plot (`ggplot(nc) + m`,
+#' `tm_basemap(m)`), which supplies what it leaves out. The same object exists
+#' in Python (`basemapper.basemap()`) and Rust (`Basemap`).
 #'
-#' Render it with [render_png()], [render_svg()], [render_raster()] or
-#' [render_array()]. The same function exists in Python
-#' (`basemapper.basemap()`) and Rust (`Basemap::new()`), with the same
-#' arguments.
+#' Three controls, each with one meaning everywhere: the extent (`bounds`, or
+#' `center` with `zoom`), `zoom` (the feature detail) and `dpi` (the
+#' sharpness); `width` / `height` and [around()] express them in other terms.
+#' **Any three of extent, zoom, image size and dpi give the fourth.** What
+#' nothing gives is defaulted, in this order: dpi (96), image size (800 x 600
+#' at 96 dpi, scaled with the dpi), extent (the world); the zoom is never a
+#' default. Over-determined requests are errors that say what to drop.
 #'
-#' @param style A MapLibre GL style URL or JSON string, a catalogue name
-#'   (see [basemap_provider()]), or a character vector / list of those
-#'   stacked bottom to top (e.g. a basemap published as separate hillshade,
-#'   base and label services; `"UGRC.Lite"` names such a stack).
-#' @param width,height View size in CSS pixels.
-#' @param ... Not used: the arguments after `height` must be named. (The
-#'   deprecated `tile_timeout_ms`, `max_tiles`, `tile_concurrency` and
-#'   `fail_on_tile_error` are still accepted, with a warning: use `fetch`.)
-#' @param center `c(longitude, latitude)` of the view centre.
-#' @param zoom MapLibre zoom (0--22, fractional allowed).
-#' @param bounds Bounds to fit instead of `center`/`zoom`: `c(xmin, ymin,
-#'   xmax, ymax)` in `crs` (default EPSG:4326), an [sf::st_bbox()] result, or
-#'   an `sf` / `sfc` object.
-#' @param crs CRS of `bounds` (anything [sf::st_crs()] accepts).
-#' @param pixel_ratio Device pixels per CSS pixel.
-#' @param layers Optional layer filter applied to every style: plain IDs keep
-#'   only those layers, minus-prefixed IDs drop them; `*` and `?` are
-#'   wildcards (`"-label_*"`). See [list_layers()]. Names that match no
-#'   layer of any style warn.
-#' @param labels `"all"` (or `TRUE`) keeps every layer, `"none"` (or `FALSE`) drops the labels (text and
-#'   icons), `"only"` keeps only the labels on a transparent background, to
-#'   stack over another map. Catalogue raster basemaps switch to their
-#'   label-free or label-only tiles.
-#' @param features Optional feature filter applied to every style: plain
-#'   names keep those features, minus-prefixed names drop them, e.g.
-#'   `c("water", "roads")` or `"-buildings"`. Features: background, water,
-#'   landcover, parks, buildings, roads, rail, boundaries, places, poi,
-#'   terrain, other (the `feature` column of [list_layers()]). Features no
-#'   layer of any style belongs to warn.
-#' @param auth_token Optional access token for the tile service (sent only to the style's own server).
-#' @param fetch How tiles are downloaded: a [fetch_options()] object
-#'   (timeout, tile limit, parallel downloads, what a failed tile does).
+#' @param style A style, or a list (or character vector) of styles stacked
+#'   bottom to top: a catalogue name (`"OpenFreeMap.Liberty"`), a style URL
+#'   or JSON, tile data, or a [style()].
+#' @param ... Not used: the arguments after `style` must be named.
+#' @param bounds The area to show: `c(west, south, east, north)` in longitude
+#'   / latitude (west > east across the date line), [around()] (a ground
+#'   distance around a point), or a spatial layer (`sf`, `sfc`, `bbox`; its
+#'   CRS is read).
+#' @param center `c(longitude, latitude)` of the camera; needs `zoom`.
+#' @param zoom The MapLibre zoom (0--22, fractional): which roads, places and
+#'   labels the style draws.
+#' @param width,height The image size, in `units`.
+#' @param units `"px"` (default), `"in"`, `"cm"` or `"mm"`; with a physical
+#'   unit, `dpi` sets only the pixel count.
+#' @param dpi Image pixels per inch: the sharpness (default 96).
+#' @param crs The map's CRS (anything [sf::st_crs()] takes, or an object with
+#'   a CRS). Default: the `bounds` layer's CRS when it is projected, else Web
+#'   Mercator. In another CRS the map is drawn in Web Mercator and warped
+#'   into it (sf needed).
+#' @param clip Draw only inside a layer's polygons (an `sf` or `sfc` object),
+#'   or outside them with [outside()]. An inside clip also gives the default
+#'   extent (and CRS, when projected).
+#' @param fetch How the data is downloaded: a [fetch_options()] object.
 #'
 #' @return A `basemap` object.
+#' @seealso [render()], [set_view()], [get_bounds()].
 #' @export
 #' @examples
 #' \dontrun{
-#' # UGRC's Lite basemap: its hillshade, base and labels services, stacked
-#' m <- basemap("UGRC.Lite", 800, 600, center = c(-111.8887, 40.7556), zoom = 12.4,
-#'              pixel_ratio = 2)
-#' render_png(m, "slc.png")   # 1600 x 1200
-#' render_svg(m, "slc.svg")   # vector
-#' r <- render_raster(m)      # terra SpatRaster in EPSG:3857
+#' m <- basemap("OpenFreeMap.Liberty", center = c(-111.8887, 40.7556), zoom = 12.4, dpi = 192)
+#' img <- render(m)              # 1600 x 1200 px, sharp
+#' write_png(img, "slc.png")
+#' render_svg(m, "slc.svg")      # vector
 #'
-#' # Fit a layer's extent
+#' # This area at this detail: the size follows
 #' nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-#' m <- basemap("OpenFreeMap.Positron", bounds = nc)
+#' basemap("OpenFreeMap.Positron", bounds = nc, zoom = 7)
+#'
+#' # 20 x 15 km around a point
+#' basemap("OpenFreeMap.Liberty", bounds = around(c(-111.9, 40.76), c(20, 15), units = "km"))
 #' }
-basemap <- function(
-    style,
-    width       = 800L,
-    height      = 600L,
-    ...,
-    center      = NULL,
-    zoom        = NULL,
-    bounds      = NULL,
-    crs         = NULL,
-    pixel_ratio = 1,
-    layers      = NULL,
-    labels      = TRUE,
-    features    = NULL,
-    auth_token  = NULL,
-    fetch       = fetch_options()
-) {
-  fetch  <- fetch_with_deprecated(fetch, list(...), "basemap")$fetch
-  styles <- style_strings(style)
-  width  <- as.integer(width)
-  height <- as.integer(height)
-  if (length(width) != 1L || length(height) != 1L || is.na(width) || is.na(height) ||
-      width < 1L || height < 1L) {
-    abort_basemapper("`width` and `height` must be positive integers.")
+basemap <- function(style, ..., bounds = NULL, center = NULL, zoom = NULL, width = NULL, height = NULL,
+                    units = "px", dpi = NULL, crs = NULL, clip = NULL, fetch = fetch_options()) {
+  call <- rlang::current_env()
+  check_basemap_dots(list(...), call = call)
+  if (inherits(style, "basemap")) {
+    abort_basemapper("`style` is already a basemap: change it with set_view() or set_bounds().", call = call)
   }
-  check_pixel_ratio(pixel_ratio)
   m <- structure(
     list(
-      styles = styles, width = width, height = height, pixel_ratio = as.numeric(pixel_ratio),
-      center = c(0, 0), zoom = 0, fetch = fetch,
-      options = c(
-        list(layers = layers, labels = labels_arg(labels), features = features, auth_token = auth_token),
-        fetch_core(fetch)
-      )
+      styles = styles_arg(style, call = call),
+      bounds = bounds,
+      center = if (is.null(center)) NULL else as.numeric(center),
+      zoom = num1(zoom),
+      width = num1(width),
+      height = num1(height),
+      units = chr1(units),
+      dpi = num1(dpi),
+      crs = crs,
+      clip = clip,
+      fetch = check_fetch(fetch, call)
     ),
     class = "basemap"
   )
-  if (!is.null(bounds)) {
-    if (!is.null(center) || !is.null(zoom)) {
-      abort_basemapper("Give either `bounds` or `center`/`zoom`, not both.")
-    }
-    return(set_bounds(m, bounds, crs = crs))
-  }
-  set_view(m, center = center %||% c(0, 0), zoom = zoom %||% 0)
+  prepare(m, call = call)
 }
 
-#' Change a basemap view
+# Resolve the view now (an impossible basemap is an error here, not later)
+# and keep what the core and the renders need.
+prepare <- function(m, call = rlang::caller_env()) {
+  extent <- if (!is.null(m$bounds)) {
+    extent_of(m$bounds, call = call)
+  } else if (!is.null(m$clip) && !inherits(m$clip, "basemapper_outside") && is.null(m$center)) {
+    extent_of(m$clip, call = call)  # an inside clip frames the map
+  }
+  crs <- map_crs(m$crs, extent, call = call)
+  inputs <- base_inputs(m, call = call)
+  frame <- NULL
+  if (is_web_mercator(crs)) {
+    if (!is.null(extent)) inputs$bounds <- box_in(extent, crs)
+  } else if (!is.null(extent)) {
+    b <- box_in(extent, crs)
+    inputs$bounds <- b
+    frame <- crs_frame(crs, c((b[1] + b[3]) / 2, (b[2] + b[4]) / 2), call = call)
+  } else if (!is.null(m$center)) {
+    o <- project(m$center[1], m$center[2], .CRS_4326, crs)
+    frame <- crs_frame(crs, c(o$x, o$y), call = call)
+  } else {
+    abort_basemapper(sprintf("A map in %s needs an extent: bounds (or a layer), or center with zoom.",
+                             crs_name(crs)), call = call)
+  }
+  clip <- clip_spec(m$clip, crs, call = call)
+  if (length(inputs) == 0L) inputs <- structure(list(), names = character())  # a JSON object, not []
+  view <- from_json(call_core("wrap__resolve_raw", to_json(inputs), to_json(frame), call = call))
+  m$.prepared <- list(crs = crs, inputs = inputs, frame = frame, clip = clip, view = view)
+  m
+}
+
+base_inputs <- function(m, call = rlang::caller_env()) {
+  inputs <- list()
+  if (!is.null(m$center)) {
+    if (length(m$center) != 2L || any(!is.finite(m$center))) {
+      abort_basemapper("`center` must be c(longitude, latitude).", call = call)
+    }
+    inputs$center <- m$center
+  }
+  if (!is.null(m$zoom)) inputs$zoom <- m$zoom
+  if (!is.null(m$width) || !is.null(m$height)) {
+    if (is.null(m$width) || is.null(m$height)) abort_basemapper("Give both `width` and `height`, or neither.", call = call)
+    inputs$width <- m$width
+    inputs$height <- m$height
+    inputs$units <- m$units
+  }
+  if (!is.null(m$dpi)) inputs$dpi <- m$dpi
+  inputs
+}
+
+check_basemap_dots <- function(dots, call) {
+  if (length(dots) == 0L) return(invisible())
+  nms <- names(dots) %||% rep("", length(dots))
+  if (any(!nzchar(nms))) {
+    abort_basemapper(
+      "Arguments after `style` in basemap() must be named, e.g. `width = 800, height = 600`.",
+      call = call
+    )
+  }
+  removed_arguments("basemap", nms, call = call)
+}
+
+check_basemap <- function(m, call = rlang::caller_env()) {
+  if (!inherits(m, "basemap")) abort_basemapper("`m` must be a basemap() object.", call = call)
+}
+
+#' Change a basemap
 #'
-#' `set_view()` sets the centre and/or zoom; `set_bounds()` fits bounds
-#' (keeping the view's size). Python: `m.set_view()`, `m.set_bounds()`.
+#' A basemap never changes: these return a new one (value semantics, as
+#' everything in R). `set_view()` changes what is given of the view (`NULL`
+#' unsets a value; a `center` replaces the bounds); `set_bounds()` shows an
+#' area (the centre is unset). Python: `m.set_view()`, `m.set_bounds()`.
 #'
 #' @param m A [basemap()] object.
-#' @param center `c(longitude, latitude)`, or `NULL` to keep it.
-#' @param zoom MapLibre zoom, or `NULL` to keep it.
-#' @inheritParams basemap
-#' @return The modified `basemap`.
+#' @param ... Not used: the arguments after `m` must be named.
+#' @param center,zoom,width,height,units,dpi As in [basemap()]; left out,
+#'   they keep their value.
+#' @param bounds As in [basemap()].
+#' @return A new `basemap`.
 #' @export
-set_view <- function(m, center = NULL, zoom = NULL) {
-  check_basemap(m)
-  if (!is.null(center)) {
-    if (!is.numeric(center) || length(center) != 2L) {
-      abort_basemapper("center must be c(longitude, latitude).")
-    }
-    m$center <- as.numeric(center)
+#' @examples
+#' \dontrun{
+#' m <- basemap("OpenFreeMap.Liberty", center = c(-111.89, 40.76), zoom = 12)
+#' set_view(m, zoom = 10)
+#' set_view(m, dpi = 300, width = 6, height = 4, units = "in")
+#' }
+set_view <- function(m, ..., center, zoom, width, height, units, dpi) {
+  call <- rlang::current_env()
+  check_basemap(m, call)
+  check_named_dots(list(...), "set_view", "m", call = call)
+  if (!missing(center)) {
+    m$center <- if (is.null(center)) NULL else as.numeric(center)
+    if (!is.null(center)) m$bounds <- NULL
   }
-  if (!is.null(zoom)) {
-    if (!is.numeric(zoom) || length(zoom) != 1L || zoom < 0 || zoom > 22) {
-      abort_basemapper("zoom must be a single number between 0 and 22.")
-    }
-    m$zoom <- as.numeric(zoom)
-  }
-  m
+  if (!missing(zoom)) m$zoom <- num1(zoom)
+  if (!missing(width)) m$width <- num1(width)
+  if (!missing(height)) m$height <- num1(height)
+  if (!missing(units)) m$units <- chr1(units) %||% "px"
+  if (!missing(dpi)) m$dpi <- num1(dpi)
+  prepare(m, call = call)
 }
 
 #' @rdname set_view
 #' @export
-set_bounds <- function(m, bounds, crs = NULL) {
-  check_basemap(m)
-  b <- bounds_3857(bounds, crs)
-  v <- call_core("wrap__fit_bounds_raw", as.numeric(b), m$width, m$height)
-  m$center <- v[1:2]
-  m$zoom   <- min(max(v[3], 0), 22)
-  m
+set_bounds <- function(m, bounds) {
+  call <- rlang::current_env()
+  check_basemap(m, call)
+  m$bounds <- bounds
+  m$center <- NULL
+  prepare(m, call = call)
 }
 
-#' Read a basemap view
+#' Read a basemap's view
 #'
-#' * `get_bounds()`: the view's extent, `c(xmin, ymin, xmax, ymax)` in
-#'   EPSG:3857 metres, or degrees with `lonlat = TRUE`.
+#' The view's values, each given, derived or defaulted by the core's one
+#' rule. The view never reaches past the poles. Python: the properties
+#' `m.bounds`, `m.center`, `m.zoom`, `m.size`.
+#'
+#' * `get_bounds()`: `c(xmin, ymin, xmax, ymax)` of the map in its CRS: at
+#'   least the extent given, grown to the image's shape.
 #' * `get_center()`: `c(longitude, latitude)` of the centre.
 #' * `get_zoom()`: the MapLibre zoom.
-#' * `get_size()`: `c(width, height)` of rendered images in device pixels.
+#' * `get_size()`: `c(width, height)` of the image in pixels.
 #'
-#' Python: `m.get_bounds()`, `m.get_center()`, `m.get_zoom()`,
-#' `m.get_size()`.
+#' `print(m)` shows these with the dpi, CRS, scale and where each value came
+#' from.
 #'
 #' @param m A [basemap()] object.
-#' @param lonlat Return degrees (EPSG:4326) instead of EPSG:3857 metres.
-#' @return A named numeric vector.
+#' @return A named numeric vector (one number for `get_zoom()`).
 #' @export
-get_bounds <- function(m, lonlat = FALSE) {
+get_bounds <- function(m) {
   check_basemap(m)
-  b <- call_core("wrap__bbox_from_center_raw", m$center[1], m$center[2], m$zoom,
-             m$width, m$height)
-  names(b) <- c("xmin", "ymin", "xmax", "ymax")
-  if (!lonlat) return(b)
-  lo <- mercator_to_lonlat(b[["xmin"]], b[["ymin"]])
-  hi <- mercator_to_lonlat(b[["xmax"]], b[["ymax"]])
-  c(xmin = lo[[1]], ymin = lo[[2]], xmax = hi[[1]], ymax = hi[[2]])
+  v <- m$.prepared$view
+  stats::setNames(v$crs_bounds %||% v$bounds, c("xmin", "ymin", "xmax", "ymax"))
 }
 
 #' @rdname get_bounds
 #' @export
 get_center <- function(m) {
   check_basemap(m)
-  c(longitude = m$center[1], latitude = m$center[2])
+  stats::setNames(m$.prepared$view$center, c("longitude", "latitude"))
 }
 
 #' @rdname get_bounds
 #' @export
 get_zoom <- function(m) {
   check_basemap(m)
-  m$zoom
+  m$.prepared$view$zoom
 }
 
 #' @rdname get_bounds
 #' @export
 get_size <- function(m) {
   check_basemap(m)
-  c(width = device_px(m$width, m$pixel_ratio), height = device_px(m$height, m$pixel_ratio))
+  v <- m$.prepared$view
+  c(width = v$width, height = v$height)
 }
 
 #' @export
 print.basemap <- function(x, ...) {
+  v <- x$.prepared$view
   n <- length(x$styles)
-  s <- get_size(x)
-  cat(sprintf(
-    "<basemap> %d style%s, %d x %d @ %gx (%d x %d px), center (%.5f, %.5f), zoom %.3f\n",
-    n, if (n == 1L) "" else "s", x$width, x$height, x$pixel_ratio, s[["width"]], s[["height"]],
-    x$center[1], x$center[2], x$zoom
-  ))
+  auto <- function(what) if (identical(v$provenance[[what]], "given")) "" else sprintf(" (%s)", v$provenance[[what]])
+  c0 <- v$center
+  cat(sprintf("<basemap> %d style%s, %s\n", n, if (n == 1L) "" else "s", crs_name(x$.prepared$crs)))
+  cat(sprintf("  size   %d x %d px%s at %g dpi%s\n", v$width, v$height, auto("size"), v$dpi, auto("dpi")))
+  cat(sprintf("  zoom   %.2f%s, 1:%s\n", v$zoom, auto("zoom"), format(round(v$scale), big.mark = ",")))
+  # A given centre is given; else it follows from the extent (bounds, a
+  # clip) or, with none, from the default world.
+  centre_from <- if (!is.null(x$center)) "" else if (identical(v$provenance$extent, "default")) " (default)" else " (derived)"
+  cat(sprintf("  center (%.4f, %.4f)%s\n", c0[1], c0[2], centre_from))
   invisible(x)
 }
 
-#' Show a basemap view
+#' Render a basemap
 #'
-#' `plot()` renders the view and draws it on the current graphics device.
-#' In R Markdown and Quarto documents, a view printed by a chunk (`m` on its
-#' own line) renders and shows as an image at its CSS pixel size, sharp at
-#' any `pixel_ratio`; `print(m)` describes the view instead.
+#' `render()` renders the map: a `basemapper_rendering` with its pixels and
+#' where they are, converted with [write_png()], [as_array()],
+#' [as_raster()] or `plot()`. `render(m, dpi = 300)` is
+#' `render(set_view(m, dpi = 300))`: the same map, sharper (when the image
+#' size is not fixed in pixels). `render_svg()` draws an SVG document; SVG is
+#' Web Mercator for now, so a map in another CRS is an error. Python:
+#' `m.render()`, `m.render_svg()`.
 #'
-#' @param x A view from [basemap()].
-#' @param ... Unused.
-#' @return `x`, invisibly (`plot()`); a knitr image (`knit_print()`).
-#' @examples
-#' \dontrun{
-#' m <- basemap("OpenFreeMap.Positron", 800, 450, center = c(-111.8887, 40.7556), zoom = 12.4)
-#' plot(m)
-#' }
-#' @name plot.basemap
-#' @export
-plot.basemap <- function(x, ...) {
-  img <- pixels_to_native(render_pixels(x))
-  grid::grid.newpage()
-  grid::grid.raster(img, interpolate = TRUE)
-  invisible(x)
-}
-
-#' @rdname plot.basemap
-#' @param options knitr chunk options.
-#' @exportS3Method knitr::knit_print
-knit_print.basemap <- function(x, options = list(), ...) {
-  .BASEMAPPER_KNIT$n <- .BASEMAPPER_KNIT$n + 1L
-  path <- knitr::fig_path("-basemap.png", options, number = .BASEMAPPER_KNIT$n)
-  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
-  render_png(x, path = path)
-  knitr::include_graphics(path, dpi = 96 * x$pixel_ratio)
-}
-
-.BASEMAPPER_KNIT <- new.env(parent = emptyenv())
-.BASEMAPPER_KNIT$n <- 0L
-
-#' Render a basemap view
-#'
-#' * `render_png()` writes or returns a PNG.
-#' * `render_svg()` writes or returns an SVG document (`width` x `height`
-#'   user units; `pixel_ratio` does not apply): vector layers as paths and
-#'   text, raster tiles (raster basemaps, hillshade) as embedded images.
-#' * `render_array()` returns an integer array `[height, width, 4]` (RGBA,
-#'   0--255) with the extent as attributes, like [render_basemap_raw()].
-#' * `render_raster()` (R only) returns a [terra::rast()] (EPSG:3857, layers
-#'   red, green, blue, alpha).
-#'
-#' Image sizes are `width * pixel_ratio` by `height * pixel_ratio` device
-#' pixels. Python: `m.render_png()`, `m.render_svg()`, `m.render_array()`.
+#' A rendering carries notes on what basemapper decided, adjusted or could
+#' not do, shown by their level (see [basemapper-errors]).
 #'
 #' @param m A [basemap()] object.
-#' @param path Output file, or `NULL` to return the result.
-#' @param text For `render_svg()`: `"editable"` writes labels as `<text>`
-#'   elements (editable, selectable) at MapLibre's glyph positions, halos as
-#'   strokes, with the style's fonts embedded, and falls back to `"bitmap"`
-#'   for labels whose font file is not available; `"bitmap"` draws every
-#'   label from the style's own glyph bitmaps, thresholded by SVG filters as
-#'   MapLibre's shader does (MapLibre's look at any zoom, not editable);
-#'   `"paths"` writes glyph outlines traced from those bitmaps (plain paths).
-#' @param embed_fonts For `render_svg()`: `"subset"` (only the glyphs used),
-#'   `"full"` (whole fonts, for retyping labels) or `"none"` (fonts by name
-#'   only). Fonts come from `font_dirs`, the `BASEMAPPER_FONT_DIRS` folders, a
-#'   local cache, then Google Fonts for open fonts; others are referenced by
-#'   name.
-#' @param font_dirs For `render_svg()`: folders of .ttf / .otf files to use
-#'   first.
-#' @return `render_png()`: the PNG as a raw vector (invisibly when written).
-#'   `render_svg()`: the SVG as a string (invisibly when written).
+#' @param ... Not used: the arguments after `m` must be named.
+#' @param dpi Render at this dpi instead of the basemap's.
+#' @return `render()`: a `basemapper_rendering`. `render_svg()`: the SVG as a
+#'   string (invisibly when written to `path`).
 #' @export
-render_png <- function(m, path = NULL) {
-  px  <- render_pixels(m)
-  png <- call_core("wrap__encode_png_raw", px$pixels, px$width, px$height)
-  if (is.null(path)) return(png)
-  writeBin(png, path)
-  invisible(png)
+#' @examples
+#' \dontrun{
+#' m <- basemap("OpenFreeMap.Liberty", center = c(-111.89, 40.76), zoom = 12)
+#' img <- render(m)
+#' img
+#' write_png(img, "map.png")
+#' a <- as_array(img)                  # [height, width, 4], with bounds and CRS
+#' r <- as_raster(img)                 # terra SpatRaster
+#' write_png(render(m, dpi = 300), "map-300.png")
+#' }
+render <- function(m, ..., dpi = NULL) {
+  call <- rlang::current_env()
+  check_basemap(m, call)
+  check_named_dots(list(...), "render", "m", call = call)
+  if (!is.null(dpi)) m <- set_view(m, dpi = dpi)
+  p <- m$.prepared
+  mesh <- if (is.null(p$frame)) NULL else crs_mesh(p$crs, p$view$crs_bounds, p$view$width, p$view$height)
+  r <- rendering_of(core_render(m$styles, p$inputs, m$fetch, p$clip, p$frame, mesh, call = call), p$crs)
+  attr(r, "alt") <- basemap_alt(m)
+  r
 }
 
-#' @rdname render_png
+# A style in a few words: a catalogue name, a service's host or a file's
+# name, and its features filter.
+style_label <- function(s) {
+  src <- if (is.character(s$source)) s$source else s$source$name %||% s$source$input %||% s$source$url
+  src <- if (grepl("^\\s*\\{", src)) {
+    name <- tryCatch(jsonlite::fromJSON(src, simplifyVector = FALSE)$name, error = function(e) NULL)
+    if (is.character(name) && length(name) == 1L && nzchar(name)) name else "an inline style"
+  } else if (grepl("^[a-z]+://", src)) {
+    sub("^[a-z]+://([^/?#]+).*$", "\\1", src)
+  } else {
+    basename(src)
+  }
+  if (is.null(s$features)) src else sprintf("%s (features: %s)", src, paste(s$features, collapse = ", "))
+}
+
+# The default alt text of a basemap's figure in knitr (a chunk's `fig.alt`
+# wins): what it shows, where, and at what detail.
+basemap_alt <- function(m) {
+  v <- m$.prepared$view
+  c0 <- v$center
+  crs <- crs_name(m$.prepared$crs)
+  sprintf("Basemap of %s around %.2f° %s, %.2f° %s at zoom %.1f (1:%s)%s",
+          paste(vapply(m$styles, style_label, character(1)), collapse = " under "),
+          abs(c0[2]), if (c0[2] >= 0) "N" else "S", abs(c0[1]), if (c0[1] >= 0) "E" else "W",
+          v$zoom, format(round(v$scale), big.mark = ","),
+          if (identical(crs, "EPSG:3857")) "" else paste0(", in ", crs))
+}
+
+#' @rdname render
+#' @param path A file to write, or `NULL` to return the SVG.
+#' @param text `"editable"`: labels as `<text>` with the style's fonts
+#'   embedded (labels without a font file fall back to `"bitmap"`);
+#'   `"bitmap"`: labels from the style's glyph bitmaps (MapLibre's look, not
+#'   editable); `"paths"`: glyph outlines as paths.
+#' @param embed_fonts `"subset"` (only the glyphs used), `"full"` or `"none"`
+#'   (fonts by name only).
+#' @param font_dirs Folders of .ttf / .otf files to use first.
 #' @export
-render_svg <- function(m, path = NULL, text = c("editable", "bitmap", "paths"),
+render_svg <- function(m, path = NULL, ..., text = c("editable", "bitmap", "paths"),
                        embed_fonts = c("subset", "full", "none"), font_dirs = NULL) {
+  call <- rlang::current_env()
+  check_basemap(m, call)
+  check_named_dots(list(...), "render_svg", "path", call = call)
   text <- match.arg(text)
   embed_fonts <- match.arg(embed_fonts)
-  check_basemap(m)
-  o <- m$options
-  svg <- call_core(
-    "wrap__render_svg_raw",
-    as.numeric(get_bounds(m)), m$width, m$height, m$styles,
-    NULL, o$tile_timeout_ms, o$max_tiles,
-    if (is.null(o$layers)) NULL else as.character(o$layers),
-    o$labels %||% "all",
-    if (is.null(o$features)) NULL else as.character(o$features),
-    if (is.null(o$auth_token)) NULL else as.character(o$auth_token),
-    o$fail_on_tile_error, o$tile_concurrency,
-    text, embed_fonts,
-    if (is.null(font_dirs)) NULL else normalizePath(as.character(font_dirs), mustWork = FALSE)
+  p <- m$.prepared
+  args <- c(
+    list("wrap__render_svg_raw", to_json(lapply(m$styles, style_spec)), to_json(p$inputs),
+         to_json(fetch_spec(m$fetch))),
+    clip_args(p$clip),
+    list(to_json(p$frame), text, embed_fonts,
+         if (is.null(font_dirs)) character() else normalizePath(as.character(font_dirs), mustWork = FALSE))
   )
+  svg <- do.call(call_core, c(args, list(call = call)))
   if (is.null(path)) return(svg)
   writeLines(svg, path, useBytes = TRUE, sep = "")
   invisible(svg)
 }
 
-#' @rdname render_png
+#' Show a basemap
+#'
+#' `plot()` renders the basemap and draws it on the current graphics device.
+#' In R Markdown and Quarto documents, a basemap printed by a chunk renders
+#' and shows as an image at its CSS size, sharp at any dpi; `print(m)`
+#' describes it instead. The image's alt text is the chunk's `fig.alt`, or
+#' else a description of the map: its styles, where it is centred, its zoom
+#' and scale, and its CRS when not Web Mercator.
+#'
+#' @param x A [basemap()] object.
+#' @param ... Unused.
+#' @param options knitr chunk options.
+#' @return `x`, invisibly (`plot()`); a knitr image (`knit_print()`).
+#' @name plot.basemap
 #' @export
-render_array <- function(m) {
-  px <- render_pixels(m)
-  with_extent(pixels_to_array(px), get_bounds(m), 3857L)
+plot.basemap <- function(x, ...) {
+  plot(render(x))
+  invisible(x)
 }
 
-#' @rdname render_png
-#' @export
-render_raster <- function(m) {
-  rlang::check_installed("terra", "to return a SpatRaster.")
-  px <- render_pixels(m)
-  b  <- get_bounds(m)
-  r  <- terra::rast(
-    nrows = px$height, ncols = px$width, nlyrs = 4L,
-    xmin = unname(b["xmin"]), xmax = unname(b["xmax"]),
-    ymin = unname(b["ymin"]), ymax = unname(b["ymax"]),
-    crs = "EPSG:3857"
-  )
-  # Pixels are row-major RGBA from the top-left: one column per band.
-  v <- matrix(as.integer(px$pixels), ncol = 4L, byrow = TRUE)
-  terra::values(r) <- v
-  names(r) <- c("red", "green", "blue", "alpha")
-  terra::RGB(r) <- 1:3
-  r
-}
-
-# ── Internals ─────────────────────────────────────────────────────────────────
-
-check_basemap <- function(m) {
-  if (!inherits(m, "basemap")) abort_basemapper("`m` must be a basemap() object.")
-}
-
-check_pixel_ratio <- function(pixel_ratio) {
-  if (!is.numeric(pixel_ratio) || length(pixel_ratio) != 1L || !(pixel_ratio > 0)) {
-    abort_basemapper("pixel_ratio must be a single number > 0.")
-  }
-}
-
-# Device pixels for a CSS size, as the core rounds them (halves away from
-# zero; R's round() would round them to even).
-device_px <- function(css, pixel_ratio) {
-  max(1L, as.integer(floor(css * pixel_ratio + 0.5)))
-}
-
-# One style or a vector / list of styles as character strings.
-style_strings <- function(style) {
-  styles <- if (is.list(style)) style else as.list(style)
-  styles <- vapply(styles, function(s) as.character(s)[1L], character(1))
-  if (length(styles) == 0L || anyNA(styles)) abort_basemapper("At least one style is required.")
-  unname(styles)
-}
-
-bounds_3857 <- function(bounds, crs = NULL) {
-  norm <- normalize_bbox(bounds, crs)
-  v <- norm$vals
-  if (!is.na(norm$crs_obj$epsg) && norm$crs_obj$epsg == 3857L) {
-    return(unname(v[c("xmin", "ymin", "xmax", "ymax")]))
-  }
-  unname(reproject_bbox_to_3857(v[["xmin"]], v[["ymin"]], v[["xmax"]], v[["ymax"]],
-                                from_crs = norm$crs_obj))
-}
-
-render_pixels <- function(m) {
-  check_basemap(m)
-  render_styles_3857(get_bounds(m), m$width, m$height, m$styles, m$pixel_ratio,
-                     tile_zoom = NULL, options = m$options)
-}
-
-# `labels` (TRUE, FALSE or "only") as the core's "all" / "none" / "only".
-labels_arg <- function(labels) {
-  if (is.character(labels) && length(labels) == 1L && labels %in% c("all", "none", "only")) return(labels)
-  if (isTRUE(labels)) return("all")
-  if (isFALSE(labels)) return("none")
-  abort_basemapper('labels must be TRUE, FALSE or "only".')
-}
-
-# Render styles over an EPSG:3857 bbox; width/height in CSS px.
-render_styles_3857 <- function(bbox_3857, width, height, styles, pixel_ratio,
-                               tile_zoom = NULL, options = list()) {
-  o <- utils::modifyList(
-    list(layers = NULL, labels = "all", features = NULL, auth_token = NULL, tile_timeout_ms = 10000L,
-         max_tiles = 256L, tile_concurrency = 16L, fail_on_tile_error = FALSE),
-    options
-  )
-  raw <- call_core(
-    "wrap__render_raw",
-    as.numeric(bbox_3857), as.integer(width), as.integer(height), style_strings(styles),
-    as.numeric(pixel_ratio),
-    if (is.null(tile_zoom)) NULL else as.integer(tile_zoom),
-    as.integer(o$tile_timeout_ms), as.integer(o$max_tiles),
-    if (is.null(o$layers)) NULL else as.character(o$layers),
-    labels_arg(o$labels),
-    if (is.null(o$features)) NULL else as.character(o$features),
-    if (is.null(o$auth_token)) NULL else as.character(o$auth_token),
-    isTRUE(o$fail_on_tile_error), as.integer(o$tile_concurrency)
-  )
-  w <- attr(raw, "width")
-  h <- attr(raw, "height")
-  for (note in attr(raw, "warnings")) warning(note, call. = FALSE)
-  attributes(raw) <- NULL
-  list(pixels = raw, width = w, height = h)
-}
-
-# Straight-alpha RGBA bytes as a nativeRaster: R's own packed colour
-# format (one integer per pixel, 0xAABBGGRR), which is what RGBA bytes read
-# as little-endian integers are. Drawn without any conversion, at a quarter
-# of the memory of an integer array and an eighth of a double one.
-pixels_to_native <- function(px) {
-  n <- px$width * px$height
-  v <- readBin(px$pixels, what = "integer", n = n, size = 4L, endian = "little")
-  # nativeRaster data are row-major, as the pixels are.
-  structure(v, dim = c(px$height, px$width), class = "nativeRaster", channels = 4L)
-}
-
-pixels_to_array <- function(px) {
-  a <- array(as.integer(px$pixels), dim = c(4L, px$width, px$height))
-  aperm(a, c(3L, 2L, 1L))  # [height, width, channel]
-}
-
-# An RGBA array with its extent and CRS as attributes.
-with_extent <- function(a, b, epsg) {
-  attr(a, "xmin") <- unname(b[[1]])
-  attr(a, "ymin") <- unname(b[[2]])
-  attr(a, "xmax") <- unname(b[[3]])
-  attr(a, "ymax") <- unname(b[[4]])
-  attr(a, "crs_epsg") <- epsg
-  a
+#' @rdname plot.basemap
+#' @exportS3Method knitr::knit_print
+knit_print.basemap <- function(x, options = list(), ...) {
+  knit_print.basemapper_rendering(render(x), options = options, ...)
 }

@@ -1,0 +1,47 @@
+{
+  "about": "The API contract of basemapper 0.3 (docs/api.md): every public function of the R and Python packages and its arguments, by name. Each package's test suite checks itself against this file (r-basemapper/tests/testthat/test-contract-api.R, py-basemapper/tests/test_contract_api.py); tools/api_parity.py reports both side by side.",
+  "version": 1,
+  "language_only_arguments": {
+    "r": ["...", "m", "x"],
+    "python": ["self", "x", "removed", "basemap_args", "kwargs"]
+  },
+  "functions": [
+    {"r": "basemap", "python": "basemap", "args": ["style", "bounds", "center", "zoom", "width", "height", "units", "dpi", "crs", "clip", "fetch"]},
+    {"r": "style", "python": "style", "args": ["source", "layers", "features", "key"]},
+    {"r": "provider", "python": "provider", "args": ["name", "form", "tiles"]},
+    {"r": "tiles", "python": "tiles", "args": ["input", "type", "tile_size", "scheme", "minzoom", "maxzoom", "attribution", "source_layers", "paint"]},
+    {"r": "wms", "python": "wms", "args": ["url", "layers", "styles", "version", "format", "transparent", "extra_params"]},
+    {"r": "wmts", "python": "wmts", "args": ["url", "layer", "tilematrixset", "format", "style", "version", "extra_params"]},
+    {"r": "around", "python": "around", "args": ["center", "span", "units"]},
+    {"r": "outside", "python": "outside", "args": ["layer"]},
+    {"r": "fetch_options", "python": "FetchOptions", "args": ["timeout", "max_tiles", "concurrency", "on_error"]},
+    {"r": "set_view", "python": "Basemap.set_view", "args": ["center", "zoom", "width", "height", "units", "dpi"]},
+    {"r": "set_bounds", "python": "Basemap.set_bounds", "args": ["bounds"]},
+    {"r": "render", "python": "Basemap.render", "args": ["dpi"]},
+    {"r": "render_svg", "python": "Basemap.render_svg", "args": ["path", "text", "embed_fonts", "font_dirs"]},
+    {"r": "list_layers", "python": "list_layers", "args": ["style"]},
+    {"r": "get_attribution", "python": "get_attribution", "args": []},
+    {"r": "list_providers", "python": "list_providers", "args": ["type"]},
+    {"r": "tile_cache", "python": "tile_cache", "args": ["dir", "clear", "max_size"]},
+    {"r": "geom_basemap", "python": "geom_basemap", "args": ["style", "alpha", "attribution"], "python_also": ["crs"],
+     "why": "plotnine has no spatial coordinate system: Python's geom_basemap takes the plot's CRS when the data cannot say it; ggplot2 reads coord_sf()."},
+    {"r": "tm_basemap", "python": null, "args": ["alpha", "attribution"], "why": "tmap is R only."},
+    {"r": null, "python": "add_basemap", "args": ["ax", "style", "crs", "alpha", "attribution"], "why": "matplotlib is Python only (R's equivalents are ggplot() + m and tm_basemap())."},
+    {"r": null, "python": "Basemap.add_to", "args": ["ax", "crs", "alpha", "attribution"], "why": "matplotlib is Python only."}
+  ],
+  "view": {
+    "about": "Reading a basemap's view: R functions, Python properties (D8).",
+    "r": ["get_bounds", "get_center", "get_zoom", "get_size"],
+    "python": ["bounds", "center", "zoom", "size", "dpi", "crs", "scale", "provenance", "notes"]
+  },
+  "rendering": {
+    "about": "Converting a rendering: R functions of the rendering, Python methods.",
+    "r": ["write_png", "as_array", "as_raster"],
+    "python": ["save", "to_png", "to_numpy", "to_xarray"]
+  },
+  "defunct": {
+    "about": "0.2 names that fail with their replacement (D1).",
+    "r": ["render_basemap_raw", "render_png", "render_array", "render_raster", "basemap_provider", "tile_style", "wms_style", "wmts_style"],
+    "python": ["render_basemap_raw", "basemap_provider", "tile_style", "wms_style", "wmts_style"]
+  }
+}

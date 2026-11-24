@@ -2,7 +2,7 @@
 
 Each test serves one of the repository's golden fixtures
 (``core/tests/fixtures/golden/<case>``: style, tiles, glyphs, sprite) from a
-local HTTP server, renders it through :func:`basemapper.render_basemap_raw`,
+local HTTP server, renders it through :func:`basemapper.basemap`,
 and compares the pixels with MapLibre GL JS's render of the same view
 (``reference-maplibre-gl.png``) within the case's own fidelity limit.
 
@@ -22,7 +22,7 @@ import urllib.parse
 import numpy as np
 import pytest
 
-from basemapper import render_basemap_raw
+import basemapper
 
 GOLDEN = pathlib.Path(__file__).resolve().parents[2] / "core" / "tests" / "fixtures" / "golden"
 BAD_CHANNEL_DIFF = 24
@@ -79,6 +79,21 @@ def _serve(name: str, empty_missing_tiles: bool = False):
     return server, style, case
 
 
+_TO_LONLAT = None
+
+
+def lonlat(bbox_3857):
+    """A fixture's Web Mercator box as lon/lat numbers (plain numbers are
+    lon/lat; the round trip is exact to nanometres)."""
+    global _TO_LONLAT
+    if _TO_LONLAT is None:
+        import pyproj
+
+        _TO_LONLAT = pyproj.Transformer.from_crs(3857, 4326, always_xy=True)
+    xmin, ymin, xmax, ymax = bbox_3857
+    return [*_TO_LONLAT.transform(xmin, ymin), *_TO_LONLAT.transform(xmax, ymax)]
+
+
 def _reference(name: str) -> np.ndarray:
     import matplotlib.image as mpimg
 
@@ -99,11 +114,8 @@ def test_render_matches_maplibre(name):
     server, style, case = _serve(name)
     try:
         w, h = case["width"], case["height"]
-        ours = render_basemap_raw(
-            case["bbox"], w, h, style,
-            crs=3857,
-            layers=case.get("layers"),
-        )
+        s = basemapper.style(style, layers=case.get("layers"))
+        ours = basemapper.basemap(s, bounds=lonlat(case["bbox"]), width=w, height=h).render().to_numpy()
     finally:
         server.shutdown()
 
@@ -118,7 +130,8 @@ def test_render_matches_maplibre(name):
 
 
 def test_add_basemap_with_explicit_crs():
-    """add_basemap on plain matplotlib axes needs crs= (axes carry no CRS)."""
+    """add_basemap on plain matplotlib axes with crs= (axes carry no CRS):
+    the fixture's view, matching MapLibre's render of it."""
     import matplotlib
 
     matplotlib.use("Agg")
@@ -129,18 +142,20 @@ def test_add_basemap_with_explicit_crs():
     server, style, case = _serve("carto_positron_z13")
     try:
         # Axes filling an 800 x 600 px figure: the fixture's view and tiles.
-        fig = plt.figure(figsize=(case["width"] / 100, case["height"] / 100), dpi=100)
+        # 96 dpi: the fixture's view (D16: the plot's dpi sets the zoom).
+        fig = plt.figure(figsize=(case["width"] / 96, case["height"] / 96), dpi=96)
         ax = fig.add_axes([0, 0, 1, 1])
         xmin, ymin, xmax, ymax = case["bbox"]
         ax.set_xlim(xmin, xmax)
         ax.set_ylim(ymin, ymax)
-        arr = add_basemap(ax, style, crs="EPSG:3857")
+        artist = add_basemap(ax, style, crs="EPSG:3857")
         plt.close(fig)
     finally:
         server.shutdown()
-    values = np.asarray(arr)
-    assert values.ndim == 3 and values.shape[2] == 4
-    assert values[..., 3].max() == 255  # something opaque was drawn
+    values = artist.rendering.to_numpy()
+    assert values.shape == (case["height"], case["width"], 4)
+    bad = (np.abs(values.astype(np.int16) - _reference("carto_positron_z13")).max(axis=2) > BAD_CHANNEL_DIFF).mean()
+    assert bad < 0.001, f"{bad:.5%} of pixels differ from MapLibre"
 
 
 def test_plotnine_geom_basemap_renders():

@@ -13,7 +13,7 @@ rasters, or true vector SVG, and adds them to **ggplot2**, **tmap**,
 GDAL is involved.
 
 Basemaps are rendered for the exact view and output resolution: any
-fractional zoom, any pixel ratio (a 300 dpi figure gets a basemap rendered at
+fractional zoom, any dpi (a 300 dpi figure gets a basemap rendered at
 300 dpi, not upscaled tiles), and several styles can be stacked (e.g. a
 hillshade, base and labels published as separate services).
 
@@ -45,10 +45,10 @@ Building from source needs a [Rust toolchain](https://rustup.rs) and, on
 Windows, [RTools45](https://cran.r-project.org/bin/windows/Rtools/) plus the
 GNU target: `rustup target add x86_64-pc-windows-gnu`.
 
-Depends on: `ggplot2 (>= 3.4)`, `cli`, `jsonlite (>= 1.8)`, `lifecycle`,
+Depends on: `ggplot2 (>= 3.4)`, `cli`, `jsonlite (>= 1.8)`,
 `rlang`, `grid`.
 Optional: `sf (>= 1.0)` for bounds in other CRSs and `sf` objects,
-`terra (>= 1.7)` for `render_raster()`, `tmap (>= 4.0)` for `tm_basemap()`.
+`terra (>= 1.7)` for `as_raster()`, `tmap (>= 4.0)` for `tm_basemap()`.
 
 > CRAN and R-Universe packages are planned after an extended testing period.
 
@@ -99,8 +99,8 @@ dependencies:
 ```
 
 For the plot layers, install with an extra in place of plain `basemapper`:
-`basemapper[matplotlib]` for `add_basemap()`, `basemapper[plotnine]` for
-`geom_basemap()` too (or `basemapper[all]`), e.g.
+`basemapper[matplotlib]` for `m.add_to(ax)`, `basemapper[plotnine]` for
+plotnine too (or `basemapper[all]`), e.g.
 `pip install "basemapper[matplotlib] @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"`.
 
 Building from source needs a [Rust toolchain](https://rustup.rs) (conda's
@@ -108,8 +108,8 @@ Building from source needs a [Rust toolchain](https://rustup.rs) (conda's
 automatically.
 
 Depends on: `numpy`, `pyproj`.
-Optional (extras): `matplotlib` and `xarray` for `add_basemap()`,
-`plotnine >= 0.12` for `geom_basemap()`.
+Optional (extras): `matplotlib` for `m.add_to(ax)`, `xarray` for
+`r.to_xarray()`, `plotnine >= 0.12` for plotnine plots.
 
 > PyPI and conda packages are planned after an extended testing period.
 
@@ -130,54 +130,77 @@ built with until `cargo update`). For the development version, add
 
 ## Quick start
 
-The R, Python and Rust APIs are the same: the same functions, the same
-argument names and defaults. R calls `verb(m, ...)` where Python and Rust
-call `m.verb(...)`. See the [API reference](docs/api.md) for the full
-side-by-side list.
+The R, Python and Rust APIs are the same: one model, the same functions,
+argument names, defaults and rules, all in the Rust core. R calls
+`verb(m, ...)` where Python and Rust call `m.verb(...)`. The
+[API reference](docs/api.md) is the side-by-side contract; each package's
+test suite checks its functions and arguments against it
+([`docs/api-contract.json`](docs/api-contract.json)), and the same views,
+pixels and notes against shared cases
+([`core/tests/fixtures/contract/`](core/tests/fixtures/contract/)).
+Coming from 0.2? See [Migrating to 0.3](docs/migrating-to-0.3.md).
 
 ### A map on its own
+
+A basemap is a style plus what you know of the map. **Any three of extent,
+zoom, image size and dpi give the fourth**; what nothing gives is defaulted
+(dpi 96, then 800 × 600, then the world), and the zoom is always derived
+when not given.
 
 ```r
 library(basemapper)
 # UGRC's Lite basemap: hillshade, base and labels services, stacked
-m <- basemap("UGRC.Lite", 800, 600, center = c(-111.8887, 40.7556), zoom = 12.4,
-             pixel_ratio = 2)
-render_png(m, path = "slc.png")   # 1600 x 1200, rendered natively at zoom 12.4
+m <- basemap("UGRC.Lite", center = c(-111.8887, 40.7556), zoom = 12.4, dpi = 192)
+m                                 # the view: given, derived and default values
+r <- render(m)                    # 1600 x 1200 px: the default 800 x 600 view, sharper
+write_png(r, "slc.png")
+a <- as_array(r)                  # [1200, 1600, 4] integer array, with bounds and CRS
+x <- as_raster(r)                 # terra SpatRaster
 render_svg(m, path = "slc.svg")   # true vector; labels as editable text, fonts embedded
-a <- render_array(m)              # [1200, 1600, 4] integer array
-r <- render_raster(m)             # terra SpatRaster (EPSG:3857)
 ```
 
 ```python
-import basemapper
-m = basemapper.basemap("UGRC.Lite", 800, 600, center=(-111.8887, 40.7556), zoom=12.4,
-                       pixel_ratio=2)
-m.render_png(path="slc.png")
-m.render_svg(path="slc.svg")      # text="paths" for traced glyph outlines
-a = m.render_array()              # (1200, 1600, 4) uint8
+import basemapper as bm
+m = bm.basemap("UGRC.Lite", center=(-111.8887, 40.7556), zoom=12.4, dpi=192)
+r = m.render()
+r.save("slc.png")
+a = r.to_numpy()                  # (1200, 1600, 4) uint8
+x = r.to_xarray()                 # georeferenced DataArray
+m.render_svg("slc.svg")           # text="paths" for traced glyph outlines
 ```
 
 ```rust
-use basemapper_core::Basemap;
+use basemapper_core::{Basemap, Context};
 
-let m = Basemap::stack(styles)
-    .size(800, 600)
+let m = Basemap::new("UGRC.Lite")
     .center(-111.8887, 40.7556)
     .zoom(12.4)
-    .pixel_ratio(2.0);
-m.render_png(Some("slc.png".as_ref()))?;
+    .dpi(192.0);
+let r = m.render(&Context::Standalone)?;
+std::fs::write("slc.png", r.to_png()?)?;
 ```
 
-`width` / `height` are CSS pixels and set the view; images are
-`pixel_ratio` times larger with the same layout (MapLibre's
-devicePixelRatio). `style` also takes your own tile data, building its style for you: a tile
-URL, TileJSON, PMTiles archive (URL or local file) or ArcGIS service, e.g.
-`basemap("data/area.pmtiles", ...)`. Fit an extent instead of a centre with `bounds =` (R: a
-bbox or `sf` object; Python: a bbox or GeoDataFrame). Move the view with
-`set_view()` / `set_bounds()` and read it with `get_bounds()`,
-`get_center()`, `get_zoom()` and `get_size()`.
+`width` / `height` are the image's size, in pixels (or inches, cm, mm with
+`units`). `dpi` is sharpness: without a pixel size, a higher dpi gives the
+same map with more pixels; with one, the image keeps its pixels and covers
+less ground. An area instead of a
+camera: `bounds =` (longitude / latitude, an `sf` object or GeoDataFrame,
+or `around(center, span, units = "km")`), and the zoom that fits it is
+derived. A layer in a projected CRS, or `crs =`, draws the map in that CRS
+(warped from Web Mercator). `clip = layer` draws only inside its polygons,
+`clip = outside(layer)` only outside. A basemap is a value:
+`set_view()` / `set_bounds()` return a new one, and `get_bounds()`,
+`get_center()`, `get_zoom()` and `get_size()` (Python: properties) read it.
+
+`style` is a catalogue name, a MapLibre style (URL, file or JSON) or your
+own tile data, which gets a style built for it: a tile URL, TileJSON,
+PMTiles archive (URL or local file), ArcGIS service, WMS or WMTS. A list of
+styles is stacked bottom to top.
 
 ### R — ggplot2
+
+A basemap is a layer: the plot gives its extent, CRS, size and dpi, so it
+lines up with the data in any CRS, and it is drawn again for each export.
 
 ```r
 library(ggplot2)
@@ -187,66 +210,55 @@ library(basemapper)
 nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
 
 ggplot(nc) +
-  geom_basemap("OpenFreeMap.Positron") +
-  geom_sf(fill = NA, colour = "steelblue") +
-  coord_sf()
+  basemap("OpenFreeMap.Positron") +       # or geom_basemap("OpenFreeMap.Positron")
+  geom_sf(fill = NA, colour = "steelblue")
 ```
 
 ### R — tmap
 
 ```r
 library(tmap)
-library(sf)
-library(basemapper)
-
-nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
+library(basemapper)   # after tmap: basemapper's tm_basemap() replaces tmap's
 
 tm_shape(nc) +
   tm_basemap("OpenFreeMap.Positron") +
-  tm_sf()
+  tm_borders()
 ```
 
 ### Python — matplotlib
 
 ```python
+import geodatasets
 import geopandas as gpd
 import matplotlib.pyplot as plt
-from basemapper import add_basemap, basemap_provider
+import basemapper as bm
 
-world = gpd.read_file(
-    "https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_countries.zip"
-)
-europe = world[world.CONTINENT == "Europe"].cx[-25:45, 34:72]
-fig, ax = plt.subplots(figsize=(10, 6))
-europe.plot(ax=ax, facecolor="none", edgecolor="black")
+nc = gpd.read_file(geodatasets.get_path("geoda.sids"))
+fig, ax = plt.subplots(figsize=(8, 3.6))
+nc.boundary.plot(ax=ax, color="steelblue")
 
-# Axes from a GeoDataFrame plot carry no CRS: pass it explicitly.
-add_basemap(ax, "OpenFreeMap.Positron", crs=europe.crs)
+# Plain axes carry no CRS: give the data's (cartopy GeoAxes are read).
+bm.basemap("OpenFreeMap.Positron").add_to(ax, crs=nc.crs)
 plt.show()
 ```
 
 ### Python — plotnine
 
 ```python
-import pandas as pd
-from plotnine import ggplot, aes, geom_point
-from basemapper import basemap_provider, geom_basemap
+from plotnine import geom_map, ggplot
 
-cities = pd.DataFrame({"lon": [-111.89, -111.98], "lat": [40.76, 40.66]})
-
-(
-    ggplot(cities, aes("lon", "lat"))
-    + geom_basemap("OpenFreeMap.Positron")   # data CRS defaults to EPSG:4326
-    + geom_point(colour="red", size=3)
-)
+ggplot(nc) + bm.basemap("OpenFreeMap.Positron") + geom_map(fill=None)
 ```
 
-The plot layers (`geom_basemap`, `tm_basemap`, `add_basemap`) share the
-arguments `style`, `tile_zoom`, `alpha`, `layers`, `labels`, `features`,
-`pixel_ratio`, `auth_token`, `fetch` (download settings: R
-`fetch_options()`, Python `FetchOptions`) and
-`attribution` (the providers' credit line in the corner, on by default), and render at the output
-resolution (`ggsave(dpi = 300)`, `savefig(dpi=300)`).
+In a plot, a basemap may give a `zoom` (more or less detail; the dpi then
+follows, reported once) or a `dpi`, a `clip` (a mask) and `fetch` options;
+the plot gives the rest. `alpha` fades it, and `attribution` (on by
+default) puts the providers' credit line in the panel's corner. The layer
+functions `geom_basemap()`, `tm_basemap()` and `add_basemap()` take the
+same arguments as `basemap()`. Plots render at the output resolution
+(`ggsave(dpi = 300)`, `savefig(dpi=300)`; PDF and SVG at 300 dpi), and the
+alignment is tested in every plotting library, in Web Mercator, longitude /
+latitude and projected CRSs.
 
 ---
 
@@ -254,97 +266,77 @@ resolution (`ggsave(dpi = 300)`, `savefig(dpi=300)`).
 
 | What you want | R | Python | Rust (`basemapper_core`) |
 |---|---|---|---|
-| A map view (centre + zoom, or bounds) | `basemap()` | `basemap()` → `Basemap` | `Basemap::new()` |
-| Change the view | `set_view()`, `set_bounds()` | `m.set_view()`, `m.set_bounds()` | `m.set_view()`, `m.set_bounds()` |
-| Read the view | `get_bounds()`, `get_center()`, `get_zoom()`, `get_size()` | `m.get_bounds()`, … | `m.get_bounds()`, … |
-| PNG | `render_png()` | `m.render_png()` | `m.render_png()` |
+| A basemap (style + view) | `basemap()` | `basemap()` → `Basemap` | `Basemap::new()`, `Basemap::stack()` |
+| Change the view | `set_view()`, `set_bounds()` | `m.set_view()`, `m.set_bounds()` | `m.with_inputs()` |
+| Read the view | `get_bounds()`, `get_center()`, `get_zoom()`, `get_size()`, `print()` | `m.bounds`, `m.center`, `m.zoom`, `m.size`, `m.dpi`, `m.provenance` | `m.view()` |
+| An area by its ground size | `around()` | `around()` | `view::around()` |
+| Render | `render()` → rendering | `m.render()` → `Rendering` | `m.render()` → `Rendering` |
+| PNG, array, raster | `write_png()`, `as_array()`, `as_raster()` | `r.save()`, `r.to_numpy()`, `r.to_xarray()` | `r.to_png()`, `r.pixels` |
 | Vector SVG | `render_svg()` | `m.render_svg()` | `m.render_svg()` |
-| Array | `render_array()` | `m.render_array()` | `m.render_array()` |
-| terra raster | `render_raster()` | — | — |
-| One-shot render of bounds | `render_basemap_raw()` | `render_basemap_raw()` | `render()`, `render_stack()` |
-| ggplot2 / plotnine layer | `geom_basemap()` | `geom_basemap()` | — |
-| matplotlib layer | — | `add_basemap()` | — |
+| ggplot2 / plotnine layer | `ggplot(df) + m`, `geom_basemap()` | `ggplot(df) + m`, `geom_basemap()` | — |
+| matplotlib layer | — | `m.add_to(ax)`, `add_basemap()` | — |
 | tmap layer | `tm_basemap()` | — | — |
-| Named basemaps (leaflet names; the name works as `style`) | `basemap_provider()`, `list_providers()`, `providers` | `basemap_provider()`, `list_providers()`, `providers` | `providers::basemap_provider()`, `providers::PROVIDERS` |
+| A style with filters or a key | `style()` | `style()` | `Style::new()` |
+| Sources | `provider()`, `tiles()`, `wms()`, `wmts()` | same names | `Source::{provider, tiles, wms, wmts}` |
+| Named basemaps | `list_providers()`, `providers` | `list_providers()`, `providers` | `providers::list_providers()` |
+| Inspect a style's layers (id, type, feature) | `list_layers()` | `list_layers()` | `list_style_layers()` |
+| Clip to a layer | `clip = layer`, `outside()` | `clip=layer`, `outside()` | `Basemap::clip()`, `mask::Shape` |
+| Download settings | `fetch_options()` | `FetchOptions` | `FetchOptions` |
 | Tile cache | `tile_cache()` | `tile_cache()` | `cache::{dir, set_dir, clear}` |
-| Your own tile data (tile URL, TileJSON, PMTiles, ArcGIS) | pass it as `style`; `tile_style()` for overrides | same | `tile_style()` |
-| OGC WMS / WMTS | `wms_style()`, `wmts_style()` | same names | `providers::wms_style()`, `providers::wmts_style()` |
-| Attribution text (for a caption) | `get_attribution()` | `get_attribution()`, `m.get_attribution()` | `attribution()`, `m.get_attribution()` |
-| Labels / features (stack parts of basemaps) | `labels =`, `features =` | same | `Basemap::labels()`, `Basemap::features()` |
-| Inspect style layers (id, type, feature) | `list_layers()` | `list_layers()` | `list_layers()` |
+| Credit line (for a caption) | `get_attribution()` | `get_attribution()` | `m.attribution()` |
 
 ---
 
-## Anti-meridian and world copies
+## Date line and world copies
 
-Bboxes where `xmin > xmax` in EPSG:3857 (Pacific-centred views, date-line
-crossings) are rendered by splitting into west and east halves and stitching
-the result. A view that extends past ±180° (for example a whole-world map at
-low zoom) shows the wrapped world copy there, as MapLibre does; vector styles
-draw it directly on one canvas.
+Plain bounds are longitude / latitude, and a box whose west is greater than
+its east crosses the date line: it is drawn as one map, without a seam
+(tested in R and Python). A view that extends past ±180° (a whole-world map
+at low zoom) shows the wrapped world copy there, as MapLibre does.
 
 ```r
-# R — Pacific-centred map crossing the date line
-render_basemap_raw(c(15000000, -5000000, -15000000, 5000000), 800, 400,
-                   "OpenStreetMap.Mapnik", crs = 3857)
+basemap("OpenStreetMap.Mapnik", bounds = c(150, -40, -150, 10), width = 800, height = 400)
 ```
 
 ```python
-# Python — same
-render_basemap_raw([15_000_000, -5_000_000, -15_000_000, 5_000_000], 800, 400,
-                   "OpenStreetMap.Mapnik", crs=3857)
+bm.basemap("OpenStreetMap.Mapnik", bounds=(150, -40, -150, 10), width=800, height=400)
 ```
 
 ---
 
 ## Labels, features and layers
 
-Every function takes `labels` and `features` to draw parts of a style, so
-basemaps can be stacked. `labels = FALSE` drops the labels (text and
-icons); `labels = "only"` keeps only the labels, on a transparent
-background. `features` keeps (`c("water", "roads")`) or drops
-(`"-buildings"`) parts of the map: background, water, landcover, parks,
-buildings, roads, rail, boundaries, places, poi, terrain. They work on any
-vector style, from tables for the OpenMapTiles, Protomaps and Shortbread
-schemas and Esri's layer names; catalogue raster basemaps switch to their
-label-free or label-only tiles.
+Filters belong to a style, so stacked styles are filtered each on their
+own. `features` keeps or (`-` prefixed) drops parts of the map: background,
+water, landcover, parks, buildings, roads, rail, boundaries, places, poi,
+terrain, and labels. `"labels"` keeps only the labels, on a transparent
+background; `"-labels"` drops them; they combine (`c("roads", "labels")`
+keeps the road labels). They work on any vector style, from tables for the
+OpenMapTiles, Protomaps and Shortbread schemas and Esri's layer names;
+catalogue raster basemaps switch to their label-free or label-only tiles.
 
 ```r
-# R — imagery under a vector basemap's labels; each style filtered alone
-basemap(c("Esri.WorldImagery", basemap_provider("OpenFreeMap.Liberty", labels = "only")),
+# R — imagery under a vector basemap's labels
+basemap(list("Esri.WorldImagery", style("OpenFreeMap.Liberty", features = "labels")),
         center = c(-111.89, 40.76), zoom = 12)
 
 # R — water and roads only, without their names
-basemap("OpenFreeMap.Liberty", labels = FALSE, features = c("water", "roads"), bounds = nc)
+basemap(style("OpenFreeMap.Liberty", features = c("water", "roads", "-labels")), bounds = nc)
 ```
 
 ```python
 # Python — same API
-basemap(["Esri.WorldImagery", basemap_provider("OpenFreeMap.Liberty", labels="only")],
-        center=(-111.89, 40.76), zoom=12)
-basemap("OpenFreeMap.Liberty", labels=False, features=["water", "roads"], bounds=gdf)
+bm.basemap(["Esri.WorldImagery", bm.style("OpenFreeMap.Liberty", features="labels")],
+           center=(-111.89, 40.76), zoom=12)
+bm.basemap(bm.style("OpenFreeMap.Liberty", features=["water", "roads", "-labels"]), bounds=nc)
 ```
 
 `list_layers(style)` shows each layer's id, type, source layer and
-feature; given `layers`, `labels` or `features`, it previews what a render
-would draw. Names that match no layer warn. For exact control, `layers`
-keeps or drops layers by id, with `*` and `?` wildcards:
-
-```r
-# R — keep only roads and labels
-render_basemap_raw(..., layers = c("roads", "labels"))
-
-# R — exclude a noisy layer, or a family of layers
-render_basemap_raw(..., layers = c("-poi"))
-render_basemap_raw(..., layers = "-label_*")
-```
-
-```python
-# Python — same API
-render_basemap_raw(..., layers=["roads", "labels"])
-render_basemap_raw(..., layers=["-poi"])
-render_basemap_raw(..., layers=["-label_*"])
-```
+feature; given a filtered style, it previews what a render would draw. For
+exact control, `layers` keeps or drops layers by id, with `*` and `?`
+wildcards: `style("OpenFreeMap.Liberty", layers = c("-poi*", "-label_*"))`.
+A filter that leaves nothing is an error; a name that matches no layer is a
+warning, so a typo does not go unnoticed.
 
 ---
 
@@ -467,10 +459,10 @@ package reports: `packageVersion("basemapper")` in R,
 Releases are git tags, `v` and the version (`v0.1.0`); the earlier `v0.0.x`
 tags mark the milestones before it. To release:
 
-1. Set the new version in all six files that hold it, together, and pin
-   the READMEs' install commands to it: `python tools/version.py set 0.2.0`
-   (`python tools/version.py check` confirms the versions agree; CI checks
-   it on every pull request).
+1. Set the new version in every file that holds it, together:
+   `python tools/version.py set 0.2.0` (`python tools/version.py check`
+   confirms the versions agree and that no install command names a
+   release; CI checks it on every pull request).
 2. Write what changed for users in `r-basemapper/NEWS.md` and
    `py-basemapper/CHANGELOG.md`, and regenerate the root changelog from the
    commit history: `python tools/changelog.py --release v0.2.0`.
@@ -494,7 +486,7 @@ supported yet, and how fidelity is verified.
 
 | What | Command | Notes |
 |---|---|---|
-| Rust core: unit, integration and golden-image tests | `cargo test -p basemapper-core` | 168 golden cases (incl. pixel ratio 2) compared with MapLibre GL JS references, run in parallel; `"svg": true` cases also score the SVG output (rasterised with resvg) |
+| Rust core: unit, integration and golden-image tests | `cargo test -p basemapper-core` | 199 golden cases (some also at 192 dpi) compared with MapLibre GL JS references, run in parallel; `"svg": true` cases also score the SVG output (rasterised with resvg) |
 | Python | build the wheel with `maturin build`, install it with `pytest plotnine`, then run `pytest` in `py-basemapper/` | Includes end-to-end renders against the golden fixtures |
 | R | `R CMD INSTALL r-basemapper`, then `testthat::test_dir("r-basemapper/tests/testthat")` | |
 | Visual comparison | open `check/index.html` after `cargo test` | Overview grid, side-by-side, swipe, blink and diff views |
