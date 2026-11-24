@@ -6,13 +6,23 @@
 #' `tm_basemap(m)`), which supplies what it leaves out. The same object exists
 #' in Python (`basemapper.basemap()`) and Rust (`Basemap`).
 #'
-#' Three controls, each with one meaning everywhere: the extent (`bounds`, or
-#' `center` with `zoom`), `zoom` (the feature detail) and `dpi` (the
-#' sharpness); `width` / `height` and [around()] express them in other terms.
-#' **Any three of extent, zoom, image size and dpi give the fourth.** What
-#' nothing gives is defaulted, in this order: dpi (96), image size (800 x 600
-#' at 96 dpi, scaled with the dpi), extent (the world); the zoom is never a
-#' default. Over-determined requests are errors that say what to drop.
+#' Each control has one meaning everywhere:
+#'
+#' * the extent (`bounds`, or `center` with `zoom`): where;
+#' * `zoom`: the detail (which roads, places and labels the style draws);
+#' * `symbol_scale`: the size of lines, labels and icons on the page;
+#' * `dpi`: the sharpness (image pixels per inch), and nothing else.
+#'
+#' **Any three of extent, zoom, printed size and symbol scale give the
+#' fourth**; the dpi turns the printed size into pixels. A `width` /
+#' `height` in `"in"`, `"cm"` or `"mm"` is the printed size; in pixels it is a
+#' printed size through the dpi (`px / dpi` inches), so with the pixels fixed,
+#' a higher dpi prints the map smaller. What nothing gives is defaulted, in
+#' this order: dpi (96), symbol scale (1), image size (800 x 600 px at 96 dpi,
+#' scaled with the dpi), extent (the world); the zoom is never a default.
+#' Over-determined requests are errors that say what to drop. In a plot, the
+#' plot gives the extent and printed size and the device the dpi: give a
+#' `zoom` or a `symbol_scale` (see [geom_basemap()]).
 #'
 #' @param style A style, or a list (or character vector) of styles stacked
 #'   bottom to top: a catalogue name (`"OpenFreeMap.Liberty"`), a style URL
@@ -28,7 +38,17 @@
 #' @param width,height The image size, in `units`.
 #' @param units `"px"` (default), `"in"`, `"cm"` or `"mm"`; with a physical
 #'   unit, `dpi` sets only the pixel count.
-#' @param dpi Image pixels per inch: the sharpness (default 96).
+#' @param dpi Image pixels per inch: the sharpness (default 96). In a plot
+#'   the device sets it, and a basemap's `dpi` is an error.
+#' @param symbol_scale The size of lines, labels and icons on the page, as a
+#'   multiple of the style's designed size. At 1 (the default) a CSS pixel is
+#'   1/96 inch, so a label the style sizes at 12 px prints at 9 pt; 0.84
+#'   prints it at 84% of that. It changes what is drawn, not the sharpness:
+#'   with the extent and printed size fixed (always so in a plot), a smaller
+#'   symbol scale leaves room for more detail (a higher zoom), a larger one
+#'   for less. `zoom` and `symbol_scale` each set the other there, so give
+#'   one. To keep the look of 0.3's `geom_basemap(dpi = d)` saved at
+#'   `ggsave(dpi = D)`, use `symbol_scale = d / D`.
 #' @param crs The map's CRS (anything [sf::st_crs()] takes, or an object with
 #'   a CRS). Default: the `bounds` layer's CRS when it is projected, else Web
 #'   Mercator. In another CRS the map is drawn in Web Mercator and warped
@@ -56,7 +76,7 @@
 #' basemap("OpenFreeMap.Liberty", bounds = around(c(-111.9, 40.76), c(20, 15), units = "km"))
 #' }
 basemap <- function(style, ..., bounds = NULL, center = NULL, zoom = NULL, width = NULL, height = NULL,
-                    units = "px", dpi = NULL, crs = NULL, clip = NULL, fetch = fetch_options()) {
+                    units = "px", dpi = NULL, symbol_scale = NULL, crs = NULL, clip = NULL, fetch = fetch_options()) {
   call <- rlang::current_env()
   check_basemap_dots(list(...), call = call)
   if (inherits(style, "basemap")) {
@@ -72,6 +92,7 @@ basemap <- function(style, ..., bounds = NULL, center = NULL, zoom = NULL, width
       height = num1(height),
       units = chr1(units),
       dpi = num1(dpi),
+      symbol_scale = num1(symbol_scale),
       crs = crs,
       clip = clip,
       fetch = check_fetch(fetch, call)
@@ -128,6 +149,7 @@ base_inputs <- function(m, call = rlang::caller_env()) {
     inputs$units <- m$units
   }
   if (!is.null(m$dpi)) inputs$dpi <- m$dpi
+  if (!is.null(m$symbol_scale)) inputs$symbol_scale <- m$symbol_scale
   inputs
 }
 
@@ -156,8 +178,8 @@ check_basemap <- function(m, call = rlang::caller_env()) {
 #'
 #' @param m A [basemap()] object.
 #' @param ... Not used: the arguments after `m` must be named.
-#' @param center,zoom,width,height,units,dpi As in [basemap()]; left out,
-#'   they keep their value.
+#' @param center,zoom,width,height,units,dpi,symbol_scale As in [basemap()];
+#'   left out, they keep their value.
 #' @param bounds As in [basemap()].
 #' @return A new `basemap`.
 #' @export
@@ -167,7 +189,7 @@ check_basemap <- function(m, call = rlang::caller_env()) {
 #' set_view(m, zoom = 10)
 #' set_view(m, dpi = 300, width = 6, height = 4, units = "in")
 #' }
-set_view <- function(m, ..., center, zoom, width, height, units, dpi) {
+set_view <- function(m, ..., center, zoom, width, height, units, dpi, symbol_scale) {
   call <- rlang::current_env()
   check_basemap(m, call)
   check_named_dots(list(...), "set_view", "m", call = call)
@@ -180,6 +202,7 @@ set_view <- function(m, ..., center, zoom, width, height, units, dpi) {
   if (!missing(height)) m$height <- num1(height)
   if (!missing(units)) m$units <- chr1(units) %||% "px"
   if (!missing(dpi)) m$dpi <- num1(dpi)
+  if (!missing(symbol_scale)) m$symbol_scale <- num1(symbol_scale)
   prepare(m, call = call)
 }
 
@@ -239,6 +262,53 @@ get_size <- function(m) {
   c(width = v$width, height = v$height)
 }
 
+#' The zoom for a map of a given printed width
+#'
+#' `zoom_for()` is the MapLibre zoom at which `bounds` drawn `width` wide
+#' has lines and labels at `symbol_scale` times their designed size, by the
+#' same rules as [basemap()] (in the map's CRS: `crs`, else the layer's when
+#' projected, else Web Mercator). In a plot, give it as the `zoom`: the same
+#' zoom draws the same picture at any panel size, so a page map and its
+#' thumbnail match, while `symbol_scale` keeps the label size instead.
+#' Python: `basemapper.zoom_for()`.
+#'
+#' @param bounds As in [basemap()]: `c(west, south, east, north)`,
+#'   [around()], or a spatial layer.
+#' @param width The printed width of the map, in `units`.
+#' @param units `"in"` (default), `"cm"` or `"mm"`.
+#' @param symbol_scale The size of lines and labels at that width (see
+#'   [basemap()]).
+#' @param crs The map's CRS, as in [basemap()].
+#' @return The zoom, a number.
+#' @export
+#' @examples
+#' \dontrun{
+#' z <- zoom_for(tract, 3.6, symbol_scale = 0.84)
+#' ggplot(tract) + geom_basemap("UGRC.Lite", zoom = z)      # the page map
+#' # The same zoom in a 2.27 in thumbnail: the same picture, smaller
+#' }
+zoom_for <- function(bounds, width, units = "in", symbol_scale = 1, crs = NULL) {
+  call <- rlang::current_env()
+  units <- chr1(units)
+  if (!units %in% c("in", "cm", "mm")) {
+    abort_basemapper("`units` must be \"in\", \"cm\" or \"mm\": zoom_for() needs a printed width.", call = call)
+  }
+  if (!is.numeric(width) || length(width) != 1L || !is.finite(width) || width <= 0) {
+    abort_basemapper("`width` must be a number > 0.", call = call)
+  }
+  extent <- extent_of(bounds, call = call)
+  b <- box_in(extent, map_crs(crs, extent, call = call))
+  span <- if (b[3] >= b[1]) b[3] - b[1] else b[3] - b[1] + 2 * 20037508.342789244
+  # The height that keeps the map's shape, so the width decides the zoom.
+  height <- width * (b[4] - b[2]) / span
+  m <- basemap(.ZOOM_FOR_STYLE, bounds = bounds, crs = crs, width = width, height = height, units = units,
+               symbol_scale = symbol_scale)
+  m$.prepared$view$zoom
+}
+
+# A style that is never drawn: zoom_for() resolves only a view.
+.ZOOM_FOR_STYLE <- '{"version":8,"sources":{},"layers":[{"id":"bg","type":"background"}]}'
+
 #' @export
 print.basemap <- function(x, ...) {
   v <- x$.prepared$view
@@ -248,6 +318,7 @@ print.basemap <- function(x, ...) {
   cat(sprintf("<basemap> %d style%s, %s\n", n, if (n == 1L) "" else "s", crs_name(x$.prepared$crs)))
   cat(sprintf("  size   %d x %d px%s at %g dpi%s\n", v$width, v$height, auto("size"), v$dpi, auto("dpi")))
   cat(sprintf("  zoom   %.2f%s, 1:%s\n", v$zoom, auto("zoom"), format(round(v$scale), big.mark = ",")))
+  if (!isTRUE(all.equal(v$symbol_scale, 1))) cat(sprintf("  symbols %.2fx their designed size\n", v$symbol_scale))
   # A given centre is given; else it follows from the extent (bounds, a
   # clip) or, with none, from the default world.
   centre_from <- if (!is.null(x$center)) "" else if (identical(v$provenance$extent, "default")) " (default)" else " (derived)"

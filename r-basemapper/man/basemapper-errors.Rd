@@ -24,8 +24,8 @@ not do (see \code{\link[=render]{render()}}). They are shown by their level:
 \itemize{
 \item \emph{decided} (a value nothing gave, such as the automatic zoom): in
 \code{print()}, and as messages with \code{options(basemapper.verbose = TRUE)};
-\item \emph{adjusted} (something asked for was changed, such as an effective dpi
-for a zoom chosen in a plot): a message of class
+\item \emph{adjusted} (something asked for was changed, such as the zoom raised
+to keep the view inside the world): a message of class
 \code{basemapper_adjustment}, once per kind per session;
 \item \emph{problem} (the output is incomplete, such as tiles that failed): a
 warning of class \code{basemapper_problem}, every time, or an error with

@@ -23,7 +23,7 @@ R_SCRIPT = r"""
 suppressMessages(library(basemapper))
 out <- lapply(setNames(nm = getNamespaceExports("basemapper")), function(f) {
   o <- get(f, envir = asNamespace("basemapper"))
-  if (is.function(o)) names(formals(o)) else NULL
+  if (is.function(o)) as.character(names(formals(o))) else NULL
 })
 cat(jsonlite::toJSON(Filter(Negate(is.null), out), auto_unbox = FALSE))
 """

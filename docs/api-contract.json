@@ -1,12 +1,12 @@
 {
-  "about": "The API contract of basemapper 0.3 (docs/api.md): every public function of the R and Python packages and its arguments, by name. Each package's test suite checks itself against this file (r-basemapper/tests/testthat/test-contract-api.R, py-basemapper/tests/test_contract_api.py); tools/api_parity.py reports both side by side.",
+  "about": "The API contract of basemapper 0.4 (docs/api.md): every public function of the R and Python packages and its arguments, by name. Each package's test suite checks itself against this file (r-basemapper/tests/testthat/test-contract-api.R, py-basemapper/tests/test_contract_api.py); tools/api_parity.py reports both side by side.",
   "version": 1,
   "language_only_arguments": {
     "r": ["...", "m", "x"],
     "python": ["self", "x", "removed", "basemap_args", "kwargs"]
   },
   "functions": [
-    {"r": "basemap", "python": "basemap", "args": ["style", "bounds", "center", "zoom", "width", "height", "units", "dpi", "crs", "clip", "fetch"]},
+    {"r": "basemap", "python": "basemap", "args": ["style", "bounds", "center", "zoom", "width", "height", "units", "dpi", "symbol_scale", "crs", "clip", "fetch"]},
     {"r": "style", "python": "style", "args": ["source", "layers", "features", "key"]},
     {"r": "provider", "python": "provider", "args": ["name", "form", "tiles"]},
     {"r": "tiles", "python": "tiles", "args": ["input", "type", "tile_size", "scheme", "minzoom", "maxzoom", "attribution", "source_layers", "paint"]},
@@ -15,7 +15,9 @@
     {"r": "around", "python": "around", "args": ["center", "span", "units"]},
     {"r": "outside", "python": "outside", "args": ["layer"]},
     {"r": "fetch_options", "python": "FetchOptions", "args": ["timeout", "max_tiles", "concurrency", "on_error"]},
-    {"r": "set_view", "python": "Basemap.set_view", "args": ["center", "zoom", "width", "height", "units", "dpi"]},
+    {"r": "set_view", "python": "Basemap.set_view", "args": ["center", "zoom", "width", "height", "units", "dpi", "symbol_scale"]},
+    {"r": "zoom_for", "python": "zoom_for", "args": ["bounds", "width", "units", "symbol_scale", "crs"]},
+    {"r": "last_rendering", "python": "last_rendering", "args": []},
     {"r": "set_bounds", "python": "Basemap.set_bounds", "args": ["bounds"]},
     {"r": "render", "python": "Basemap.render", "args": ["dpi"]},
     {"r": "render_svg", "python": "Basemap.render_svg", "args": ["path", "text", "embed_fonts", "font_dirs"]},
@@ -32,7 +34,7 @@
   "view": {
     "about": "Reading a basemap's view: R functions, Python properties (D8).",
     "r": ["get_bounds", "get_center", "get_zoom", "get_size"],
-    "python": ["bounds", "center", "zoom", "size", "dpi", "crs", "scale", "provenance", "notes"]
+    "python": ["bounds", "center", "zoom", "size", "dpi", "symbol_scale", "crs", "scale", "provenance", "notes"]
   },
   "rendering": {
     "about": "Converting a rendering: R functions of the rendering, Python methods.",

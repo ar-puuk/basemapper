@@ -39,9 +39,9 @@ class BasemapWarning(UserWarning):
 
 class BasemapAdjustment(BasemapWarning):
     """Something you asked for was changed, or settled for less: the zoom
-    raised to keep the view inside the world, an effective dpi for a zoom
-    chosen in a plot, coarser tiles to stay within ``max_tiles``. Shown once
-    per call site."""
+    raised to keep the view inside the world, coarser tiles to stay within
+    ``max_tiles``, 300 dpi for a PDF / SVG figure. Shown once per call
+    site."""
 
 
 class BasemapProblem(BasemapWarning):

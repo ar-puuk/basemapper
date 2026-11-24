@@ -41,17 +41,17 @@ ggplot_crs <- function(coord, panel_params) {
 
 # The device a plot is drawn on (D16), and its pixels per inch.
 # - A vector export (PDF, SVG, PostScript) has no pixels: the image is the
-#   panel's size at the basemap's `dpi`, else 300.
+#   panel's size at 300 dpi.
 # - A screen: 96 x its pixel ratio (1: R's screen devices do not report it).
 # - A raster export (png(), ragg, ggsave()), or any other device: its dpi.
-plot_device <- function(dpi = NULL) {
+plot_device <- function() {
   dev <- tolower(names(grDevices::dev.cur()))
   ppi <- tryCatch({
     d <- grDevices::dev.size("px")[1] / grDevices::dev.size("in")[1]
     if (is.finite(d) && d > 0) d else 96
   }, error = function(e) 96)
   vector <- c("pdf", "svg", "cairo_pdf", "cairo_ps", "postscript", "devsvg", "svglite", "xfig", "pictex")
-  if (any(startsWith(dev, vector))) return(list(device = list(kind = "vector_export"), ppi = dpi %||% 300))
+  if (any(startsWith(dev, vector))) return(list(device = list(kind = "vector_export"), ppi = 300))
   screen <- c("windows", "quartz", "x11", "x11cairo", "rstudiogd", "rstudio", "unigd", "httpgd")
   if (dev %in% screen) return(list(device = list(kind = "screen", pixel_ratio = 1), ppi = ppi))
   list(device = list(kind = "raster_export", dpi = ppi), ppi = ppi)
@@ -78,7 +78,7 @@ plot_parts <- function(m, call = rlang::caller_env()) {
 # big, on the current device.
 render_panel <- function(m, limits, crs, size_in) {
   parts <- plot_parts(m)
-  dev <- plot_device(m$dpi)
+  dev <- plot_device()
   px <- pmax(1, round(size_in * dev$ppi))
   spec <- panel_spec(limits, crs, px, dev$device)
   raw <- core_render(m$styles, parts$inputs, m$fetch, clip_spec(m$clip, crs), NULL, spec$mesh, spec$panel)
@@ -123,21 +123,56 @@ basemap_layer <- function(m, alpha = 1, attribution = TRUE) {
   )
 }
 
+#' The last basemap a plot drew
+#'
+#' A plot renders its basemap when it is drawn (printed, saved, knitted), for
+#' the panel's size and the device's dpi. `last_rendering()` returns that
+#' rendering, to read what it was drawn at: `$zoom`, `$symbol_scale`, `$dpi`,
+#' `$width`, `$height`, `$scale` (the printed 1:N) and its notes. With several
+#' panels or basemaps, it is the last one drawn. Python:
+#' `basemapper.last_rendering()`.
+#'
+#' @return A `basemapper_rendering`, or `NULL` before any plot drew a
+#'   basemap in this session.
+#' @seealso [zoom_for()] to choose a zoom before drawing.
+#' @export
+#' @examples
+#' \dontrun{
+#' library(ggplot2)
+#' nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
+#' p <- ggplot(nc) + geom_basemap("OpenFreeMap.Positron", symbol_scale = 0.84) + geom_sf(fill = NA)
+#' ggsave("nc.png", p, width = 6, height = 3, dpi = 200)
+#' r <- last_rendering()
+#' r$zoom
+#' r$symbol_scale
+#' }
+last_rendering <- function() {
+  .BASEMAPPER_LAST$rendering
+}
+
 #' Basemaps in ggplot2
 #'
 #' `ggplot(nc) + m` puts a [basemap()] under the plot's layers;
 #' `geom_basemap()` is an alias that builds the basemap from the same
 #' arguments. The plot gives the extent (the panel's limits), the CRS
 #' (`coord_sf()`'s; the basemap is warped into it), the image size (the
-#' panel) and the dpi: on screen 96, in a raster export (`ggsave()`, `png()`,
-#' ragg) the device's dpi, in PDF / SVG 300. The basemap may give a `zoom`
-#' (then the dpi is derived, an effective dpi reported once) or a `dpi`; an
-#' extent, a CRS or a size of its own is an error. A clip is a mask, in the
-#' plot's CRS. Python (plotnine): `ggplot(df) + m`, `geom_basemap()`.
+#' panel) and the sharpness: on screen 96 dpi, in a raster export
+#' (`ggsave()`, `png()`, ragg) the device's dpi, in PDF / SVG 300 dpi.
+#'
+#' What the map shows is set in one place, in `geom_basemap()` (or the
+#' [basemap()]): `zoom` (the detail; the size of lines and labels follows) or
+#' `symbol_scale` (the size of lines and labels; the zoom follows). Give one.
+#' The plot fixes the extent, so a larger symbol scale also means a lower
+#' zoom (fewer roads and labels) and a smaller one more detail. With
+#' neither, the symbol scale is 1 and the map is the same at any dpi. A
+#' basemap's `dpi`, extent, CRS or size is an error in a plot. A clip is a
+#' mask, in the plot's CRS. [last_rendering()] reads what a drawn plot used;
+#' [zoom_for()] chooses a zoom in advance. Python (plotnine):
+#' `ggplot(df) + m`, `geom_basemap()`.
 #'
 #' @param style A style, a list of styles, or a [basemap()].
-#' @param ... [basemap()]'s arguments that apply in a plot: `zoom` or `dpi`,
-#'   `clip`, `fetch`.
+#' @param ... [basemap()]'s arguments that apply in a plot: `zoom` or
+#'   `symbol_scale`, `clip`, `fetch`.
 #' @param alpha The basemap's opacity (0--1).
 #' @param attribution The providers' credit line in the bottom-right corner
 #'   of each panel: `TRUE` (their own, see [get_attribution()]), `FALSE`
@@ -150,6 +185,9 @@ basemap_layer <- function(m, alpha = 1, attribution = TRUE) {
 #' nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
 #' ggplot(nc) + basemap("OpenFreeMap.Positron") + geom_sf(fill = NA)
 #' ggplot(nc) + geom_basemap("OpenFreeMap.Positron", zoom = 8) + geom_sf(fill = NA)
+#' # Smaller lines and labels, more detail; ggsave() sets the sharpness
+#' p <- ggplot(nc) + geom_basemap("OpenFreeMap.Positron", symbol_scale = 0.8) + geom_sf(fill = NA)
+#' ggsave("nc.png", p, width = 8, height = 3, dpi = 300)
 #' }
 geom_basemap <- function(style, ..., alpha = 1, attribution = TRUE) {
   m <- if (inherits(style, "basemap")) {

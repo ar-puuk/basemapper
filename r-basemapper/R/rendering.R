@@ -15,6 +15,7 @@ rendering_of <- function(raw, crs) {
       zoom = raw$zoom,
       tile_zoom = raw$tile_zoom,
       dpi = raw$dpi,
+      symbol_scale = raw$symbol_scale,
       scale = raw$scale,
       notes = notes
     ),
@@ -114,6 +115,7 @@ plot.basemapper_rendering <- function(x, ...) {
 print.basemapper_rendering <- function(x, ...) {
   cat(sprintf("<rendering> %d x %d px, %s, zoom %.2f, %g dpi, 1:%s\n", x$width, x$height, crs_name(x$crs),
               x$zoom, x$dpi, format(round(x$scale), big.mark = ",")))
+  if (!isTRUE(all.equal(x$symbol_scale, 1))) cat(sprintf("  symbols %.2fx their designed size\n", x$symbol_scale))
   b <- x$bounds
   cat(sprintf("  bounds %s\n", paste(format(signif(b, 8)), collapse = ", ")))
   for (i in seq_len(nrow(x$notes))) cat(sprintf("  %-8s %s\n", x$notes$level[[i]], x$notes$message[[i]]))

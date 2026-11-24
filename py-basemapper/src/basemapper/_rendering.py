@@ -22,13 +22,15 @@ class Rendering:
         crs: The image's CRS, a ``pyproj.CRS``.
         zoom: The MapLibre zoom the map was drawn at.
         tile_zoom: The zoom of the most detailed tiles fetched.
-        dpi: Image pixels per inch (96 is one pixel per CSS pixel).
+        dpi: Image pixels per inch: the sharpness (in a plot, the figure's).
+        symbol_scale: Lines, labels and icons as a multiple of the style's
+            designed size: given, or what the zoom made it.
         scale: The true map scale at the centre, N of 1:N (the same at any dpi).
         notes: What basemapper decided, adjusted, or could not do
             (:class:`Note`).
     """
 
-    __slots__ = ("_pixels", "width", "height", "bounds", "crs", "zoom", "tile_zoom", "dpi", "scale", "notes")
+    __slots__ = ("_pixels", "width", "height", "bounds", "crs", "zoom", "tile_zoom", "dpi", "symbol_scale", "scale", "notes")
 
     def __init__(self, raw: Dict[str, Any]) -> None:
         from ._crs import crs_of
@@ -41,6 +43,7 @@ class Rendering:
         self.zoom: float = raw["zoom"]
         self.tile_zoom: int = raw["tile_zoom"]
         self.dpi: float = raw["dpi"]
+        self.symbol_scale: float = raw["symbol_scale"]
         self.scale: float = raw["scale"]
         self.notes: Tuple[Note, ...] = notes_of(raw["notes"])
 
@@ -116,3 +119,22 @@ def rendering_of(raw: Dict[str, Any], stacklevel: Optional[int] = None) -> Rende
         # surface() and this function are two frames below the caller.
         surface(r.notes, stacklevel=stacklevel + 2)
     return r
+
+
+# The last rendering a plot drew (matplotlib or plotnine).
+_LAST: Dict[str, Any] = {}
+
+
+def last_rendering() -> Optional["Rendering"]:
+    """The last basemap a plot drew.
+
+    A plot renders its basemap when it is drawn (shown, saved), for the
+    axes' size and the figure's dpi. This returns that rendering, to read
+    what it was drawn at: ``zoom``, ``symbol_scale``, ``dpi``, ``width``,
+    ``height``, ``scale`` (the printed 1:N) and ``notes``. With several axes or
+    basemaps, it is the last one drawn. R: ``last_rendering()``.
+
+    Returns:
+        A :class:`Rendering`, or None before any plot drew a basemap.
+    """
+    return _LAST.get("rendering")

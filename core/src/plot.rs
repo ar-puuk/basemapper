@@ -214,6 +214,7 @@ fn wrap(text: &str, width: usize) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::notes::Level;
     use crate::view::Provenance;
 
     const SCREEN: Device = Device::Screen { pixel_ratio: 1.0 };
@@ -279,13 +280,42 @@ mod tests {
     }
 
     #[test]
-    fn a_zoom_or_dpi_from_the_basemap_and_conflicts() {
+    fn a_zoom_or_scale_from_the_basemap_and_conflicts() {
         let p = Panel::new([-2.0, -1.0, 2.0, 1.0], PanelCrs::LonLat, (400, 200), Device::RasterExport { dpi: 300.0 }).unwrap();
+        // A zoom: the device keeps its dpi; the zoom sets the scale of lines
+        // and labels, reported as a decided note without "dpi".
         let (v, _) = plan(&p, &ViewInputs::new().zoom(6.0)).unwrap();
-        assert_eq!((v.zoom, v.provenance.dpi), (6.0, Provenance::Derived));
-        assert_eq!(v.notes[0].kind, "effective_dpi");
+        assert_eq!((v.zoom, v.dpi, v.provenance.dpi), (6.0, 300.0, Provenance::Context));
+        let n = &v.notes[0];
+        assert_eq!((n.kind, n.level), ("symbol_scale", Level::Decided));
+        assert!(n.message.contains("symbol_scale") && !n.message.contains("dpi"), "{}", n.message);
         assert!(plan(&p, &ViewInputs::new().bounds([0.0, 0.0, 1.0, 1.0])).is_err());
         assert!(Panel::new([1.0, 0.0, 0.0, 1.0], PanelCrs::LonLat, (10, 10), SCREEN).is_err());
+    }
+
+    /// In a plot the device sets the dpi, and only that: `dpi` is an error
+    /// naming `scale`, and the same plot shows the same map at any dpi.
+    #[test]
+    fn the_device_sets_the_resolution_and_the_symbol_scale_what_is_drawn() {
+        let limits = [-1.2e7, 5.0e6, -1.19e7, 5.1e6];
+        let at = |dpi: f64| Device::RasterExport { dpi };
+        // A 3.6 x 5 in panel.
+        let panel = |dpi: f64| Panel::new(limits, PanelCrs::WebMercator, ((3.6 * dpi) as u32, (5.0 * dpi) as u32), at(dpi)).unwrap();
+        let e = plan(&panel(200.0), &ViewInputs::new().dpi(168.0)).unwrap_err().to_string();
+        assert!(e.contains("device sets the dpi") && e.contains("symbol_scale"), "{e}");
+        let (v200, _) = plan(&panel(200.0), &ViewInputs::new().symbol_scale(0.84)).unwrap();
+        let (v300, _) = plan(&panel(300.0), &ViewInputs::new().symbol_scale(0.84)).unwrap();
+        assert_eq!((v200.dpi, v300.dpi), (200.0, 300.0), "the dpi is the device's");
+        assert!((v200.zoom - v300.zoom).abs() < 1e-9, "the same map at any dpi: {} vs {}", v200.zoom, v300.zoom);
+        assert!((v200.pixel_ratio() - 1.75).abs() < 1e-12, "0.84 at 200 dpi was dpi = 168");
+        // Scale 1 by default: lines and labels at their designed size.
+        let (v, _) = plan(&panel(200.0), &ViewInputs::new()).unwrap();
+        assert_eq!(v.symbol_scale, 1.0);
+        // A smaller scale shows more detail (a higher zoom).
+        assert!((v200.zoom - v.zoom - (1.0f64 / 0.84).log2()).abs() < 1e-9);
+        // The printed 1:N scale: the zoom's, over the symbol scale.
+        assert!((v200.scale() - view::scale_at(v200.zoom, (v200.bounds[1] + v200.bounds[3]) / 2.0) / 0.84).abs() < 1e-6);
+        assert!(plan(&panel(200.0), &ViewInputs::new().zoom(12.0).symbol_scale(0.84)).is_err());
     }
 
     #[test]

@@ -88,10 +88,13 @@ reference:
     desc: >
       A basemap in a matplotlib or plotnine plot, warped into the plot's CRS
       and rendered at the output resolution: `m.add_to(ax)`,
-      `ggplot(df) + m`.
+      `ggplot(df) + m`. `zoom_for()` plans a zoom; `last_rendering()` reads
+      what a drawn plot used.
     contents:
       - add_basemap
       - geom_basemap
+      - zoom_for
+      - last_rendering
 
   - title: Styles
     desc: >

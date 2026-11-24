@@ -174,6 +174,9 @@ class BasemapImage(AxesImage):
         self._extent = (x0, x1, y0, y1)
         self._key = key
         self.rendering = r
+        from ._rendering import _LAST
+
+        _LAST["rendering"] = r
 
     def draw(self, renderer: Any) -> None:
         try:
@@ -227,7 +230,7 @@ def add_basemap(
         alpha: The basemap's opacity (0-1).
         attribution: The credit line: True, False, or your text.
         **basemap_args: :func:`basemap`'s arguments that apply in a plot:
-            ``zoom`` or ``dpi``, ``clip``, ``fetch``.
+            ``zoom`` or ``symbol_scale``, ``clip``, ``fetch``.
 
     Returns:
         The basemap's image artist; its ``rendering`` is the last render.

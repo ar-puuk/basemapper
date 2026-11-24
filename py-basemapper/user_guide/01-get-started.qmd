@@ -60,12 +60,16 @@ A map answers three questions, each with one argument:
 |---|---|
 | What to show | the extent: `bounds` (an area), or `center` with `zoom` (the camera) |
 | How much detail | `zoom`: which roads, places and labels the style draws |
-| How sharp | `dpi`: pixels per inch (96 by default) |
+| How big the lines and labels are | `symbol_scale`: 1 by default, the style's designed size |
+| How sharp | `dpi`: pixels per inch (96 by default), and nothing else |
 
 `width` / `height` give the image's size, in pixels or (with `units`)
-inches, cm or mm. **Any three of extent, zoom, image size and dpi give the
-fourth**, and what nothing gives is defaulted: dpi 96, then 800 x 600, then
-the world. The zoom is never a default; it is derived. So an area alone gets
+inches, cm or mm, which is its printed size. **Any three of extent, zoom,
+printed size and symbol scale give the fourth**, and the dpi turns the
+printed size into pixels. A size in pixels prints at `px / dpi` inches, so
+with the pixels fixed, a higher dpi prints the map smaller. What nothing
+gives is defaulted: dpi 96, symbol scale 1, then 800 x 600 px, then the
+world. The zoom is never a default; it is derived. So an area alone gets
 the zoom that fits it (here North Carolina's counties, a GeoDataFrame from
 [geodatasets](https://geodatasets.readthedocs.io)):
 
@@ -208,7 +212,7 @@ bm.basemap("OpenFreeMap.Liberty", clip=wake, width=720, height=400)
 
 Renders carry notes. A value basemapper chose is logged (the `basemapper`
 logger, at INFO); something it had to change (the view kept inside the
-world, an effective dpi in a plot) is a `BasemapAdjustment` warning; something
+world, coarser tiles for `max_tiles`) is a `BasemapAdjustment` warning; something
 missing from the map (a tile that failed) is a `BasemapProblem` warning,
 every time, and an error with `FetchOptions(on_error="fail")`.
 

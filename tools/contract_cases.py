@@ -1,15 +1,16 @@
 """Write the view-resolution contract cases (core/tests/fixtures/contract/).
 
 The cases pin the rules of docs/design/api-review.md §4.2 (the relation
-between extent, zoom, image size and dpi; the default order; conflicts;
-plots) and §4.2's around(). The Rust, R and Python test suites all run
+between extent, zoom, printed size and symbol scale, with dpi turning the
+printed size into pixels; the default order; conflicts; plots) and §4.2's
+around(). The Rust, R and Python test suites all run
 them, so the three languages resolve every view the same way.
 
 Expected values come from the design's formulas, computed here
 independently of the implementation they test:
 
     metres per CSS px at zoom z:  C / (512 * 2^z),  C = 2 * pi * 6378137
-    CSS px = image px * 96 / dpi
+    CSS px = printed inches * 96 / symbol_scale = image px * 96 / (dpi * symbol_scale)
     the view is constrained: zoom >= log2(max(css w, css h) / 512)
 
 Usage:  python tools/contract_cases.py   (rewrites cases.json)
@@ -78,6 +79,8 @@ def case(name, doc, inputs, expect=None, error=None, context=None, tol=None):
     if error is not None:
         c["error"] = error
     else:
+        # The symbol scale is 1 unless a case gives or derives another.
+        expect.setdefault("symbol_scale", 1.0)
         c["expect"] = expect
     c["tolerance"] = tol or {"zoom": 1e-9, "dpi": 1e-6, "px": 1, "metres": 1e-3}
     cases.append(c)
@@ -125,13 +128,49 @@ case("inches_at_default_dpi", "§4.2: the same layout at the default dpi: the sa
      {"bounds_lonlat": SLC, "width": 6, "height": 4, "units": "in"},
      {"width": 576, "height": 384, "dpi": 96, "zoom": zin, "bounds_3857": bin_,
       "provenance": {"extent": "given", "size": "given", "dpi": "default", "zoom": "derived"}, "notes": []})
-case("inches_with_zoom_overdetermined", "§4.2 Conflicts: extent + zoom + a physical size fix everything but the pixel count",
+# Extent + zoom + a printed size: the symbol scale follows (as in a plot).
+s_in = 1 / min(6 * 96 / bcss_w, 4 * 96 / bcss_h)
+case("inches_with_zoom_derive_symbol_scale", "§4.2: extent + zoom + a printed size give the symbol scale (a decided note); dpi only sets the pixels",
      {"bounds_lonlat": SLC, "zoom": 12, "width": 6, "height": 4, "units": "in"},
-     error={"kind": "validation", "contains": ["zoom", "width"]})
+     {"width": 576, "height": 384, "dpi": 96, "zoom": 12, "symbol_scale": s_in,
+      "bounds_3857": around_center(SLC_M, 6 * 96 / s_in * mpp(12), 4 * 96 / s_in * mpp(12)),
+      "provenance": {"extent": "given", "size": "given", "dpi": "default", "zoom": "given"},
+      "notes": [{"level": "decided", "kind": "symbol_scale"}]})
 
-case("all_four_given", "§4.2 Conflicts: over-determined, an error listing the alternatives",
+# Pixels at a dpi are a printed size: with extent + zoom, the symbol scale follows.
+s_px = 1 / min(800 / bcss_w, 600 / bcss_h)
+case("all_four_given_derive_symbol_scale", "§4.2: extent + zoom + pixels at a dpi (a printed size) give the symbol scale",
      {"bounds_lonlat": SLC, "zoom": 12, "width": 800, "height": 600, "dpi": 96},
-     error={"kind": "validation", "contains": ["zoom", "dpi"]})
+     {"width": 800, "height": 600, "dpi": 96, "zoom": 12, "symbol_scale": s_px,
+      "bounds_3857": around_center(SLC_M, 800 / s_px * mpp(12), 600 / s_px * mpp(12)),
+      "provenance": {"extent": "given", "size": "given", "dpi": "given", "zoom": "given"},
+      "notes": [{"level": "decided", "kind": "symbol_scale"}]})
+
+case("all_five_given", "§4.2 Conflicts: extent, zoom, pixels at a dpi and a symbol scale over-determine the map",
+     {"bounds_lonlat": SLC, "zoom": 12, "width": 800, "height": 600, "dpi": 96, "symbol_scale": 1},
+     error={"kind": "validation", "contains": ["over-determine", "symbol_scale"]})
+
+# The symbol scale on its own: dpi stays the sharpness.
+zs, bs = fit(SLC_M, 800 / 0.5, 600 / 0.5)
+case("symbol_scale_given", "§4.2: symbol_scale 0.5 halves lines and labels, so the same 800 x 600 px at 96 dpi fits twice the CSS px: more detail",
+     {"bounds_lonlat": SLC, "width": 800, "height": 600, "symbol_scale": 0.5},
+     {"width": 800, "height": 600, "dpi": 96, "zoom": zs, "symbol_scale": 0.5, "bounds_3857": bs,
+      "provenance": {"extent": "given", "size": "given", "dpi": "default", "zoom": "derived"}, "notes": []})
+
+zp6, bp6 = fit(SLC_M, 6 * 96 / 0.8, 4 * 96 / 0.8)
+for d in (150, 300):
+    case(f"printed_size_dpi_{d}", "§4.2: with a printed size and a symbol scale, dpi changes only the pixel count: the same zoom at any dpi",
+         {"bounds_lonlat": SLC, "width": 6, "height": 4, "units": "in", "dpi": d, "symbol_scale": 0.8},
+         {"width": 6 * d, "height": 4 * d, "dpi": d, "zoom": zp6, "symbol_scale": 0.8, "bounds_3857": bp6,
+          "provenance": {"extent": "given", "size": "given", "dpi": "given", "zoom": "derived"}, "notes": []})
+
+# 0.3's renders are unchanged: symbol_scale 1 is what 0.3 drew.
+z03, b03 = fit(SLC_M, 1600 * 96 / 192, 1200 * 96 / 192)
+for name, given in (("pixels_at_dpi_as_in_0_3", {}), ("pixels_at_dpi_symbol_scale_1", {"symbol_scale": 1})):
+    case(name, "§4.2: 1600 x 1200 px at 192 dpi resolves as in 0.3 whether symbol_scale is left out or 1",
+         {"bounds_lonlat": SLC, "width": 1600, "height": 1200, "dpi": 192, **given},
+         {"width": 1600, "height": 1200, "dpi": 192, "zoom": z03, "bounds_3857": b03,
+          "provenance": {"extent": "given", "size": "given", "dpi": "given", "zoom": "derived"}, "notes": []})
 
 case("default_size_scales_with_dpi", "§4.2 Defaults: the default image size is 800 x 600 at 96 dpi, scaled with the dpi",
      {"bounds_lonlat": SLC, "dpi": 300}, {"width": 2500, "height": 1875, "dpi": 300, "zoom": z2, "bounds_3857": b2,
@@ -206,15 +245,19 @@ case("plot_vector_export", "§4.2 In a plot (D16): PDF / SVG have no dpi, 300 is
           "notes": [{"level": "adjusted", "kind": "default_dpi"}]},
      context=plot([1800, 1200], None, "vector_export"))
 
-case("plot_zoom_given", "§4.2 Conflicts: a zoom chosen in a plot gives an effective dpi, reported once",
-     {"zoom": zp + 1}, {"width": 1800, "height": 1200, "dpi": 150, "zoom": zp + 1, "bounds_3857": ext,
-                        "provenance": {"extent": "context", "size": "context", "dpi": "derived", "zoom": "given"},
-                        "notes": [{"level": "adjusted", "kind": "effective_dpi"}]},
+case("plot_zoom_given", "§4.2 In a plot: a zoom sets what is drawn, and so the size of lines and labels (a decided note); the device keeps its dpi",
+     {"zoom": zp + 1}, {"width": 1800, "height": 1200, "dpi": 300, "zoom": zp + 1, "symbol_scale": 0.5, "bounds_3857": ext,
+                        "provenance": {"extent": "context", "size": "context", "dpi": "context", "zoom": "given"},
+                        "notes": [{"level": "decided", "kind": "symbol_scale"}]},
      context=plot([1800, 1200], 300, "raster_export"))
 
-case("plot_dpi_given", "§4.2 In a plot: a dpi chosen for the basemap replaces the device's; the zoom follows from it",
-     {"dpi": 150}, {"width": 1800, "height": 1200, "dpi": 150, "zoom": zp + 1, "bounds_3857": ext,
-                    "provenance": {"extent": "context", "size": "context", "dpi": "given", "zoom": "derived"}, "notes": []},
+case("plot_symbol_scale_given", "§4.2 In a plot: symbol_scale 0.5 draws lines and labels at half their designed size, so twice the CSS pixels and one zoom more, at the device's dpi",
+     {"symbol_scale": 0.5}, {"width": 1800, "height": 1200, "dpi": 300, "zoom": zp + 1, "symbol_scale": 0.5, "bounds_3857": ext,
+                      "provenance": {"extent": "context", "size": "context", "dpi": "context", "zoom": "derived"}, "notes": []},
+     context=plot([1800, 1200], 300, "raster_export"))
+
+case("plot_dpi_given", "§4.2 Conflicts: in a plot the device sets the dpi; a basemap's dpi is an error naming symbol_scale",
+     {"dpi": 150}, error={"kind": "validation", "contains": ["device sets the dpi", "symbol_scale"]},
      context=plot([1800, 1200], 300, "raster_export"))
 
 case("plot_screen_plain", "§4.2 In a plot (D16): a screen without a pixel ratio is 96 dpi",
@@ -222,8 +265,8 @@ case("plot_screen_plain", "§4.2 In a plot (D16): a screen without a pixel ratio
           "provenance": {"extent": "context", "size": "context", "dpi": "context", "zoom": "derived"}, "notes": []},
      context=plot([576, 384], None, "screen"))
 
-case("plot_zoom_and_dpi", "§4.2 Conflicts: in a plot the extent and pixels are fixed, so zoom and dpi cannot both be chosen",
-     {"zoom": 12, "dpi": 300}, error={"kind": "validation", "contains": ["zoom", "dpi"]},
+case("plot_zoom_and_symbol_scale", "§4.2 Conflicts: in a plot the extent and printed size are fixed, so zoom and symbol_scale each set the other",
+     {"zoom": 12, "symbol_scale": 0.8}, error={"kind": "validation", "contains": ["zoom", "symbol_scale"]},
      context=plot([1800, 1200], 300, "raster_export"))
 
 case("plot_with_size", "§4.2 Conflicts: in a plot the panel gives the image size",

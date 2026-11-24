@@ -23,7 +23,8 @@
           "dpi": "default",
           "zoom": "derived"
         },
-        "notes": []
+        "notes": [],
+        "symbol_scale": 1.0
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -60,7 +61,8 @@
           "dpi": "default",
           "zoom": "derived"
         },
-        "notes": []
+        "notes": [],
+        "symbol_scale": 1.0
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -98,7 +100,8 @@
           "dpi": "default",
           "zoom": "given"
         },
-        "notes": []
+        "notes": [],
+        "symbol_scale": 1.0
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -138,7 +141,8 @@
           "dpi": "derived",
           "zoom": "given"
         },
-        "notes": []
+        "notes": [],
+        "symbol_scale": 1.0
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -179,7 +183,8 @@
           "dpi": "given",
           "zoom": "derived"
         },
-        "notes": []
+        "notes": [],
+        "symbol_scale": 1.0
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -219,7 +224,8 @@
           "dpi": "default",
           "zoom": "derived"
         },
-        "notes": []
+        "notes": [],
+        "symbol_scale": 1.0
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -229,8 +235,8 @@
       }
     },
     {
-      "name": "inches_with_zoom_overdetermined",
-      "doc": "\u00a74.2 Conflicts: extent + zoom + a physical size fix everything but the pixel count",
+      "name": "inches_with_zoom_derive_symbol_scale",
+      "doc": "\u00a74.2: extent + zoom + a printed size give the symbol scale (a decided note); dpi only sets the pixels",
       "inputs": {
         "bounds_lonlat": [
           -112.1,
@@ -243,11 +249,29 @@
         "height": 4,
         "units": "in"
       },
-      "error": {
-        "kind": "validation",
-        "contains": [
-          "zoom",
-          "width"
+      "expect": {
+        "width": 576,
+        "height": 384,
+        "dpi": 96,
+        "zoom": 12,
+        "symbol_scale": 6.007569150498629,
+        "bounds_3857": [
+          -12457567.1084379,
+          4974950.49619934,
+          -12455734.931096729,
+          4976171.94776012
+        ],
+        "provenance": {
+          "extent": "given",
+          "size": "given",
+          "dpi": "default",
+          "zoom": "given"
+        },
+        "notes": [
+          {
+            "level": "decided",
+            "kind": "symbol_scale"
+          }
         ]
       },
       "tolerance": {
@@ -258,8 +282,8 @@
       }
     },
     {
-      "name": "all_four_given",
-      "doc": "\u00a74.2 Conflicts: over-determined, an error listing the alternatives",
+      "name": "all_four_given_derive_symbol_scale",
+      "doc": "\u00a74.2: extent + zoom + pixels at a dpi (a printed size) give the symbol scale",
       "inputs": {
         "bounds_lonlat": [
           -112.1,
@@ -272,12 +296,270 @@
         "height": 600,
         "dpi": 96
       },
+      "expect": {
+        "width": 800,
+        "height": 600,
+        "dpi": 96,
+        "zoom": 12,
+        "symbol_scale": 3.844844256319122,
+        "bounds_3857": [
+          -12458639.059417022,
+          4974070.192242448,
+          -12454662.980117606,
+          4977052.251717011
+        ],
+        "provenance": {
+          "extent": "given",
+          "size": "given",
+          "dpi": "given",
+          "zoom": "given"
+        },
+        "notes": [
+          {
+            "level": "decided",
+            "kind": "symbol_scale"
+          }
+        ]
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "all_five_given",
+      "doc": "\u00a74.2 Conflicts: extent, zoom, pixels at a dpi and a symbol scale over-determine the map",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ],
+        "zoom": 12,
+        "width": 800,
+        "height": 600,
+        "dpi": 96,
+        "symbol_scale": 1
+      },
       "error": {
         "kind": "validation",
         "contains": [
-          "zoom",
-          "dpi"
+          "over-determine",
+          "symbol_scale"
         ]
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "symbol_scale_given",
+      "doc": "\u00a74.2: symbol_scale 0.5 halves lines and labels, so the same 800 x 600 px at 96 dpi fits twice the CSS px: more detail",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ],
+        "width": 800,
+        "height": 600,
+        "symbol_scale": 0.5
+      },
+      "expect": {
+        "width": 800,
+        "height": 600,
+        "dpi": 96,
+        "zoom": 11.057074840092945,
+        "symbol_scale": 0.5,
+        "bounds_3857": [
+          -12486039.86668455,
+          4953519.586791802,
+          -12427262.172850078,
+          4997602.857167657
+        ],
+        "provenance": {
+          "extent": "given",
+          "size": "given",
+          "dpi": "default",
+          "zoom": "derived"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "printed_size_dpi_150",
+      "doc": "\u00a74.2: with a printed size and a symbol scale, dpi changes only the pixel count: the same zoom at any dpi",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ],
+        "width": 6,
+        "height": 4,
+        "units": "in",
+        "dpi": 150,
+        "symbol_scale": 0.8
+      },
+      "expect": {
+        "width": 900,
+        "height": 600,
+        "dpi": 150,
+        "zoom": 9.735146745205583,
+        "symbol_scale": 0.8,
+        "bounds_3857": [
+          -12489713.472549206,
+          4953519.586791803,
+          -12423588.566985423,
+          4997602.8571676565
+        ],
+        "provenance": {
+          "extent": "given",
+          "size": "given",
+          "dpi": "given",
+          "zoom": "derived"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "printed_size_dpi_300",
+      "doc": "\u00a74.2: with a printed size and a symbol scale, dpi changes only the pixel count: the same zoom at any dpi",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ],
+        "width": 6,
+        "height": 4,
+        "units": "in",
+        "dpi": 300,
+        "symbol_scale": 0.8
+      },
+      "expect": {
+        "width": 1800,
+        "height": 1200,
+        "dpi": 300,
+        "zoom": 9.735146745205583,
+        "symbol_scale": 0.8,
+        "bounds_3857": [
+          -12489713.472549206,
+          4953519.586791803,
+          -12423588.566985423,
+          4997602.8571676565
+        ],
+        "provenance": {
+          "extent": "given",
+          "size": "given",
+          "dpi": "given",
+          "zoom": "derived"
+        },
+        "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "pixels_at_dpi_as_in_0_3",
+      "doc": "\u00a74.2: 1600 x 1200 px at 192 dpi resolves as in 0.3 whether symbol_scale is left out or 1",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ],
+        "width": 1600,
+        "height": 1200,
+        "dpi": 192
+      },
+      "expect": {
+        "width": 1600,
+        "height": 1200,
+        "dpi": 192,
+        "zoom": 10.057074840092945,
+        "bounds_3857": [
+          -12486039.86668455,
+          4953519.586791802,
+          -12427262.172850078,
+          4997602.857167657
+        ],
+        "provenance": {
+          "extent": "given",
+          "size": "given",
+          "dpi": "given",
+          "zoom": "derived"
+        },
+        "notes": [],
+        "symbol_scale": 1.0
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "pixels_at_dpi_symbol_scale_1",
+      "doc": "\u00a74.2: 1600 x 1200 px at 192 dpi resolves as in 0.3 whether symbol_scale is left out or 1",
+      "inputs": {
+        "bounds_lonlat": [
+          -112.1,
+          40.6,
+          -111.7,
+          40.9
+        ],
+        "width": 1600,
+        "height": 1200,
+        "dpi": 192,
+        "symbol_scale": 1
+      },
+      "expect": {
+        "width": 1600,
+        "height": 1200,
+        "dpi": 192,
+        "zoom": 10.057074840092945,
+        "bounds_3857": [
+          -12486039.86668455,
+          4953519.586791802,
+          -12427262.172850078,
+          4997602.857167657
+        ],
+        "provenance": {
+          "extent": "given",
+          "size": "given",
+          "dpi": "given",
+          "zoom": "derived"
+        },
+        "notes": [],
+        "symbol_scale": 1.0
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -315,7 +597,8 @@
           "dpi": "given",
           "zoom": "derived"
         },
-        "notes": []
+        "notes": [],
+        "symbol_scale": 1.0
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -355,7 +638,8 @@
           "dpi": "given",
           "zoom": "derived"
         },
-        "notes": []
+        "notes": [],
+        "symbol_scale": 1.0
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -391,7 +675,8 @@
           "dpi": "default",
           "zoom": "given"
         },
-        "notes": []
+        "notes": [],
+        "symbol_scale": 1.0
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -485,7 +770,8 @@
             "level": "adjusted",
             "kind": "view_constrained"
           }
-        ]
+        ],
+        "symbol_scale": 1.0
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -522,7 +808,8 @@
           "dpi": "default",
           "zoom": "derived"
         },
-        "notes": []
+        "notes": [],
+        "symbol_scale": 1.0
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -569,7 +856,8 @@
           "dpi": "context",
           "zoom": "derived"
         },
-        "notes": []
+        "notes": [],
+        "symbol_scale": 1.0
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -616,7 +904,8 @@
           "dpi": "context",
           "zoom": "derived"
         },
-        "notes": []
+        "notes": [],
+        "symbol_scale": 1.0
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -668,7 +957,8 @@
             "level": "adjusted",
             "kind": "default_dpi"
           }
-        ]
+        ],
+        "symbol_scale": 1.0
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -679,7 +969,7 @@
     },
     {
       "name": "plot_zoom_given",
-      "doc": "\u00a74.2 Conflicts: a zoom chosen in a plot gives an effective dpi, reported once",
+      "doc": "\u00a74.2 In a plot: a zoom sets what is drawn, and so the size of lines and labels (a decided note); the device keeps its dpi",
       "inputs": {
         "zoom": 10.983706192659419
       },
@@ -703,8 +993,9 @@
       "expect": {
         "width": 1800,
         "height": 1200,
-        "dpi": 150,
+        "dpi": 300,
         "zoom": 10.983706192659419,
+        "symbol_scale": 0.5,
         "bounds_3857": [
           -12478914.917925967,
           4960718.623207294,
@@ -714,13 +1005,13 @@
         "provenance": {
           "extent": "context",
           "size": "context",
-          "dpi": "derived",
+          "dpi": "context",
           "zoom": "given"
         },
         "notes": [
           {
-            "level": "adjusted",
-            "kind": "effective_dpi"
+            "level": "decided",
+            "kind": "symbol_scale"
           }
         ]
       },
@@ -732,10 +1023,10 @@
       }
     },
     {
-      "name": "plot_dpi_given",
-      "doc": "\u00a74.2 In a plot: a dpi chosen for the basemap replaces the device's; the zoom follows from it",
+      "name": "plot_symbol_scale_given",
+      "doc": "\u00a74.2 In a plot: symbol_scale 0.5 draws lines and labels at half their designed size, so twice the CSS pixels and one zoom more, at the device's dpi",
       "inputs": {
-        "dpi": 150
+        "symbol_scale": 0.5
       },
       "context": {
         "plot": {
@@ -757,8 +1048,9 @@
       "expect": {
         "width": 1800,
         "height": 1200,
-        "dpi": 150,
+        "dpi": 300,
         "zoom": 10.983706192659419,
+        "symbol_scale": 0.5,
         "bounds_3857": [
           -12478914.917925967,
           4960718.623207294,
@@ -768,10 +1060,47 @@
         "provenance": {
           "extent": "context",
           "size": "context",
-          "dpi": "given",
+          "dpi": "context",
           "zoom": "derived"
         },
         "notes": []
+      },
+      "tolerance": {
+        "zoom": 1e-09,
+        "dpi": 1e-06,
+        "px": 1,
+        "metres": 0.001
+      }
+    },
+    {
+      "name": "plot_dpi_given",
+      "doc": "\u00a74.2 Conflicts: in a plot the device sets the dpi; a basemap's dpi is an error naming symbol_scale",
+      "inputs": {
+        "dpi": 150
+      },
+      "context": {
+        "plot": {
+          "extent_3857": [
+            -12478914.917925967,
+            4960718.623207294,
+            -12434387.12160866,
+            4990403.820752165
+          ],
+          "panel_px": [
+            1800,
+            1200
+          ],
+          "device": "raster_export",
+          "dpi": 300,
+          "pixel_ratio": 1
+        }
+      },
+      "error": {
+        "kind": "validation",
+        "contains": [
+          "device sets the dpi",
+          "symbol_scale"
+        ]
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -818,7 +1147,8 @@
           "dpi": "context",
           "zoom": "derived"
         },
-        "notes": []
+        "notes": [],
+        "symbol_scale": 1.0
       },
       "tolerance": {
         "zoom": 1e-09,
@@ -828,11 +1158,11 @@
       }
     },
     {
-      "name": "plot_zoom_and_dpi",
-      "doc": "\u00a74.2 Conflicts: in a plot the extent and pixels are fixed, so zoom and dpi cannot both be chosen",
+      "name": "plot_zoom_and_symbol_scale",
+      "doc": "\u00a74.2 Conflicts: in a plot the extent and printed size are fixed, so zoom and symbol_scale each set the other",
       "inputs": {
         "zoom": 12,
-        "dpi": 300
+        "symbol_scale": 0.8
       },
       "context": {
         "plot": {
@@ -855,7 +1185,7 @@
         "kind": "validation",
         "contains": [
           "zoom",
-          "dpi"
+          "symbol_scale"
         ]
       },
       "tolerance": {

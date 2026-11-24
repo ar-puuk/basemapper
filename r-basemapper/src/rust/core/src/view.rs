@@ -1,20 +1,33 @@
-//! Resolving a view: the extent, zoom, image size and dpi of a map, from
-//! whatever the user gave and the context it is drawn in
+//! Resolving a view: the extent, zoom, printed size, symbol scale and dpi
+//! of a map, from whatever the user gave and the context it is drawn in
 //! (docs/design/api-review.md §4.2).
 //!
-//! One relation ties the four:
+//! Three settings, each with one meaning everywhere:
+//!
+//! - `zoom`: the detail (which roads, places and labels the style draws);
+//! - `symbol_scale`: the size of lines, labels and icons on the page, as a
+//!   multiple of the style's designed size (1: a CSS pixel is 1/96 inch);
+//! - `dpi`: the sharpness, image pixels per inch, and nothing else.
+//!
+//! One relation ties the extent, zoom, printed size and symbol scale:
 //!
 //! ```text
 //! ground width (Web Mercator metres) = CSS px × metres per CSS px at the zoom
-//! CSS px = image px × 96 / dpi        (or inches × 96, for a physical size)
+//! CSS px = printed inches × 96 / symbol_scale
 //! ```
 //!
-//! so any three give the fourth. A value left out is derived if it can be,
-//! else filled from a default (dpi, then image size, then extent); the zoom
+//! so any three of them give the fourth. The dpi only turns the printed
+//! size into pixels (`image px = printed inches × dpi`). A size given in
+//! pixels is a printed size through the dpi, so with the pixels fixed, a
+//! higher dpi prints smaller (and, with the extent fixed, at a lower zoom).
+//!
+//! A value left out is derived if it can be, else filled from a default
+//! (dpi 96, symbol scale 1, then the image size, then the extent); the zoom
 //! is never a default. Over-determined requests are errors that say what to
-//! drop. In a plot, the plot gives the extent and the image, and the device
-//! the dpi. Every value is labelled given, derived, default or context, and
-//! changes to what the user gave are reported as notes.
+//! drop. In a plot, the plot gives the extent and the printed size, and the
+//! device the dpi: the zoom or the symbol scale gives the other. Every value
+//! is labelled given, derived, default or context, and changes to what the
+//! user gave are reported as notes.
 //!
 //! Coordinates arrive in Web Mercator (`bounds`) or as longitude / latitude
 //! (`center`): the host (R, Python) transforms other CRSs before calling.
@@ -85,7 +98,11 @@ pub struct ViewInputs {
     /// The image's `(width, height)` in `units`.
     pub size: Option<(f64, f64)>,
     pub units: Units,
+    /// Image pixels per inch: the sharpness.
     pub dpi: Option<f64>,
+    /// The size of lines, labels and icons on the page, as a multiple of the
+    /// style's designed size (1: a CSS pixel is 1/96 inch).
+    pub symbol_scale: Option<f64>,
 }
 
 /// The kind of device a plot is drawn on, which decides its dpi.
@@ -132,6 +149,12 @@ impl ViewInputs {
 
     pub fn dpi(mut self, dpi: f64) -> Self {
         self.dpi = Some(dpi);
+        self
+    }
+
+    /// Lines, labels and icons at `symbol_scale` times their designed size.
+    pub fn symbol_scale(mut self, symbol_scale: f64) -> Self {
+        self.symbol_scale = Some(symbol_scale);
         self
     }
 }
@@ -187,8 +210,12 @@ pub struct View {
     /// The image, in pixels.
     pub width: u32,
     pub height: u32,
+    /// Image pixels per inch: the resolution (in a plot, the device's).
     pub dpi: f64,
     pub zoom: f64,
+    /// The size of lines, labels and icons, as a multiple of their designed
+    /// size (given, the default 1, or derived from the zoom).
+    pub symbol_scale: f64,
     pub provenance: Provenances,
     pub notes: Vec<Note>,
 }
@@ -202,9 +229,9 @@ impl View {
     }
 
     /// The true map scale at the centre latitude, as N of 1:N (see
-    /// [`scale_at`]).
+    /// [`scale_at`]), with a CSS pixel `symbol_scale / 96` inch on the page.
     pub fn scale(&self) -> f64 {
-        scale_at(self.zoom, (self.bounds[1] + self.bounds[3]) / 2.0)
+        scale_at(self.zoom, (self.bounds[1] + self.bounds[3]) / 2.0) / self.symbol_scale
     }
 
     /// The values basemapper chose because nothing gave them: *decided*
@@ -229,7 +256,7 @@ impl View {
 
     /// MapLibre's device pixels per CSS pixel.
     pub fn pixel_ratio(&self) -> f64 {
-        self.dpi / CSS_DPI
+        self.dpi / CSS_DPI * self.symbol_scale
     }
 
     /// The view's size in CSS pixels (MapLibre's container size).
@@ -304,13 +331,16 @@ fn frame(cx: f64, cy: f64, css: (f64, f64), zoom: f64) -> ([f64; 4], bool) {
     ([x0, snap(cy2 - hh), x1, snap(cy2 + hh)], moved)
 }
 
-/// The image's pixels and CSS size for a size in `units` at `dpi`.
-fn image(size: (f64, f64), units: Units, dpi: f64) -> ((u32, u32), (f64, f64)) {
+/// The image's pixels and CSS size for a size in `units`: pixels are a
+/// printed size of `px / dpi` inches; a printed size is `inches × dpi`
+/// pixels. Either way, `CSS px = inches × 96 / symbol_scale`.
+fn image(size: (f64, f64), units: Units, dpi: f64, symbol_scale: f64) -> ((u32, u32), (f64, f64)) {
+    let k = CSS_DPI / symbol_scale;
     match units.per_inch() {
-        None => ((size.0.round() as u32, size.1.round() as u32), (size.0 * CSS_DPI / dpi, size.1 * CSS_DPI / dpi)),
+        None => ((size.0.round() as u32, size.1.round() as u32), (size.0 / dpi * k, size.1 / dpi * k)),
         Some(per_inch) => {
             let (w, h) = (size.0 / per_inch, size.1 / per_inch);
-            (((w * dpi).round() as u32, (h * dpi).round() as u32), (w * CSS_DPI, h * CSS_DPI))
+            (((w * dpi).round() as u32, (h * dpi).round() as u32), (w * k, h * k))
         }
     }
 }
@@ -346,6 +376,14 @@ fn check(inputs: &ViewInputs) -> Result<(), BasemapError> {
             return Err(invalid(format!("dpi must be a number > 0, not {d}")));
         }
     }
+    if let Some(s) = inputs.symbol_scale {
+        if !s.is_finite() || !(0.05..=20.0).contains(&s) {
+            return Err(invalid(format!(
+                "symbol_scale must be between 0.05 and 20 (1 draws lines, labels and icons at their designed size), not {s}"
+            )));
+        }
+    }
+
     if let Some((w, h)) = inputs.size {
         if !w.is_finite() || !h.is_finite() || w <= 0.0 || h <= 0.0 {
             return Err(invalid("width and height must be numbers > 0"));
@@ -375,51 +413,44 @@ fn resolve_in_plot(inputs: &ViewInputs, extent: [f64; 4], panel: (u32, u32), dev
     if inputs.size.is_some() {
         return Err(invalid("a basemap in a plot takes its size from the plot panel: remove width / height"));
     }
-    if inputs.zoom.is_some() && inputs.dpi.is_some() {
+    if inputs.dpi.is_some() {
         return Err(invalid(
-            "in a plot, the extent and the image are the plot's: give zoom or dpi, not both (zoom gives an effective dpi; dpi gives the zoom)",
+            "in a plot, the device sets the dpi (ggsave(dpi = ), savefig(dpi = )): remove dpi. To draw the map's lines and labels smaller or larger, use symbol_scale (1 is their designed size; dpi = 168 on a 200 dpi device was symbol_scale = 0.84)",
+        ));
+    }
+    if inputs.zoom.is_some() && inputs.symbol_scale.is_some() {
+        return Err(invalid(
+            "in a plot, give zoom or symbol_scale, not both: the plot fixes the extent and the printed size, so each sets the other",
         ));
     }
     let (pw, ph) = (panel.0.max(1) as f64, panel.1.max(1) as f64);
     let mut notes = Vec::new();
-    let (dpi, dpi_from, zoom, zoom_from) = match inputs.zoom {
+    // The device sets the resolution, and only that.
+    let (dpi, dpi_from) = device_dpi(device);
+    if device == Device::VectorExport {
+        notes.push(Note::new(
+            Level::Adjusted,
+            "default_dpi",
+            format!("a vector device has no dpi: the basemap is rendered at {dpi:.0} dpi"),
+        ));
+    }
+    let (scale, zoom, zoom_from) = match inputs.zoom {
         Some(z) => {
-            // The plot fixes the extent and the pixels: the dpi follows.
-            let needed = width_m(extent) / metres_per_px(z);
-            let dpi = CSS_DPI * pw / needed;
-            let device_dpi = device_dpi(device);
-            notes.push(Note::new(
-                Level::Adjusted,
-                "effective_dpi",
-                format!(
-                    "zoom {z} drawn at an effective {dpi:.0} dpi on a {:.0} dpi device: labels at {:.2}x their size",
-                    device_dpi.0,
-                    dpi / device_dpi.0
-                ),
-            ));
-            (dpi, Provenance::Derived, z, Provenance::Given)
+            // The plot fixes the extent and the panel: the zoom sets how many
+            // CSS pixels it spans, and so the size of lines and labels.
+            let css_w = width_m(extent) / metres_per_px(z);
+            let scale = pw * CSS_DPI / dpi / css_w;
+            notes.push(symbol_note(z, scale));
+            (scale, z, Provenance::Given)
         }
         None => {
-            let (dpi, from) = match inputs.dpi {
-                Some(d) => (d, Provenance::Given),
-                None => {
-                    let (d, from) = device_dpi(device);
-                    if device == Device::VectorExport {
-                        notes.push(Note::new(
-                            Level::Adjusted,
-                            "default_dpi",
-                            format!("a vector device has no dpi: the basemap is rendered at {d:.0} dpi"),
-                        ));
-                    }
-                    (d, from)
-                }
-            };
-            let css = (pw * CSS_DPI / dpi, ph * CSS_DPI / dpi);
+            let scale = inputs.symbol_scale.unwrap_or(1.0);
+            let css = (pw * CSS_DPI / (dpi * scale), ph * CSS_DPI / (dpi * scale));
             let z = zoom_for((width_m(extent) / css.0).max((extent[3] - extent[1]) / css.1));
-            (dpi, from, z, Provenance::Derived)
+            (scale, z, Provenance::Derived)
         }
     };
-    let css = (pw * CSS_DPI / dpi, ph * CSS_DPI / dpi);
+    let css = (pw * CSS_DPI / (dpi * scale), ph * CSS_DPI / (dpi * scale));
     let (cx, cy) = centre(extent);
     let (bounds, _) = frame(cx, cy, css, zoom);
     Ok(View {
@@ -428,6 +459,7 @@ fn resolve_in_plot(inputs: &ViewInputs, extent: [f64; 4], panel: (u32, u32), dev
         height: panel.1,
         dpi,
         zoom,
+        symbol_scale: scale,
         provenance: Provenances { extent: Provenance::Context, size: Provenance::Context, dpi: dpi_from, zoom: zoom_from },
         notes,
     })
@@ -442,21 +474,33 @@ fn device_dpi(device: Device) -> (f64, Provenance) {
     }
 }
 
+/// The decided note for a symbol scale a zoom gives.
+fn symbol_note(zoom: f64, scale: f64) -> Note {
+    Note::new(
+        Level::Decided,
+        "symbol_scale",
+        format!("zoom {zoom} draws lines, labels and icons at {scale:.2}x their designed size (symbol_scale {scale:.2})"),
+    )
+}
+
 fn resolve_standalone(inputs: &ViewInputs) -> Result<View, BasemapError> {
     let (dpi, dpi_from) = match inputs.dpi {
         Some(d) => (d, Provenance::Given),
         None => (DEFAULT_DPI, Provenance::Default),
     };
+    // The symbol scale: given, else 1, unless the view derives it (below).
+    let scale = inputs.symbol_scale.unwrap_or(1.0);
     let mut notes = Vec::new();
 
     if let Some((lon, lat)) = inputs.center {
-        // The camera: centre + zoom (+ size, dpi) give the area shown.
+        // The camera: centre + zoom (+ printed size, symbol scale) give the
+        // area shown.
         let Some(zoom) = inputs.zoom else {
             return Err(invalid(
                 "a center needs a zoom; for an area around a point, use bounds = around(center, span)",
             ));
         };
-        let (px, css, size_from) = size_or_default(inputs, dpi);
+        let (px, css, size_from) = size_or_default(inputs, dpi, scale);
         let z = zoom.max(min_zoom(css));
         let (cx, cy) = lonlat_to_mercator(lon, lat);
         let (bounds, moved) = frame(cx, cy, css, z);
@@ -473,6 +517,7 @@ fn resolve_standalone(inputs: &ViewInputs) -> Result<View, BasemapError> {
             height: px.1,
             dpi,
             zoom: z,
+            symbol_scale: scale,
             provenance: Provenances { extent: Provenance::Derived, size: size_from, dpi: dpi_from, zoom: Provenance::Given },
             notes,
         });
@@ -487,48 +532,81 @@ fn resolve_standalone(inputs: &ViewInputs) -> Result<View, BasemapError> {
 
     match (inputs.zoom, inputs.size) {
         (Some(zoom), Some(size)) => {
-            if inputs.units.per_inch().is_some() {
-                return Err(invalid(
-                    "bounds, zoom and a width / height in physical units fix the map completely: drop one of bounds, zoom or width / height",
-                ));
-            }
-            if inputs.dpi.is_some() {
-                return Err(invalid(
-                    "bounds, zoom, width / height and dpi over-determine the map: give any three (without zoom it is derived; without dpi, dpi is; without width / height, the size is)",
-                ));
-            }
-            // Extent + zoom + pixels: the dpi follows.
+            // Extent + zoom fix the CSS pixels the map needs; the printed
+            // size, the symbol scale and the dpi share what is left.
             let m = metres_per_px(zoom);
-            let dpi = CSS_DPI * (size.0 / (bw / m)).min(size.1 / (bh / m));
-            let css = (size.0 * CSS_DPI / dpi, size.1 * CSS_DPI / dpi);
+            let needed = (bw / m, bh / m);
+            let fit = |w: f64, h: f64| (w / needed.0).min(h / needed.1);
+            let (px, scale, dpi, dpi_from) = match inputs.units.per_inch() {
+                Some(per_inch) => {
+                    // A printed size: the symbol scale follows.
+                    if inputs.symbol_scale.is_some() {
+                        return Err(invalid(
+                            "bounds, zoom, a printed width / height and symbol_scale over-determine the map: give any three (without zoom it is derived; without symbol_scale, it is)",
+                        ));
+                    }
+                    let (w, h) = (size.0 / per_inch, size.1 / per_inch);
+                    let s = 1.0 / fit(w * CSS_DPI, h * CSS_DPI);
+                    notes.push(symbol_note(zoom, s));
+                    (((w * dpi).round() as u32, (h * dpi).round() as u32), s, dpi, dpi_from)
+                }
+                None if inputs.dpi.is_some() => {
+                    // Pixels at a dpi are a printed size: the symbol scale follows.
+                    if inputs.symbol_scale.is_some() {
+                        return Err(invalid(
+                            "bounds, zoom, width / height, dpi and symbol_scale over-determine the map: give any three of bounds, zoom, width / height (with dpi) and symbol_scale",
+                        ));
+                    }
+                    let s = 1.0 / fit(size.0 * CSS_DPI / dpi, size.1 * CSS_DPI / dpi);
+                    notes.push(symbol_note(zoom, s));
+                    ((size.0.round() as u32, size.1.round() as u32), s, dpi, dpi_from)
+                }
+                None => {
+                    // Pixels and a symbol scale (given, or 1): the dpi follows.
+                    let dpi = CSS_DPI / scale * fit(size.0, size.1);
+                    ((size.0.round() as u32, size.1.round() as u32), scale, dpi, Provenance::Derived)
+                }
+            };
+            let css = (px.0 as f64 * CSS_DPI / (dpi * scale), px.1 as f64 * CSS_DPI / (dpi * scale));
+            let css = match inputs.units.per_inch() {
+                // A printed size keeps its exact CSS size, not its rounded pixels'.
+                Some(per_inch) => (size.0 / per_inch * CSS_DPI / scale, size.1 / per_inch * CSS_DPI / scale),
+                None if inputs.dpi.is_none() => (size.0 * CSS_DPI / (dpi * scale), size.1 * CSS_DPI / (dpi * scale)),
+                None => css,
+            };
             let (bounds, _) = frame(cx, cy, css, zoom);
             Ok(View {
                 bounds,
-                width: size.0.round() as u32,
-                height: size.1.round() as u32,
+                width: px.0,
+                height: px.1,
                 dpi,
                 zoom,
-                provenance: Provenances { extent: extent_from, size: Provenance::Given, dpi: Provenance::Derived, zoom: Provenance::Given },
+                symbol_scale: scale,
+                provenance: Provenances { extent: extent_from, size: Provenance::Given, dpi: dpi_from, zoom: Provenance::Given },
                 notes,
             })
         }
         (Some(zoom), None) => {
-            // Extent + zoom + dpi: the image size follows (this area at this detail).
+            // Extent + zoom (+ symbol scale, dpi): the image size follows
+            // (this area at this detail).
             let m = metres_per_px(zoom);
             let css = (bw / m, bh / m);
+            let k = dpi * scale / CSS_DPI;
             Ok(View {
                 bounds: b,
-                width: (css.0 * dpi / CSS_DPI).round().max(1.0) as u32,
-                height: (css.1 * dpi / CSS_DPI).round().max(1.0) as u32,
+                width: (css.0 * k).round().max(1.0) as u32,
+                height: (css.1 * k).round().max(1.0) as u32,
                 dpi,
                 zoom,
+                symbol_scale: scale,
                 provenance: Provenances { extent: extent_from, size: Provenance::Derived, dpi: dpi_from, zoom: Provenance::Given },
                 notes,
             })
         }
         (None, _) => {
-            // Extent + image size + dpi: the zoom follows (automatic zoom).
-            let (px, css, size_from) = size_or_default(inputs, dpi);
+            // Extent + printed size + symbol scale: the zoom follows
+            // (automatic zoom).
+            let (px, css, size_from) = size_or_default(inputs, dpi, scale);
             let fitted = zoom_for((bw / css.0).max(bh / css.1));
             let z = fitted.max(min_zoom(css));
             let (bounds, moved) = frame(cx, cy, css, z);
@@ -545,6 +623,7 @@ fn resolve_standalone(inputs: &ViewInputs) -> Result<View, BasemapError> {
                 height: px.1,
                 dpi,
                 zoom: z,
+                symbol_scale: scale,
                 provenance: Provenances { extent: extent_from, size: size_from, dpi: dpi_from, zoom: Provenance::Derived },
                 notes,
             })
@@ -553,17 +632,18 @@ fn resolve_standalone(inputs: &ViewInputs) -> Result<View, BasemapError> {
 }
 
 /// The image's pixels and CSS size: the given size, or the default (800 x
-/// 600 CSS px, scaled with the dpi).
-fn size_or_default(inputs: &ViewInputs, dpi: f64) -> ((u32, u32), (f64, f64), Provenance) {
+/// 600 CSS px printed at 96 per inch, so 800 x 600 px at 96 dpi, scaled with
+/// the dpi), at `symbol_scale`.
+fn size_or_default(inputs: &ViewInputs, dpi: f64, symbol_scale: f64) -> ((u32, u32), (f64, f64), Provenance) {
     match inputs.size {
         Some(size) => {
-            let (px, css) = image(size, inputs.units, dpi);
+            let (px, css) = image(size, inputs.units, dpi, symbol_scale);
             (px, css, Provenance::Given)
         }
         None => {
-            let css = DEFAULT_CSS_SIZE;
-            let px = ((css.0 * dpi / CSS_DPI).round() as u32, (css.1 * dpi / CSS_DPI).round() as u32);
-            (px, css, Provenance::Default)
+            let base = DEFAULT_CSS_SIZE;
+            let px = ((base.0 * dpi / CSS_DPI).round() as u32, (base.1 * dpi / CSS_DPI).round() as u32);
+            (px, (base.0 / symbol_scale, base.1 / symbol_scale), Provenance::Default)
         }
     }
 }

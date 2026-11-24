@@ -11,6 +11,7 @@ one. The same object exists in R (``basemap()``) and Rust (``Basemap``).
 from __future__ import annotations
 
 import dataclasses
+import math
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from . import _crs
@@ -58,7 +59,8 @@ class Basemap:
 
     The view's values are properties (``m.bounds``, ``m.zoom``, ...), each
     given, derived or defaulted by the core's one rule (any three of extent,
-    zoom, image size and dpi give the fourth).
+    zoom, printed size and symbol scale give the fourth; the dpi turns the
+    printed size into pixels).
     """
 
     styles: Tuple[Style, ...]
@@ -69,6 +71,7 @@ class Basemap:
     height_arg: Optional[float] = None
     units: str = "px"
     dpi_arg: Optional[float] = None
+    symbol_scale_arg: Optional[float] = None
     crs_arg: Any = None
     clip: Any = None
     fetch: FetchOptions = dataclasses.field(default_factory=FetchOptions)
@@ -99,6 +102,8 @@ class Basemap:
             inputs.update(width=float(self.width_arg), height=float(self.height_arg), units=self.units)
         if self.dpi_arg is not None:
             inputs["dpi"] = float(self.dpi_arg)
+        if self.symbol_scale_arg is not None:
+            inputs["symbol_scale"] = float(self.symbol_scale_arg)
         return inputs
 
     def _prepare(self) -> Dict[str, Any]:
@@ -166,8 +171,14 @@ class Basemap:
 
     @property
     def dpi(self) -> float:
-        """Image pixels per inch: the sharpness (96 = one pixel per CSS pixel)."""
+        """Image pixels per inch: the sharpness."""
         return self._view["dpi"]
+
+    @property
+    def symbol_scale(self) -> float:
+        """Lines, labels and icons as a multiple of the style's designed size
+        (given, the default 1, or what the zoom makes it)."""
+        return self._view["symbol_scale"]
 
     @property
     def scale(self) -> float:
@@ -197,6 +208,7 @@ class Basemap:
         height: Any = _UNSET,
         units: Any = _UNSET,
         dpi: Any = _UNSET,
+        symbol_scale: Any = _UNSET,
         **removed: Any,
     ) -> "Basemap":
         """A new basemap with a changed view (``None`` unsets a value). A
@@ -207,7 +219,8 @@ class Basemap:
             changes["center_arg"] = None if center is None else _crs._pair(center, "center")
             if center is not None:
                 changes["bounds_arg"] = None
-        for name, value in (("zoom_arg", zoom), ("width_arg", width), ("height_arg", height), ("dpi_arg", dpi)):
+        for name, value in (("zoom_arg", zoom), ("width_arg", width), ("height_arg", height), ("dpi_arg", dpi),
+                            ("symbol_scale_arg", symbol_scale)):
             if value is not _UNSET:
                 changes[name] = value
         if units is not _UNSET:
@@ -290,13 +303,18 @@ class Basemap:
         """Draw the basemap under a matplotlib axes' content, and return the
         artist.
 
-        The plot gives the extent (the axes' limits), the image size (the
-        axes' pixels) and the dpi (D16: on screen 96 x the pixel ratio, in a
-        raster export the figure's dpi, in PDF / SVG 300); the basemap may
-        give a ``zoom`` (then the dpi is derived) or a ``dpi``. It renders
-        when the figure is drawn, so panning, zooming and ``savefig(dpi=...)``
-        draw it afresh, natively. In any CRS other than Web Mercator the
-        image is warped into it (no stretching).
+        The plot gives the extent (the axes' limits), the printed size (the
+        axes) and the sharpness (D16: on screen 96 dpi x the pixel ratio, in a
+        raster export the figure's dpi, in PDF / SVG 300 dpi); a basemap's
+        ``dpi`` is an error here. What the map shows is set by the basemap's
+        ``zoom`` or ``symbol_scale``: with the extent fixed, a larger symbol
+        scale also means a lower zoom (fewer roads and labels), a smaller one
+        more detail. With neither, the symbol scale is 1 and the map is the
+        same at any dpi. It renders when the figure is drawn, so panning,
+        zooming and ``savefig(dpi=...)`` draw it afresh, natively. In any CRS
+        other than Web Mercator the image is warped into it (no stretching).
+        :func:`last_rendering` reads what it was drawn at; :func:`zoom_for`
+        chooses a zoom in advance.
 
         Args:
             ax: A matplotlib Axes.
@@ -306,6 +324,12 @@ class Basemap:
             alpha: The basemap's opacity (0-1).
             attribution: The providers' credit line in the bottom-right
                 corner: True (their own), False (none), or your text.
+            scale: The size of the map's lines and labels, as a multiple of
+                their designed size (1 CSS pixel = 1/96 inch on the page):
+                below 1 draws them smaller and shows more detail (a higher
+                zoom). The figure's dpi sets only the resolution, so the same
+                plot shows the same map at any dpi. Give ``scale`` or the
+                basemap's ``zoom``, not both. Default 1.
 
         Returns:
             The basemap's image artist; its ``rendering`` is the last render.
@@ -348,8 +372,9 @@ class Basemap:
         w, h = self.size
         auto = " (auto)" if self.provenance["zoom"] == "derived" else ""
         lon, lat = self.center
+        symbols = "" if abs(self.symbol_scale - 1) < 1e-9 else f", symbols {self.symbol_scale:.2f}x"
         return (
-            f"<Basemap {n} style{'' if n == 1 else 's'}, {w} x {h} px at {self.dpi:g} dpi, zoom {self.zoom:.2f}{auto}, "
+            f"<Basemap {n} style{'' if n == 1 else 's'}, {w} x {h} px at {self.dpi:g} dpi, zoom {self.zoom:.2f}{auto}{symbols}, "
             f"{_crs.crs_name(self.crs)}, center ({lon:.4f}, {lat:.4f}), 1:{self.scale:,.0f}>"
         )
 
@@ -368,6 +393,7 @@ def basemap(
     height: Optional[float] = None,
     units: str = "px",
     dpi: Optional[float] = None,
+    symbol_scale: Optional[float] = None,
     crs: Any = None,
     clip: Any = None,
     fetch: Optional[FetchOptions] = None,
@@ -375,14 +401,22 @@ def basemap(
 ) -> Basemap:
     """Create a basemap.
 
-    Three controls, each with one meaning everywhere: the extent (``bounds``,
-    or ``center`` with ``zoom``), ``zoom`` (the feature detail) and ``dpi``
-    (the sharpness); ``width`` / ``height`` and :func:`around` express them in
-    other terms. Any three of extent, zoom, image size and dpi give the
-    fourth. What nothing gives is defaulted, in this order: dpi (96), image
-    size (800 x 600 at 96 dpi, scaled with the dpi), extent (the world); the
-    zoom is never a default. Over-determined requests are errors that say
-    what to drop.
+    Each control has one meaning everywhere: the extent (``bounds``, or
+    ``center`` with ``zoom``) is where; ``zoom`` is the detail (which roads,
+    places and labels the style draws); ``symbol_scale`` is the size of
+    lines, labels and icons on the page; ``dpi`` is the sharpness (image
+    pixels per inch), and nothing else.
+
+    Any three of extent, zoom, printed size and symbol scale give the
+    fourth; the dpi turns the printed size into pixels. A ``width`` /
+    ``height`` in ``"in"``, ``"cm"`` or ``"mm"`` is the printed size; in
+    pixels it is a printed size through the dpi (``px / dpi`` inches), so with
+    the pixels fixed, a higher dpi prints the map smaller. What nothing gives
+    is defaulted, in this order: dpi (96), symbol scale (1), image size (800 x
+    600 px at 96 dpi, scaled with the dpi), extent (the world); the zoom is
+    never a default. Over-determined requests are errors that say what to
+    drop. In a plot, the plot gives the extent and printed size and the
+    device the dpi: give a ``zoom`` or a ``symbol_scale``.
 
     Args:
         style: A style, or a list stacked bottom to top: a catalogue name
@@ -397,9 +431,18 @@ def basemap(
             labels the style draws.
         width: The image width, in ``units``.
         height: The image height, in ``units``.
-        units: ``"px"`` (default), ``"in"``, ``"cm"`` or ``"mm"``; with a
-            physical unit, ``dpi`` sets only the pixel count.
-        dpi: Image pixels per inch: the sharpness (default 96).
+        units: ``"px"`` (default), ``"in"``, ``"cm"`` or ``"mm"``: a printed
+            size; pixels are a printed size through ``dpi``.
+        dpi: Image pixels per inch: the sharpness (default 96). In a plot
+            the figure sets it, and a basemap's ``dpi`` is an error.
+        symbol_scale: The size of lines, labels and icons on the page, as a
+            multiple of the style's designed size. At 1 (the default) a CSS
+            pixel is 1/96 inch, so a label the style sizes at 12 px prints at
+            9 pt; 0.84 prints it at 84% of that. It changes what is drawn,
+            not the sharpness: with the extent and printed size fixed (always
+            so in a plot), a smaller symbol scale leaves room for more detail
+            (a higher zoom), a larger one for less. ``zoom`` and
+            ``symbol_scale`` each set the other there, so give one.
         crs: The map's CRS (anything ``pyproj.CRS`` accepts, or an object
             with a ``crs``). Default: the ``bounds`` layer's CRS when it is
             projected, else Web Mercator. In another CRS the map is drawn in
@@ -429,7 +472,53 @@ def basemap(
         height_arg=height,
         units=units,
         dpi_arg=dpi,
+        symbol_scale_arg=symbol_scale,
         crs_arg=crs,
         clip=clip,
         fetch=fetch_arg(fetch),
     )
+
+
+# A style that is never drawn: zoom_for() resolves only a view.
+_ZOOM_FOR_STYLE = '{"version":8,"sources":{},"layers":[{"id":"bg","type":"background"}]}'
+
+
+def zoom_for(bounds: Any, width: float, units: str = "in", symbol_scale: float = 1.0, crs: Any = None) -> float:
+    """The zoom for a map of a given printed width.
+
+    The MapLibre zoom at which ``bounds`` drawn ``width`` wide has lines and
+    labels at ``symbol_scale`` times their designed size, by the same rules
+    as :func:`basemap` (in the map's CRS: ``crs``, else the layer's when
+    projected, else Web Mercator). In a plot, give it as the ``zoom``: the
+    same zoom draws the same picture at any panel size, so a page map and
+    its thumbnail match, while ``symbol_scale`` keeps the label size instead.
+    R: ``zoom_for()``.
+
+    Args:
+        bounds: As in :func:`basemap`: ``(west, south, east, north)``,
+            :func:`around`, or a spatial layer.
+        width: The printed width of the map, in ``units``.
+        units: ``"in"`` (default), ``"cm"`` or ``"mm"``.
+        symbol_scale: The size of lines and labels at that width (see
+            :func:`basemap`).
+        crs: The map's CRS, as in :func:`basemap`.
+
+    Returns:
+        The zoom.
+
+    Example:
+        >>> z = basemapper.zoom_for(tract, 3.6, symbol_scale=0.84)
+        >>> basemapper.basemap("UGRC.Lite", zoom=z).add_to(ax, crs=tract.crs)
+    """
+    if units not in ("in", "cm", "mm"):
+        raise ValidationError('units must be "in", "cm" or "mm": zoom_for() needs a printed width')
+    if not isinstance(width, (int, float)) or not math.isfinite(width) or width <= 0:
+        raise ValidationError("width must be a number > 0")
+    extent = _crs.extent_of(bounds)
+    b = _crs.box_in(extent, _crs.map_crs(crs, extent))
+    span = b[2] - b[0] if b[2] >= b[0] else b[2] - b[0] + 2 * 20037508.342789244
+    # The height that keeps the map's shape, so the width decides the zoom.
+    height = width * (b[3] - b[1]) / span
+    m = basemap(_ZOOM_FOR_STYLE, bounds=bounds, crs=crs, width=width, height=height, units=units,
+                symbol_scale=symbol_scale)
+    return m.zoom

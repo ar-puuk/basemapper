@@ -210,6 +210,9 @@ fn inputs_of(py: Python<'_>, d: &Bound<'_, PyDict>) -> PyResult<ViewInputs> {
     if let Some(dpi) = f64_of(d, "dpi")? {
         v = v.dpi(dpi);
     }
+    if let Some(scale) = f64_of(d, "symbol_scale")? {
+        v = v.symbol_scale(scale);
+    }
     Ok(v)
 }
 
@@ -309,6 +312,7 @@ fn view_dict<'py>(py: Python<'py>, v: &View) -> PyResult<Bound<'py, PyDict>> {
     d.set_item("height", v.height)?;
     d.set_item("dpi", v.dpi)?;
     d.set_item("zoom", v.zoom)?;
+    d.set_item("symbol_scale", v.symbol_scale)?;
     d.set_item("scale", v.scale())?;
     d.set_item("center", v.center())?;
     let p = PyDict::new(py);
@@ -326,6 +330,7 @@ fn view_dict<'py>(py: Python<'py>, v: &View) -> PyResult<Bound<'py, PyDict>> {
 /// of the core, which numpy then views without copying).
 fn rendering_dict<'py>(py: Python<'py>, r: Rendering) -> PyResult<Bound<'py, PyDict>> {
     let d = PyDict::new(py);
+    d.set_item("symbol_scale", r.symbol_scale)?;
     d.set_item("scale", r.scale())?;
     d.set_item("pixels", PyBytes::new(py, &r.pixels))?;
     d.set_item("width", r.width)?;

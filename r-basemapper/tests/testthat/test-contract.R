@@ -9,7 +9,7 @@ contract_path <- function() {
 }
 
 contract_inputs <- function(i) {
-  out <- i[intersect(names(i), c("center", "zoom", "width", "height", "units", "dpi"))]
+  out <- i[intersect(names(i), c("center", "zoom", "width", "height", "units", "dpi", "symbol_scale"))]
   if (!is.null(i$bounds_lonlat)) {
     b <- unlist(i$bounds_lonlat)
     p <- basemapper:::project(b[c(1, 3)], b[c(2, 4)], basemapper:::.CRS_4326, basemapper:::.CRS_3857)
@@ -62,6 +62,7 @@ test_that("every contract case resolves as specified", {
     expect_near(v$width, want$width, tol$px, c$name)
     expect_near(v$height, want$height, tol$px, c$name)
     expect_near(v$dpi, want$dpi, tol$dpi, c$name)
+    expect_near(v$symbol_scale, want$symbol_scale, 1e-9, c$name)
     expect_near(v$zoom, want$zoom, tol$zoom, c$name)
     expect_near(v$bounds, unlist(want$bounds_3857), tol$metres, c$name)
     by_name <- function(l) l[order(names(l))]

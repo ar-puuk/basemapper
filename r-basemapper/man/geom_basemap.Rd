@@ -9,8 +9,8 @@ geom_basemap(style, ..., alpha = 1, attribution = TRUE)
 \arguments{
 \item{style}{A style, a list of styles, or a \code{\link[=basemap]{basemap()}}.}
 
-\item{...}{\code{\link[=basemap]{basemap()}}'s arguments that apply in a plot: \code{zoom} or \code{dpi},
-\code{clip}, \code{fetch}.}
+\item{...}{\code{\link[=basemap]{basemap()}}'s arguments that apply in a plot: \code{zoom} or
+\code{symbol_scale}, \code{clip}, \code{fetch}.}
 
 \item{alpha}{The basemap's opacity (0--1).}
 
@@ -26,11 +26,20 @@ A ggplot2 layer.
 \code{geom_basemap()} is an alias that builds the basemap from the same
 arguments. The plot gives the extent (the panel's limits), the CRS
 (\code{coord_sf()}'s; the basemap is warped into it), the image size (the
-panel) and the dpi: on screen 96, in a raster export (\code{ggsave()}, \code{png()},
-ragg) the device's dpi, in PDF / SVG 300. The basemap may give a \code{zoom}
-(then the dpi is derived, an effective dpi reported once) or a \code{dpi}; an
-extent, a CRS or a size of its own is an error. A clip is a mask, in the
-plot's CRS. Python (plotnine): \code{ggplot(df) + m}, \code{geom_basemap()}.
+panel) and the sharpness: on screen 96 dpi, in a raster export
+(\code{ggsave()}, \code{png()}, ragg) the device's dpi, in PDF / SVG 300 dpi.
+}
+\details{
+What the map shows is set in one place, in \code{geom_basemap()} (or the
+\code{\link[=basemap]{basemap()}}): \code{zoom} (the detail; the size of lines and labels follows) or
+\code{symbol_scale} (the size of lines and labels; the zoom follows). Give one.
+The plot fixes the extent, so a larger symbol scale also means a lower
+zoom (fewer roads and labels) and a smaller one more detail. With
+neither, the symbol scale is 1 and the map is the same at any dpi. A
+basemap's \code{dpi}, extent, CRS or size is an error in a plot. A clip is a
+mask, in the plot's CRS. \code{\link[=last_rendering]{last_rendering()}} reads what a drawn plot used;
+\code{\link[=zoom_for]{zoom_for()}} chooses a zoom in advance. Python (plotnine):
+\code{ggplot(df) + m}, \code{geom_basemap()}.
 }
 \examples{
 \dontrun{
@@ -38,5 +47,8 @@ library(ggplot2)
 nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
 ggplot(nc) + basemap("OpenFreeMap.Positron") + geom_sf(fill = NA)
 ggplot(nc) + geom_basemap("OpenFreeMap.Positron", zoom = 8) + geom_sf(fill = NA)
+# Smaller lines and labels, more detail; ggsave() sets the sharpness
+p <- ggplot(nc) + geom_basemap("OpenFreeMap.Positron", symbol_scale = 0.8) + geom_sf(fill = NA)
+ggsave("nc.png", p, width = 8, height = 3, dpi = 300)
 }
 }

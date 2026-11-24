@@ -10,7 +10,7 @@ tm_basemap(x, ..., alpha = 1, attribution = TRUE)
 \item{x}{A \code{\link[=basemap]{basemap()}}, or a style (anything \code{\link[=basemap]{basemap()}} takes).}
 
 \item{...}{With a style: \code{\link[=basemap]{basemap()}}'s arguments that apply in a plot
-(\code{zoom} or \code{dpi}, \code{clip}, \code{fetch}).}
+(\code{zoom} or \code{symbol_scale}, \code{clip}, \code{fetch}).}
 
 \item{alpha}{The basemap's opacity (0--1).}
 
@@ -25,7 +25,8 @@ A tmap element.
 \code{tm_basemap(m)} puts a \code{\link[=basemap]{basemap()}} under a tmap v4 map; \code{tm_basemap(style, ...)} builds the basemap from \code{\link[=basemap]{basemap()}}'s arguments (tmap only accepts
 its own elements, so this is the way in). As in ggplot2, the map gives the
 extent, the CRS (the basemap is warped into it), the image size and the
-dpi; the basemap may give a \code{zoom} or a \code{dpi}. Put it before
+sharpness (the device's dpi); what the map shows is set by the basemap's
+\code{zoom} or \code{symbol_scale}, and a basemap's \code{dpi} is an error. Put it before
 \code{tm_shape()}, so it draws behind the layers.
 }
 \examples{

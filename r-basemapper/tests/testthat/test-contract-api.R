@@ -21,7 +21,7 @@ test_that("every function has the contract's arguments", {
     name <- f$r
     if (is.null(name)) next
     expect_true(name %in% exports, info = paste(name, "is not exported"))
-    got <- setdiff(names(formals(get(name, envir = ns))), ignore)
+    got <- as.character(setdiff(names(formals(get(name, envir = ns))), ignore))
     want <- as.character(c(unlist(f$args), unlist(f$r_also)))
     expect_setequal(got, want)
   }

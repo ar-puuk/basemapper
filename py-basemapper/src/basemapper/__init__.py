@@ -6,11 +6,11 @@ The same model as the R package and the Rust core: a :func:`basemap` of
 (``m.add_to(ax)``, ``ggplot(df) + m``).
 """
 
-from ._basemap import MIGRATION, Basemap, basemap
+from ._basemap import MIGRATION, Basemap, basemap, zoom_for
 from ._crs import around, outside
 from ._fetch import FetchOptions
 from ._notes import Note
-from ._rendering import Rendering
+from ._rendering import Rendering, last_rendering
 from ._style import Source, Style, provider, style, tiles, wms, wmts
 from .exceptions import (
     BasemapAdjustment,
@@ -80,6 +80,8 @@ __all__ = [
     "around",
     "outside",
     "Rendering",
+    "last_rendering",
+    "zoom_for",
     "Note",
     "FetchOptions",
     "list_layers",
