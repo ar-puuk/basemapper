@@ -7,9 +7,36 @@ for users of each package,
 in more words: [R](r-basemapper/NEWS.md) and
 [Python](py-basemapper/CHANGELOG.md).
 
-## v0.2.0
+## v0.3.0
 
-Tagged v0.2.0 when merged into `main`; until then on `dev`.
+Tagged v0.3.0 when merged into `main`; until then on `feat/coherent-api`.
+
+### Features
+
+- **r:** the R package as an adapter over the core (phase 4) ([62b76a1](https://github.com/ar-puuk/basemapper/commit/62b76a10397b434f89c038b196e0b266ed8faf29))
+- **python:** the Python package as an adapter over the core (phase 3) ([06e1edf](https://github.com/ar-puuk/basemapper/commit/06e1edf5112d8016e58e5031c1df4204e9b133ed))
+- **core:** plot support (phase 2) ([77dea13](https://github.com/ar-puuk/basemapper/commit/77dea13f20e88c36c7c1a7cbed504446197852ec))
+- **core:** the Rust facade (phase 1e) ([b3e100a](https://github.com/ar-puuk/basemapper/commit/b3e100a7a7c4141b21d3449c7f33cec3b38e4575))
+- **core:** warping and clip masks (phase 1d) ([704511d](https://github.com/ar-puuk/basemapper/commit/704511d6b69e72c86356704e7929a626e033faa3))
+- **core:** renderings and notes (phase 1c) ([87def37](https://github.com/ar-puuk/basemapper/commit/87def3702355bc6a66ebf3094d17e86c68c30242))
+- **core:** styles as values (phase 1b) ([81d0797](https://github.com/ar-puuk/basemapper/commit/81d079703e58d665a9a2a75690e89796bdf20556))
+- **core:** view resolution (phase 1a) ([f5de9a2](https://github.com/ar-puuk/basemapper/commit/f5de9a25ee7dfc116811ed051e734d870fca2d9d))
+
+### Fixes
+
+- views never reach past the poles; the default view renders ([76fdf91](https://github.com/ar-puuk/basemapper/commit/76fdf91eb59d91e2173c4f7ae2a49672909c0087))
+- **deps:** read fonts with skrifa instead of the unmaintained ttf-parser ([d2f9008](https://github.com/ar-puuk/basemapper/commit/d2f900826fd07bae3b717bb560487ecb4d28c371))
+
+### Documentation
+
+- the 0.3 contract, guides, migration guide and version 0.3.0 (phase 5) ([4aaa7d5](https://github.com/ar-puuk/basemapper/commit/4aaa7d5b3913b61c0f7fb43d9207d19c39e6bed2))
+- **design:** API and design review, and the 0.3.0 implementation plan ([b8ca3d5](https://github.com/ar-puuk/basemapper/commit/b8ca3d52083074b5062400f09a03aa7a31c7bfd5))
+
+### Tests
+
+- phase 0 safety nets for the 0.3.0 redesign ([637b955](https://github.com/ar-puuk/basemapper/commit/637b95536d5600fbf0a29bdc0019662916d276f2))
+
+## [v0.2.0](https://github.com/ar-puuk/basemapper/releases/tag/v0.2.0) (2026-11-23): [#8](https://github.com/ar-puuk/basemapper/pull/8) Release v0.2.0: safer downloads, faster redraws, simpler arguments
 
 ### Features
 
@@ -28,6 +55,7 @@ Tagged v0.2.0 when merged into `main`; until then on `dev`.
 
 ### Documentation
 
+- **changelog:** the v0.2.0 section ([a9d2465](https://github.com/ar-puuk/basemapper/commit/a9d2465309cf4904ef4650f9a0f26d13ce4f3e63))
 - **changelog:** the v0.2.0 section ([db73aee](https://github.com/ar-puuk/basemapper/commit/db73aeee1861197937fcde914e43baff91421469))
 - install instructions install the latest release, never a pinned version ([ffb22df](https://github.com/ar-puuk/basemapper/commit/ffb22df731dd656e4bf9868b8a2327e47ced7a94))
 - CITATION.cff for GitHub's "Cite this repository" ([6a69b01](https://github.com/ar-puuk/basemapper/commit/6a69b01e76eb6847301e861f4e9b47e0c5d8e189))
