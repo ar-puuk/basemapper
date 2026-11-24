@@ -1,9 +1,6 @@
-"""Known bugs of 0.2, fixed by the 0.3.0 redesign (docs/design/api-review.md,
-implementation-plan.md).
-
-Each test states the correct behaviour and is marked ``xfail(strict=True)``:
-it is expected to fail while the bug is there, and the suite fails once the
-bug is fixed, as a reminder to remove the marker and keep the test.
+"""Bugs of 0.2 that the 0.3.0 redesign fixed (docs/design/api-review.md F1,
+F4), kept as regression tests. Written in phase 0 as expected failures; they
+pass since phase 3.
 """
 
 import numpy as np
@@ -43,7 +40,6 @@ def _pixels(fig):
     return np.asarray(fig.canvas.buffer_rgba()).copy()
 
 
-@pytest.mark.xfail(strict=True, reason="F1: the Web Mercator image is stretched over a lon/lat axes, not warped (phase 3)")
 def test_f1_add_basemap_lines_up_with_the_data_on_lon_lat_axes():
     import basemapper
 
@@ -59,10 +55,13 @@ def test_f1_add_basemap_lines_up_with_the_data_on_lon_lat_axes():
     assert offset < 2, f"basemap offset {offset:.1f} px from the data"
 
 
-@pytest.mark.xfail(strict=True, reason="F4: Python's bbox checks refuse a box crossing the date line (phase 3)")
 def test_f4_box_crossing_the_date_line_renders():
     import basemapper
 
-    bg = '{"version":8,"sources":{},"layers":[{"id":"bg","type":"background"}]}'
-    a = basemapper.render_basemap_raw([19_000_000, -1e6, -19_000_000, 1e6], 100, 50, bg, crs=3857)
-    assert a.shape[2] == 4
+    bg = '{"version":8,"sources":{},"layers":[{"id":"bg","type":"background","paint":{"background-color":"#123456"}}]}'
+    m = basemapper.basemap(bg, bounds=[170, -10, -170, 10], width=100, height=50)
+    w, s, e, n = m.bounds
+    assert w > e, "the extent crosses the date line (west > east)"
+    assert 170 < m.center[0] or m.center[0] < -170 or abs(abs(m.center[0]) - 180) < 1e-6
+    img = m.render().to_numpy()
+    assert img.shape == (50, 100, 4) and tuple(img[25, 50]) == (0x12, 0x34, 0x56, 255)

@@ -27,6 +27,8 @@ pub struct Rendering {
     pub dpi: f64,
     /// What basemapper decided, adjusted, or could not do.
     pub notes: Vec<Note>,
+    /// The Web Mercator northing of the map's centre, for [`scale`](Self::scale).
+    pub(crate) web_mercator_y: f64,
 }
 
 impl Rendering {
@@ -34,10 +36,7 @@ impl Rendering {
     /// fixes the ground size of a CSS pixel (1/96 inch), so the scale is the
     /// same at any dpi.
     pub fn scale(&self) -> f64 {
-        let cy = (self.bounds[1] + self.bounds[3]) / 2.0;
-        let r = 20_037_508.342_789_244 / std::f64::consts::PI;
-        let lat = 2.0 * (cy / r).exp().atan() - std::f64::consts::FRAC_PI_2;
-        crate::view::metres_per_px(self.zoom) * lat.cos() * crate::view::CSS_DPI / 0.0254
+        crate::view::scale_at(self.zoom, self.web_mercator_y)
     }
 
     /// The notes at `level`.
@@ -80,5 +79,6 @@ pub(crate) fn render_collecting(
         tile_zoom: result.zoom_used,
         dpi,
         notes: collector.notes(),
+        web_mercator_y: (b.ymin + b.ymax) / 2.0,
     })
 }

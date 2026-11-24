@@ -116,6 +116,12 @@ impl Basemap {
         self
     }
 
+    /// Replace everything given of the view at once.
+    pub fn with_inputs(mut self, inputs: ViewInputs) -> Self {
+        self.inputs = inputs;
+        self
+    }
+
     /// How to fetch the data.
     pub fn fetch(mut self, fetch: FetchOptions) -> Self {
         self.fetch = fetch;

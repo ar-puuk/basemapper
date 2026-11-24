@@ -194,6 +194,12 @@ pub struct View {
 }
 
 impl View {
+    /// The true map scale at the centre latitude, as N of 1:N (see
+    /// [`scale_at`]).
+    pub fn scale(&self) -> f64 {
+        scale_at(self.zoom, (self.bounds[1] + self.bounds[3]) / 2.0)
+    }
+
     /// The values basemapper chose because nothing gave them: *decided*
     /// notes (§4.8), shown on request, never interrupting.
     pub fn decided(&self) -> Vec<Note> {
@@ -231,6 +237,15 @@ pub fn lonlat_to_mercator(lon: f64, lat: f64) -> (f64, f64) {
     let lat = lat.clamp(-MAX_LAT, MAX_LAT);
     let r = HALF / std::f64::consts::PI;
     (lon.to_radians() * r, (std::f64::consts::FRAC_PI_4 + lat.to_radians() / 2.0).tan().ln() * r)
+}
+
+/// The true map scale, as N of 1:N, at `zoom` and Web Mercator northing `y`:
+/// the zoom fixes the ground size of a CSS pixel (1/96 inch), so the scale
+/// is the same at any dpi.
+pub fn scale_at(zoom: f64, y: f64) -> f64 {
+    let r = HALF / std::f64::consts::PI;
+    let lat = 2.0 * (y / r).exp().atan() - std::f64::consts::FRAC_PI_2;
+    metres_per_px(zoom) * lat.cos() * CSS_DPI / 0.0254
 }
 
 /// Web Mercator metres per CSS pixel at `zoom` (512 px tiles).
@@ -540,6 +555,64 @@ fn size_or_default(inputs: &ViewInputs, dpi: f64) -> ((u32, u32), (f64, f64), Pr
     }
 }
 
+/// A map CRS other than Web Mercator, as the view needs it: a point in it
+/// (`origin`, in the CRS's units), the same point in Web Mercator, and the
+/// Web Mercator metres per CRS unit there. The host computes these with its
+/// projection library (`sf`, `pyproj`); the view's arithmetic stays here.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct CrsFrame {
+    pub name: String,
+    pub origin: (f64, f64),
+    pub origin_3857: (f64, f64),
+    pub scale: f64,
+}
+
+impl CrsFrame {
+    pub fn new(name: impl Into<String>, origin: (f64, f64), origin_3857: (f64, f64), scale: f64) -> Result<CrsFrame, BasemapError> {
+        let finite = [origin.0, origin.1, origin_3857.0, origin_3857.1, scale].iter().all(|v| v.is_finite());
+        if !finite || scale <= 0.0 {
+            return Err(invalid("a CRS frame needs a finite origin and a scale > 0"));
+        }
+        Ok(CrsFrame { name: name.into(), origin, origin_3857, scale })
+    }
+
+    fn to_3857(&self, b: [f64; 4]) -> [f64; 4] {
+        let (o, m, k) = (self.origin, self.origin_3857, self.scale);
+        [m.0 + (b[0] - o.0) * k, m.1 + (b[1] - o.1) * k, m.0 + (b[2] - o.0) * k, m.1 + (b[3] - o.1) * k]
+    }
+
+    fn from_3857(&self, b: [f64; 4]) -> [f64; 4] {
+        let (o, m, k) = (self.origin, self.origin_3857, self.scale);
+        [o.0 + (b[0] - m.0) / k, o.1 + (b[1] - m.1) / k, o.0 + (b[2] - m.0) / k, o.1 + (b[3] - m.1) / k]
+    }
+}
+
+/// Resolve a standalone view of a map in `frame`'s CRS. `inputs.bounds` is
+/// in that CRS (`center` stays longitude / latitude). The extent, zoom,
+/// size and dpi are related at the frame's scale, as for a Web Mercator map
+/// at that point. Returns the view (its bounds an equivalent Web Mercator
+/// box) and the extent shown, in the CRS: the area to build the warp mesh
+/// over, for the view's pixel size.
+pub fn resolve_in_crs(inputs: &ViewInputs, frame: &CrsFrame) -> Result<(View, [f64; 4]), BasemapError> {
+    if inputs.bounds.is_none() && inputs.center.is_none() {
+        return Err(invalid(format!(
+            "a map in {} needs an extent: bounds (or a layer), or center with zoom",
+            frame.name
+        )));
+    }
+    if let Some(b) = inputs.bounds {
+        if b[0] >= b[2] {
+            return Err(invalid(format!("bounds in {} must have xmin < xmax", frame.name)));
+        }
+    }
+    let mut equivalent = inputs.clone();
+    equivalent.bounds = inputs.bounds.map(|b| frame.to_3857(b));
+    let view = resolve(&equivalent, &Context::Standalone)?;
+    let crs_bounds = frame.from_3857(view.bounds);
+    Ok((view, crs_bounds))
+}
+
 /// `[west, south, east, north]` in longitude / latitude of the area `span`
 /// (`(width, height)`, in metres on the ground) around `center`, computed on
 /// a sphere of the Earth's mean radius.
@@ -565,5 +638,32 @@ pub fn distance_unit(units: &str) -> Result<f64, BasemapError> {
         "mi" => Ok(1609.344),
         "ft" => Ok(0.3048),
         _ => Err(invalid(format!("around(): units must be \"m\", \"km\", \"mi\" or \"ft\", not {units:?}"))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_crs_frame_relates_the_view_at_its_scale() {
+        // 1 CRS unit = 2 Web Mercator metres at the origin.
+        let frame = CrsFrame::new("TEST:1", (500_000.0, 4_000_000.0), (-12_000_000.0, 5_000_000.0), 2.0).unwrap();
+        let inputs = ViewInputs::new().bounds([499_500.0, 3_999_700.0, 500_500.0, 4_000_300.0]).size(800.0, 600.0, Units::Px);
+        let (v, crs) = resolve_in_crs(&inputs, &frame).unwrap();
+        // The same view as a 2000 x 1200 m Web Mercator box there.
+        let direct = resolve(
+            &ViewInputs::new().bounds([-12_001_000.0, 4_999_400.0, -11_999_000.0, 5_000_600.0]).size(800.0, 600.0, Units::Px),
+            &Context::Standalone,
+        )
+        .unwrap();
+        assert!((v.zoom - direct.zoom).abs() < 1e-12, "{} vs {}", v.zoom, direct.zoom);
+        assert_eq!((v.width, v.height), (800, 600));
+        // The extent shown, in the CRS: 1000 m wide, grown to 4:3 (750 m tall).
+        assert!((crs[2] - crs[0] - 1000.0).abs() < 1e-6 && (crs[3] - crs[1] - 750.0).abs() < 1e-6, "{crs:?}");
+        assert!(((crs[0] + crs[2]) / 2.0 - 500_000.0).abs() < 1e-6);
+        // An extent is required, and the frame is checked.
+        assert!(resolve_in_crs(&ViewInputs::new(), &frame).unwrap_err().to_string().contains("TEST:1"));
+        assert!(CrsFrame::new("x", (0.0, 0.0), (0.0, 0.0), 0.0).is_err());
     }
 }

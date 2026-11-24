@@ -19,20 +19,22 @@ import sys
 # R name -> Python name, for functions both packages are meant to have.
 PAIRS = {
     "basemap": "basemap",
-    "render_basemap_raw": "render_basemap_raw",
+    "style": "style",
+    "provider": "provider",
+    "tiles": "tiles",
+    "wms": "wms",
+    "wmts": "wmts",
+    "around": "around",
+    "outside": "outside",
     "geom_basemap": "geom_basemap",
     "list_layers": "list_layers",
     "get_attribution": "get_attribution",
-    "basemap_provider": "basemap_provider",
     "list_providers": "list_providers",
-    "tile_style": "tile_style",
-    "wms_style": "wms_style",
-    "wmts_style": "wmts_style",
     "tile_cache": "tile_cache",
     "fetch_options": "FetchOptions",
 }
 # Arguments that are each language's own spelling of the same thing.
-LANGUAGE_ONLY = {"...", "m", "self", "x", "ax", "deprecated", "kwargs"}
+LANGUAGE_ONLY = {"...", "m", "self", "x", "ax", "deprecated", "kwargs", "removed", "basemap_args"}
 
 R_SCRIPT = r"""
 suppressMessages(library(basemapper))

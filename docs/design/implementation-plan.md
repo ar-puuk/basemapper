@@ -263,6 +263,75 @@ The warp mesh density for host CRSs (UTM, Albers) is measured in phases
 **Exit:** the contract cases pass from Python; F1 and F4 tests green for
 matplotlib and plotnine; parity check passes for Python.
 
+**Done (2026-11-23):**
+
+- **The model in Python.**
+  - `basemap()` returns an immutable `Basemap`, with view properties (D8) and
+    `set_view` / `set_bounds` returning copies (D5).
+  - Styles are `style()` values with the source helpers `provider()`,
+    `tiles()`, `wms()` and `wmts()`, checked by the core when made: filters,
+    and a catalogue name, form and key.
+  - `render()` returns a `Rendering`: `to_numpy()` (a read-only view of the
+    core's bytes, no extra copy), `save()`, `to_png()`, `to_xarray()`,
+    `bounds`, `crs`, `scale` and `notes`. `render_svg()` is an error outside
+    Web Mercator.
+  - Also `around()`, `outside()` and `FetchOptions`.
+  - Notes: *decided* go to the `basemapper` logger; *adjusted* are
+    `BasemapAdjustment` warnings (once per call site); *problems* are
+    `BasemapProblem` warnings (every time, or an error with
+    `on_error="fail"`). All point at the user's line.
+  - Removed 0.2 names and arguments are errors that name the replacement
+    and link the migration guide.
+- **Plain values, not `#[pyclass]`.** Python objects are frozen dataclasses,
+  turned into core objects by the binding (`py-basemapper/src/lib.rs`) on
+  each call. The core still validates and resolves everything, and the
+  values pickle and compare naturally.
+- **CRS (host side, `_crs.py`).**
+  - Numbers are lon/lat; layers bring their CRS. The map CRS follows D18 /
+    D19.
+  - A map in another CRS is a frame (centre, its Web Mercator position, the
+    local scale) for the new core `view::resolve_in_crs`, then a pyproj mesh
+    with a node every 32 px.
+  - Measured worst interpolation error: 0.003 px (UTM, 140 km), 0.017 px
+    (Albers, 600 km), 0.12 px (Albers, all of CONUS). This settles the mesh
+    density question.
+  - Clips are reprojected with shapely 2's vectorised `transform`.
+- **Plots.** matplotlib `m.add_to(ax)` (alias `add_basemap`) and plotnine
+  `ggplot(df) + m` (alias `geom_basemap`) share one artist on the core's
+  plan.
+  - The device rule D16: a screen is an interactive canvas not saving; a
+    raster export is `_is_saving` at the renderer's dpi; a vector export is a
+    `_vector_renderer` (300 dpi); any other canvas counts as an export at its
+    dpi.
+  - Lon/lat axes need no projection library (the core's mesh).
+  - The credit line uses the core's layout.
+  - D15: a basemap with its own extent, CRS or size is an error in a plot.
+  - plotnine reads a GeoDataFrame plot's CRS from its data.
+- **Core additions.** `CrsFrame` and `resolve_in_crs`; `list_style_layers`;
+  `Basemap::with_inputs`; `View::scale`. `Style::validate` now also checks
+  catalogue names and keys (locally).
+  - A bug fix: a warped rendering's `scale()` read the map CRS's northing as
+    Web Mercator; it now uses the Web Mercator centre.
+- **Tests.** 81, all passing.
+  - The 27 contract cases.
+  - F1 and F4 as regression tests: F1 is now under 2 px, against 46 px in
+    0.2.
+  - The golden images, standalone and through the plot plan.
+  - `test_api`, `test_crs` (alignment in UTM, mesh density), `test_plots`
+    and `test_styles`.
+- **Found, not fixed (outside this phase):** a style whose main source is
+  raster goes through the plain tile compositor, which ignores its other
+  layers (a background, raster paint such as `raster-saturation`) and fetches
+  a source no layer uses. A candidate fix: render such styles through the
+  style renderer, which already draws raster layers.
+- **For phase 5.** The Python user guide (`py-basemapper/user_guide`) still
+  uses the 0.2 API; CI builds the docs only on `main`, `dev` and pull
+  requests, so it waits until then. The removed-name errors link
+  `https://ar-puuk.github.io/basemapper/migrating-to-0.3.html`: the migration
+  guide must be published at that path. `tools/api_parity.py` now pairs the
+  0.3 names (R differs until phase 4); `geom_basemap(crs=)` is a deliberate
+  Python-only argument, since plotnine has no spatial coordinates.
+
 ---
 
 ## Phase 4: the R package as an adapter

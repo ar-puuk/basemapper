@@ -95,7 +95,7 @@ pub mod warp;
 pub use basemap::{Basemap, Crs};
 pub use fetch::{FetchOptions, OnError};
 pub use mask::{Keep, Shape};
-pub use view::{Context, Device, Units, View, ViewInputs};
+pub use view::{Context, CrsFrame, Device, Units, View, ViewInputs};
 pub use warp::{Mesh, Warp};
 #[doc(hidden)]
 pub use bbox::{bbox_from_center, compute_zoom, constrain_view, fit_bounds, RenderRequest, RenderResult, SpatialBounds};
@@ -356,6 +356,18 @@ pub struct LayerFilter {
     pub layers: Option<Vec<String>>,
     pub labels: Labels,
     pub features: Option<Vec<String>>,
+}
+
+/// The layers a [`Style`] draws, in drawing order, with its own filters
+/// applied: every part of a catalogue stack, bottom to top. To list a
+/// style's layers before filtering, give it without filters.
+pub fn list_style_layers(style: &Style) -> Result<Vec<LayerInfo>, BasemapError> {
+    let mut out = Vec::new();
+    for part in style.parts()? {
+        let filter = LayerFilter { layers: part.layers.clone(), labels: part.labels, features: part.features.clone() };
+        out.extend(list_layers(part.input.as_input(), part.auth_token.as_deref(), &filter)?);
+    }
+    Ok(out)
 }
 
 /// A style's layers in drawing order; with a filter, the layers a render

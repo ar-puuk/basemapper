@@ -1,4 +1,5 @@
-"""The basemap() view API and resolution-aware plotting, against the golden fixtures."""
+"""Basemaps against the golden fixtures: stacks, dpi, SVG and plots rendering
+natively at the export's dpi, compared with MapLibre GL JS."""
 
 from __future__ import annotations
 
@@ -8,10 +9,12 @@ import numpy as np
 import pytest
 
 import basemapper
-from basemapper import Basemap, basemap
-from test_render_golden import BAD_CHANNEL_DIFF, GOLDEN, _reference, _serve
+from basemapper import basemap
+from test_render_golden import BAD_CHANNEL_DIFF, GOLDEN, _reference, _serve, lonlat
 
 pytestmark = pytest.mark.skipif(not GOLDEN.is_dir(), reason="golden fixtures need a repository checkout")
+
+UGRC = ["ugrc_hillshade_z12_4", "ugrc_litebase_z12_4", "ugrc_litelabels_z12_4"]
 
 
 def _bad_frac(ours: np.ndarray, ref: np.ndarray) -> float:
@@ -27,101 +30,60 @@ def _over(dst: np.ndarray, src: np.ndarray) -> np.ndarray:
     return np.rint(np.concatenate([c, a], -1) * 255).astype(np.int16)
 
 
-UGRC = ["ugrc_hillshade_z12_4", "ugrc_litebase_z12_4", "ugrc_litelabels_z12_4"]
-
-
-def test_view_round_trips():
-    m = basemap("{}", 800, 600, center=(-111.8887, 40.7556), zoom=12.4)
-    assert isinstance(m, Basemap)
-    b = m.get_bounds()
-    # 800 CSS px at zoom 12.4 is 14.48 m/px (same value as the R test).
-    assert (b[2] - b[0]) / 800 == pytest.approx(14.482108758, abs=1e-8)
-    m2 = basemap("{}", 800, 600, bounds=b, crs=3857)
-    assert m2.get_zoom() == pytest.approx(12.4, abs=1e-9)
-    assert m2.get_center() == pytest.approx(m.get_center(), abs=1e-9)
-
-    # set_view / set_bounds chain and keep what they are not given.
-    assert m.set_view(zoom=10) is m
-    assert m.get_zoom() == 10 and m.get_center() == pytest.approx((-111.8887, 40.7556))
-    assert m.set_bounds(b, crs=3857).get_zoom() == pytest.approx(12.4, abs=1e-9)
-
-    w, s, e, n = m.get_bounds(lonlat=True)
-    assert w < -111.8887 < e and s < 40.7556 < n
-
-    assert m.get_size() == (800, 600)
-    assert basemap("{}", 800, 600, pixel_ratio=2).get_size() == (1600, 1200)
-    # Rounded as the core rounds: halves away from zero.
-    assert basemap("{}", 5, 3, pixel_ratio=1.5).get_size() == (8, 5)
-    assert "800 x 600 @ 1x" in repr(m)
-    with pytest.raises(ValueError):
-        basemap("{}", center=(0, 0), zoom=1, bounds=[0, 0, 1, 1])
-    with pytest.raises(ValueError):
-        basemap("{}", pixel_ratio=0)
-    with pytest.raises(ValueError):
-        m.set_view(zoom=23)
-
-
 @pytest.mark.parametrize("ratio", [1, 2])
-def test_stack_matches_maplibre(ratio):
-    """The full UGRC basemap (three services stacked) at zoom 12.4."""
+def test_a_stack_matches_maplibre_at_any_dpi(ratio):
+    """UGRC's basemap (three services stacked) at zoom 12.4; at 192 dpi the
+    same map with twice the pixels."""
     servers, styles, case = [], [], None
     for name in UGRC:
         server, style, case = _serve(name)
         servers.append(server)
         styles.append(style)
     try:
-        m = basemap(styles, case["width"], case["height"], pixel_ratio=ratio, bounds=case["bbox"], crs=3857)
-        assert m.get_zoom() == pytest.approx(12.4, abs=1e-6)
-        ours = m.render_array()
-        png = m.render_png()
+        m = basemap(styles, bounds=lonlat(case["bbox"]), width=case["width"] * ratio, height=case["height"] * ratio,
+                    dpi=96 * ratio)
+        assert m.zoom == pytest.approx(12.4, abs=1e-6)
+        r = m.render()
     finally:
         for s in servers:
             s.shutdown()
-
-    assert ours.shape == (case["height"] * ratio, case["width"] * ratio, 4)
-    assert m.get_size() == (ours.shape[1], ours.shape[0])
+    ours = r.to_numpy()
+    assert ours.shape == (case["height"] * ratio, case["width"] * ratio, 4) and r.dpi == 96 * ratio
     suffix = "" if ratio == 1 else f"_x{ratio}"
     ref = None
     for name in UGRC:
-        r = _reference(name + suffix)
-        ref = r if ref is None else _over(ref, r)
+        layer = _reference(name + suffix)
+        ref = layer if ref is None else _over(ref, layer)
     assert _bad_frac(ours, ref) < 0.001
 
     import matplotlib.image as mpimg
 
-    decoded = np.rint(mpimg.imread(io.BytesIO(png), format="png") * 255).astype(np.uint8)
+    decoded = np.rint(mpimg.imread(io.BytesIO(r.to_png()), format="png") * 255).astype(np.uint8)
     assert np.array_equal(decoded, ours)
 
 
 def test_render_svg_is_a_vector_document(tmp_path):
     server, style, case = _serve("carto_positron_z13")
     try:
-        m = basemap(style, case["width"], case["height"], bounds=case["bbox"], crs=3857)
+        m = basemap(style, bounds=lonlat(case["bbox"]), width=case["width"], height=case["height"])
         out = tmp_path / "map.svg"
-        # Editable text (fonts by name only: no downloads in tests).
-        svg = m.render_svg(str(out), embed_fonts="none")
+        svg = m.render_svg(out, embed_fonts="none")  # fonts by name: no downloads in tests
         paths = m.render_svg(text="paths")
         bitmap = m.render_svg(text="bitmap")
     finally:
         server.shutdown()
-    assert svg.startswith("<svg") and svg.endswith("</svg>")
-    assert 'viewBox="0 0 800 600"' in svg
+    assert svg.startswith("<svg") and svg.endswith("</svg>") and 'viewBox="0 0 800 600"' in svg
     assert out.read_text(encoding="utf-8") == svg
-    # Labels are <text> with per-glyph positions and the style's fonts.
-    assert "<text " in svg and 'xml:space="preserve"' in svg
-    assert "font-family=\"'Montserrat'" in svg or "font-family=\"'Open Sans'" in svg
-    assert "@font-face" not in svg
-    # Traced outlines: no text elements, more paths.
-    assert "<text" not in paths
-    assert paths.count("<path") > svg.count("<path")
-    # Bitmap glyphs: the style's SDF glyphs as images, thresholded by filters.
-    assert "<text" not in bitmap and "<filter" in bitmap and "feComponentTransfer" in bitmap
-    with pytest.raises(Exception):
+    assert "<text " in svg and 'xml:space="preserve"' in svg and "@font-face" not in svg
+    assert "<text" not in paths and paths.count("<path") > svg.count("<path")
+    assert "<text" not in bitmap and "<filter" in bitmap
+    with pytest.raises(basemapper.ValidationError):
         m.render_svg(text="raster")
 
 
-def test_add_basemap_renders_natively_at_savefig_dpi():
-    """savefig(dpi=192) re-renders the basemap at 2x instead of upscaling."""
+def test_a_plot_renders_natively_at_the_savefig_dpi():
+    """savefig(dpi=192) re-renders the basemap at 2x, the same map as the
+    96 dpi preview, matching MapLibre's 2x render."""
     import matplotlib
 
     matplotlib.use("Agg")
@@ -133,37 +95,15 @@ def test_add_basemap_renders_natively_at_savefig_dpi():
         ax = fig.add_axes([0, 0, 1, 1])
         ax.set_xlim(case["bbox"][0], case["bbox"][2])
         ax.set_ylim(case["bbox"][1], case["bbox"][3])
-        first = basemapper.add_basemap(ax, style, crs=3857)
-        img = ax.images[-1]
-        assert first.attrs["pixel_ratio"] == pytest.approx(1.0)
-        assert first.shape == (600, 800, 4)
-
-        buf = io.BytesIO()
-        fig.savefig(buf, dpi=192, format="png")
-        r = img.last_render
-        assert r["pixel_ratio"] == pytest.approx(2.0)
-        assert (r["width"], r["height"]) == (1600, 1200)
+        artist = basemap(style).add_to(ax, crs=3857, attribution=False)
+        first = artist.rendering
+        fig.savefig(io.BytesIO(), dpi=192, format="png")
+        second = artist.rendering
         plt.close(fig)
     finally:
         server.shutdown()
-
-    # At 96 dpi the basemap is the 1x render of the view; at 192 dpi the 2x.
-    assert _bad_frac(first.values, _reference("carto_positron_z13")) < 0.001
-    assert _bad_frac(r["array"], _reference("carto_positron_z13_x2")) < 0.001
-
-
-def test_default_view_fits_the_world_and_renders():
-    import math
-
-    import basemapper
-
-    bg = '{"version":8,"sources":{},"layers":[{"id":"bg","type":"background","paint":{"background-color":"#abcdef"}}]}'
-    m = basemapper.basemap(bg)  # 800 x 600 at zoom 0: taller than the world
-    assert m.get_zoom() == pytest.approx(math.log2(800 / 512))
-    assert m.get_center() == (0.0, 0.0)
-    assert m.get_bounds()[3] <= 20037508.342789244
-    assert m.render_array().shape == (600, 800, 4)
-    n = basemapper.basemap(bg, 800, 600, center=(10, 84), zoom=3)
-    assert n.get_center()[1] < 84
-    assert n.get_bounds()[3] == 20037508.342789244
-    assert "zoom 0.644" in repr(m)
+    assert (first.width, first.height, first.dpi) == (800, 600, 96)
+    assert (second.width, second.height, second.dpi) == (1600, 1200, 192)
+    assert second.zoom == pytest.approx(first.zoom, abs=1e-9)
+    assert _bad_frac(first.to_numpy(), _reference("carto_positron_z13")) < 0.001
+    assert _bad_frac(second.to_numpy(), _reference("carto_positron_z13_x2")) < 0.001

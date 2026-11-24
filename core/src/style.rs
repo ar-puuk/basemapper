@@ -172,9 +172,20 @@ impl Style {
     }
 
     /// Check the filters without fetching anything.
+    /// Check the filters, and a catalogue basemap's name, form and key
+    /// (all local: nothing is fetched).
     pub fn validate(&self) -> Result<(), BasemapError> {
         let (_, features) = split_label_filter(self.features.as_deref().unwrap_or(&[]))?;
-        crate::features::validate_features(&features)
+        crate::features::validate_features(&features)?;
+        let catalogue = |name: &str, form: Option<crate::TileKind>, tiles: Option<String>| {
+            let opts = crate::providers::ProviderOptions { kind: form, api_key: self.key.clone(), tiles, ..Default::default() };
+            crate::providers::basemap_provider_styles(name, &opts).map(|_| ())
+        };
+        match &self.source {
+            Source::Provider { name, form, tiles } => catalogue(name, *form, tiles.clone()),
+            Source::Auto(s) if crate::providers::find_provider(s).is_some() => catalogue(s, None, None),
+            _ => Ok(()),
+        }
     }
 
     /// The style's parts, bottom to top (several for a catalogue stack), each
