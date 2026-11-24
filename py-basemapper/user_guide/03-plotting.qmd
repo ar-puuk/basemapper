@@ -30,6 +30,7 @@ basemap's artist. Plain axes carry no CRS, so give it the data's with
 same in one call:
 
 ```{python}
+#| fig-alt: "matplotlib choropleth of North Carolina's counties by sudden infant deaths per 1,000 births in 1979, in orange-red shades over the light grey OpenFreeMap Positron basemap, with a colour bar."
 fig, ax = plt.subplots(figsize=(8, 3.6))
 nc.assign(rate=nc.SID79 / nc.BIR79 * 1000).plot(
     ax=ax, column="rate", cmap="OrRd", alpha=0.8, edgecolor="white", linewidth=0.2,
@@ -46,6 +47,7 @@ lines up with data in any CRS. Here North Carolina's state plane
 (EPSG:32119), with the counties' centroids sized by births:
 
 ```{python}
+#| fig-alt: "North Carolina in its state plane projection: county outlines and orange circles at the counties' centres sized by births in 1974, over Esri's World Topo Map, warped to the projection so roads and towns line up with the counties."
 nc_sp = nc.to_crs(32119)
 fig, ax = plt.subplots(figsize=(8, 3.6))
 nc_sp.boundary.plot(ax=ax, color="0.15", linewidth=0.3)
@@ -61,6 +63,7 @@ with only some of its features. Filters belong to the style (see [Stacking,
 labels and features](04-layers.qmd)); `alpha` fades the layer:
 
 ```{python}
+#| fig-alt: "North Carolina's counties coloured by the share of births to non-white mothers in 1974, on a viridis scale, over a faded OpenFreeMap Liberty basemap without labels, roads or rail."
 quiet = bm.style("OpenFreeMap.Liberty", features=["-labels", "-roads", "-rail"])
 
 fig, ax = plt.subplots(figsize=(8, 3.6))
@@ -80,6 +83,7 @@ follows (an *effective dpi*, reported once as a `BasemapAdjustment`), and
 the style's labels are drawn at that dpi.
 
 ```{python}
+#| fig-alt: "Central North Carolina around Raleigh, Durham and Cary in OpenFreeMap Liberty at zoom 8: county outlines over highways, lakes and town names."
 fig, ax = plt.subplots(figsize=(8, 4.5))
 nc.boundary.plot(ax=ax, color="0.2", linewidth=0.3)
 ax.set_xlim(-80, -77.5)
@@ -94,6 +98,7 @@ The basemap follows the axes, so setting their limits zooms it in, with
 detail to match:
 
 ```{python}
+#| fig-alt: "Satellite imagery of North Carolina's Outer Banks and Pamlico Sound, with yellow county outlines and white county names such as Dare, Hyde and Tyrrell."
 fig, ax = plt.subplots(figsize=(8, 5.2))
 nc.boundary.plot(ax=ax, color="yellow", linewidth=1)
 for _, row in nc.iterrows():
@@ -113,6 +118,7 @@ with `bm.outside()`. In a plot, the plot still gives the extent: the clip is
 a mask. Here the state in colour over a faded copy:
 
 ```{python}
+#| fig-alt: "Satellite imagery of North Carolina in full colour inside the state's counties and faded outside them, with thin white county outlines."
 fig, ax = plt.subplots(figsize=(8, 3.6))
 nc.boundary.plot(ax=ax, color="white", linewidth=0.2)
 bm.basemap("Esri.WorldImagery").add_to(ax, crs=nc.crs, alpha=0.35, attribution=False)
@@ -126,6 +132,7 @@ The credit line is on by default. `attribution=False` turns it off;
 `get_attribution()` returns the text, for a caption:
 
 ```{python}
+#| fig-alt: "North Carolina's county outlines in blue over Esri's light grey canvas basemap, with the provider's credit as small text below the map instead of in its corner."
 gray = bm.basemap("Esri.WorldGrayCanvas")
 
 fig, ax = plt.subplots(figsize=(8, 3.6))
@@ -143,6 +150,7 @@ coordinates: the basemap reads the CRS of a GeoDataFrame's data, else takes
 builds one from `basemap()`'s arguments:
 
 ```{python}
+#| fig-alt: "plotnine map of North Carolina's counties in shades of blue by births in 1979, with white borders, over the light grey OpenFreeMap Positron basemap, and a legend."
 from plotnine import aes, geom_map, ggplot, scale_fill_distiller, theme, theme_void
 
 (
@@ -159,6 +167,7 @@ Raster and vector basemaps, stacks and filters work the same way; here
 shaded relief under a vector basemap's labels:
 
 ```{python}
+#| fig-alt: "plotnine map of North Carolina: Esri's shaded relief with OpenFreeMap Liberty's place labels on top, county outlines, and orange dots at the counties' centres sized by births in 1974, with a legend."
 from plotnine import geom_point, scale_size_area
 
 relief = ["Esri.WorldShadedRelief", bm.style("OpenFreeMap.Liberty", features="labels")]

@@ -28,6 +28,7 @@ See the [home page](../index.html) for conda.
 zoom, and the image's size. In a notebook, a basemap shows the map:
 
 ```{python}
+#| fig-alt: "Downtown Salt Lake City in the light grey OpenFreeMap Positron style at zoom 12.4: streets, parks and place names."
 import basemapper as bm
 
 m = bm.basemap("OpenFreeMap.Positron", center=(-111.8887, 40.7556), zoom=12.4, width=720, height=405)
@@ -69,6 +70,7 @@ the zoom that fits it (here North Carolina's counties, a GeoDataFrame from
 [geodatasets](https://geodatasets.readthedocs.io)):
 
 ```{python}
+#| fig-alt: "North Carolina in the OpenFreeMap Liberty style at the zoom that fits the state: cities, highways, rivers and the coast."
 import geopandas as gpd
 import geodatasets
 
@@ -85,6 +87,7 @@ bm.basemap("OpenFreeMap.Liberty", bounds=nc, zoom=6).size
 `around()` gives an area by its size on the ground:
 
 ```{python}
+#| fig-alt: "A 12 by 6 km area around Salt Lake City in the OpenFreeMap Liberty style: streets, parks and neighbourhood names."
 bm.basemap("OpenFreeMap.Liberty", bounds=bm.around((-111.89, 40.76), (12, 6), units="km"), width=720, height=360)
 ```
 
@@ -150,6 +153,7 @@ A map is drawn in Web Mercator, as every web map, unless it says otherwise:
 The map is then warped into it:
 
 ```{python}
+#| fig-alt: "North Carolina in the OpenFreeMap Liberty style, drawn in its state plane projection (EPSG:32119): the basemap warped from Web Mercator into that CRS."
 nc_sp = nc.to_crs(32119)   # North Carolina's state plane
 bm.basemap("OpenFreeMap.Liberty", bounds=nc_sp, width=720, height=300)
 ```
@@ -162,6 +166,7 @@ none); the basemap renders when the figure is drawn, lines up with the data
 in any CRS, and credits the provider in the corner:
 
 ```{python}
+#| fig-alt: "matplotlib map of North Carolina's counties coloured by births in 1974 on a viridis scale, with a colour bar, over the light grey OpenFreeMap Positron basemap."
 import matplotlib.pyplot as plt
 
 fig, ax = plt.subplots(figsize=(8, 3.6))
@@ -173,6 +178,7 @@ ax.set_axis_off()
 In plotnine, add it like a layer:
 
 ```{python}
+#| fig-alt: "plotnine map of North Carolina's counties shaded in blues by sudden infant deaths in 1974, over Esri's light grey canvas basemap, with a legend."
 from plotnine import aes, geom_map, ggplot, scale_fill_cmap, theme_void, theme
 
 (
@@ -193,6 +199,7 @@ from plotnine import aes, geom_map, ggplot, scale_fill_cmap, theme_void, theme
 everywhere else. An inside clip also frames the map on the layer:
 
 ```{python}
+#| fig-alt: "Wake County, North Carolina, in the OpenFreeMap Liberty style, clipped to the county: Raleigh's streets inside its outline and blank outside."
 wake = nc[nc["NAME"] == "Wake"]
 bm.basemap("OpenFreeMap.Liberty", clip=wake, width=720, height=400)
 ```

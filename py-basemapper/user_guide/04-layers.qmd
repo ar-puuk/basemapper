@@ -36,6 +36,7 @@ icons), `"labels"` keeps only them, on a transparent background, to go over
 another map.
 
 ```{python}
+#| fig-alt: "Downtown Salt Lake City in the OpenFreeMap Liberty style without labels: streets, highways, the Jordan River and parks, but no names, road shields or icons."
 view(bm.style("OpenFreeMap.Liberty", features="-labels"))
 ```
 
@@ -45,6 +46,7 @@ A list of styles is drawn bottom to top, and each style has its own filters.
 Satellite imagery under a vector basemap's labels:
 
 ```{python}
+#| fig-alt: "Satellite imagery of Salt Lake City with OpenFreeMap Liberty's labels on top: street, park and place names over the photo."
 hybrid = ["Esri.WorldImagery", bm.style("OpenFreeMap.Liberty", features="labels")]
 view(hybrid)
 ```
@@ -54,6 +56,7 @@ The Utah Geospatial Resource Center's *Lite* basemap is a hillshade, a base
 map and labels; its catalogue name is one style that stands for the three:
 
 ```{python}
+#| fig-alt: "The Salt Lake Valley and the Wasatch Front in UGRC's Lite basemap: a hillshade, a light base map and labels, stacked."
 bm.basemap("UGRC.Lite", center=(-111.75, 40.62), zoom=10.5, width=720, height=405)
 ```
 
@@ -61,6 +64,7 @@ Its filters treat the three services as one map: without labels, the labels
 service drops out, and the base map's own labels go too.
 
 ```{python}
+#| fig-alt: "The same view of the Salt Lake Valley in UGRC's Lite basemap without labels: the hillshade and base map only."
 bm.basemap(bm.style("UGRC.Lite", features="-labels"), center=(-111.75, 40.62), zoom=10.5,
            width=720, height=405)
 ```
@@ -73,10 +77,12 @@ terrain and labels. Plain names keep, `"-name"` drops, and the labels filter
 combines with the others: `["roads", "labels"]` keeps the road labels.
 
 ```{python}
+#| fig-alt: "Downtown Salt Lake City in OpenFreeMap Liberty with only its background, water, parks and roads: no buildings, rail or labels."
 view(bm.style("OpenFreeMap.Liberty", features=["background", "water", "parks", "roads"]))
 ```
 
 ```{python}
+#| fig-alt: "Downtown Salt Lake City in OpenFreeMap Liberty without roads, rail or points of interest: only the Jordan River, parks and the city's name remain."
 view(bm.style("OpenFreeMap.Liberty", features=["-roads", "-rail", "-poi"]))
 ```
 
@@ -95,6 +101,7 @@ exact control, `layers` keeps layers by id, or drops them with `"-"`; `*`
 and `?` are wildcards:
 
 ```{python}
+#| fig-alt: "Downtown Salt Lake City in OpenFreeMap Liberty with its road, bridge and tunnel layers dropped: the street names remain, floating where the streets were."
 view(bm.style("OpenFreeMap.Liberty", layers=["-road_*", "-bridge_*", "-tunnel_*"]))
 ```
 
@@ -111,6 +118,7 @@ img = m.render()
 Plots take the same styles:
 
 ```{python}
+#| fig-alt: "plotnine map of North Carolina's county outlines over Esri's shaded relief, with OpenFreeMap Liberty's water in blue on top: mountain ridges in the west; lakes, rivers, the sounds and the Atlantic in the east."
 import geodatasets
 import geopandas as gpd
 from plotnine import geom_map, ggplot, theme, theme_void

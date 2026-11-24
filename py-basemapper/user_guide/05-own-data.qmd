@@ -17,6 +17,7 @@ import basemapper as bm
 An XYZ template, as raster tiles:
 
 ```{python}
+#| fig-alt: "The Wasatch Mountains east of Salt Lake City in OpenTopoMap's raster tiles: contour lines, shaded peaks and canyons around Alta and Brighton."
 bm.basemap("https://tile.opentopomap.org/{z}/{x}/{y}.png", center=(-111.65, 40.60), zoom=11,
            width=720, height=405)
 ```
@@ -28,6 +29,7 @@ range requests, or from a local file. Raster archives draw as they are;
 here a USGS topographic map of Mount Whitney, its extent given:
 
 ```{python}
+#| fig-alt: "A USGS topographic map of Mount Whitney from a raster PMTiles archive: contour lines, lakes and the John Muir Trail in red."
 bm.basemap("https://pmtiles.io/usgs-mt-whitney-8-15-webp-512.pmtiles",
            bounds=[-118.3198, 36.5611, -118.2607, 36.5930], width=720, height=405)
 ```
@@ -35,6 +37,7 @@ bm.basemap("https://pmtiles.io/usgs-mt-whitney-8-15-webp-512.pmtiles",
 Vector archives get a default style over every source layer:
 
 ```{python}
+#| fig-alt: "Central Florence from a vector PMTiles archive in the default style built for it: every source layer in its own bright colour, the Arno in red, buildings in orange, streets in blue-grey."
 firenze = "https://pmtiles.io/protomaps(vector)ODbL_firenze.pmtiles"
 bm.basemap(firenze, center=(11.255, 43.773), zoom=13.5, width=720, height=405)
 ```
@@ -42,6 +45,7 @@ bm.basemap(firenze, center=(11.255, 43.773), zoom=13.5, width=720, height=405)
 `tiles()` sets which source layers it draws, and their paint:
 
 ```{python}
+#| fig-alt: "Central Florence from the same archive with only a few source layers (earth, water, landuse, roads, buildings): grey streets and building outlines on beige."
 print(sorted({l["source_layer"] for l in bm.list_layers(firenze)}))
 
 styled = bm.style(bm.tiles(
@@ -63,6 +67,7 @@ Florence archive as their source
 and a style file's path works as a style:
 
 ```{python}
+#| fig-alt: "Central Florence in the Protomaps light style from the PMTiles archive: the Arno, streets, buildings and place names."
 def florence(s):
     return bm.basemap(s, center=(11.2551, 43.7710), zoom=15.2, width=720, height=405)
 
@@ -70,6 +75,7 @@ florence("styles/protomaps-light.json")
 ```
 
 ```{python}
+#| fig-alt: "Central Florence in the Protomaps dark style: the same map on a dark background."
 florence("styles/protomaps-dark.json")
 ```
 
@@ -84,6 +90,7 @@ A TileJSON URL works the same way; this is OpenFreeMap's planet tileset,
 with the default vector style:
 
 ```{python}
+#| fig-alt: "Downtown Salt Lake City from OpenFreeMap's planet tileset in the default style built for it: streets in orange and red, land use in purple and yellow."
 bm.basemap("https://tiles.openfreemap.org/planet", center=(-111.8887, 40.7556), zoom=12,
            width=720, height=405)
 ```
@@ -95,6 +102,7 @@ own tiles, which must use the same schema (OpenFreeMap's styles use
 OpenMapTiles): self-hosted tiles, or an extract for offline use.
 
 ```{python}
+#| fig-alt: "Downtown Salt Lake City in the OpenFreeMap Positron style, drawn from OpenFreeMap's planet tileset given as the tiles."
 own = bm.style(bm.provider("OpenFreeMap.Positron", tiles="https://tiles.openfreemap.org/planet"))
 bm.basemap(own, center=(-111.8887, 40.7556), zoom=12, width=720, height=405)
 ```
@@ -105,6 +113,7 @@ bm.basemap(own, center=(-111.8887, 40.7556), zoom=12, width=720, height=405)
 terrestris's OpenStreetMap WMS:
 
 ```{python}
+#| fig-alt: "Colour shaded relief of North America from terrestris's SRTM30 WMS: green lowlands in the east, brown mountains in the west."
 relief = bm.style(bm.wms("https://ows.terrestris.de/osm/service", layers="SRTM30-Colored-Hillshade"))
 bm.basemap(relief, bounds=[-130, 20, -60, 55], width=720, height=360)
 ```
@@ -114,6 +123,7 @@ bm.basemap(relief, bounds=[-130, 20, -60, 55], width=720, height=360)
 Any of these goes in a plot:
 
 ```{python}
+#| fig-alt: "Western North Carolina's county outlines in black over OpenTopoMap's topographic tiles, slightly faded: brown shaded mountains around Asheville, roads and towns."
 import geodatasets
 import geopandas as gpd
 import matplotlib.pyplot as plt
