@@ -131,12 +131,12 @@ pub struct RenderOutput {
 /// `height` are CSS pixels; tiles are placed in device pixels (`ratio`).
 fn prepare(sources: &SourceTiles, bbox: [f64; 4], width: u32, height: u32, ratio: f64) -> (f64, Placed) {
     let zoom = scale_zoom(bbox, width);
-    let placed = sources
-        .vector
-        .iter()
-        .map(|(id, tiles)| (id.clone(), place_tiles(tiles, bbox, width, height, ratio, zoom)))
-        .collect();
-    (zoom, placed)
+    (zoom, place_all(sources, bbox, width, height, ratio, zoom))
+}
+
+/// Every vector source's tiles placed in the view at `ratio`.
+fn place_all(sources: &SourceTiles, bbox: [f64; 4], width: u32, height: u32, ratio: f64, zoom: f64) -> Placed {
+    sources.vector.iter().map(|(id, tiles)| (id.clone(), place_tiles(tiles, bbox, width, height, ratio, zoom))).collect()
 }
 
 fn place_tiles(
@@ -1338,6 +1338,87 @@ mod tests {
 
 // ── SVG output ───────────────────────────────────────────────────────────────
 
+/// How far (CSS pixels) the clip of an opaque path reaches past its tile's
+/// edge into the neighbouring tile: half a pixel each side, so neighbours
+/// overlap by one CSS pixel (at least one device pixel at any dpi from 96).
+const SVG_TILE_OVERLAP: f64 = 0.5;
+
+/// Paths of one tile, in drawing order, grouped under the clip each needs:
+/// runs of opaque paths under the overlapping clip, runs of translucent
+/// ones under the tile's exact square (overlapping would darken a strip).
+/// A layer whose paths all share one opacity is drawn instead as opaque
+/// paths under the overlapping clips inside one group with that opacity
+/// (see [`uniform_alpha`]): the tiles then overlap without darkening.
+#[derive(Default)]
+struct TileGroups {
+    runs: Vec<(bool, String)>,
+    /// The opacities of the paths, as written.
+    alphas: std::collections::BTreeSet<String>,
+    /// Whether a path is filled with a pattern (whose image may be
+    /// translucent, so it never overlaps).
+    patterned: bool,
+}
+
+impl TileGroups {
+    /// Where the next path, of opacity `alpha`, goes.
+    fn of(&mut self, alpha: f64) -> &mut String {
+        self.alphas.insert(svg::alpha(alpha.min(1.0)));
+        self.run(alpha >= 1.0)
+    }
+
+    /// Where the next pattern-filled path goes.
+    fn of_pattern(&mut self) -> &mut String {
+        self.patterned = true;
+        self.run(false)
+    }
+
+    /// The current run when it has the same clip, else a new run.
+    fn run(&mut self, opaque: bool) -> &mut String {
+        if self.runs.last().map_or(true, |r| r.0 != opaque) {
+            self.runs.push((opaque, String::new()));
+        }
+        &mut self.runs.last_mut().expect("a run").1
+    }
+
+    /// The runs, clipped, for tile `i` of the source `prefix`. With the
+    /// layer's `uniform` opacity, every path is written opaque under the
+    /// overlapping clip (the layer's group carries the opacity).
+    fn write(&self, out: &mut String, prefix: &str, i: usize, uniform: Option<&str>) {
+        use std::fmt::Write as _;
+        for (opaque, paths) in self.runs.iter().filter(|r| !r.1.is_empty()) {
+            let clip = if *opaque || uniform.is_some() { 'o' } else { 't' };
+            match uniform {
+                Some(a) => {
+                    let paths = paths.replace(&format!(r#"-opacity="{a}""#), r#"-opacity="1""#);
+                    let _ = write!(out, r#"<g clip-path="url(#{prefix}{clip}{i})">{paths}</g>"#);
+                }
+                None => {
+                    let _ = write!(out, r#"<g clip-path="url(#{prefix}{clip}{i})">{paths}</g>"#);
+                }
+            }
+        }
+    }
+}
+
+/// The opacity every path of a layer's tiles shares, when it is below 1
+/// and no path is pattern-filled: the layer is then drawn opaque in a group
+/// of that opacity. Overlapping features of such a layer are blended once,
+/// not twice as MapLibre blends them (rare in a basemap layer: its fills
+/// rarely overlap each other).
+fn uniform_alpha<'a>(groups: impl IntoIterator<Item = &'a TileGroups>) -> Option<String> {
+    let mut alphas = std::collections::BTreeSet::new();
+    for g in groups {
+        if g.patterned {
+            return None;
+        }
+        alphas.extend(g.alphas.iter().cloned());
+    }
+    match alphas.len() {
+        1 => alphas.into_iter().next().filter(|a| a != "1"),
+        _ => None,
+    }
+}
+
 /// One style rendered as SVG fragments (ids prefixed so several styles can
 /// share one document).
 pub struct SvgParts {
@@ -1349,7 +1430,11 @@ pub struct SvgParts {
 /// Render `tiles` with `style` as vector SVG: the same view, tile clipping,
 /// evaluated style values and label placement as [`render`], written as
 /// paths instead of pixels. Labels are glyph outlines traced from the
-/// style's SDF glyphs at the shader's edge threshold.
+/// style's SDF glyphs at the shader's edge threshold. Layers that stay
+/// raster (raster, hillshade, patterned lines and extrusions) are drawn at
+/// `raster_ratio` device pixels per CSS pixel (the output's dpi / 96) and
+/// embedded at the map's CSS size, so they are not enlarged when viewed.
+#[allow(clippy::too_many_arguments)]
 pub fn render_svg(
     style: &Json,
     sources: &SourceTiles,
@@ -1360,12 +1445,33 @@ pub fn render_svg(
     id_prefix: &str,
     text_mode: super::fonts::SvgText,
     fonts: Option<&super::fonts::SvgFonts>,
+    raster_ratio: f64,
 ) -> Result<SvgParts, String> {
     use std::fmt::Write as _;
     let (zoom, placed) = prepare(sources, bbox, width, height, 1.0);
+    // Layers that stay raster: drawn at the output's device pixels.
+    let rr = if raster_ratio.is_finite() && raster_ratio > 0.0 { raster_ratio } else { 1.0 };
+    let (dw, dh) = (device_px(width, rr), device_px(height, rr));
+    let embed = |out: &mut String, lfb: Framebuffer, opacity: Option<f64>| {
+        if lfb.px.iter().any(|p| p[3] > 0 || p[0] > 0 || p[1] > 0 || p[2] > 0) {
+            let px = lfb.into_straight_rgba();
+            let op = opacity.map(|o| format!(r#" opacity="{}""#, svg::alpha(o))).unwrap_or_default();
+            let _ = write!(
+                out,
+                r#"<image width="{width}" height="{height}" preserveAspectRatio="none"{op} href="{}"/>"#,
+                svg::png_data_uri(dw, dh, &px)
+            );
+        }
+    };
     let placement = symbol::place(style, &symbol_tiles(&placed), assets, zoom, width as f64, height as f64);
     let mut defs = String::new();
-    // Tile clip paths per source: "{prefix}{source number}t{tile index}".
+    // Tile clip paths per source: "{prefix}{source number}t{tile index}",
+    // the tile's square as MapLibre's stencil clips it, and "...o{index}",
+    // that square widened by SVG_TILE_OVERLAP on every side. Opaque paths
+    // use the wider one: neighbouring tiles then overlap, so a viewer that
+    // antialiases clip edges (any PDF viewer) shows no hairline between
+    // tiles. Translucent paths keep the exact square, where overlapping
+    // would darken a strip.
     let mut source_ids: Vec<&String> = placed.keys().collect();
     source_ids.sort();
     let clip_prefix: std::collections::HashMap<&str, String> =
@@ -1380,6 +1486,15 @@ pub fn render_svg(
                 svg::num(pt.clip.y0),
                 svg::num(pt.clip.x1 - pt.clip.x0),
                 svg::num(pt.clip.y1 - pt.clip.y0)
+            );
+            let o = SVG_TILE_OVERLAP;
+            let _ = write!(
+                defs,
+                r#"<clipPath id="{cp}o{i}"><rect x="{}" y="{}" width="{}" height="{}" shape-rendering="crispEdges"/></clipPath>"#,
+                svg::num(pt.clip.x0 - o),
+                svg::num(pt.clip.y0 - o),
+                svg::num(pt.clip.x1 - pt.clip.x0 + 2.0 * o),
+                svg::num(pt.clip.y1 - pt.clip.y0 + 2.0 * o)
             );
         }
     }
@@ -1410,12 +1525,10 @@ pub fn render_svg(
             "fill" => svg_fill(&mut out, &mut defs, layer, zoom, layer_tiles(&placed, layer), &layer_clip(layer), assets, &mut pattern_ids),
             "line" if layer["paint"].get("line-pattern").map_or(false, |v| !v.is_null()) => {
                 // Patterned lines stay raster: the layer drawn alone, embedded.
-                let mut lfb = Framebuffer::new(width as usize, height as usize);
-                draw_line_layer(&mut lfb, layer, zoom, layer_tiles(&placed, layer), 1.0, assets);
-                if lfb.px.iter().any(|p| p[3] > 0 || p[0] > 0 || p[1] > 0 || p[2] > 0) {
-                    let px = lfb.into_straight_rgba();
-                    let _ = write!(out, r#"<image width="{width}" height="{height}" href="{}"/>"#, svg::png_data_uri(width, height, &px));
-                }
+                let placed_rr = place_all(sources, bbox, width, height, rr, zoom);
+                let mut lfb = Framebuffer::new(dw as usize, dh as usize);
+                draw_line_layer(&mut lfb, layer, zoom, layer_tiles(&placed_rr, layer), rr, assets);
+                embed(&mut out, lfb, None);
             }
             "line" => svg_line(&mut out, layer, zoom, layer_tiles(&placed, layer), &layer_clip(layer)),
             "circle" => svg_circle(&mut out, layer, zoom, layer_tiles(&placed, layer)),
@@ -1423,12 +1536,11 @@ pub fn render_svg(
                 let view = ExtrusionView::new(style, bbox, width, height, 1.0, zoom);
                 if layer["paint"].get("fill-extrusion-pattern").map_or(false, |v| !v.is_null()) {
                     // Patterned extrusions stay raster: the layer drawn alone, embedded.
-                    let mut lfb = Framebuffer::new(width as usize, height as usize);
-                    draw_fill_extrusion_layer(&mut lfb, layer, zoom, layer_tiles(&placed, layer), &view, assets, &mut depth3d);
-                    if lfb.px.iter().any(|p| p[3] > 0 || p[0] > 0 || p[1] > 0 || p[2] > 0) {
-                        let px = lfb.into_straight_rgba();
-                        let _ = write!(out, r#"<image width="{width}" height="{height}" href="{}"/>"#, svg::png_data_uri(width, height, &px));
-                    }
+                    let view_rr = ExtrusionView::new(style, bbox, width, height, rr, zoom);
+                    let placed_rr = place_all(sources, bbox, width, height, rr, zoom);
+                    let mut lfb = Framebuffer::new(dw as usize, dh as usize);
+                    draw_fill_extrusion_layer(&mut lfb, layer, zoom, layer_tiles(&placed_rr, layer), &view_rr, assets, &mut depth3d);
+                    embed(&mut out, lfb, None);
                 } else {
                     svg_fill_extrusion(&mut out, layer, zoom, layer_tiles(&placed, layer), &view);
                 }
@@ -1438,12 +1550,12 @@ pub fn render_svg(
                 if let Some(rt) = layer["source"].as_str().and_then(|s| sources.raster.get(s)) {
                     let ctx = Ctx { zoom, feature: None };
                     let op = Prop::new(layer["paint"].get("raster-opacity"), Kind::Number, zoom).num(&ctx, 1.0);
-                    if let Some(img) = raster_image(rt, bbox, width as usize, height as usize, (width, height), 1.0) {
+                    if let Some(img) = raster_image(rt, bbox, dw as usize, dh as usize, (width, height), rr) {
                         let _ = write!(
                             out,
-                            r#"<image width="{width}" height="{height}" opacity="{}" href="{}"/>"#,
+                            r#"<image width="{width}" height="{height}" preserveAspectRatio="none" opacity="{}" href="{}"/>"#,
                             svg::alpha(op.clamp(0.0, 1.0)),
-                            svg::png_data_uri(width, height, img.as_raw())
+                            svg::png_data_uri(dw, dh, img.as_raw())
                         );
                     }
                 }
@@ -1451,13 +1563,10 @@ pub fn render_svg(
             "hillshade" => {
                 // Shading stays raster: the layer drawn alone, embedded.
                 if let Some(dem) = layer["source"].as_str().and_then(|s| sources.dem.get(s)) {
-                    let mut lfb = Framebuffer::new(width as usize, height as usize);
+                    let mut lfb = Framebuffer::new(dw as usize, dh as usize);
                     let nearest = super::hillshade::source_nearest(style, layer["source"].as_str().unwrap_or(""), zoom);
-                    super::hillshade::draw_layer(&mut lfb, layer, zoom, dem, bbox, width, height, 1.0, nearest);
-                    if lfb.px.iter().any(|p| p[3] > 0 || p[0] > 0 || p[1] > 0 || p[2] > 0) {
-                        let px = lfb.into_straight_rgba();
-                        let _ = write!(out, r#"<image width="{width}" height="{height}" href="{}"/>"#, svg::png_data_uri(width, height, &px));
-                    }
+                    super::hillshade::draw_layer(&mut lfb, layer, zoom, dem, bbox, width, height, rr, nearest);
+                    embed(&mut out, lfb, None);
                 }
             }
             "symbol" => symbol::svg_layer(&mut out, &mut defs, layer, layer_idx, &placement, assets, width as usize, height as usize, id_prefix, text_mode, fonts),
@@ -1541,10 +1650,9 @@ fn svg_fill(
         };
     let outline_beneath = opaque && !outline.is_set() && !pattern.is_set();
 
-    let mut fills = String::new();
-    let mut outlines = String::new();
-    for (i, pt) in placed.iter().enumerate() {
-        let (mut gf, mut go) = (String::new(), String::new());
+    let mut tiles: Vec<(TileGroups, TileGroups)> = Vec::with_capacity(placed.len());
+    for pt in placed {
+        let (mut gf, mut go) = (TileGroups::default(), TileGroups::default());
         for (f, scale) in features(layer, pt, zoom) {
             let ctx = Ctx { zoom, feature: Some(f) };
             let op = opacity.num(&ctx, 1.0);
@@ -1559,7 +1667,8 @@ fn svg_fill(
                     continue;
                 }
                 for poly in &polys {
-                    let _ = write!(gf, r#"<path d="{}" fill="{paint}" fill-opacity="{}"/>"#, svg::path_data(poly, true), svg::alpha(op.min(1.0)));
+                    // Pattern images may be translucent: the exact clip.
+                    let _ = write!(gf.of_pattern(), r#"<path d="{}" fill="{paint}" fill-opacity="{}"/>"#, svg::path_data(poly, true), svg::alpha(op.min(1.0)));
                 }
                 if antialias {
                     let rings: Vec<Vec<(f64, f64)>> = polys.into_iter().flatten().collect();
@@ -1567,32 +1676,36 @@ fn svg_fill(
                         Some((hex, a)) => format!(r#"stroke="{hex}" stroke-opacity="{}""#, svg::alpha(a)),
                         None => format!(r#"stroke="{paint}" stroke-opacity="{}""#, svg::alpha(op.min(1.0))),
                     };
-                    let _ = write!(go, r#"<path d="{}" {stroke}/>"#, svg::path_data(&rings, true));
+                    let _ = write!(go.of_pattern(), r#"<path d="{}" {stroke}/>"#, svg::path_data(&rings, true));
                 }
                 continue;
             }
             if let Some((hex, a)) = svg::paint(color.color(&ctx, Color::BLACK), op) {
                 for poly in &polys {
-                    let _ = write!(gf, r#"<path d="{}" fill="{hex}" fill-opacity="{}"/>"#, svg::path_data(poly, true), svg::alpha(a));
+                    let _ = write!(gf.of(a), r#"<path d="{}" fill="{hex}" fill-opacity="{}"/>"#, svg::path_data(poly, true), svg::alpha(a));
                 }
             }
             if antialias {
                 let oc = if outline.is_set() { outline.color(&ctx, Color::BLACK) } else { color.color(&ctx, Color::BLACK) };
                 if let Some((hex, a)) = svg::paint(oc, op) {
                     let rings: Vec<Vec<(f64, f64)>> = polys.into_iter().flatten().collect();
-                    let _ = write!(go, r#"<path d="{}" stroke="{hex}" stroke-opacity="{}"/>"#, svg::path_data(&rings, true), svg::alpha(a));
+                    let _ = write!(go.of(a), r#"<path d="{}" stroke="{hex}" stroke-opacity="{}"/>"#, svg::path_data(&rings, true), svg::alpha(a));
                 }
             }
         }
-        if !gf.is_empty() {
-            let _ = write!(fills, r#"<g clip-path="url(#{prefix}t{i})">{gf}</g>"#);
-        }
-        if !go.is_empty() {
-            let _ = write!(outlines, r#"<g clip-path="url(#{prefix}t{i})">{go}</g>"#);
-        }
+        tiles.push((gf, go));
     }
-    let fills = format!(r#"<g fill-rule="evenodd" shape-rendering="crispEdges">{fills}</g>"#);
-    let outlines = if outlines.is_empty() { outlines } else { format!(r#"<g fill="none" stroke-width="0.8">{outlines}</g>"#) };
+    // Interiors and outlines are two passes: each may share an opacity.
+    let (uf, uo) = (uniform_alpha(tiles.iter().map(|t| &t.0)), uniform_alpha(tiles.iter().map(|t| &t.1)));
+    let (mut fills, mut outlines) = (String::new(), String::new());
+    for (i, (gf, go)) in tiles.iter().enumerate() {
+        gf.write(&mut fills, prefix, i, uf.as_deref());
+        go.write(&mut outlines, prefix, i, uo.as_deref());
+    }
+    let group = |a: &Option<String>| a.as_ref().map(|a| format!(r#" opacity="{a}""#)).unwrap_or_default();
+    let fills = format!(r#"<g fill-rule="evenodd" shape-rendering="crispEdges"{}>{fills}</g>"#, group(&uf));
+    let outlines =
+        if outlines.is_empty() { outlines } else { format!(r#"<g fill="none" stroke-width="0.8"{}>{outlines}</g>"#, group(&uo)) };
     if outline_beneath {
         out.push_str(&outlines);
         out.push_str(&fills);
@@ -1734,8 +1847,9 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
         Prop::Const(v) => v.as_num_array().filter(|d| d.len() >= 2 && d.iter().sum::<f64>() > 0.0),
         _ => None,
     };
-    for (i, pt) in placed.iter().enumerate() {
-        let mut g = String::new();
+    let mut tiles: Vec<TileGroups> = Vec::with_capacity(placed.len());
+    for pt in placed {
+        let mut groups = TileGroups::default();
         for (f, scale) in features(layer, pt, zoom) {
             let ctx = Ctx { zoom, feature: Some(f) };
             let fctx = Ctx { zoom: zoom.floor(), feature: Some(f) };
@@ -1817,6 +1931,7 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
                 if op <= 0.0 {
                     continue;
                 }
+                let g = groups.of(op);
                 let _ = write!(
                     g,
                     r#"<g fill="none" stroke="{hex}" stroke-opacity="{}" stroke-width="{}" stroke-linecap="{cap}" stroke-linejoin="{join}" stroke-miterlimit="{}"{dash_attr}>"#,
@@ -1833,9 +1948,18 @@ fn svg_line(out: &mut String, layer: &Json, zoom: f64, placed: &[PlacedTile], pr
                 g.push_str("</g>");
             }
         }
-        if !g.is_empty() {
-            let _ = write!(out, r#"<g clip-path="url(#{prefix}t{i})">{g}</g>"#);
+        tiles.push(groups);
+    }
+    let uniform = uniform_alpha(&tiles);
+    let mut layer_out = String::new();
+    for (i, g) in tiles.iter().enumerate() {
+        g.write(&mut layer_out, prefix, i, uniform.as_deref());
+    }
+    match uniform {
+        Some(a) => {
+            let _ = write!(out, r#"<g opacity="{a}">{layer_out}</g>"#);
         }
+        None => out.push_str(&layer_out),
     }
 }
 

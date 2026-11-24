@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.3.2 (2026-11-24)
+
+SVG output has no seams in PDFs, and every output is now checked against
+MapLibre GL JS at the dpis plots use.
+
+- **SVG tiles meet without hairlines.** Each vector tile's paths are
+  clipped to the tile, and PDF viewers (Typst, poppler, pdf.js, Acrobat)
+  antialias clip edges, so 0.3.1 showed a faint light line at every tile
+  boundary. Opaque paths are now clipped a little past their tile, so
+  neighbouring tiles overlap by one CSS pixel. A layer whose paths share
+  one opacity (most basemap fills and lines, such as UGRC's hillshade) is
+  drawn opaque in a group that carries the opacity, so the overlap does not
+  darken it. Lines cross tile edges without a notch, and labels and icons
+  were never clipped to tiles.
+- **Raster layers in SVG are embedded at the output's dpi** (raster,
+  hillshade, patterned lines and extrusions), instead of at 96 dpi and
+  enlarged by the viewer.
+- **Tests:**
+  - Renders at 168, 200 and 300 dpi, at fractional zooms, of the stacked
+    UGRC Lite basemap and of OpenFreeMap Liberty, match MapLibre GL JS to
+    within 0.02% of pixels.
+  - A Web Mercator plot panel shows the rendering's pixels unchanged, with
+    a 1-pixel line centred to within 0.1 px, in ggplot2, tmap, matplotlib
+    and plotnine.
+  - Rasterised as a PDF viewer draws it, the SVG has no seam at tile edges
+    and matches the PNG.
+
 ## 0.3.1 (2026-11-24)
 
 Maps are sharp again at any dpi. When an image's size at its dpi was not a

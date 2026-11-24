@@ -89,7 +89,7 @@ tmapGridAuxPrepare.tm_basemap_rust <- function(a, bs, id, o) {
     d <- s$dt
     rgb_vals <- do.call(srgb_fn, list(
       x1 = d$red, x2 = d$green, x3 = d$blue, scale = srgb, legend = list(), o = o, aes = "col",
-      layer = "raster", layer_args = tmap::opt_tm_rgb(interpolate = TRUE)$mapping.args, sortRev = NA,
+      layer = "raster", layer_args = tmap::opt_tm_rgb(interpolate = FALSE)$mapping.args, sortRev = NA,
       bypass_ord = TRUE
     ))
     d[["col"]] <- rgb_vals[[1]]
@@ -115,7 +115,9 @@ tmapGridAuxPlot.tm_basemap_rust <- function(a, bi, bbx, facet_row, facet_col, fa
   dt <- .BASEMAPPER_TMAP$dts[[key]][[bi]]
   shpTM <- .BASEMAPPER_TMAP$shp[[key]][[bi]]
   if (!is.null(dt)) {
-    a2 <- structure(list(interpolate = TRUE), class = "tm_data_raster")
+    # Drawn pixel for pixel: the image is rendered at the panel's size, and
+    # smoothing it would only blur it.
+    a2 <- structure(list(interpolate = FALSE), class = "tm_data_raster")
     tmap::tmapGridDataPlot(a2, shpTM, dt, list(), bbx, facet_row, facet_col, facet_page, id, pane, group,
                            glid = 0L, o)
   }

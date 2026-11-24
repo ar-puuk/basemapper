@@ -1,0 +1,21 @@
+{
+  "stack": [
+    "ugrc_hillshade_tract_x3125",
+    "ugrc_litebase_tract_x3125",
+    "ugrc_litelabels_tract_x3125"
+  ],
+  "note": "Full UGRC Lite basemap (Hillshade, Lite Base, Lite Labels, bottom to top). 300 dpi (devicePixelRatio 3.125 = 25/8) at fractional zoom 13.141, 232 x 320 CSS px (725 x 1000 device px), over the x175 case's tiles.",
+  "bbox": [
+    -12469201.631944,
+    5027486.111111,
+    -12467191.368056,
+    5030258.888889
+  ],
+  "width": 232,
+  "height": 320,
+  "zoom": 14,
+  "attribution": "Utah Geospatial Resource Center (UGRC), State of Utah",
+  "pixel_ratio": 3.125,
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.011
+}

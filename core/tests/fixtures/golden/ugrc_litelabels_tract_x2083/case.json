@@ -1,0 +1,20 @@
+{
+  "attribution": "Utah Geospatial Resource Center (UGRC), State of Utah",
+  "bbox": [
+    -12471146.590058,
+    5024803.410265,
+    -12465246.409942,
+    5032941.589735
+  ],
+  "fonts_from": "ugrc_litebase_slc",
+  "height": 480,
+  "layers": null,
+  "source_style": "https://tiles.arcgis.com/tiles/99lidPhWCzftIe9K/arcgis/rest/services/LiteLabels/VectorTileServer/resources/styles/root.json",
+  "tiles_from": null,
+  "width": 348,
+  "zoom": 13,
+  "note": "200 dpi (devicePixelRatio 2.0833 = 25/12) at fractional zoom 12.1726, 348 x 480 CSS px (725 x 1000 device px).",
+  "pixel_ratio": 2.0833333333333335,
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.005
+}

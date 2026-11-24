@@ -145,3 +145,71 @@ test_that("alpha fades the basemap on any device, and a clip masks it in a plot"
   expect_lt(centre, 0.05)                         # inside the clip: full red
   expect_gt(edge, 0.6)                            # outside: 30% red over white
 })
+
+# The WFRC tract view's Web Mercator limits: a 3.6 x 5 in panel, 720 x
+# 1000 px at 200 dpi, drawn at dpi 168.
+tract <- c(xmin = -12469979, ymin = 5026396.805555556, xmax = -12466414, ymax = 5031348.194444444)
+
+# A white map with a black vertical line `width_css` CSS px wide at Web
+# Mercator `x`.
+line_style <- function(x, width_css) {
+  lon <- x / 20037508.342789244 * 180
+  sprintf(paste0(
+    '{"version":8,"sources":{"l":{"type":"geojson","data":{"type":"LineString","coordinates":[[%.12g,-80],[%.12g,80]]}}},',
+    '"layers":[{"id":"bg","type":"background","paint":{"background-color":"#ffffff"}},',
+    '{"id":"l","type":"line","source":"l","paint":{"line-color":"#000000","line-width":%.12g}}]}'
+  ), lon, lon, width_css)
+}
+
+dark_centre <- function(v, cols) {
+  d <- 255 - v[cols]
+  sum(d * (cols - 1)) / sum(d)
+}
+
+# The panel's pixels in a saved PNG, and the rendering the plot drew.
+expect_panel_is_the_rendering <- function(f, r) {
+  img <- round(png::readPNG(f) * 255)
+  expect_equal(c(r$width, r$height), c(720, 1000))
+  expect_equal(dim(img)[1:2], c(1000, 720))
+  a <- as_array(r)
+  expect_identical(as.integer(img[, , 1:3]), as.integer(a[, , 1:3]))
+  # A line one device pixel wide at the centre of column 300 (0-based) is
+  # there, to a tenth of a pixel.
+  for (y in c(11, 501, 991)) expect_lt(abs(dark_centre(img[y, , 1], 291:311) - 300), 0.1)
+}
+
+test_that("a Web Mercator ggplot2 panel shows the rendering pixel for pixel", {
+  skip_if_not_installed("sf")
+  skip_if_not_installed("png")
+  mx <- (tract[["xmax"]] - tract[["xmin"]]) / 720
+  style <- line_style(tract[["xmin"]] + 300.5 * mx, 1 / 1.75)
+  box <- sf::st_as_sfc(sf::st_bbox(tract, crs = sf::st_crs(3857)))
+  p <- ggplot2::ggplot(sf::st_sf(geometry = box)) + basemap(style, dpi = 168) +
+    ggplot2::geom_sf(fill = NA, colour = NA) +
+    ggplot2::coord_sf(crs = 3857, expand = FALSE, datum = NA) + ggplot2::theme_void() +
+    ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, 0))
+  f <- tempfile(fileext = ".png")
+  ggplot2::ggsave(f, p + ggplot2::theme(legend.position = "none"), width = 3.6, height = 5, dpi = 200)
+  r <- basemapper:::.BASEMAPPER_LAST$rendering
+  expect_equal(r$dpi, 168)
+  expect_equal(unname(r$bounds), unname(tract), tolerance = 1e-12)
+  expect_panel_is_the_rendering(f, r)
+})
+
+test_that("a Web Mercator tmap panel shows the rendering pixel for pixel", {
+  skip_if_not_installed("sf")
+  skip_if_not_installed("png")
+  skip_if_not_installed("tmap")
+  mx <- (tract[["xmax"]] - tract[["xmin"]]) / 720
+  style <- line_style(tract[["xmin"]] + 300.5 * mx, 1 / 1.75)
+  box <- sf::st_as_sfc(sf::st_bbox(tract, crs = sf::st_crs(3857)))
+
+  tm <- tmap::tm_shape(sf::st_sf(geometry = box), crs = 3857, bbox = sf::st_bbox(box)) + tmap::tm_borders(col = NA, lwd = 0) +
+    basemapper::tm_basemap(style, dpi = 168, attribution = FALSE) +
+    tmap::tm_layout(outer.margins = 0, inner.margins = 0, frame = FALSE, asp = 0)
+  f <- tempfile(fileext = ".png")
+  tmap::tmap_save(tm, f, width = 3.6, height = 5, units = "in", dpi = 200)
+  r <- basemapper:::.BASEMAPPER_LAST$rendering
+  expect_equal(r$dpi, 168)
+  expect_panel_is_the_rendering(f, r)
+})
