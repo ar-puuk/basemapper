@@ -113,6 +113,22 @@ case("bounds_zoom_and_size", "§4.2: extent + zoom + image size give the dpi",
       "provenance": {"extent": "given", "size": "given", "dpi": "derived", "zoom": "given"},
       "notes": []})
 
+# Physical units: the size fixes the map's layout (CSS px = inches x 96), so
+# dpi only turns it into pixels; extent + zoom + a physical size is already
+# over-determined.
+zin, bin_ = fit(SLC_M, 6 * 96, 4 * 96)
+case("inches_dpi_is_only_sharpness", "§4.2: with width / height in inches, dpi changes only the pixel count",
+     {"bounds_lonlat": SLC, "width": 6, "height": 4, "units": "in", "dpi": 300},
+     {"width": 1800, "height": 1200, "dpi": 300, "zoom": zin, "bounds_3857": bin_,
+      "provenance": {"extent": "given", "size": "given", "dpi": "given", "zoom": "derived"}, "notes": []})
+case("inches_at_default_dpi", "§4.2: the same layout at the default dpi: the same zoom, fewer pixels",
+     {"bounds_lonlat": SLC, "width": 6, "height": 4, "units": "in"},
+     {"width": 576, "height": 384, "dpi": 96, "zoom": zin, "bounds_3857": bin_,
+      "provenance": {"extent": "given", "size": "given", "dpi": "default", "zoom": "derived"}, "notes": []})
+case("inches_with_zoom_overdetermined", "§4.2 Conflicts: extent + zoom + a physical size fix everything but the pixel count",
+     {"bounds_lonlat": SLC, "zoom": 12, "width": 6, "height": 4, "units": "in"},
+     error={"kind": "validation", "contains": ["zoom", "width"]})
+
 case("all_four_given", "§4.2 Conflicts: over-determined, an error listing the alternatives",
      {"bounds_lonlat": SLC, "zoom": 12, "width": 800, "height": 600, "dpi": 96},
      error={"kind": "validation", "contains": ["zoom", "dpi"]})
@@ -187,7 +203,7 @@ case("plot_screen_hidpi", "§4.2 In a plot (D16): on a screen 96 x its pixel rat
 case("plot_vector_export", "§4.2 In a plot (D16): PDF / SVG have no dpi, 300 is the default",
      {}, {"width": 1800, "height": 1200, "dpi": 300, "zoom": zp, "bounds_3857": ext,
           "provenance": {"extent": "context", "size": "context", "dpi": "default", "zoom": "derived"},
-          "notes": [{"level": "decided", "kind": "default_dpi"}]},
+          "notes": [{"level": "adjusted", "kind": "default_dpi"}]},
      context=plot([1800, 1200], None, "vector_export"))
 
 case("plot_zoom_given", "§4.2 Conflicts: a zoom chosen in a plot gives an effective dpi, reported once",

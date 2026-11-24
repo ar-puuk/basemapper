@@ -72,12 +72,14 @@ pub mod cache;
 pub mod error;
 pub mod features;
 pub mod net;
+pub mod notes;
 pub mod providers;
 pub mod renderer;
 pub mod style;
 pub mod tile_fetcher;
 pub mod tile_style;
 pub mod vector;
+pub mod view;
 
 pub use basemap::{Basemap, Crs};
 pub use bbox::{bbox_from_center, compute_zoom, constrain_view, fit_bounds, RenderRequest, RenderResult, SpatialBounds};
