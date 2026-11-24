@@ -18,6 +18,8 @@ fn base_request() -> RenderRequest {
         labels: basemapper_core::Labels::All,
         features: None,
         auth_token: None,
+        auth_scope: None,
+        group: 0,
         fail_on_tile_error: false,
         pixel_ratio: 1.0,
     }

@@ -1,7 +1,7 @@
 //! Parts of a basemap: list a style's layers with what they show, preview a
 //! filter, and render with it.
 use basemapper_core::providers::{basemap_provider, ProviderOptions};
-use basemapper_core::{list_layers, Basemap, LayerFilter, Labels};
+use basemapper_core::{list_layers, Basemap, LayerFilter, Labels, Style};
 use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -18,12 +18,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let filter = LayerFilter { labels: Labels::None, features: Some(features.clone()), ..Default::default() };
     println!("the filter keeps {} layers", list_layers(&style, None, &filter)?.len());
 
-    Basemap::new(style)
+    // The filters belong to the style: "-labels" drops its labels.
+    let parts = Style::new(style).features(["water", "parks", "roads", "-labels"].map(String::from).to_vec());
+    Basemap::new(parts)
         .size(720, 405)
         .center(-111.8887, 40.7556)
         .zoom(12.4)
-        .labels(Labels::None)
-        .features(features)
         .render_png(Some(Path::new("layers.png")))?;
     Ok(())
 }

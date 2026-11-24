@@ -108,6 +108,8 @@ fn stack_requests(
             labels,
             features: features.clone(),
             auth_token: auth_token.clone(),
+            auth_scope: None,
+            group: 0,
             fail_on_tile_error,
             pixel_ratio,
         })

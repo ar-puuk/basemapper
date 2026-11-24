@@ -1,15 +1,13 @@
 //! Styles stacked bottom to top: satellite imagery under a vector
 //! basemap's labels.
-use basemapper_core::providers::{basemap_provider, ProviderOptions};
-use basemapper_core::{Basemap, Labels};
+use basemapper_core::{Basemap, Style};
 use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let imagery = basemap_provider("Esri.WorldImagery", &ProviderOptions::default())?;
-    let labels = basemap_provider(
-        "OpenFreeMap.Liberty",
-        &ProviderOptions { labels: Labels::Only, ..Default::default() },
-    )?;
+    // Each style has its own filters: all of the imagery, only the labels of
+    // the vector basemap.
+    let imagery = Style::new("Esri.WorldImagery");
+    let labels = Style::new("OpenFreeMap.Liberty").features(vec!["labels".into()]);
 
     let m = Basemap::stack(vec![imagery, labels])
         .size(720, 405)

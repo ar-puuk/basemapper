@@ -39,6 +39,14 @@ pub struct RenderRequest {
     /// TileJSON and raster tiles; appended as `?access_token=<token>` to
     /// vector tile URLs.
     pub auth_token: Option<String>,
+    /// The input whose origin `auth_token` is scoped to, when it is not
+    /// `style_input` (a style built inline for tile data is scoped to that
+    /// data's URL).
+    pub auth_scope: Option<String>,
+    /// Which style of a stack the request draws: [`crate::render_stack`]
+    /// filters the requests of one group as one map (a catalogue basemap
+    /// published as several services), and each group on its own.
+    pub group: u32,
     /// When `false`, individual tile fetch failures are logged and skipped
     /// rather than aborting the entire render.
     pub fail_on_tile_error: bool,
@@ -68,6 +76,8 @@ impl RenderRequest {
             labels: crate::Labels::All,
             features: None,
             auth_token: None,
+            auth_scope: None,
+            group: 0,
             fail_on_tile_error: false,
             pixel_ratio: 1.0,
         }

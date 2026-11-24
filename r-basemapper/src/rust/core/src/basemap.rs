@@ -12,27 +12,23 @@
 //! | render | `render_array()`, `render_png(path)`, `render_svg(path, options)` |
 
 use crate::bbox::{bbox_from_center, constrain_view, fit_bounds, RenderRequest, RenderResult};
-use crate::{encode_png, render, render_stack, render_svg_stack_with, BasemapError, StyleInput, SvgOptions};
+use crate::{encode_png, render_stack, render_svg_stack_with, BasemapError, Style, SvgOptions};
 use std::path::Path;
 
 const EARTH_HALF: f64 = 20_037_508.342_789_244;
 
-/// A map view: one style, or several stacked bottom to top, a size in CSS
-/// pixels, a centre and MapLibre zoom (512 px tiles, fractional allowed),
+/// A map view: one style, or several stacked bottom to top (each with its
+/// own filters and key, see [`Style`]), a size in CSS pixels, a centre and MapLibre zoom (512 px tiles, fractional allowed),
 /// and a device pixel ratio (images are `pixel_ratio` times larger with the
 /// same view and label layout).
 #[derive(Clone, Debug)]
 pub struct Basemap {
-    styles: Vec<String>,
+    styles: Vec<Style>,
     width: u32,
     height: u32,
     center: (f64, f64),
     zoom: f64,
     pixel_ratio: f64,
-    layers: Option<Vec<String>>,
-    labels: crate::Labels,
-    features: Option<Vec<String>>,
-    auth_token: Option<String>,
     tile_timeout_ms: u32,
     max_tiles: u32,
     tile_concurrency: u32,
@@ -75,15 +71,15 @@ fn mercator_to_lonlat(x: f64, y: f64) -> (f64, f64) {
 }
 
 impl Basemap {
-    /// A view of one style (a URL or style JSON, e.g. from
-    /// [`crate::providers`]): 800 x 600 CSS pixels at zoom 0.
-    pub fn new(style: impl Into<String>) -> Self {
+    /// A view of one style (a [`Style`], or a string: a catalogue name, a
+    /// style URL or JSON, tile data): 800 x 600 CSS pixels at zoom 0.
+    pub fn new(style: impl Into<Style>) -> Self {
         Self::stack(vec![style.into()])
     }
 
-    /// A view of several styles drawn bottom to top (e.g. a basemap published
-    /// as separate hillshade, base and label services).
-    pub fn stack(styles: Vec<String>) -> Self {
+    /// A view of several styles drawn bottom to top (e.g. imagery under a
+    /// vector basemap's labels).
+    pub fn stack(styles: Vec<Style>) -> Self {
         Basemap {
             styles,
             width: 800,
@@ -91,10 +87,6 @@ impl Basemap {
             center: (0.0, 0.0),
             zoom: 0.0,
             pixel_ratio: 1.0,
-            layers: None,
-            labels: crate::Labels::All,
-            features: None,
-            auth_token: None,
             tile_timeout_ms: 10_000,
             max_tiles: 256,
             tile_concurrency: 16,
@@ -133,32 +125,6 @@ impl Basemap {
     /// Device pixels per CSS pixel (MapLibre's `devicePixelRatio`).
     pub fn pixel_ratio(mut self, pixel_ratio: f64) -> Self {
         self.pixel_ratio = pixel_ratio;
-        self
-    }
-
-    /// Layer filter applied to every style: plain IDs keep only those
-    /// layers, `-`-prefixed IDs drop them.
-    pub fn layers(mut self, layers: Vec<String>) -> Self {
-        self.layers = Some(layers);
-        self
-    }
-
-    /// Labels to keep in every style: all, none, or only the labels.
-    pub fn labels(mut self, labels: crate::Labels) -> Self {
-        self.labels = labels;
-        self
-    }
-
-    /// Feature filter applied to every style: plain names keep those
-    /// features (`"water"`, `"roads"`, ...), `-`-prefixed names drop them.
-    pub fn features(mut self, features: Vec<String>) -> Self {
-        self.features = Some(features);
-        self
-    }
-
-    /// Access token for the tile service.
-    pub fn auth_token(mut self, token: impl Into<String>) -> Self {
-        self.auth_token = Some(token.into());
         self
     }
 
@@ -266,7 +232,19 @@ impl Basemap {
     /// The attribution text the view's styles ask maps to show (see
     /// [`crate::attribution()`]).
     pub fn get_attribution(&self) -> Result<String, BasemapError> {
-        crate::attribution(&self.styles, self.auth_token.as_deref())
+        let mut credits: Vec<String> = Vec::new();
+        for style in &self.styles {
+            for part in style.parts()? {
+                let input = part.input.as_input().to_owned();
+                let text = crate::attribution(std::slice::from_ref(&input), part.auth_token.as_deref())?;
+                for c in text.split(" | ").filter(|c| !c.is_empty()) {
+                    if !credits.iter().any(|k| k == c) {
+                        credits.push(c.to_owned());
+                    }
+                }
+            }
+        }
+        Ok(credits.join(" | "))
     }
 
     // ── Rendering ───────────────────────────────────────────────────────────
@@ -289,31 +267,31 @@ impl Basemap {
     fn requests(&self) -> Result<Vec<RenderRequest>, BasemapError> {
         self.check_view()?;
         let bbox = self.get_bounds(false);
-        Ok(self.styles
-            .iter()
-            .map(|s| RenderRequest {
-                layers: self.layers.clone(),
-                labels: self.labels,
-                features: self.features.clone(),
-                auth_token: self.auth_token.clone(),
-                tile_timeout_ms: self.tile_timeout_ms,
-                max_tiles: self.max_tiles,
-                tile_concurrency: self.tile_concurrency,
-                fail_on_tile_error: self.fail_on_tile_error,
-                pixel_ratio: self.pixel_ratio,
-                ..RenderRequest::new(bbox, self.width, self.height, StyleInput::detect(s))
-            })
-            .collect())
+        let mut requests = Vec::new();
+        for (group, style) in self.styles.iter().enumerate() {
+            for part in style.parts()? {
+                requests.push(RenderRequest {
+                    layers: part.layers,
+                    labels: part.labels,
+                    features: part.features,
+                    auth_token: part.auth_token,
+                    auth_scope: part.token_scope,
+                    group: group as u32,
+                    tile_timeout_ms: self.tile_timeout_ms,
+                    max_tiles: self.max_tiles,
+                    tile_concurrency: self.tile_concurrency,
+                    fail_on_tile_error: self.fail_on_tile_error,
+                    pixel_ratio: self.pixel_ratio,
+                    ..RenderRequest::new(bbox, self.width, self.height, part.input)
+                });
+            }
+        }
+        Ok(requests)
     }
 
     /// Render to straight-alpha RGBA pixels (device pixels).
     pub fn render_array(&self) -> Result<RenderResult, BasemapError> {
-        let mut requests = self.requests()?;
-        if requests.len() == 1 {
-            render(requests.remove(0))
-        } else {
-            render_stack(requests)
-        }
+        render_stack(self.requests()?)
     }
 
     /// Render a PNG, written to `path` when given; returns its bytes.
@@ -401,5 +379,50 @@ mod tests {
         // The request is kept: a smaller view is constrained afresh.
         let n = Basemap::new("x").size(800, 600).center(0.0, 40.0).zoom(0.0).size(200, 100);
         assert_eq!((n.get_center(), n.get_zoom()), ((0.0, 40.0), 0.0));
+    }
+
+    /// A style with a background and, with `label`, an (empty) label layer.
+    fn inline(color: &str, label: bool) -> String {
+        let symbol = if label {
+            r#",{"id":"names","type":"symbol","source":"g","layout":{"text-field":"x"}}"#
+        } else {
+            ""
+        };
+        format!(
+            r#"{{"version":8,"sources":{{"g":{{"type":"geojson","data":{{"type":"FeatureCollection","features":[]}}}}}},"layers":[{{"id":"bg","type":"background","paint":{{"background-color":"{color}"}}}}{symbol}]}}"#
+        )
+    }
+
+    #[test]
+    fn filters_belong_to_each_style_of_a_stack() {
+        let small = |styles: Vec<Style>| Basemap::stack(styles).size(64, 48).render_array();
+        let labels = || vec!["labels".to_string()];
+        // The base drawn whole, only the labels of the top style: the top has
+        // no background, so the base shows through.
+        let r = small(vec![Style::new(inline("#ff0000", false)), Style::new(inline("#0000ff", true)).features(labels())]).unwrap();
+        assert_eq!(&r.pixels[..4], &[0xff, 0, 0, 0xff]);
+        // A filter on one style is that style's: here it leaves nothing of
+        // it, which is an error, though the other style would draw.
+        let e = small(vec![Style::new(inline("#ff0000", false)).features(labels()), Style::new(inline("#0000ff", true))]).unwrap_err();
+        assert!(e.to_string().contains("nothing of this style of the stack"), "{e}");
+        // One style on its own: the same error.
+        let e = small(vec![Style::new(inline("#ff0000", false)).features(labels())]).unwrap_err();
+        assert!(e.to_string().contains("nothing"), "{e}");
+    }
+
+    #[test]
+    fn one_group_is_filtered_as_one_map() {
+        // The parts of one style (a catalogue stack's services) share their
+        // filter: a part it leaves nothing of is skipped.
+        let req = |json: String| RenderRequest {
+            labels: crate::Labels::Only,
+            ..RenderRequest::new([-1e6, -1e6, 1e6, 1e6], 64, 48, crate::StyleInput::detect(&json))
+        };
+        let r = render_stack(vec![req(inline("#ff0000", false)), req(inline("#0000ff", true))]).unwrap();
+        assert_eq!(r.pixels[3], 0, "labels only: no background drawn");
+        let mut second = req(inline("#0000ff", true));
+        second.group = 1;
+        let e = render_stack(vec![req(inline("#ff0000", false)), second]).unwrap_err();
+        assert!(e.to_string().contains("style of the stack"), "{e}");
     }
 }

@@ -101,6 +101,23 @@ working (through the old internal calls) until phases 3 and 4.
 - One credential, `key`: put into the URL for catalogue providers, sent as a
   Bearer token (origin-scoped, as now) to other servers.
 
+**1a and 1b done (2026-11-23):**
+
+- `core/src/view.rs` resolves all 20 view cases and 3 `around()` cases of
+  the contract. Physical units (`in`, `cm`, `mm`) fix the layout, so `dpi`
+  then changes only the pixel count, and bounds + zoom + a physical size is
+  an error. `core/src/notes.rs` holds the note levels.
+- `Style` and `Source` in `core/src/style.rs`: a string is auto-detected;
+  `Source::provider`, `tiles`, `wms` and `wmts` carry each source's own
+  options. `features` takes `"labels"` / `"-labels"`. `key` is the one
+  credential (a catalogue key, or an origin-scoped token).
+- Stacks: each request has a `group` (its style). A group is filtered as one
+  map (a catalogue stack's services), and every group must draw something.
+  The bindings put all requests in group 0, so they behave as in 0.2 until
+  phases 3–4. `Basemap` holds `Style` values; its view-wide `layers`,
+  `labels`, `features` and `auth_token` setters are gone.
+- All 255 golden renders (PNG and SVG) are byte-identical to before.
+
 ### 1c. Renderings and notes: `core/src/rendering.rs`, `core/src/notes.rs`
 
 - `Rendering { pixels, width, height, bounds, crs, zoom, dpi, scale, notes }`:

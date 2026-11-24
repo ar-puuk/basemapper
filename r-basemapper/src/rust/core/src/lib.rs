@@ -84,7 +84,7 @@ pub mod view;
 pub use basemap::{Basemap, Crs};
 pub use bbox::{bbox_from_center, compute_zoom, constrain_view, fit_bounds, RenderRequest, RenderResult, SpatialBounds};
 pub use error::BasemapError;
-pub use style::{filter_style_layers, StyleInput};
+pub use style::{filter_style_layers, Source, Style, StyleInput, StylePart};
 /// The version of basemapper (the Rust core, and the R and Python packages
 /// built on it, share it; the release tag is `v` and this).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -134,7 +134,8 @@ pub(crate) fn http_client(timeout: std::time::Duration) -> Result<reqwest::Clien
 /// The request's access token, scoped to its style's origin (see
 /// [`net::Auth`]).
 fn request_auth(request: &RenderRequest) -> net::Auth {
-    net::Auth::for_input(request.auth_token.as_deref(), request.style_input.as_input())
+    let scope = request.auth_scope.as_deref().unwrap_or_else(|| request.style_input.as_input());
+    net::Auth::for_input(request.auth_token.as_deref(), scope)
 }
 
 /// Render a basemap tile mosaic to a flat RGBA byte array.
@@ -173,11 +174,12 @@ fn expand_stacked(requests: Vec<RenderRequest>) -> Vec<RenderRequest> {
 /// top (straight-alpha source-over), e.g. a basemap published as separate
 /// services. All requests must share bbox, size and pixel ratio.
 ///
-/// `layers`, `labels` and `features` apply to the stack as one basemap: a
-/// style they leave nothing of (the hillshade under `labels = Only`, the
-/// labels over `features = ["terrain"]`) is skipped, and it is an error
-/// only when they leave nothing of the whole stack. A name warns only when
-/// it matches nothing in any style of the stack.
+/// Each request's filters apply to its [`group`](RenderRequest::group) as
+/// one map (a catalogue basemap published as several services is one
+/// group): a part they leave nothing of (the hillshade under `labels =
+/// Only`, the labels over `features = ["terrain"]`) is skipped, and it is an
+/// error only when they leave nothing of a whole group. A name warns only
+/// when it matches nothing in any part of its group.
 pub fn render_stack(requests: Vec<RenderRequest>) -> Result<RenderResult, BasemapError> {
     let mut requests = expand_stacked(requests);
     let first = requests.first().ok_or_else(|| BasemapError::RenderError("no styles to render".into()))?;
@@ -193,33 +195,47 @@ pub fn render_stack(requests: Vec<RenderRequest>) -> Result<RenderResult, Basema
     }
     // The styles download and render concurrently, then composite in
     // order (the first error in stack order is the one reported).
-    let parts: Vec<Result<StackPart, BasemapError>> = RUNTIME.block_on(async {
+    let parts: Vec<(u32, Result<StackPart, BasemapError>)> = RUNTIME.block_on(async {
         let mut set = tokio::task::JoinSet::new();
         for (i, q) in requests.into_iter().enumerate() {
-            set.spawn(async move { (i, render_part(q).await) });
+            set.spawn(async move { (i, q.group, render_part(q).await) });
         }
-        let mut parts: Vec<(usize, Result<StackPart, BasemapError>)> = Vec::new();
+        let mut parts: Vec<(usize, u32, Result<StackPart, BasemapError>)> = Vec::new();
         while let Some(joined) = set.join_next().await {
             parts.push(joined.map_err(|e| BasemapError::RenderError(format!("stack render task failed: {e}")))?);
         }
         parts.sort_by_key(|p| p.0);
-        Ok::<_, BasemapError>(parts.into_iter().map(|p| p.1).collect())
+        Ok::<_, BasemapError>(parts.into_iter().map(|p| (p.1, p.2)).collect::<Vec<_>>())
     })?;
+    /// What the parts of one group have drawn and found, so far.
+    struct Group {
+        id: u32,
+        drawn: bool,
+        warnings: Option<Vec<String>>,
+        present: Vec<&'static str>,
+    }
+    let mut groups: Vec<Group> = Vec::new();
     let mut acc: Option<RenderResult> = None;
-    let mut warnings: Option<Vec<String>> = None;
-    let mut present: Vec<&'static str> = Vec::new();
-    for part in parts {
+    for (id, part) in parts {
         let part = part?;
-        warnings = Some(match warnings {
+        let g = match groups.iter().position(|g| g.id == id) {
+            Some(i) => &mut groups[i],
+            None => {
+                groups.push(Group { id, drawn: false, warnings: None, present: Vec::new() });
+                groups.last_mut().expect("just pushed")
+            }
+        };
+        g.warnings = Some(match g.warnings.take() {
             None => part.warnings,
             Some(prev) => prev.into_iter().filter(|w| part.warnings.contains(w)).collect(),
         });
         for f in part.present {
-            if !present.contains(&f) {
-                present.push(f);
+            if !g.present.contains(&f) {
+                g.present.push(f);
             }
         }
         let Some(top) = part.result else { continue };
+        g.drawn = true;
         acc = Some(match acc {
             None => top,
             Some(mut below) => {
@@ -232,8 +248,18 @@ pub fn render_stack(requests: Vec<RenderRequest>) -> Result<RenderResult, Basema
             }
         });
     }
-    let mut out = acc.ok_or_else(|| empty_filter_error(&present, "stack"))?;
-    out.warnings = warnings.unwrap_or_default();
+    if let Some(g) = groups.iter().find(|g| !g.drawn) {
+        let what = if groups.len() == 1 { "stack" } else { "style of the stack" };
+        return Err(empty_filter_error(&g.present, what));
+    }
+    let mut out = acc.ok_or_else(|| BasemapError::RenderError("no styles to render".into()))?;
+    let mut warnings: Vec<String> = Vec::new();
+    for w in groups.into_iter().flat_map(|g| g.warnings.unwrap_or_default()) {
+        if !warnings.contains(&w) {
+            warnings.push(w);
+        }
+    }
+    out.warnings = warnings;
     Ok(out)
 }
 
