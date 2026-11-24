@@ -1,0 +1,245 @@
+---
+title: "Sharpness, detail and size"
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", message = FALSE, warning = FALSE)
+```
+
+Think of printing a road map onto a rectangle of paper. A plot already
+fixes the area shown and the size of the rectangle (the panel). Two choices
+are left, and each has one place:
+
+- **Sharpness**, how fine the printer is: the device's dpi,
+  `ggsave(dpi = 300)`, `png(res = 200)`, or 300 dpi for PDF and SVG. It
+  gives more pixels for the same map and changes nothing else: not the zoom,
+  not the size of labels, not what is drawn. A basemap's `dpi` is an error in
+  a plot.
+- **What the map shows**, how big the text and roads are: `zoom` *or*
+  `symbol_scale`, in `geom_basemap()` (or `basemap()`, `tm_basemap()`). One
+  dial: the area is fixed, so big labels leave room for only the main
+  streets, and small labels let many more fit. `zoom` says how much detail;
+  `symbol_scale` says how big lines, labels and icons are. Like °F and °C,
+  you give one and the other follows; giving both is an error. With neither,
+  the symbol scale is 1.
+
+Every picture below is the same 12 km square of Salt Lake City in
+OpenFreeMap Liberty, drawn by this code:
+
+```{r}
+library(basemapper)
+library(ggplot2)
+library(sf)
+
+centre <- st_transform(st_sfc(st_point(c(-111.891, 40.760)), crs = 4326), 3857)
+area <- st_as_sfc(st_bbox(st_buffer(centre, 6000)))
+
+# Save the area in a square panel of `size` inches at `dpi`; `...` goes to
+# geom_basemap(): a zoom or a symbol_scale.
+panel <- function(file, ..., size = 2.4, dpi = 200) {
+  p <- ggplot(area) +
+    geom_basemap("OpenFreeMap.Liberty", ..., attribution = FALSE) +
+    geom_sf(fill = NA, colour = NA) +
+    coord_sf(expand = FALSE) +
+    theme_void() +
+    theme(plot.margin = margin(0, 0, 0, 0))
+  ggsave(file, p, width = size, height = size, dpi = dpi)
+  last_rendering()  # what the plot drew at: $zoom, $symbol_scale, $dpi
+}
+dir <- tempdir()
+```
+
+```{r layout, include = FALSE}
+# Lay out saved panels in a row of figures, each captioned with what was
+# given and what the plot drew at. Not part of the lesson.
+show_dir <- file.path(knitr::opts_chunk$get("fig.path"), "sharpness")
+dir.create(show_dir, recursive = TRUE, showWarnings = FALSE)
+
+# The middle third of a PNG, to show its pixels.
+crop_middle <- function(from, to) {
+  a <- png::readPNG(from)
+  h <- dim(a)[1]; w <- dim(a)[2]
+  rows <- seq(floor(h / 3) + 1, floor(2 * h / 3))
+  cols <- seq(floor(w / 3) + 1, floor(2 * w / 3))
+  png::writePNG(a[rows, cols, , drop = FALSE], to)
+}
+
+chip <- function(text, hot = FALSE) sprintf('<span class="bm-chip%s">%s</span>', if (hot) " hot" else "", text)
+
+# `cells`: a list of list(file, given, r, hot, width, alt); `hot` names the
+# chip that changed ("zoom", "symbol" or "px"); `width` the image's width as
+# a share of the cell.
+knob_row <- function(cells, crop = FALSE) {
+  html <- vapply(cells, function(cell) {
+    name <- basename(cell$file)
+    if (crop) crop_middle(cell$file, file.path(show_dir, name))
+    else file.copy(cell$file, show_dir, overwrite = TRUE)
+    r <- cell$r
+    hot <- if (is.null(cell$hot)) "" else cell$hot
+    chips <- paste(
+      chip(sprintf("zoom %.2f", r$zoom), hot == "zoom"),
+      chip(sprintf("symbol scale %.2f", r$symbol_scale), hot == "symbol"),
+      chip(sprintf("%d &times; %d px", r$width, r$height), hot == "px")
+    )
+    style <- if (is.null(cell$width)) "" else sprintf(' style="width:%.0f%%"', 100 * cell$width)
+    sprintf('<figure class="bm-knob"><img src="%s/%s" alt="%s"%s%s><figcaption><code>%s</code><span class="bm-chips">%s</span></figcaption></figure>',
+            show_dir, name, cell$alt, if (crop) ' class="bm-pixels"' else "", style, cell$given, chips)
+  }, character(1))
+  cat('<div class="bm-knobs">', paste(html, collapse = "\n"), "</div>", sep = "\n")
+}
+```
+
+## The device's dpi: the same map, only sharper
+
+The same 2.4 inch panel saved at 96, 200 and 300 dpi. Shown is the middle
+0.8 inch of each, enlarged so you can see the pixels. The zoom and the
+label size don't move.
+
+```{r}
+row_dpi <- lapply(c(96, 200, 300), function(d) {
+  file <- file.path(dir, sprintf("dpi-%d.png", d))
+  list(file = file, given = sprintf("ggsave(dpi = %d)", d), r = panel(file, dpi = d), hot = "px")
+})
+```
+
+```{r, echo = FALSE, results = "asis"}
+for (i in seq_along(row_dpi)) row_dpi[[i]]$alt <- sprintf(
+  "The middle of the Salt Lake City panel saved at %s, enlarged: the same streets and labels, %s",
+  row_dpi[[i]]$given, c("blocky at 96 dpi", "smoother at 200 dpi", "smoothest at 300 dpi")[i])
+knob_row(row_dpi, crop = TRUE)
+```
+
+## `symbol_scale`: you set the label size, the zoom follows
+
+Half the designed size, the designed size, and twice it. Halving the labels
+frees room for one more zoom level of streets; doubling them takes one
+away. Saved at 200 dpi.
+
+```{r}
+row_symbol <- lapply(c(0.5, 1, 2), function(s) {
+  file <- file.path(dir, sprintf("symbol-%s.png", s))
+  list(file = file, given = sprintf("symbol_scale = %s", s), r = panel(file, symbol_scale = s), hot = "zoom")
+})
+```
+
+```{r, echo = FALSE, results = "asis"}
+for (i in seq_along(row_symbol)) row_symbol[[i]]$alt <- sprintf(
+  "Salt Lake City with %s: %s", row_symbol[[i]]$given,
+  c("small labels and many streets", "the style's designed label size", "large labels and only the main roads")[i])
+knob_row(row_symbol)
+```
+
+## `zoom`: you set the detail, the label size follows
+
+Zoom 10, 12 and 14, two levels apart. More detail in the same panel means
+everything has to be drawn smaller: at zoom 14, labels are a small fraction
+of their designed size. Saved at 200 dpi.
+
+```{r}
+row_zoom <- lapply(c(10, 12, 14), function(z) {
+  file <- file.path(dir, sprintf("zoom-%d.png", z))
+  list(file = file, given = sprintf("zoom = %d", z), r = panel(file, zoom = z), hot = "symbol")
+})
+```
+
+```{r, echo = FALSE, results = "asis"}
+for (i in seq_along(row_zoom)) row_zoom[[i]]$alt <- sprintf(
+  "Salt Lake City with %s: %s", row_zoom[[i]]$given,
+  c("large labels and only highways", "streets and neighbourhood names", "every street, with tiny labels")[i])
+knob_row(row_zoom)
+```
+
+These two rows are the same dial. `symbol_scale = 0.5` drew at zoom
+`r sprintf("%.2f", row_symbol[[1]]$r$zoom)`, and `zoom =
+`r sprintf("%.2f", row_symbol[[1]]$r$zoom)`` draws the identical picture.
+Giving both would set the dial twice, which is why it's an error.
+
+## Changing the panel size
+
+Where the two differ: the same area saved in panels of 1.4, 2.4 and 3.4
+inches, shown at their relative sizes.
+
+With `symbol_scale` held (here left at 1), labels keep their printed size
+and the detail changes: a smaller panel has room for less.
+
+```{r}
+sizes <- c(1.4, 2.4, 3.4)
+row_panel_symbol <- lapply(sizes, function(s) {
+  file <- file.path(dir, sprintf("panel-symbol-%s.png", s))
+  list(file = file, given = sprintf("ggsave(width = %s)", s), r = panel(file, size = s), hot = "zoom", width = s / max(sizes))
+})
+```
+
+```{r, echo = FALSE, results = "asis"}
+for (i in seq_along(row_panel_symbol)) row_panel_symbol[[i]]$alt <- sprintf(
+  "Salt Lake City in a %s inch panel at symbol scale 1: labels the same printed size, %s", sizes[i],
+  c("with only the main roads", "with more streets", "with the most streets")[i])
+knob_row(row_panel_symbol)
+```
+
+With `zoom` held, the picture stays the same and is resized, labels
+included. `zoom_for()` gives the zoom that a 3.4 inch panel draws at symbol
+scale 1, so the small panels are shrunken copies of the large one:
+
+```{r}
+z <- zoom_for(area, 3.4)
+z
+row_panel_zoom <- lapply(sizes, function(s) {
+  file <- file.path(dir, sprintf("panel-zoom-%s.png", s))
+  list(file = file, given = sprintf("ggsave(width = %s)", s), r = panel(file, zoom = z, size = s), hot = "symbol", width = s / max(sizes))
+})
+```
+
+```{r, echo = FALSE, results = "asis"}
+for (i in seq_along(row_panel_zoom)) row_panel_zoom[[i]]$alt <- sprintf(
+  "Salt Lake City in a %s inch panel at the same zoom: the same map, %s", sizes[i],
+  c("shrunk, labels too", "a little smaller", "at full size")[i])
+knob_row(row_panel_zoom)
+```
+
+<p class="bm-credit">Map data: `r get_attribution(basemap("OpenFreeMap.Liberty"))`</p>
+
+## Choosing
+
+| I want | Set | What else changes |
+|---|---|---|
+| A sharper image of the same map | the device's dpi: `ggsave(dpi = 300)` | nothing |
+| Bigger or smaller lines and labels | `symbol_scale` | the detail: a smaller symbol scale shows more roads and labels (a higher zoom), a larger one fewer |
+| Exactly this level of detail | `zoom` | the size of lines and labels follows the panel size |
+| The same map on a page and in a thumbnail | the same `zoom` for both, e.g. `zoom_for(bbox, 3.6, symbol_scale = 0.84)` | the thumbnail is the page map shrunk, labels too |
+| Labels the same printed size on maps of different sizes | the same `symbol_scale` for all | each map gets the zoom that fits its panel |
+| To know what a plot drew at | `last_rendering()` after drawing | nothing: it reads `$zoom`, `$symbol_scale`, `$dpi` |
+
+`symbol_scale = 1` draws the style at its designed sizes, with a CSS pixel
+1/96 inch on the page: a label the style sizes at 12 px prints at 9 pt.
+`0.84` prints it at 84% of that. To keep the look of 0.3's
+`geom_basemap(dpi = d)` saved with `ggsave(dpi = D)`, use
+`symbol_scale = d / D`.
+
+## Outside a plot
+
+The same rule holds for `basemap()` on its own, where you give what a plot
+would: any three of the extent, the zoom, the printed size and the symbol
+scale give the fourth, and `dpi` only turns the printed size into pixels.
+A size in inches (`units = "in"`) is the printed size, so a higher dpi is
+the same map with more pixels:
+
+```{r}
+m <- basemap("OpenFreeMap.Liberty", bounds = area, width = 2.4, height = 2.4, units = "in")
+r96 <- render(m, dpi = 96)
+r300 <- render(m, dpi = 300)
+c(r96$zoom, r300$zoom)
+c(r96$width, r300$width)
+```
+
+A size in pixels prints at pixels ÷ dpi inches, so there a higher dpi with
+the same pixels prints the map smaller: with the extent fixed, at a lower
+zoom:
+
+```{r}
+m <- basemap("OpenFreeMap.Liberty", bounds = area, width = 480, height = 480)
+c(render(m, dpi = 96)$zoom, render(m, dpi = 192)$zoom)
+```
+
+Python's `basemap()` and Rust's `Basemap` take the same settings; the rules
+are in the [API reference](https://github.com/ar-puuk/basemapper/blob/main/docs/api.md).

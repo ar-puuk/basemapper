@@ -28,6 +28,7 @@ dev      = [
     "plotnine>=0.12",
     "matplotlib>=3.5",
     "xarray>=2022.06",
+    "rasterio",
 ]
 
 [tool.maturin]

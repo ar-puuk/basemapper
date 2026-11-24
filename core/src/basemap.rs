@@ -2,7 +2,7 @@
 //! and Python's `basemap()` (docs/design/api-review.md §4.1, D9).
 //!
 //! A basemap is a value: styles, the view inputs (any of extent, zoom,
-//! image size, dpi), fetch options and an optional clip. Rendering it in a
+//! printed size, symbol scale, dpi), fetch options and an optional clip. Rendering it in a
 //! [`Context`] resolves the view ([`crate::view::resolve`]) and returns a
 //! [`Rendering`]:
 //!
@@ -12,6 +12,12 @@
 //! std::fs::write("map.png", r.to_png()?)?;
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
+//!
+//! `zoom` is the detail, [`symbol_scale`](Basemap::symbol_scale) the size of
+//! lines and labels, and [`dpi`](Basemap::dpi) the sharpness. Any three of
+//! extent, zoom, printed size and symbol scale give the fourth; the dpi only
+//! turns the printed size into pixels (`px = inches × dpi`), so a size given
+//! in pixels prints at `px / dpi` inches. See `docs/api.md` (View).
 //!
 //! A map in another CRS is two steps, because its mesh depends on the image
 //! size: [`Basemap::view`], then [`Basemap::render_view`] with a [`Warp`].

@@ -66,8 +66,8 @@ For the development version, install from the `dev` branch: `pak::pak("ar-puuk/b
 ```r
 library(basemapper)
 
-# A style plus what you know of the map; any three of extent, zoom, image
-# size and dpi give the fourth
+# A style plus what you know of the map; any three of extent, zoom, printed
+# size and symbol scale give the fourth; dpi is sharpness only
 m <- basemap("OpenFreeMap.Liberty", center = c(-122.45, 37.75), zoom = 12, dpi = 192)
 m                                  # the view: what was given, derived or defaulted
 r <- render(m)                     # 1600 x 1200: the default 800 x 600 view, sharper

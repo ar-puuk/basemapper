@@ -78,31 +78,11 @@ Each has one place:
   or 300 dpi for PDF and SVG. It makes the map sharper and changes nothing
   else. A basemap's `dpi` is an error in a plot.
 - **What the map shows** goes in `geom_basemap()`: either `zoom` (the
-  detail) or `symbol_scale` (the size of lines, labels and icons). The plot
-  fixes the extent and the panel, so each sets the other: a larger symbol
-  scale also means a lower zoom (fewer roads and labels drawn), and a smaller
-  one more detail. Give one. With neither, the symbol scale is 1 and the map
-  is the same at any dpi.
+  detail) or `symbol_scale` (the size of lines, labels and icons). Each sets
+  the other, so give one. With neither, the symbol scale is 1.
 
-| I want | Set | What else changes |
-|---|---|---|
-| A sharper image of the same map | the device's dpi: `ggsave(dpi = 300)` | nothing |
-| Bigger or smaller lines and labels | `symbol_scale` | the detail: a smaller symbol scale shows more roads and labels (a higher zoom), a larger one fewer |
-| Exactly this level of detail | `zoom` | the size of lines and labels follows the panel size |
-| The same map on a page and in a thumbnail | the same `zoom` for both, e.g. `zoom_for(bbox, 3.6, symbol_scale = 0.84)` | the thumbnail is the page map shrunk, labels too |
-| Labels the same printed size on maps of different sizes | the same `symbol_scale` for all | each map gets the zoom that fits its panel |
-
-When the panel size changes (`ggsave()` width and height, facets):
-
-- with `symbol_scale` fixed (or left at 1), labels keep their printed size
-  and the zoom changes: a smaller panel shows less detail;
-- with `zoom` fixed, the picture stays the same and is resized, labels
-  included.
-
-`symbol_scale = 1` draws the style at its designed sizes, with a CSS pixel
-1/96 inch: a label the style sizes at 12 px prints at 9 pt. `0.84` prints it
-at 84% of that. To keep the look of 0.3's `geom_basemap(dpi = d)` saved with
-`ggsave(dpi = D)`, use `symbol_scale = d / D`.
+[Sharpness, detail and size](sharpness.html) shows each of them side by
+side, what changes with the panel size, and which to set for what you want.
 
 ```r
 p <- ggplot(nc) +
@@ -195,10 +175,22 @@ tm_basemap(relief) +
 
 ## Saving
 
-`ggsave()` and `tmap_save()` render the basemap again at the file's dpi:
-the same map, sharp at that resolution. A PDF or SVG gets it at 300 dpi.
+`ggsave()` and `tmap_save()` save the whole plot, and render the basemap
+again at the file's dpi: the same map, sharp at that resolution. A PDF or
+SVG gets it at 300 dpi.
 
 ```{r, eval = FALSE}
+# ggplot2: the last plot, or give it
 ggsave("nc.png", width = 7, height = 4, dpi = 300)
 ggsave("nc.pdf", width = 7, height = 4)
+
+# tmap
+tm <- tm_basemap("OpenFreeMap.Positron") +
+  tm_shape(nc) +
+  tm_polygons(fill = "BIR79", fill_alpha = 0.75)
+tmap_save(tm, "nc-tmap.png", width = 7, height = 4, units = "in", dpi = 300)
+tmap_save(tm, "nc-tmap.pdf", width = 7, height = 4, units = "in")
 ```
+
+To save a basemap without a plot (PNG, SVG, GeoTIFF, JPEG or GeoPDF), see
+[Saving a basemap on its own](getting-started.html#saving-a-basemap-on-its-own).
