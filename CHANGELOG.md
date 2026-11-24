@@ -7,13 +7,27 @@ for users of each package,
 in more words: [R](r-basemapper/NEWS.md) and
 [Python](py-basemapper/CHANGELOG.md).
 
-## v0.3.2
+## v0.4.0
 
-Tagged v0.3.2 when merged into `main`; until then on `dev`.
+Tagged v0.4.0 when merged into `main`; until then on `dev`.
+
+### Features
+
+- dpi is sharpness only; symbol_scale, zoom_for(), last_rendering() ([61e3df3](https://github.com/ar-puuk/basemapper/commit/61e3df30c5cbd100734223896edacbf13517ef0f))
+
+### Maintenance
+
+- release 0.4.0 ([6877e58](https://github.com/ar-puuk/basemapper/commit/6877e583b1815a05086f752daea3099ad0e9a997))
+
+## [v0.3.2](https://github.com/ar-puuk/basemapper/releases/tag/v0.3.2) (2026-11-24): [#11](https://github.com/ar-puuk/basemapper/pull/11) Release v0.3.2: seamless SVG, MapLibre checks at plot dpis
 
 ### Fixes
 
 - **svg,plots:** seamless SVG tiles; MapLibre checks at plot dpis ([9b4328f](https://github.com/ar-puuk/basemapper/commit/9b4328f645442f47d58956de8d822248c2e36856))
+
+### Documentation
+
+- changelog for v0.3.2 ([434af03](https://github.com/ar-puuk/basemapper/commit/434af03d77106252719f74b94f1b075b18e7853a))
 
 ### Maintenance
 
