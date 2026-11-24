@@ -1,0 +1,72 @@
+{
+  "about": "bench_render baseline before the 0.3.0 redesign (implementation plan, phase 0). Compare later phases on the same machine.",
+  "commit": "b8ca3d5",
+  "machine": "Intel64 Family 6 Model 151 (20 threads), Windows 11",
+  "runs": 7,
+  "note": "warm_requests count what a render asks for: the local test server's responses are never cached (cache rule for the local machine).",
+  "cases": [
+    {
+      "case": "carto_positron_z13",
+      "cold_ms": 44.081,
+      "cold_requests": 9,
+      "runs": 7,
+      "warm_ms_median": 36.0177,
+      "warm_ms_min": 34.431000000000004,
+      "warm_requests": 9.0
+    },
+    {
+      "case": "carto_voyager_z10",
+      "cold_ms": 55.961400000000005,
+      "cold_requests": 10,
+      "runs": 7,
+      "warm_ms_median": 51.6014,
+      "warm_ms_min": 50.4762,
+      "warm_requests": 10.0
+    },
+    {
+      "case": "carto_dark_matter_z7_x2",
+      "cold_ms": 56.9153,
+      "cold_requests": 7,
+      "runs": 7,
+      "warm_ms_median": 44.994600000000005,
+      "warm_ms_min": 43.4123,
+      "warm_requests": 7.0
+    },
+    {
+      "case": "ugrc_full_slc",
+      "cold_ms": 56.4298,
+      "cold_requests": 24,
+      "runs": 7,
+      "warm_ms_median": 50.4801,
+      "warm_ms_min": 49.651399999999995,
+      "warm_requests": 24.0
+    },
+    {
+      "case": "pmtiles_liberty_z5",
+      "cold_ms": 142.1775,
+      "cold_requests": 26,
+      "runs": 7,
+      "warm_ms_median": 91.93369999999999,
+      "warm_ms_min": 88.905,
+      "warm_requests": 26.0
+    },
+    {
+      "case": "osm_raster_slc",
+      "cold_ms": 7.1192,
+      "cold_requests": 12,
+      "runs": 7,
+      "warm_ms_median": 3.018,
+      "warm_ms_min": 2.7390000000000003,
+      "warm_requests": 12.0
+    },
+    {
+      "case": "synthetic_hillshade_combined_x2",
+      "cold_ms": 41.0109,
+      "cold_requests": 6,
+      "runs": 7,
+      "warm_ms_median": 38.1368,
+      "warm_ms_min": 37.2122,
+      "warm_requests": 6.0
+    }
+  ]
+}

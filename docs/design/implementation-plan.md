@@ -48,6 +48,21 @@ so work can stop between phases without leaving a half-built system
 **Exit:** all existing tests pass; the new expected-fail tests fail for the
 documented reasons.
 
+**Done (2026-11-23):**
+
+- `tools/contract_cases.py` writes `core/tests/fixtures/contract/cases.json`
+  (17 view cases, 3 `around()` cases) from the design's formulas;
+  `core/tests/contract.rs` checks them (the resolving test waits for phase 1).
+- F1 and F4 tests: `r-basemapper/tests/testthat/test-known-bugs.R`
+  (`expect_failure()`), `py-basemapper/tests/test_known_bugs.py`
+  (`xfail(strict=True)`). Measured F1 offsets on a Europe-scale lon/lat plot:
+  64 px in R, 46 px in Python. The two bindings stretch the image
+  differently, which is F2 / F8 at work.
+- `tools/api_parity.py` (report-only): 10 of 12 paired functions match; the
+  two differences are F11's (`geom_basemap(crs)` in plotnine, the first
+  argument of `get_attribution()`).
+- Benchmark baseline: `docs/design/bench-baseline-0.2.json`.
+
 ---
 
 ## Phase 1: the core model (Rust)
