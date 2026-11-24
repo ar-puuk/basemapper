@@ -120,3 +120,28 @@ test_that("tmap_panel_inches fits the limits' aspect inside the device minus mar
   p <- basemapper:::tmap_panel_inches(o, c(0, 0, 1, 2))
   expect_equal(p, c(4 * 0.96 / 2, 4 * 0.96))
 })
+
+test_that("alpha fades the basemap on any device, and a clip masks it in a plot", {
+  skip_if_not_installed("sf")
+  skip_if_not_installed("png")
+  red <- '{"version":8,"sources":{},"layers":[{"id":"bg","type":"background","paint":{"background-color":"#ff0000"}}]}'
+  inner <- sf::st_as_sfc(sf::st_bbox(c(xmin = -111.93, ymin = 40.72, xmax = -111.87, ymax = 40.78), crs = sf::st_crs(4326)))
+  p <- ggplot2::ggplot(sf::st_sf(geometry = slc_box())) +
+    geom_basemap(red, alpha = 0.3, attribution = FALSE) +
+    geom_basemap(red, clip = inner, attribution = FALSE) +
+    ggplot2::geom_sf(fill = NA, colour = NA) + ggplot2::coord_sf(expand = FALSE, datum = NA) + ggplot2::theme_void()
+  # R's own png() device: on Windows it ignores a raster's alpha, so the
+  # opacity must be in the image itself.
+  f <- tempfile(fileext = ".png")
+  grDevices::png(f, width = 300, height = 300)
+  print(p)
+  grDevices::dev.off()
+  img <- png::readPNG(f)
+  green <- img[, , 2]
+  row <- nrow(img) %/% 2
+  cols <- which(img[row, , 1] > 0.9)            # the panel's columns (red, faded or not)
+  centre <- green[row, round(mean(range(cols)))]
+  edge <- green[row, min(cols) + 2]
+  expect_lt(centre, 0.05)                         # inside the clip: full red
+  expect_gt(edge, 0.6)                            # outside: 30% red over white
+})

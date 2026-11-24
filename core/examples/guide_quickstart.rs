@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let m = Basemap::new("OpenFreeMap.Positron")
         .center(-111.8887, 40.7556)
         .zoom(12.4)
-        .size(720, 405); // .dpi(192.0): a sharp 2x image of the same map
+        .size(720, 405); // pixels; with no .size(), .dpi(192.0) gives the default view, sharper
     let r = m.render(&Context::Standalone)?;
     std::fs::write("quickstart.png", r.to_png()?)?;
 

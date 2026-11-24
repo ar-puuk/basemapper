@@ -230,7 +230,8 @@ class Basemap:
     def render(self, *, dpi: Optional[float] = None):
         """Render the map: a :class:`Rendering` (pixels, bounds, CRS, zoom,
         dpi, scale, notes). ``dpi`` is ``set_view(dpi=...).render()``: the
-        same map, sharper or coarser.
+        same map, sharper or coarser, when the image size is not fixed in
+        pixels (with a pixel size, the pixels stay and the view follows).
 
         Notes are shown as their level asks: *adjusted* as a
         :class:`BasemapAdjustment` warning, *problems* as a

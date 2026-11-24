@@ -5,9 +5,10 @@
 <!-- badges: end -->
 
 **basemapper** renders MapLibre GL basemaps (vector and raster styles)
-headlessly with a Rust core: to PNG, NumPy arrays or true vector SVG, at any
-fractional zoom and pixel ratio, and as matplotlib and plotnine layers that
-render at the output resolution.
+headlessly with a Rust core: to PNG, NumPy arrays, xarray or true vector
+SVG, at any fractional zoom and dpi, in any CRS, and as matplotlib and
+plotnine layers that line up with your data and render at the output
+resolution.
 
 > **Also available for R** — the same Rust core, and the same functions and
 > argument names (R's `verb(m, ...)` is `m.verb(...)` here).
@@ -49,8 +50,6 @@ curl https://sh.rustup.rs -sSf | sh
 ```
 
 ### Install the package
-
-Install the development version from GitHub.
 
 With pip:
 
@@ -97,8 +96,8 @@ dependencies:
 ```
 
 For the plot layers, install with an extra in place of plain `basemapper`:
-`basemapper[matplotlib]` for `add_basemap()`, `basemapper[plotnine]` for
-`geom_basemap()` too (or `basemapper[all]`), e.g.
+`basemapper[matplotlib]` for `m.add_to(ax)`, `basemapper[plotnine]` for
+plotnine too (or `basemapper[all]`), e.g.
 `pip install "basemapper[matplotlib] @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"`.
 
 > A PyPI release is planned once the package stabilises.
@@ -106,40 +105,43 @@ For the plot layers, install with an extra in place of plain `basemapper`:
 ## Quick example
 
 ```python
-import basemapper
-from basemapper import basemap_provider, tile_style, wms_style
+import basemapper as bm
 
-# Built-in basemaps by leaflet name (list_providers(), basemapper.providers);
-# the name works as a style
-style = "OpenFreeMap.Liberty"
-style = basemap_provider("Esri.WorldGrayCanvas", type="raster")   # pick the form
-style = basemap_provider("OpenFreeMap.Liberty", tiles="data/omt.pmtiles")   # your own tiles
+# A style plus what you know of the map; any three of extent, zoom, image
+# size and dpi give the fourth
+m = bm.basemap("OpenFreeMap.Liberty", center=(-122.45, 37.75), zoom=12, dpi=192)
+m                                  # the view: what was given, derived or defaulted
+r = m.render()                     # 1600 x 1200: the default 800 x 600 view, sharper
+r.save("sf.png")
+a = r.to_numpy()                   # (1200, 1600, 4) uint8
+m.render_svg("sf.svg")             # true vector
+m.set_view(zoom=13).bounds
 
-# Stack parts of basemaps: imagery under a vector basemap's labels
-hybrid = ["Esri.WorldImagery", basemap_provider("OpenFreeMap.Liberty", labels="only")]
-# labels=False / "only", features=["water", "roads"] / ["-buildings"]
+# An area: bounds (longitude / latitude, or a GeoDataFrame) or around()
+bm.basemap("OpenFreeMap.Liberty", bounds=bm.around((-122.45, 37.75), (10, 6), units="km"))
 
-# A view: centre + zoom, or bounds to fit
-m = basemapper.basemap(style, 800, 600, center=(-122.45, 37.75), zoom=12, pixel_ratio=2)
-m.render_png(path="sf.png")        # 1600 x 1200
-m.render_svg(path="sf.svg")        # true vector
-m.set_view(zoom=13).get_bounds(lonlat=True)
+# Styles: a catalogue name, a MapLibre style, or your own tiles; filters and
+# keys belong to the style; a list is stacked bottom to top
+hybrid = ["Esri.WorldImagery", bm.style("OpenFreeMap.Liberty", features="labels")]
+quiet = bm.style("OpenFreeMap.Liberty", features=["-labels", "-poi"])
+own = bm.style(bm.provider("OpenFreeMap.Liberty", tiles="https://tiles.openfreemap.org/planet"))
+relief = bm.style(bm.wms("https://ows.terrestris.de/osm/service", layers="SRTM30-Colored-Hillshade"))
 
-# One-shot render of bounds to a (height, width, 4) uint8 array
-a = basemapper.render_basemap_raw([-122.5, 37.7, -122.4, 37.8], 400, 300, style)
-
-# Your own tile data works as a style: tile URLs, TileJSON, PMTiles
-# archives (URL or local file), ArcGIS services
-m = basemapper.basemap("data/area.pmtiles", 800, 600, bounds=[-122.5, 37.7, -122.4, 37.8])
-style = tile_style("https://example.com/{z}/{x}/{y}.png", maxzoom=16)   # with overrides
-style = wms_style("https://gis.example.com/wms", layers="imagery")
+# In a plot: the axes give the extent, size and dpi; give their CRS
+import geodatasets, geopandas as gpd, matplotlib.pyplot as plt
+nc = gpd.read_file(geodatasets.get_path("geoda.sids"))
+fig, ax = plt.subplots()
+nc.boundary.plot(ax=ax, color="black")
+bm.basemap(quiet).add_to(ax, crs=nc.crs)
 ```
+
+Coming from 0.2? See [Migrating to 0.3](https://ar-puuk.github.io/basemapper/migrating-to-0.3.html).
 
 ## Get started
 
 See the [documentation](https://ar-puuk.github.io/basemapper/python/) for a
-walkthrough of rendering basemaps with matplotlib, plotnine, and raw RGBA
-output.
+walkthrough: views, renderings, CRSs, clipping, and basemaps in matplotlib
+and plotnine.
 
 ## Related
 

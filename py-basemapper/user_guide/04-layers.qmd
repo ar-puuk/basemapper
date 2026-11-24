@@ -4,14 +4,14 @@ title: "Stacking, labels and features"
 
 A style is a stack of layers: background, water, roads, labels and so on.
 basemapper can draw only some of them, and can stack several styles into
-one map.
+one map. Filters belong to a style: `bm.style(source, features=, layers=)`.
 
 ```{python}
 import basemapper as bm
 
 slc = (-111.8887, 40.7556)
-def view(style, **kw):
-    return bm.basemap(style, 720, 405, center=slc, zoom=12.4, **kw)
+def view(style):
+    return bm.basemap(style, center=slc, zoom=12.4, width=720, height=405)
 ```
 
 ## What a style draws
@@ -31,63 +31,60 @@ print(Counter(l["feature"] for l in layers))
 
 ## Labels
 
-`labels=False` draws a style without its labels (text and icons):
+Labels are a feature like the others: `"-labels"` drops them (text and
+icons), `"labels"` keeps only them, on a transparent background, to go over
+another map.
 
 ```{python}
-view("OpenFreeMap.Liberty", labels=False)
+view(bm.style("OpenFreeMap.Liberty", features="-labels"))
 ```
-
-`labels="only"` draws just the labels, on a transparent background, to go
-over another map.
 
 ## Stacking
 
-A list of styles is drawn bottom to top. To filter one style of a stack,
-give the filter to `basemap_provider()`; this puts satellite imagery under a
-vector basemap's labels:
+A list of styles is drawn bottom to top, and each style has its own filters.
+Satellite imagery under a vector basemap's labels:
 
 ```{python}
-hybrid = ["Esri.WorldImagery", bm.basemap_provider("OpenFreeMap.Liberty", labels="only")]
+hybrid = ["Esri.WorldImagery", bm.style("OpenFreeMap.Liberty", features="labels")]
 view(hybrid)
 ```
 
 ArcGIS basemaps are often published as separate services, drawn in order.
 The Utah Geospatial Resource Center's *Lite* basemap is a hillshade, a base
-map and labels; its catalogue name stands for the three:
+map and labels; its catalogue name is one style that stands for the three:
 
 ```{python}
-for style in bm.basemap_provider("UGRC.Lite"):
-    print(style)
-bm.basemap("UGRC.Lite", 720, 405, center=(-111.75, 40.62), zoom=10.5)
+bm.basemap("UGRC.Lite", center=(-111.75, 40.62), zoom=10.5, width=720, height=405)
 ```
 
-Filters treat a stack as one basemap: a service they leave nothing of is
-skipped. Without labels, the labels service drops out, and the base map's
-own labels go too:
+Its filters treat the three services as one map: without labels, the labels
+service drops out, and the base map's own labels go too.
 
 ```{python}
-bm.basemap("UGRC.Lite", 720, 405, center=(-111.75, 40.62), zoom=10.5, labels=False)
+bm.basemap(bm.style("UGRC.Lite", features="-labels"), center=(-111.75, 40.62), zoom=10.5,
+           width=720, height=405)
 ```
 
 ## Features
 
 `features` keeps or drops parts of the map by what they show: background,
-water, landcover, parks, buildings, roads, rail, boundaries, places, poi and
-terrain. Plain names keep, `"-name"` drops.
+water, landcover, parks, buildings, roads, rail, boundaries, places, poi,
+terrain and labels. Plain names keep, `"-name"` drops, and the labels filter
+combines with the others: `["roads", "labels"]` keeps the road labels.
 
 ```{python}
-view("OpenFreeMap.Liberty", labels=False, features=["background", "water", "parks", "roads"])
+view(bm.style("OpenFreeMap.Liberty", features=["background", "water", "parks", "roads"]))
 ```
 
 ```{python}
-view("OpenFreeMap.Liberty", features=["-roads", "-rail", "-poi"])
+view(bm.style("OpenFreeMap.Liberty", features=["-roads", "-rail", "-poi"]))
 ```
 
-`list_layers()` takes the same filters and lists what a render with them
-draws, to check a filter before rendering:
+`list_layers()` of a filtered style lists what it draws, to check a filter
+before rendering:
 
 ```{python}
-for l in bm.list_layers("OpenFreeMap.Liberty", labels=False, features=["water", "parks"]):
+for l in bm.list_layers(bm.style("OpenFreeMap.Liberty", features=["water", "parks", "-labels"])):
     print(f"{l['id']:<22} {l['type']:<6} {l['feature']}")
 ```
 
@@ -98,19 +95,20 @@ exact control, `layers` keeps layers by id, or drops them with `"-"`; `*`
 and `?` are wildcards:
 
 ```{python}
-view("OpenFreeMap.Liberty", layers=["-road_*", "-bridge_*", "-tunnel_*"])
+view(bm.style("OpenFreeMap.Liberty", layers=["-road_*", "-bridge_*", "-tunnel_*"]))
 ```
 
-A name that matches no layer warns, so a typo does not go unnoticed:
+A name that matches no layer is a `BasemapProblem` warning when the map is
+rendered, so a typo does not go unnoticed:
 
 ```{python}
-m = view("OpenFreeMap.Liberty", layers=["-lable_village"])
-_ = m.render_array()
+m = view(bm.style("OpenFreeMap.Liberty", layers=["-lable_village"]))
+img = m.render()
 ```
 
 ## In plots
 
-The plot layers take the same arguments:
+Plots take the same styles:
 
 ```{python}
 import geodatasets
@@ -118,11 +116,11 @@ import geopandas as gpd
 from plotnine import geom_map, ggplot, theme, theme_void
 
 nc = gpd.read_file(geodatasets.get_path("geoda.sids"))
-water = bm.basemap_provider("OpenFreeMap.Liberty", features=["water"], labels=False)
+relief_water = ["Esri.WorldShadedRelief", bm.style("OpenFreeMap.Liberty", features=["water", "-labels"])]
 
 (
     ggplot(nc)
-    + bm.geom_basemap(["Esri.WorldShadedRelief", water])
+    + bm.basemap(relief_water)
     + geom_map(fill=None, color="#262626", size=0.25)
     + theme_void()
     + theme(figure_size=(8, 3.6))

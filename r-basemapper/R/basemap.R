@@ -248,7 +248,10 @@ print.basemap <- function(x, ...) {
   cat(sprintf("<basemap> %d style%s, %s\n", n, if (n == 1L) "" else "s", crs_name(x$.prepared$crs)))
   cat(sprintf("  size   %d x %d px%s at %g dpi%s\n", v$width, v$height, auto("size"), v$dpi, auto("dpi")))
   cat(sprintf("  zoom   %.2f%s, 1:%s\n", v$zoom, auto("zoom"), format(round(v$scale), big.mark = ",")))
-  cat(sprintf("  center (%.4f, %.4f)%s\n", c0[1], c0[2], auto("extent")))
+  # A given centre is given; else it follows from the extent (bounds, a
+  # clip) or, with none, from the default world.
+  centre_from <- if (!is.null(x$center)) "" else if (identical(v$provenance$extent, "default")) " (default)" else " (derived)"
+  cat(sprintf("  center (%.4f, %.4f)%s\n", c0[1], c0[2], centre_from))
   invisible(x)
 }
 

@@ -2,9 +2,10 @@
 title: "Get started"
 ---
 
-> **R or Rust?** The same functions and arguments exist in
+> **R or Rust?** The same model, functions and arguments exist in
 > [R](../../r/index.html) (`verb(m, ...)` for Python's `m.verb(...)`) and
-> [Rust](../../rust/basemapper_core/index.html).
+> [Rust](../../rust/basemapper_core/index.html). Coming from 0.2? See
+> [Migrating to 0.3](../../migrating-to-0.3.html).
 
 basemapper renders MapLibre GL basemaps headlessly with a Rust core: no
 browser, display server, GPU or GDAL. Vector styles are drawn by a software
@@ -21,43 +22,50 @@ pip install "basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory
 
 See the [home page](../index.html) for conda.
 
-## Choose a style
+## A first map
 
-Every function takes a `style`. The simplest is a named basemap, a
-[leaflet-providers](https://leaflet-extras.github.io/leaflet-providers/preview/)
-name; `list_providers()` lists them, with the API key some need:
+`basemap()` takes a style and what you know of the map: here a centre and a
+zoom, and the image's size. In a notebook, a basemap shows the map:
 
 ```{python}
 import basemapper as bm
 
-for p in bm.list_providers()[:12]:
-    print(f"{p['name']:<24} vector={p['vector']!s:<5} raster={p['raster']!s:<5} key={p['api_key_env']}")
-```
-
-A MapLibre style URL or JSON works too, and so does tile data: a tile URL,
-TileJSON, PMTiles archive or ArcGIS service (see
-[Your own tiles and services](05-own-data.qmd)).
-
-## A map on its own
-
-`basemap()` creates a view: a centre and MapLibre zoom (or bounds to fit),
-and a size in CSS pixels. In a notebook, a view shows the map:
-
-```{python}
-m = bm.basemap("OpenFreeMap.Positron", 720, 405, center=(-111.8887, 40.7556), zoom=12.4)
+m = bm.basemap("OpenFreeMap.Positron", center=(-111.8887, 40.7556), zoom=12.4, width=720, height=405)
 m
 ```
 
-`repr()` describes it, and the `get_*()` methods read it:
+Its view is a set of properties, and `provenance` says where each value came
+from (*given*, or *derived* from the others, or a *default*):
 
 ```{python}
 print(repr(m))
-print(m.get_bounds(lonlat=True))
-print(m.get_attribution())
+print(m.zoom, m.size, m.dpi, m.provenance)
 ```
 
-`set_view()` and `set_bounds()` change the view. Here it fits North
-Carolina's counties (a GeoDataFrame, from
+The simplest style is a named basemap; `list_providers()` lists them, with
+the API key some need. A MapLibre style URL or JSON works too, and so does
+tile data (see [Your own tiles and services](05-own-data.qmd)).
+
+```{python}
+for p in bm.list_providers()[:8]:
+    print(f"{p['name']:<24} vector={p['vector']!s:<5} raster={p['raster']!s:<5} key={p['api_key_env']}")
+```
+
+## Three controls
+
+A map answers three questions, each with one argument:
+
+| Question | Argument |
+|---|---|
+| What to show | the extent: `bounds` (an area), or `center` with `zoom` (the camera) |
+| How much detail | `zoom`: which roads, places and labels the style draws |
+| How sharp | `dpi`: pixels per inch (96 by default) |
+
+`width` / `height` give the image's size, in pixels or (with `units`)
+inches, cm or mm. **Any three of extent, zoom, image size and dpi give the
+fourth**, and what nothing gives is defaulted: dpi 96, then 800 x 600, then
+the world. The zoom is never a default; it is derived. So an area alone gets
+the zoom that fits it (here North Carolina's counties, a GeoDataFrame from
 [geodatasets](https://geodatasets.readthedocs.io)):
 
 ```{python}
@@ -65,28 +73,56 @@ import geopandas as gpd
 import geodatasets
 
 nc = gpd.read_file(geodatasets.get_path("geoda.sids"))
-bm.basemap("OpenFreeMap.Liberty", 720, 300, bounds=nc)
+bm.basemap("OpenFreeMap.Liberty", bounds=nc, width=720, height=300)
 ```
 
-## Raster and vector, PNG and SVG
+An area and a zoom give the image size: *this area at this detail*.
 
-Basemaps come as raster tiles (images, like OpenStreetMap's) or vector tiles
-(geometry styled on the fly, like OpenFreeMap's). Either renders to a PNG
-with `render_png()` or an SVG with `render_svg()`. In an SVG, vector layers
-are paths and the labels editable text with the style's fonts embedded;
-raster tiles are embedded as images.
+```{python}
+bm.basemap("OpenFreeMap.Liberty", bounds=nc, zoom=6).size
+```
+
+`around()` gives an area by its size on the ground:
+
+```{python}
+bm.basemap("OpenFreeMap.Liberty", bounds=bm.around((-111.89, 40.76), (12, 6), units="km"), width=720, height=360)
+```
+
+And `dpi` is sharpness: the same map, with more pixels.
+
+```{python}
+bm.basemap("OpenFreeMap.Liberty", bounds=nc, width=7, height=3, units="in", dpi=300).size   # 7 x 3 inches
+```
+
+## Renderings
+
+`render()` draws a basemap once; the rendering converts to a PNG, an array
+or an xarray, and knows where it is:
 
 ```{python}
 import os, tempfile
 
+img = m.render()
+print(repr(img))
+img.save(os.path.join(tempfile.mkdtemp(), "slc.png"))
+a = img.to_numpy()
+a.shape, a.dtype
+```
+
+`m.render(dpi=192)` renders the same view at 192 dpi. `m` gives its size in
+pixels, so the image keeps them and covers less ground; a basemap with no
+size (or one in inches) is the same map with twice the pixels. `render_svg()`
+draws an SVG, with the map as paths and the labels as editable text:
+
+```{python}
 slc = (-111.8910, 40.7608)
-raster = bm.basemap("OpenStreetMap.Mapnik", 480, 300, center=slc, zoom=11.5)
-vector = bm.basemap("OpenFreeMap.Bright", 480, 300, center=slc, zoom=11.5)
+raster = bm.basemap("OpenStreetMap.Mapnik", center=slc, zoom=11.5, width=480, height=300)
+vector = bm.basemap("OpenFreeMap.Bright", center=slc, zoom=11.5, width=480, height=300)
 
 out = tempfile.mkdtemp()
-for name, m in [("raster", raster), ("vector", vector)]:
-    m.render_png(os.path.join(out, f"{name}.png"))
-    m.render_svg(os.path.join(out, f"{name}.svg"))
+for name, b in [("raster", raster), ("vector", vector)]:
+    b.render().save(os.path.join(out, f"{name}.png"))
+    b.render_svg(os.path.join(out, f"{name}.svg"))
 
 for f in sorted(os.listdir(out)):
     print(f"{f:<12} {os.path.getsize(os.path.join(out, f)) // 1024} KB")
@@ -107,42 +143,41 @@ HTML(f"""<table class="table" style="table-layout:fixed"><col style="width:7.5em
 <tr><th>Vector<br><small>OpenFreeMap Bright</small></th><td><img src="{uri('vector.png')}" style="width:100%"></td><td><img src="{uri('vector.svg')}" style="width:100%"></td></tr></table>""")
 ```
 
-`render_array()` returns the pixels, for your own compositing, and
-`get_bounds()` their extent in Web Mercator:
+## Any CRS
+
+A map is drawn in Web Mercator, as every web map, unless it says otherwise:
+`crs` gives its CRS, and a spatial layer in a projected CRS gives its own.
+The map is then warped into it:
 
 ```{python}
-a = vector.render_array()
-a.shape, a.dtype, vector.get_bounds()
+nc_sp = nc.to_crs(32119)   # North Carolina's state plane
+bm.basemap("OpenFreeMap.Liberty", bounds=nc_sp, width=720, height=300)
 ```
-
-`pixel_ratio` makes images larger with the same view and label layout:
-`pixel_ratio=2` for a sharp 2x image, `dpi / 96` for print.
 
 ## In a plot
 
-`add_basemap()` adds a basemap under a matplotlib axes' content. It renders
-when the figure is drawn, for the axes' extent and at the output resolution,
-and credits the provider in the corner:
+`m.add_to(ax)` puts a basemap under a matplotlib axes' content. The axes
+give the extent, the size and the dpi (give their CRS: plain axes carry
+none); the basemap renders when the figure is drawn, lines up with the data
+in any CRS, and credits the provider in the corner:
 
 ```{python}
 import matplotlib.pyplot as plt
 
-nc_3857 = nc.to_crs(3857)
 fig, ax = plt.subplots(figsize=(8, 3.6))
-nc_3857.plot(ax=ax, column="BIR74", cmap="viridis", alpha=0.75, edgecolor="white", linewidth=0.3, legend=True)
-bm.add_basemap(ax, "OpenFreeMap.Positron", crs=3857)
+nc.plot(ax=ax, column="BIR74", cmap="viridis", alpha=0.75, edgecolor="white", linewidth=0.3, legend=True)
+bm.basemap("OpenFreeMap.Positron").add_to(ax, crs=nc.crs)
 ax.set_axis_off()
 ```
 
-`geom_basemap()` does the same in plotnine, with the arguments of R's
-`geom_basemap()`:
+In plotnine, add it like a layer:
 
 ```{python}
 from plotnine import aes, geom_map, ggplot, scale_fill_cmap, theme_void, theme
 
 (
     ggplot(nc)
-    + bm.geom_basemap("Esri.WorldGrayCanvas")
+    + bm.basemap("Esri.WorldGrayCanvas")
     + geom_map(aes(fill="SID74"), alpha=0.7, color="white", size=0.2)
     + scale_fill_cmap("Blues", name="SIDS, 1974")
     + theme_void()
@@ -152,13 +187,34 @@ from plotnine import aes, geom_map, ggplot, scale_fill_cmap, theme_void, theme
 
 [Plots with matplotlib and plotnine](03-plotting.qmd) has more.
 
+## Clipping
+
+`clip` draws a basemap only inside a layer's polygons; `outside()` draws it
+everywhere else. An inside clip also frames the map on the layer:
+
+```{python}
+wake = nc[nc["NAME"] == "Wake"]
+bm.basemap("OpenFreeMap.Liberty", clip=wake, width=720, height=400)
+```
+
+## What basemapper tells you
+
+Renders carry notes. A value basemapper chose is logged (the `basemapper`
+logger, at INFO); something it had to change (the view kept inside the
+world, an effective dpi in a plot) is a `BasemapAdjustment` warning; something
+missing from the map (a tile that failed) is a `BasemapProblem` warning,
+every time, and an error with `FetchOptions(on_error="fail")`.
+
+```{python}
+for n in img.notes:
+    print(n.level, n.kind, n.message)
+```
 
 ## The tile cache
 
 Tiles are cached on disk, so drawing an area again does not download its
 tiles again. They are kept for as long as each server allows (a day when it
-says nothing), and the cache looks after itself: expired tiles are deleted,
-and past 250 MB the least recently used tiles go first.
+says nothing), and past 250 MB the least recently used go first.
 
 ```{python}
 bm.tile_cache()  # where the tiles are kept
@@ -173,15 +229,11 @@ bm.tile_cache(clear=True)           # delete the cached tiles
 ```
 
 To keep a folder or limit for good, set environment variables before
-Python starts, for example in your shell profile (or a project's `.env`,
-if you load one):
+Python starts, for example in your shell profile:
 
 ```sh
 export BASEMAPPER_CACHE_DIR=~/basemap-tiles   # Windows: setx BASEMAPPER_CACHE_DIR D:\basemap-tiles
 export BASEMAPPER_CACHE_MAX_SIZE=500
 ```
 
-R reads the same variables, so one folder can serve both languages. Without
-them, Python keeps its tiles in the platform's cache folder:
-`%LOCALAPPDATA%\basemapper` on Windows, `~/Library/Caches/basemapper` on
-macOS and `~/.cache/basemapper` on Linux.
+R reads the same variables, so one folder can serve both languages.

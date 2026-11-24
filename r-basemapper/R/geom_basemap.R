@@ -91,14 +91,24 @@ render_panel <- function(m, limits, crs, size_in) {
 # no handle to it).
 .BASEMAPPER_LAST <- new.env(parent = emptyenv())
 
+# A rendering with its alpha channel scaled by `alpha` (0-1).
+fade <- function(r, alpha) {
+  a <- seq.int(4L, length(r$pixels), by = 4L)
+  r$pixels[a] <- as.raw(round(as.integer(r$pixels[a]) * max(0, min(1, alpha))))
+  r
+}
+
 #' @exportS3Method grid::makeContent
 makeContent.BasemapGrob <- function(x) {
   w_in <- grid::convertWidth(grid::unit(1, "npc"), "in", valueOnly = TRUE)
   h_in <- grid::convertHeight(grid::unit(1, "npc"), "in", valueOnly = TRUE)
   r <- render_panel(x$basemap, x$limits, x$crs, c(w_in, h_in))
+  # The opacity goes into the image itself: graphics devices need not honour
+  # an alpha on rasters (Windows' png() ignores it).
+  if (!is.null(x$alpha) && x$alpha < 1) r <- fade(r, x$alpha)
   img <- grid::rasterGrob(
     as_native(r), x = 0.5, y = 0.5, width = grid::unit(1, "npc"), height = grid::unit(1, "npc"),
-    default.units = "npc", interpolate = FALSE, gp = grid::gpar(alpha = x$alpha)
+    default.units = "npc", interpolate = FALSE
   )
   credit <- attribution_grob(attribution_text(x$attribution, x$basemap$styles), w_in)
   grid::setChildren(x, if (is.null(credit)) grid::gList(img) else grid::gList(img, credit))

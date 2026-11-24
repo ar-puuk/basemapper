@@ -169,6 +169,10 @@ footer a { color: rgba(255,251,242,.85); }
         <a class="btn solid" href="python/user-guide/get-started.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path data-icon="python"/></svg>in Python</a>
         <a class="btn solid" href="rust/basemapper_core/index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path data-icon="rust"/></svg>in Rust</a>
       </div>
+      <p class="note">New in 0.3: one model in every language (a basemap's extent,
+        zoom and dpi, any three of extent, zoom, size and dpi giving the fourth), maps in any
+        CRS, basemaps aligned with the data in every plot, and clipping.
+        <a href="migrating-to-0.3.html">Migrating from 0.2 &rarr;</a></p>
       <div class="facts">
         <span><b>82</b> named basemaps</span>
         <span><b>Raster &amp; vector</b> tiles</span>
@@ -207,7 +211,7 @@ footer a { color: rgba(255,251,242,.85); }
           <div class="pane" data-pane="remotes"><div class="code"><pre>remotes::install_github(<span class="s">"ar-puuk/basemapper"</span>, subdir = <span class="s">"r-basemapper"</span>)</pre><button class="copy" type="button">Copy</button></div></div>
           <div class="pane" data-pane="devtools"><div class="code"><pre>devtools::install_github(<span class="s">"ar-puuk/basemapper"</span>, subdir = <span class="s">"r-basemapper"</span>)</pre><button class="copy" type="button">Copy</button></div></div>
         </div>
-        <p>Suggests tmap for <code>tm_basemap()</code>, sf for bounds in other CRSs and terra for <code>render_raster()</code>. <a href="r/articles/getting-started.html">Get started in R &rarr;</a></p>
+        <p>Suggests sf for maps and plots in CRSs other than Web Mercator and WGS 84, tmap for <code>tm_basemap()</code> and terra for <code>as_raster()</code>. <a href="r/articles/getting-started.html">Get started in R &rarr;</a></p>
       </div>
       <div class="pane" data-pane="python">
         <div class="tabset"><div class="tablist" role="tablist"><button role="tab" data-tab="pip">pip</button><button role="tab" data-tab="uv">uv</button><button role="tab" data-tab="conda">conda</button></div>
@@ -218,7 +222,7 @@ conda create -n basemapper -c conda-forge python numpy pyproj matplotlib xarray 
 conda activate basemapper
 pip install <span class="s">"basemapper @ git+https://github.com/ar-puuk/basemapper#subdirectory=py-basemapper"</span></pre><button class="copy" type="button">Copy</button></div></div>
         </div>
-        <p>Needs numpy and pyproj; for the plot layers install <code>basemapper[matplotlib]</code> (<code>add_basemap()</code>) or <code>basemapper[plotnine]</code> (<code>geom_basemap()</code>). <a href="python/user-guide/get-started.html">Get started in Python &rarr;</a></p>
+        <p>Needs numpy and pyproj; for plots install <code>basemapper[matplotlib]</code> (<code>m.add_to(ax)</code>) or <code>basemapper[plotnine]</code> (<code>ggplot(df) + m</code>). <a href="python/user-guide/get-started.html">Get started in Python &rarr;</a></p>
       </div>
       <div class="pane" data-pane="rust">
         <div class="tabset"><div class="tablist" role="tablist"><button role="tab" data-tab="toml">Cargo.toml</button><button role="tab" data-tab="cargo">cargo add</button></div>
@@ -247,30 +251,29 @@ basemapper-core = { git = <span class="s">"https://github.com/ar-puuk/basemapper
         </div>
 <div class="pane" data-pane="r"><div class="code"><pre><span class="k">library</span>(basemapper)
 
-m <- <span class="k">basemap</span>(<span class="s">"OpenFreeMap.Positron"</span>, <span class="n">720</span>, <span class="n">405</span>,
-             center = <span class="k">c</span>(<span class="n">-111.8887</span>, <span class="n">40.7556</span>), zoom = <span class="n">12.4</span>)
-m                               <span class="c"># shows the map in a document</span>
-<span class="k">render_png</span>(m, path = <span class="s">"slc.png"</span>)
-<span class="k">render_svg</span>(m, path = <span class="s">"slc.svg"</span>)  <span class="c"># paths and editable text</span>
+m <- <span class="k">basemap</span>(<span class="s">"OpenFreeMap.Positron"</span>, center = <span class="k">c</span>(<span class="n">-111.8887</span>, <span class="n">40.7556</span>),
+             zoom = <span class="n">12.4</span>, width = <span class="n">720</span>, height = <span class="n">405</span>)
+img <- <span class="k">render</span>(m)                <span class="c"># the image, its bounds, zoom, dpi and scale</span>
+<span class="k">write_png</span>(img, <span class="s">"slc.png"</span>)
+<span class="k">render_svg</span>(m, <span class="s">"slc.svg"</span>)          <span class="c"># paths and editable text</span>
 <span class="k">get_attribution</span>(m)</pre><button class="copy" type="button">Copy</button></div></div>
 <div class="pane" data-pane="python"><div class="code"><pre><span class="k">import</span> basemapper <span class="k">as</span> bm
 
-m = bm.<span class="k">basemap</span>(<span class="s">"OpenFreeMap.Positron"</span>, <span class="n">720</span>, <span class="n">405</span>,
-               center=(<span class="n">-111.8887</span>, <span class="n">40.7556</span>), zoom=<span class="n">12.4</span>)
-m                               <span class="c"># shows the map in a notebook</span>
-m.<span class="k">render_png</span>(<span class="s">"slc.png"</span>)
+m = bm.<span class="k">basemap</span>(<span class="s">"OpenFreeMap.Positron"</span>, center=(<span class="n">-111.8887</span>, <span class="n">40.7556</span>),
+               zoom=<span class="n">12.4</span>, width=<span class="n">720</span>, height=<span class="n">405</span>)
+img = m.<span class="k">render</span>()                <span class="c"># the image, its bounds, zoom, dpi and scale</span>
+img.<span class="k">save</span>(<span class="s">"slc.png"</span>)
 m.<span class="k">render_svg</span>(<span class="s">"slc.svg"</span>)          <span class="c"># paths and editable text</span>
-m.<span class="k">get_attribution</span>()</pre><button class="copy" type="button">Copy</button></div></div>
-<div class="pane" data-pane="rust"><div class="code"><pre><span class="k">use</span> basemapper_core::providers::{basemap_provider, ProviderOptions};
-<span class="k">use</span> basemapper_core::Basemap;
+bm.<span class="k">get_attribution</span>(m)</pre><button class="copy" type="button">Copy</button></div></div>
+<div class="pane" data-pane="rust"><div class="code"><pre><span class="k">use</span> basemapper_core::{Basemap, Context};
 
-<span class="k">let</span> style = <span class="k">basemap_provider</span>(<span class="s">"OpenFreeMap.Positron"</span>, &amp;ProviderOptions::default())?;
-<span class="k">let</span> m = Basemap::<span class="k">new</span>(style)
-    .<span class="k">size</span>(<span class="n">720</span>, <span class="n">405</span>)
+<span class="k">let</span> m = Basemap::<span class="k">new</span>(<span class="s">"OpenFreeMap.Positron"</span>)
     .<span class="k">center</span>(<span class="n">-111.8887</span>, <span class="n">40.7556</span>)
-    .<span class="k">zoom</span>(<span class="n">12.4</span>);
-m.<span class="k">render_png</span>(Some(Path::new(<span class="s">"slc.png"</span>)))?;
-m.<span class="k">get_attribution</span>()?;</pre><button class="copy" type="button">Copy</button></div></div>
+    .<span class="k">zoom</span>(<span class="n">12.4</span>)
+    .<span class="k">size</span>(<span class="n">720</span>, <span class="n">405</span>);
+<span class="k">let</span> img = m.<span class="k">render</span>(&amp;Context::Standalone)?;
+std::fs::<span class="k">write</span>(<span class="s">"slc.png"</span>, img.<span class="k">to_png</span>()?)?;
+m.<span class="k">attribution</span>()?;</pre><button class="copy" type="button">Copy</button></div></div>
       </div>
       <div class="out">
         <img src="rust/img/quickstart.png" width="720" height="405" alt="OpenFreeMap Positron over Salt Lake City">
@@ -305,13 +308,14 @@ m.<span class="k">get_attribution</span>()?;</pre><button class="copy" type="but
 <section class="alt">
   <div class="wrap">
     <h2>Under your data</h2>
-    <p class="sub">The plot layers render when the plot is drawn, for its
-      extent and at the output resolution, in any coordinate system, and
-      credit the provider in the corner.</p>
+    <p class="sub">A basemap in a plot renders when the plot is drawn, for
+      its extent and at the output resolution, warped into the plot's
+      coordinate system so it lines up with the data, and credits the
+      provider in the corner.</p>
     <div class="grid3">
       <figure class="tile">
         <img src="r/articles/plotting_files/figure-html/ggplot-choropleth-1.png" alt="A ggplot2 choropleth of North Carolina over OpenFreeMap Positron" loading="lazy">
-        <figcaption><b>ggplot2</b> <code>geom_basemap()</code>. <a href="r/articles/plotting.html">R plots</a></figcaption>
+        <figcaption><b>ggplot2</b> <code>ggplot(nc) + m</code>. <a href="r/articles/plotting.html">R plots</a></figcaption>
       </figure>
       <figure class="tile">
         <img src="r/articles/plotting_files/figure-html/tmap-relief-1.png" alt="A tmap map of North Carolina over shaded relief and labels" loading="lazy">
@@ -322,8 +326,8 @@ m.<span class="k">get_attribution</span>()?;</pre><button class="copy" type="but
         <figcaption><b>Any CRS</b>, here a state plane. <a href="r/articles/plotting.html#projected-data">R plots</a></figcaption>
       </figure>
     </div>
-    <p class="note">matplotlib's <code>add_basemap()</code> and plotnine's
-      <code>geom_basemap()</code> do the same in Python:
+    <p class="note">matplotlib's <code>m.add_to(ax)</code> and plotnine's
+      <code>ggplot(df) + m</code> do the same in Python:
       <a href="python/user-guide/plotting.html">Python plots</a>.</p>
   </div>
 </section>
@@ -384,10 +388,10 @@ m.<span class="k">get_attribution</span>()?;</pre><button class="copy" type="but
       look in MapLibre.</p>
     <div class="features">
       <div class="feature"><h3>MapLibre's look, headless</h3><p>A CPU port of MapLibre GL JS's renderer, gated on pixel tests against MapLibre GL JS: fills, lines, labels, icons, patterns, hillshade.</p></div>
-      <div class="feature"><h3>Any zoom, any resolution</h3><p>Fractional zooms are rendered, not resampled. <code>pixel_ratio</code> gives sharp 2x or print-resolution images with the same layout.</p></div>
+      <div class="feature"><h3>Detail and sharpness, separately</h3><p>The zoom sets the detail; the dpi the sharpness. Give any three of extent, zoom, image size and dpi and the fourth follows: this area at this detail, or this print at 300 dpi.</p></div>
       <div class="feature"><h3>Your tiles, too</h3><p>Named basemaps, any MapLibre style, tile URLs, TileJSON, PMTiles, ArcGIS services and WMS/WMTS.</p></div>
       <div class="feature"><h3>True vector SVG</h3><p>Paths for the map and editable text for labels, with the style's fonts embedded: ready for Illustrator or Inkscape.</p></div>
-      <div class="feature"><h3>In your plots</h3><p>ggplot2, tmap, matplotlib and plotnine layers that render at the output resolution, in any CRS.</p></div>
+      <div class="feature"><h3>In your plots, in any CRS</h3><p>ggplot2, tmap, matplotlib and plotnine: warped into the plot's coordinate system, rendered at the output resolution, and clipped to your polygons when you ask.</p></div>
       <div class="feature"><h3>Nothing else to install</h3><p>No browser, GPU, display server or GDAL. Tiles are cached on disk as the servers allow.</p></div>
     </div>
   </div>
