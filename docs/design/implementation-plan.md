@@ -151,6 +151,21 @@ renders are byte-identical.
 - **SVG:** the clip as `<clipPath>` (even-odd for `outside()`); SVG of a map
   not in Web Mercator is an error until paths are warped (§4.2).
 
+**Done (2026-11-23):** `core/src/warp.rs`: a `Mesh` (output pixel
+positions → Web Mercator, NaN outside the CRS's area) and `warp()`. It uses
+bilinear interpolation in premultiplied alpha, runs rows in parallel, and
+handles the date line. `core/src/mask.rs`: a `Shape` (polygons in the map's
+CRS, `Keep::Inside` / `Outside`) with its default extent (none for outside),
+mapped to pixels and simplified to 1/16 px. `alpha_mask()` takes 4 × 4
+samples per pixel as bits from the renderer's `raster_polygon`: even-odd
+within a polygon, united across polygons, so overlaps don't cancel.
+`svg_clip_path()` produces the SVG clip. `core/tests/warp_mask.rs` checks
+the alignment of a 1° checkerboard warped to lon/lat and to transverse
+Mercator against the projection formulas, plus inside, outside and holed
+clips, with reference images in `core/tests/fixtures/warp/`. Wiring the SVG
+clip and the error for SVG outside Web Mercator needs the map's CRS, so it
+moves to 1e.
+
 ### 1e. The facade
 
 - `Basemap { styles, inputs, fetch, clip }`: `render(context)`,
