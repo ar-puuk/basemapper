@@ -120,6 +120,20 @@ working (through the old internal calls) until phases 3 and 4.
 
 ### 1c. Renderings and notes: `core/src/rendering.rs`, `core/src/notes.rs`
 
+**Done (2026-11-23):** `Rendering` has pixels, size, bounds, crs, zoom,
+tile zoom, dpi and notes, with `scale()` derived from the zoom and the
+centre's latitude (the same at any dpi). Notes are collected with
+`notes::report()` into the render's `Collector`. The collector is current
+around each poll of a wrapped future and in each `par_map` worker, so it
+follows the work into spawned tasks and threads with no signature changes.
+Notes of one kind merge, with a count and details. All 18 warnings became
+notes (a per-tile log line stays a log line), as did the filter warnings
+and the unmatched `paint` keys. Two *adjusted* notes are new: raster tiles
+coarsened for `max_tiles`, and tiles enlarged past the source's zoom.
+Logging is unchanged, so the 0.2 bindings behave as before. The golden
+renders are byte-identical.
+
+
 - `Rendering { pixels, width, height, bounds, crs, zoom, dpi, scale, notes }`:
   one render, many conversions (D4).
 - `Note { level: Decided | Adjusted | Problem, kind, message, details }`,

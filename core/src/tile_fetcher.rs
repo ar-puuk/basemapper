@@ -338,7 +338,7 @@ pub async fn fetch_all_tiles(
             TileSource::PMTiles { .. } => None,
         };
 
-        set.spawn(async move {
+        set.spawn(crate::notes::propagate(async move {
             let _permit = sem.acquire().await.map_err(|e| BasemapError::RenderError(e.to_string()))?;
 
             // Cache hit — skip network entirely. (Tiles from the local
@@ -401,7 +401,7 @@ pub async fn fetch_all_tiles(
             }
 
             Ok((coord, data))
-        });
+        }));
     }
 
     let mut results = Vec::new();
@@ -421,7 +421,7 @@ pub async fn fetch_all_tiles(
                     BasemapError::TileIsWebPage { .. } => web_page = true,
                     _ => other_failures = true,
                 }
-                log::warn!("tile fetch failed (skipped): {e}");
+                crate::notes::report(crate::notes::Level::Problem, "tile_skipped", format!("tile fetch failed (skipped): {e}"));
             }
         }
     }

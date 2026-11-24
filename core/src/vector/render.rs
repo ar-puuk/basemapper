@@ -158,7 +158,11 @@ fn place_tiles(
         let tile = match tile {
             Ok(t) => t,
             Err(e) => {
-                log::warn!("skipping undecodable tile {}/{}/{}: {e}", c.z, c.x, c.y);
+                crate::notes::report(
+                    crate::notes::Level::Problem,
+                    "tile_undecodable",
+                    format!("skipping undecodable tile {}/{}/{}: {e}", c.z, c.x, c.y),
+                );
                 continue;
             }
         };
@@ -1215,7 +1219,7 @@ fn raster_factors(saturation: f64, contrast: f64, hue_deg: f64) -> (f64, f64, [f
 /// straight-alpha RGBA. None when nothing could be decoded.
 fn raster_image(rt: &RasterTiles, bbox: [f64; 4], w: usize, h: usize, ratio: f64) -> Option<image::RgbaImage> {
     crate::renderer::composite_raster_tiles(&rt.tiles, bbox, rt.zoom, w as u32, h as u32, true, ratio)
-        .map_err(|e| log::warn!("raster layer: {e}"))
+        .map_err(|e| crate::notes::report(crate::notes::Level::Problem, "raster_layer_failed", format!("raster layer: {e}")))
         .ok()
 }
 

@@ -65,7 +65,12 @@ pub fn par_map<I: Sync, O: Send>(items: &[I], f: impl Fn(&I) -> O + Sync) -> Vec
     }
     let chunk = items.len().div_ceil(threads);
     std::thread::scope(|s| {
-        let handles: Vec<_> = items.chunks(chunk).map(|c| s.spawn(|| c.iter().map(&f).collect::<Vec<O>>())).collect();
+        // Each worker reports its notes into the render that started it.
+        let f = &f;
+        let handles: Vec<_> = items
+            .chunks(chunk)
+            .map(|c| s.spawn(crate::notes::propagate_fn(move || c.iter().map(f).collect::<Vec<O>>())))
+            .collect();
         handles.into_iter().flat_map(|h| h.join().expect("decode thread panicked")).collect()
     })
 }

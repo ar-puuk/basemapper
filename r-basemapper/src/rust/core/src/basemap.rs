@@ -289,6 +289,14 @@ impl Basemap {
         Ok(requests)
     }
 
+    /// Render the view: the image, where it is, its zoom and dpi, and notes
+    /// on what was decided, adjusted or could not be done.
+    pub fn render(&self) -> Result<crate::Rendering, BasemapError> {
+        self.check_view()?;
+        let dpi = self.pixel_ratio * crate::view::CSS_DPI;
+        crate::rendering::render_collecting(|| self.requests(), self.get_zoom(), dpi, Vec::new())
+    }
+
     /// Render to straight-alpha RGBA pixels (device pixels).
     pub fn render_array(&self) -> Result<RenderResult, BasemapError> {
         render_stack(self.requests()?)

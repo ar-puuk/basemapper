@@ -202,7 +202,14 @@ impl Style {
             Source::Auto(s) => Ok(vec![part(StyleInput::detect(s), self.key.clone())]),
             Source::Provider { name, form, tiles } => provider(name, *form, tiles.clone()),
             Source::Tiles { input, options } => {
-                let (json, _unmatched_paint) = crate::tile_style(input, options, self.key.as_deref())?;
+                let (json, unmatched_paint) = crate::tile_style(input, options, self.key.as_deref())?;
+                for key in unmatched_paint {
+                    crate::notes::report(
+                        crate::notes::Level::Problem,
+                        "paint_unmatched",
+                        format!("paint: {key:?} matches no layer of the style built for {}", crate::net::redact(input)),
+                    );
+                }
                 // The style is built inline; its token goes to its tile data's origin.
                 let mut p = part(StyleInput::InlineJson(json), self.key.clone());
                 p.token_scope = Some(input.clone());

@@ -73,6 +73,7 @@ pub mod error;
 pub mod features;
 pub mod net;
 pub mod notes;
+pub mod rendering;
 pub mod providers;
 pub mod renderer;
 pub mod style;
@@ -84,6 +85,8 @@ pub mod view;
 pub use basemap::{Basemap, Crs};
 pub use bbox::{bbox_from_center, compute_zoom, constrain_view, fit_bounds, RenderRequest, RenderResult, SpatialBounds};
 pub use error::BasemapError;
+pub use notes::{Level, Note};
+pub use rendering::Rendering;
 pub use style::{filter_style_layers, Source, Style, StyleInput, StylePart};
 /// The version of basemapper (the Rust core, and the R and Python packages
 /// built on it, share it; the release tag is `v` and this).
@@ -198,7 +201,7 @@ pub fn render_stack(requests: Vec<RenderRequest>) -> Result<RenderResult, Basema
     let parts: Vec<(u32, Result<StackPart, BasemapError>)> = RUNTIME.block_on(async {
         let mut set = tokio::task::JoinSet::new();
         for (i, q) in requests.into_iter().enumerate() {
-            set.spawn(async move { (i, q.group, render_part(q).await) });
+            set.spawn(notes::propagate(async move { (i, q.group, render_part(q).await) }));
         }
         let mut parts: Vec<(usize, u32, Result<StackPart, BasemapError>)> = Vec::new();
         while let Some(joined) = set.join_next().await {
@@ -476,19 +479,26 @@ async fn render_style(request: RenderRequest, client: reqwest::Client, style_jso
     };
     let tile_source = extract_tile_source_from_style(&style_val, &client, &request_auth(&request), style_base_url).await?;
 
+    let is_vector = matches!(tile_source, TileSource::MapboxVectorTile { .. });
     // Compute zoom for the full bbox — handles anti-meridian via compute_zoom.
+    // (Clamping to the source's zoom before coarsening picks the same zoom as
+    // after, and notes only the step that changed it.)
     let zoom = {
-        let raw = request.tile_zoom.unwrap_or_else(|| {
-            let mut z = bbox::raster_tile_zoom(request.bbox, request.width, raster_tile_size(&style_val));
-            while z > 0 && bbox::tile_count(request.bbox, z) > request.max_tiles {
-                z -= 1;
-            }
-            z
-        });
-        tile_source.maxzoom().map_or(raw, |mz| raw.min(mz))
+        let wanted = request
+            .tile_zoom
+            .unwrap_or_else(|| bbox::raster_tile_zoom(request.bbox, request.width, raster_tile_size(&style_val)));
+        let available = tile_source.maxzoom().map_or(wanted, |mz| wanted.min(mz));
+        let z = match request.tile_zoom {
+            Some(_) => available,
+            None => coarsen_to_fit(request.bbox, available, 0, request.max_tiles),
+        };
+        if !is_vector {
+            note_overzoomed(wanted, available);
+            note_coarsened(available, z, request.max_tiles);
+        }
+        z
     };
 
-    let is_vector = matches!(tile_source, TileSource::MapboxVectorTile { .. });
     // Raster sources: tiles on this zoom's grid (handles anti-meridian
     // bboxes). The vector path checks each source's own tiles as it
     // fetches them (fetch_vector_inputs).
@@ -526,6 +536,43 @@ async fn render_style(request: RenderRequest, client: reqwest::Client, style_jso
             zoom,
         )
         .await
+    }
+}
+
+/// The most detailed tile zoom from `zoom` down to `min` whose tiles for
+/// `bbox` number at most `max_tiles` (`min` when none does).
+fn coarsen_to_fit(bbox: [f64; 4], zoom: u8, min: u8, max_tiles: u32) -> u8 {
+    let mut z = zoom;
+    while z > min && bbox::tile_count(bbox, z) > max_tiles {
+        z -= 1;
+    }
+    z
+}
+
+/// Note raster tiles drawn coarser than the view's zoom to stay within
+/// `max_tiles`.
+fn note_coarsened(wanted: u8, used: u8, max_tiles: u32) {
+    if used < wanted {
+        notes::report(
+            Level::Adjusted,
+            "tiles_coarsened",
+            format!(
+                "the view needs more than max_tiles ({max_tiles}) raster tiles at zoom {wanted}: drawn with coarser zoom-{used} tiles"
+            ),
+        );
+    }
+}
+
+/// Note raster tiles enlarged past the source's most detailed zoom.
+fn note_overzoomed(wanted: u8, available: u8) {
+    if available < wanted {
+        notes::report(
+            Level::Adjusted,
+            "tiles_overzoomed",
+            format!(
+                "the view wants zoom-{wanted} raster tiles; the source's most detailed are zoom {available}, enlarged (less sharp)"
+            ),
+        );
     }
 }
 
@@ -570,9 +617,10 @@ async fn render_single_bbox(
         let out = vector::render::render(&style_val, &placed, &assets, bbox, width, height, request.pixel_ratio)
             .map_err(BasemapError::RenderError)?;
         if !out.skipped_layer_types.is_empty() {
-            log::warn!(
-                "vector renderer does not draw these layer types yet: {}",
-                out.skipped_layer_types.join(", ")
+            notes::report(
+                Level::Problem,
+                "layer_types_unsupported",
+                format!("these layer types are not drawn yet: {}", out.skipped_layer_types.join(", ")),
             );
         }
         return Ok(RenderResult {
@@ -907,10 +955,10 @@ async fn fetch_pmtiles_tiles(
             .map_err(|e| BasemapError::RenderError(format!("PMTiles coord error: {e}")))?;
         let reader = reader.clone();
         let semaphore = semaphore.clone();
-        set.spawn(async move {
+        set.spawn(notes::propagate(async move {
             let _permit = semaphore.acquire_owned().await;
             (i, coord, reader.get_tile_decompressed(pm_coord).await)
-        });
+        }));
     }
     let mut results = Vec::new();
     while let Some(joined) = set.join_next().await {
@@ -923,7 +971,7 @@ async fn fetch_pmtiles_tiles(
                 if fail_on_tile_error {
                     return Err(BasemapError::TileDecodeError(msg));
                 }
-                log::warn!("{msg} (skipped)");
+                notes::report(Level::Problem, "tile_skipped", format!("{msg} (skipped)"));
             }
         }
     }
@@ -1008,15 +1056,15 @@ async fn fetch_glyphs(
             .replace("{fontstack}", &stack)
             .replace("{range}", &format!("{}-{}", start, start + 255));
         let client = client.clone();
-        set.spawn(async move {
+        set.spawn(notes::propagate(async move {
             match net::get(&client, &url, &net::Auth::none(), net::limit::ASSET).await {
                 Ok(f) => Some((stack, f.body)),
                 Err(e) => {
-                    log::warn!("glyphs {}: {e}", net::redact(&url));
+                    notes::report(Level::Problem, "glyphs_missing", format!("glyphs {}: {e}", net::redact(&url)));
                     None
                 }
             }
-        });
+        }));
     }
     let mut results = Vec::new();
     while let Some(r) = set.join_next().await {
@@ -1027,7 +1075,7 @@ async fn fetch_glyphs(
     results.sort_by(|a, b| a.0.cmp(&b.0));
     for (stack, bytes) in results {
         if let Err(e) = map.add_pbf(&stack, &bytes) {
-            log::warn!("glyphs for {stack}: {e}");
+            notes::report(Level::Problem, "glyphs_missing", format!("glyphs for {stack}: {e}"));
         }
     }
     map
@@ -1061,7 +1109,7 @@ async fn fetch_sprite(
             async move {
                 net::get(&client, &url, &net::Auth::none(), net::limit::ASSET)
                     .await
-                    .map_err(|e| log::warn!("sprite {}: {e}", net::redact(&url)))
+                    .map_err(|e| notes::report(Level::Problem, "sprite_missing", format!("sprite {}: {e}", net::redact(&url))))
                     .ok()
                     .map(|f| f.body)
             }
@@ -1087,7 +1135,7 @@ async fn fetch_sprite(
                     sprite.images.insert(key, img);
                 }
             }
-            Err(e) => log::warn!("{e}"),
+            Err(e) => notes::report(Level::Problem, "sprite_missing", e.to_string()),
         }
     }
     sprite.device_pixel_ratio = pixel_ratio;
@@ -1115,7 +1163,7 @@ async fn fetch_vector_inputs(
     // 3D terrain is out of scope for flat basemaps (with a straight-down
     // camera MapLibre's terrain only resamples and displaces the map).
     if style_val.get("terrain").is_some_and(|t| !t.is_null()) {
-        log::warn!("style terrain is not supported; the map is drawn flat");
+        notes::report(Level::Adjusted, "terrain_unsupported", "style terrain is not supported; the map is drawn flat");
     }
     let sz = vector::render::scale_zoom(bbox, width);
     let vector_tz = |maxzoom: Option<u8>, minzoom: u8| -> Option<u8> {
@@ -1149,7 +1197,11 @@ async fn fetch_vector_inputs(
             let kind = src["type"].as_str().unwrap_or("");
             if kind == "geojson" {
                 if src["cluster"].as_bool() == Some(true) {
-                    log::warn!("source {id}: GeoJSON clustering is not supported; drawing unclustered features");
+                    notes::report(
+                        Level::Adjusted,
+                        "clustering_unsupported",
+                        format!("source {id}: GeoJSON clustering is not supported; drawing unclustered features"),
+                    );
                 }
                 let data = match &src["data"] {
                     serde_json::Value::String(url) => {
@@ -1158,7 +1210,7 @@ async fn fetch_vector_inputs(
                         match net::get(client, &url, &net::Auth::none(), net::limit::GEOJSON).await {
                             Ok(f) => serde_json::from_slice(&f.body).unwrap_or_default(),
                             Err(e) => {
-                                log::warn!("source {id}: GeoJSON {shown}: {e}");
+                                notes::report(Level::Problem, "geojson_failed", format!("source {id}: GeoJSON {shown}: {e}"));
                                 continue;
                             }
                         }
@@ -1181,7 +1233,7 @@ async fn fetch_vector_inputs(
             }
             if kind != "vector" && kind != "raster" && kind != "raster-dem" {
                 if !kind.is_empty() {
-                    log::warn!("source {id}: type {kind} is not supported yet");
+                    notes::report(Level::Problem, "source_unsupported", format!("source {id}: type {kind} is not supported yet"));
                 }
                 continue;
             }
@@ -1220,12 +1272,12 @@ async fn fetch_vector_inputs(
                 all_vector.extend(tiles);
                 sources.vector.insert(id, placed);
             } else {
-                let z = bbox::raster_tile_zoom(bbox, width, resolved.tile_size);
-                let mut z = resolved.source.maxzoom().map_or(z, |m| z.min(m));
+                let wanted = bbox::raster_tile_zoom(bbox, width, resolved.tile_size);
+                let fit = resolved.source.maxzoom().map_or(wanted, |m| wanted.min(m));
+                note_overzoomed(wanted, fit);
                 // As raster basemaps: coarser tiles rather than more than max_tiles.
-                while z > resolved.minzoom && bbox::tile_count(bbox, z) > request.max_tiles {
-                    z -= 1;
-                }
+                let z = coarsen_to_fit(bbox, fit, resolved.minzoom, request.max_tiles);
+                note_coarsened(fit, z, request.max_tiles);
                 if z < resolved.minzoom {
                     continue;
                 }
@@ -1346,7 +1398,11 @@ pub fn render_svg_stack_with(requests: Vec<RenderRequest>, options: &SvgOptions)
             let parts = vector::render::render_svg(style_val, sources, assets, bbox, width, height, &format!("s{k}_"), options.text, fonts.as_ref())
                 .map_err(BasemapError::RenderError)?;
             if !parts.skipped_layer_types.is_empty() {
-                log::warn!("SVG output does not draw these layer types yet: {}", parts.skipped_layer_types.join(", "));
+                notes::report(
+                    Level::Problem,
+                    "layer_types_unsupported",
+                    format!("SVG output does not draw these layer types yet: {}", parts.skipped_layer_types.join(", ")),
+                );
             }
             defs.push_str(&parts.defs);
             let _ = write!(body, r#"<g id="style{k}">{}</g>"#, parts.body);

@@ -358,7 +358,11 @@ fn subset_font(data: &[u8], chars: &BTreeSet<char>) -> Option<Vec<u8>> {
     match subset(&provider, &gids, &SubsetProfile::Minimal, CmapTarget::Unicode) {
         Ok(b) => Some(b),
         Err(e) => {
-            log::warn!("font subsetting failed ({e:?}); embedding the whole font");
+            crate::notes::report(
+                crate::notes::Level::Decided,
+                "font_not_subset",
+                format!("font subsetting failed ({e:?}); embedding the whole font"),
+            );
             Some(data.to_vec())
         }
     }

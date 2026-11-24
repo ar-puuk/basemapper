@@ -58,7 +58,7 @@ struct Dem {
 impl Dem {
     #[cfg(test)]
     fn decode(bytes: &[u8], unpack: [f64; 4]) -> Option<Dem> {
-        let img = image::load_from_memory(bytes).map_err(|e| log::warn!("DEM tile: {e}")).ok()?.to_rgba8();
+        let img = image::load_from_memory(bytes).map_err(|e| dem_failed(format!("DEM tile: {e}"))).ok()?.to_rgba8();
         Dem::from_image(&img, unpack)
     }
 
@@ -66,7 +66,7 @@ impl Dem {
     /// copied from the edge (until neighbours backfill it).
     fn from_image(img: &image::RgbaImage, unpack: [f64; 4]) -> Option<Dem> {
         if img.width() != img.height() || img.width() == 0 {
-            log::warn!("DEM tiles must be square");
+            dem_failed("DEM tiles must be square".into());
             return None;
         }
         let dim = img.width() as usize;
@@ -383,6 +383,11 @@ pub fn source_nearest(style: &Json, source: &str, zoom: f64) -> bool {
 /// `bbox` at `width × height` CSS pixels, scale zoom `zoom`. `nearest`: the
 /// source's texture filter (see [`source_nearest`]).
 #[allow(clippy::too_many_arguments)]
+/// A DEM tile that could not be used: its hillshade is missing there.
+fn dem_failed(message: String) {
+    crate::notes::report(crate::notes::Level::Problem, "dem_tile_failed", message);
+}
+
 pub fn draw_layer(
     fb: &mut Framebuffer,
     layer: &Json,
@@ -411,7 +416,7 @@ pub fn draw_layer(
                     dems.insert((c.x, c.y), d);
                 }
             }
-            Err(e) => log::warn!("DEM tile: {e}"),
+            Err(e) => dem_failed(format!("DEM tile: {e}")),
         }
     }
     let z = dem.zoom;
