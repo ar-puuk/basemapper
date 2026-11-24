@@ -157,7 +157,7 @@ Add a basemap to a {ggplot2} plot. The plot gives the extent, the CRS, the
 size and the dpi; the basemap renders when the plot is drawn, lines up with
 the data in any CRS, and credits the provider in the corner:
 
-```{r}
+```{r, fig.alt = "Choropleth of North Carolina's counties by births in 1974, in thousands, on a viridis scale, over the light grey OpenFreeMap Positron basemap; the most populous counties are brightest."}
 library(ggplot2)
 
 ggplot(nc) +
@@ -170,7 +170,7 @@ ggplot(nc) +
 `tm_basemap()` does the same in {tmap} (attach tmap first: it has a
 `tm_basemap()` of its own):
 
-```{r, message = FALSE}
+```{r, message = FALSE, fig.alt = "A tmap map of North Carolina's counties shaded by sudden infant deaths in 1974, over Esri's light grey canvas basemap, with a legend."}
 tm_basemap("Esri.WorldGrayCanvas") +
   tm_shape(nc) +
   tm_polygons(fill = "SID74", fill_alpha = 0.7, fill.legend = tm_legend("SIDS, 1974"))

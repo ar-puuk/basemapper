@@ -108,7 +108,7 @@ img <- render(m)
 
 Plots take the same styles:
 
-```{r}
+```{r, fig.alt = "North Carolina's county outlines over Esri's shaded relief, with OpenFreeMap Liberty's water in blue on top: mountain ridges in the west; lakes, rivers, the sounds and the Atlantic in the east."}
 library(ggplot2)
 nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
 

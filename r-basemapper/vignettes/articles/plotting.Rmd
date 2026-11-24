@@ -28,7 +28,7 @@ nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
 Add a basemap to a plot like a layer. `geom_basemap()` does the same, taking
 `basemap()`'s arguments:
 
-```{r ggplot-choropleth}
+```{r ggplot-choropleth, fig.alt = "Choropleth of North Carolina's counties by sudden infant deaths per 1,000 births in 1979, in orange-red shades over the light grey OpenFreeMap Positron basemap."}
 ggplot(nc) +
   basemap("OpenFreeMap.Positron") +
   geom_sf(aes(fill = SID79 / BIR79 * 1000), colour = "white", linewidth = 0.15, alpha = 0.8) +
@@ -42,7 +42,7 @@ The basemap is drawn in Web Mercator and warped into the plot's CRS, so it
 lines up with data in any CRS. Here North Carolina's state plane
 (EPSG:32119), with the counties' centroids:
 
-```{r ggplot-projected}
+```{r ggplot-projected, fig.alt = "North Carolina in its state plane projection: county outlines and orange circles at the counties' centres sized by births in 1974, over Esri's World Topo Map, warped to the projection so roads and towns line up with the counties."}
 nc_sp <- st_transform(nc, 32119)
 centroids <- st_centroid(nc_sp)
 
@@ -60,7 +60,7 @@ For a data map, a basemap often reads better without its labels, faded, or
 with only some of its features. Filters belong to the style (see [Stacking,
 labels and features](layers.html)); `alpha` fades the layer:
 
-```{r}
+```{r, fig.alt = "North Carolina's counties shaded by the share of births to non-white mothers in 1974, on a viridis scale, over a faded OpenFreeMap Liberty basemap without labels, roads or rail."}
 quiet <- style("OpenFreeMap.Liberty", features = c("-labels", "-roads", "-rail"))
 
 ggplot(nc) +
@@ -77,7 +77,7 @@ the dpi. A `zoom` of your own gives more (or less) detail: the dpi then
 follows (an *effective dpi*, which basemapper reports once), and the style's
 labels are drawn at that dpi.
 
-```{r}
+```{r, fig.alt = "Central North Carolina from Greensboro to Rocky Mount and Fayetteville, in OpenFreeMap Liberty at zoom 8: county outlines over highways, lakes and town names, with Raleigh, Durham and Cary in the middle."}
 ggplot(nc) +
   basemap("OpenFreeMap.Liberty", zoom = 8) +
   geom_sf(fill = NA, colour = "grey20", linewidth = 0.2) +
@@ -88,7 +88,7 @@ ggplot(nc) +
 The basemap follows the panel, so `coord_sf()` limits zoom it in, with
 detail to match:
 
-```{r}
+```{r, fig.alt = "Satellite imagery of North Carolina's Outer Banks and Pamlico Sound, with yellow county outlines and white labels for Washington, Tyrrell, Dare, Beaufort, Hyde and Pamlico counties."}
 ggplot(nc) +
   basemap("Esri.WorldImagery") +
   geom_sf(fill = NA, colour = "yellow", linewidth = 0.6) +
@@ -104,7 +104,7 @@ with `outside()`. In a plot, the plot still gives the extent: the clip is a
 mask. Here the state in colour over a faded copy (`alpha` belongs to the
 layer, so the faded one is placed with `geom_basemap()`):
 
-```{r}
+```{r, fig.alt = "Satellite imagery of North Carolina in full colour inside the state's counties and faded outside them, with thin white county outlines."}
 ggplot(nc) +
   geom_basemap("Esri.WorldImagery", alpha = 0.35) +
   basemap("Esri.WorldImagery", clip = nc) +
@@ -117,7 +117,7 @@ ggplot(nc) +
 The credit line is on by default. `attribution = FALSE` turns it off;
 `get_attribution()` returns the text, for a caption:
 
-```{r}
+```{r, fig.alt = "North Carolina's county outlines in blue over Esri's light grey canvas basemap, with the provider's credit as a caption below the map instead of in its corner."}
 gray <- basemap("Esri.WorldGrayCanvas")
 
 ggplot(nc) +
@@ -133,7 +133,7 @@ ggplot(nc) +
 style and `basemap()`'s arguments. tmap has a `tm_basemap()` of its own, so
 attach tmap before basemapper (or call `basemapper::tm_basemap()`):
 
-```{r}
+```{r, fig.alt = "A tmap map of North Carolina's counties in shades of blue by births in 1979, with white borders, over the light grey OpenFreeMap Positron basemap, and a legend."}
 tm_basemap("OpenFreeMap.Positron") +
   tm_shape(nc) +
   tm_polygons(
@@ -147,7 +147,7 @@ The map is in the shapes' CRS, and the basemap is warped into it. Raster and
 vector basemaps, stacks and filters work the same way; here shaded relief
 under a vector basemap's labels, in the state plane:
 
-```{r tmap-relief}
+```{r tmap-relief, fig.alt = "A tmap map of North Carolina in its state plane projection: Esri's shaded relief with OpenFreeMap Liberty's city labels on top (Knoxville, Greensboro, Raleigh, Charlotte, Wilmington), county borders, and orange dots sized by births in 1974, with a legend."}
 relief <- list("Esri.WorldShadedRelief", style("OpenFreeMap.Liberty", features = "labels"))
 
 tm_basemap(relief) +

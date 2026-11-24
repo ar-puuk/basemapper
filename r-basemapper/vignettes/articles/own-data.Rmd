@@ -112,7 +112,7 @@ basemap(relief, bounds = c(-130, 20, -60, 55), width = 720, height = 360)
 
 Any of these goes in a plot:
 
-```{r}
+```{r, fig.alt = "Western North Carolina and eastern Tennessee in OpenTopoMap's topographic tiles, slightly faded: brown shaded mountains around Asheville, roads and towns, with black county outlines."}
 library(ggplot2)
 nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
 
