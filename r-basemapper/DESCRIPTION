@@ -1,6 +1,6 @@
 Package: basemapper
 Title: Headless Spatial Basemap Renderer
-Version: 0.3.0
+Version: 0.3.1
 Authors@R: person("Pukar", "Bhandari", email = "arpuuuk@gmail.com",
   role = c("aut", "cre"))
 Description: Renders MapLibre GL styled basemaps (vector and raster tiles)

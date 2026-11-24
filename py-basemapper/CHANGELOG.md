@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.1 (2026-11-24)
+
+Maps are sharp again at any dpi. When an image's size at its dpi was not a
+whole number of CSS pixels (720 px at 168 dpi is 411.43), 0.3.0 drew it one
+pixel smaller and stretched it to the size asked for, which softened every
+road edge and label by about a pixel. The map is now drawn a little larger on
+the image's own pixel grid and cropped, so the pixels are never resampled; a
+Web Mercator plot panel is the same image, pixel for pixel. Maps warped into
+another CRS also sample their source exactly (they were off by up to a tenth
+of a pixel), and raster tiles are laid on the same pixel grid as vector
+layers at fractional pixel ratios.
+
 ## 0.3.0 (2026-11-23)
 
 basemapper 0.3 replaces the 0.2 API with one model shared by Python, R and

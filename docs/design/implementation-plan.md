@@ -186,8 +186,9 @@ outside, holes) renders; bench within noise.
   and `render_svg_view` (an error for a warped map), and `attribution()`.
   The Rust `FetchOptions` matches R's `fetch_options()`; `on_error = Fail`
   makes any *problem* note an error. An inside clip gives the default
-  extent, standalone only. Sizes that aren't whole CSS pixels are resampled
-  to the exact pixel size.
+  extent, standalone only. Sizes that aren't whole CSS pixels were resampled
+  to the exact pixel size, which blurred them; since 0.3.1 they are drawn a
+  little larger on the same pixel grid and cropped.
 - Renderings carry *decided* notes (auto zoom, default dpi, size, extent).
 - The SVG stack filters each style on its own, as raster stacks do, and
   carries the clip as a `<clipPath>`.

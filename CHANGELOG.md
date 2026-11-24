@@ -7,12 +7,27 @@ for users of each package,
 in more words: [R](r-basemapper/NEWS.md) and
 [Python](py-basemapper/CHANGELOG.md).
 
-## v0.3.0
+## v0.3.1
 
-Tagged v0.3.0 when merged into `main`; until then on `dev`.
+Tagged v0.3.1 when merged into `main`; until then on `dev`.
+
+### Fixes
+
+- **core:** draw sizes that are not whole CSS pixels without resampling ([e6e9f96](https://github.com/ar-puuk/basemapper/commit/e6e9f96212229ec67e7606f9b7f8df61df183070))
+
+### Documentation
+
+- keep the audit and review notes ([03beae3](https://github.com/ar-puuk/basemapper/commit/03beae342833dfc74067e84a55413526b3e2d700))
+
+### Maintenance
+
+- release 0.3.1 ([c078ad0](https://github.com/ar-puuk/basemapper/commit/c078ad06ed00a9cb6718f3d611c49d6887f9c659))
+
+## [v0.3.0](https://github.com/ar-puuk/basemapper/releases/tag/v0.3.0) (2026-11-23): [#9](https://github.com/ar-puuk/basemapper/pull/9) Release v0.3.0: one model, one API for R, Python and Rust
 
 ### Features
 
+- **r:** default alt text for basemaps shown in knitr ([1118ab9](https://github.com/ar-puuk/basemapper/commit/1118ab9cff78fc6e1f4110de77cb0646e9600e8a))
 - **r:** the R package as an adapter over the core (phase 4) ([62b76a1](https://github.com/ar-puuk/basemapper/commit/62b76a10397b434f89c038b196e0b266ed8faf29))
 - **python:** the Python package as an adapter over the core (phase 3) ([06e1edf](https://github.com/ar-puuk/basemapper/commit/06e1edf5112d8016e58e5031c1df4204e9b133ed))
 - **core:** plot support (phase 2) ([77dea13](https://github.com/ar-puuk/basemapper/commit/77dea13f20e88c36c7c1a7cbed504446197852ec))
@@ -24,11 +39,16 @@ Tagged v0.3.0 when merged into `main`; until then on `dev`.
 
 ### Fixes
 
+- **docs,test:** 0.3 reference indexes; draw plotnine figures with Agg ([8377b74](https://github.com/ar-puuk/basemapper/commit/8377b740dfa7e802631e9362f9b25edd16d87f7d))
 - views never reach past the poles; the default view renders ([76fdf91](https://github.com/ar-puuk/basemapper/commit/76fdf91eb59d91e2173c4f7ae2a49672909c0087))
 - **deps:** read fonts with skrifa instead of the unmaintained ttf-parser ([d2f9008](https://github.com/ar-puuk/basemapper/commit/d2f900826fd07bae3b717bb560487ecb4d28c371))
 
 ### Documentation
 
+- **python:** alt text for every figure in the user guide ([af88955](https://github.com/ar-puuk/basemapper/commit/af889550d13198c62fb008671ae6b51644fcea27))
+- **r:** alt text for the ggplot2 and tmap figures in the articles ([03b66be](https://github.com/ar-puuk/basemapper/commit/03b66be1ccdea3850a9ca080b8542acefad74a34))
+- alt text for the PNG / SVG comparison images ([e17dc60](https://github.com/ar-puuk/basemapper/commit/e17dc60c2afdfeb8de32a16bd5393e095f279cfb))
+- **changelog:** the v0.3.0 section, on dev ([f3f38f7](https://github.com/ar-puuk/basemapper/commit/f3f38f7bcc70a2492d74fa31b74eb1b8cc2ab3db))
 - **changelog:** the v0.3.0 section ([a2c92d1](https://github.com/ar-puuk/basemapper/commit/a2c92d1702d110552858aa064ef3fbcf0f3d865e))
 - the 0.3 contract, guides, migration guide and version 0.3.0 (phase 5) ([4aaa7d5](https://github.com/ar-puuk/basemapper/commit/4aaa7d5b3913b61c0f7fb43d9207d19c39e6bed2))
 - **design:** API and design review, and the 0.3.0 implementation plan ([b8ca3d5](https://github.com/ar-puuk/basemapper/commit/b8ca3d52083074b5062400f09a03aa7a31c7bfd5))

@@ -247,7 +247,7 @@ pub fn render(
             }
             "raster" => {
                 if let Some(rt) = layer["source"].as_str().and_then(|s| sources.raster.get(s)) {
-                    draw_raster_layer(&mut fb, layer, zoom, rt, bbox, ratio);
+                    draw_raster_layer(&mut fb, layer, zoom, rt, bbox, (width, height), ratio);
                 }
             }
             "hillshade" => {
@@ -1217,8 +1217,8 @@ fn raster_factors(saturation: f64, contrast: f64, hue_deg: f64) -> (f64, f64, [f
 /// The view's raster tiles composited at device size (tiles snapped to the
 /// CSS pixel grid, linearly resampled, as for raster-only styles), as
 /// straight-alpha RGBA. None when nothing could be decoded.
-fn raster_image(rt: &RasterTiles, bbox: [f64; 4], w: usize, h: usize, ratio: f64) -> Option<image::RgbaImage> {
-    crate::renderer::composite_raster_tiles(&rt.tiles, bbox, rt.zoom, w as u32, h as u32, true, ratio)
+fn raster_image(rt: &RasterTiles, bbox: [f64; 4], w: usize, h: usize, css: (u32, u32), ratio: f64) -> Option<image::RgbaImage> {
+    crate::renderer::composite_raster_tiles(&rt.tiles, bbox, rt.zoom, w as u32, h as u32, css, true, ratio)
         .map_err(|e| crate::notes::report(crate::notes::Level::Problem, "raster_layer_failed", format!("raster layer: {e}")))
         .ok()
 }
@@ -1226,7 +1226,7 @@ fn raster_image(rt: &RasterTiles, bbox: [f64; 4], w: usize, h: usize, ratio: f64
 /// A raster layer inside a vector style: raster.fragment.glsl per pixel
 /// (opacity, hue rotation, saturation, contrast, brightness range), blended
 /// premultiplied like every MapLibre layer.
-fn draw_raster_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, rt: &RasterTiles, bbox: [f64; 4], ratio: f64) {
+fn draw_raster_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, rt: &RasterTiles, bbox: [f64; 4], css: (u32, u32), ratio: f64) {
     let ctx = Ctx { zoom, feature: None };
     let p = &layer["paint"];
     let num = |k: &str, d: f64| Prop::new(p.get(k), Kind::Number, zoom).num(&ctx, d);
@@ -1237,7 +1237,7 @@ fn draw_raster_layer(fb: &mut Framebuffer, layer: &Json, zoom: f64, rt: &RasterT
     let (sat, con, spin) = raster_factors(num("raster-saturation", 0.0), num("raster-contrast", 0.0), num("raster-hue-rotate", 0.0));
     let (lo, hi) = (num("raster-brightness-min", 0.0), num("raster-brightness-max", 1.0));
     let identity = sat == 0.0 && con == 1.0 && spin == [1.0, 0.0, 0.0] && lo == 0.0 && hi == 1.0;
-    let Some(img) = raster_image(rt, bbox, fb.w, fb.h, ratio) else { return };
+    let Some(img) = raster_image(rt, bbox, fb.w, fb.h, css, ratio) else { return };
     for (x, y, px) in img.enumerate_pixels() {
         let a = px[3] as f64 / 255.0;
         if a <= 0.0 {
@@ -1438,7 +1438,7 @@ pub fn render_svg(
                 if let Some(rt) = layer["source"].as_str().and_then(|s| sources.raster.get(s)) {
                     let ctx = Ctx { zoom, feature: None };
                     let op = Prop::new(layer["paint"].get("raster-opacity"), Kind::Number, zoom).num(&ctx, 1.0);
-                    if let Some(img) = raster_image(rt, bbox, width as usize, height as usize, 1.0) {
+                    if let Some(img) = raster_image(rt, bbox, width as usize, height as usize, (width, height), 1.0) {
                         let _ = write!(
                             out,
                             r#"<image width="{width}" height="{height}" opacity="{}" href="{}"/>"#,

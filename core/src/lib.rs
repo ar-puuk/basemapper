@@ -683,6 +683,7 @@ async fn render_single_bbox(
         });
     }
     // Raster sources: tiles chosen for the CSS size, composited at device size.
+    let css = (width, height);
     let (width, height) = (
         vector::render::device_px(width, request.pixel_ratio),
         vector::render::device_px(height, request.pixel_ratio),
@@ -693,7 +694,7 @@ async fn render_single_bbox(
         let tiles =
             fetch_pmtiles_tiles(url, &coords, client, request.tile_concurrency, request.fail_on_tile_error).await?;
         let canvas =
-            renderer::composite_raster_tiles(&tiles, bbox, zoom, width, height, transparent, request.pixel_ratio)?;
+            renderer::composite_raster_tiles(&tiles, bbox, zoom, width, height, css, transparent, request.pixel_ratio)?;
         return Ok(RenderResult {
             bounds,
             zoom_used: zoom,
@@ -717,7 +718,7 @@ async fn render_single_bbox(
     )
     .await?;
     let canvas =
-        renderer::composite_raster_tiles(&tiles, bbox, zoom, width, height, transparent, request.pixel_ratio)?;
+        renderer::composite_raster_tiles(&tiles, bbox, zoom, width, height, css, transparent, request.pixel_ratio)?;
     Ok(RenderResult {
         bounds,
         zoom_used: zoom,
