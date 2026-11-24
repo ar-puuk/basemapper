@@ -139,8 +139,8 @@ def uri(f):
     return f"data:{mime};base64," + base64.b64encode(open(os.path.join(out, f), "rb").read()).decode()
 
 HTML(f"""<table class="table" style="table-layout:fixed"><col style="width:7.5em"><col><col><tr><th></th><th>PNG</th><th>SVG</th></tr>
-<tr><th>Raster<br><small>OpenStreetMap</small></th><td><img src="{uri('raster.png')}" style="width:100%"></td><td><img src="{uri('raster.svg')}" style="width:100%"></td></tr>
-<tr><th>Vector<br><small>OpenFreeMap Bright</small></th><td><img src="{uri('vector.png')}" style="width:100%"></td><td><img src="{uri('vector.svg')}" style="width:100%"></td></tr></table>""")
+<tr><th>Raster<br><small>OpenStreetMap</small></th><td><img src="{uri('raster.png')}" alt="Salt Lake City in OpenStreetMap tiles, as PNG" style="width:100%"></td><td><img src="{uri('raster.svg')}" alt="The same raster map as SVG: the tiles embedded as an image" style="width:100%"></td></tr>
+<tr><th>Vector<br><small>OpenFreeMap Bright</small></th><td><img src="{uri('vector.png')}" alt="Salt Lake City in the OpenFreeMap Bright vector style, as PNG" style="width:100%"></td><td><img src="{uri('vector.svg')}" alt="The same vector map as SVG: paths and text, sharp at any size" style="width:100%"></td></tr></table>""")
 ```
 
 ## Any CRS

@@ -134,8 +134,8 @@ dir.create(dirname(show[1]), recursive = TRUE, showWarnings = FALSE)
 invisible(file.copy(out, show, overwrite = TRUE))
 cat(sprintf(
   '<table class="table" style="table-layout:fixed"><col style="width:7.5em"><col><col><tr><th></th><th>PNG</th><th>SVG</th></tr>
-<tr><th>Raster<br><small>OpenStreetMap</small></th><td><img src="%s" style="width:100%%"></td><td><img src="%s" style="width:100%%"></td></tr>
-<tr><th>Vector<br><small>OpenFreeMap Bright</small></th><td><img src="%s" style="width:100%%"></td><td><img src="%s" style="width:100%%"></td></tr></table>',
+<tr><th>Raster<br><small>OpenStreetMap</small></th><td><img src="%s" alt="Salt Lake City in OpenStreetMap tiles, as PNG" style="width:100%%"></td><td><img src="%s" alt="The same raster map as SVG: the tiles embedded as an image" style="width:100%%"></td></tr>
+<tr><th>Vector<br><small>OpenFreeMap Bright</small></th><td><img src="%s" alt="Salt Lake City in the OpenFreeMap Bright vector style, as PNG" style="width:100%%"></td><td><img src="%s" alt="The same vector map as SVG: paths and text, sharp at any size" style="width:100%%"></td></tr></table>',
   show[1], show[2], show[3], show[4]
 ))
 ```
