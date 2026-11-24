@@ -1,3 +1,4 @@
-720 x 405 px at zoom 12.4
-bounds (lon/lat): [-111.9355, 40.7356, -111.8419, 40.7756]
+720 x 405 px at zoom 12.4, 1:41462
+bounds (EPSG:3857): [-12460607, 4973427, -12450180, 4979292]
+decided: 96 dpi (default)
 credit: OpenFreeMap © OpenMapTiles Data from OpenStreetMap

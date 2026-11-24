@@ -65,39 +65,68 @@
 //!
 #![cfg_attr(doc, doc = include_str!("../guide/more.md"))]
 
+#[doc(hidden)]
 pub mod attribution;
 pub mod basemap;
+#[doc(hidden)]
 pub mod bbox;
 pub mod cache;
 pub mod error;
 pub mod features;
+pub mod fetch;
+#[doc(hidden)]
 pub mod net;
 pub mod mask;
 pub mod notes;
 pub mod rendering;
 pub mod providers;
+#[doc(hidden)]
 pub mod renderer;
 pub mod style;
+#[doc(hidden)]
 pub mod tile_fetcher;
 pub mod tile_style;
+#[doc(hidden)]
 pub mod vector;
 pub mod view;
 pub mod warp;
 
 pub use basemap::{Basemap, Crs};
+pub use fetch::{FetchOptions, OnError};
+pub use mask::{Keep, Shape};
+pub use view::{Context, Device, Units, View, ViewInputs};
+pub use warp::{Mesh, Warp};
+#[doc(hidden)]
 pub use bbox::{bbox_from_center, compute_zoom, constrain_view, fit_bounds, RenderRequest, RenderResult, SpatialBounds};
 pub use error::BasemapError;
 pub use notes::{Level, Note};
 pub use rendering::Rendering;
-pub use style::{filter_style_layers, Source, Style, StyleInput, StylePart};
+pub use style::{Source, Style};
+#[doc(hidden)]
+pub use style::{filter_style_layers, StyleInput, StylePart};
 /// The version of basemapper (the Rust core, and the R and Python packages
 /// built on it, share it; the release tag is `v` and this).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub use features::Labels;
+#[doc(hidden)]
 pub use tile_fetcher::{TileSource, TileUrls};
 pub use tile_style::{TileKind, TileStyleOptions};
 pub use vector::fonts::{FontEmbed, SvgOptions, SvgText};
+
+/// The pre-0.3 entry points and building blocks, for the R and Python
+/// bindings (until they are adapters over [`Basemap`]) and the test suites.
+/// Not part of the API: they change without notice.
+#[doc(hidden)]
+pub mod internal {
+    pub use crate::bbox::{bbox_from_center, compute_zoom, constrain_view, fit_bounds, RenderRequest, RenderResult, SpatialBounds};
+    pub use crate::style::{filter_style_layers, StyleInput, StylePart};
+    pub use crate::tile_fetcher::{TileSource, TileUrls};
+    pub use crate::{
+        attribution, encode_png, render, render_stack, render_svg, render_svg_stack, render_svg_stack_with, render_svg_with,
+        tile_style,
+    };
+}
 
 use once_cell::sync::Lazy;
 use tokio::runtime::Runtime;
@@ -148,6 +177,7 @@ fn request_auth(request: &RenderRequest) -> net::Auth {
 /// Supports anti-meridian crossing bboxes (xmin > xmax in EPSG:3857).
 /// Such bboxes are split internally into west and east halves, each rendered
 /// at proportional pixel width, then stitched horizontally.
+#[doc(hidden)]
 pub fn render(request: RenderRequest) -> Result<RenderResult, BasemapError> {
     let mut requests = expand_stacked(vec![request]);
     if requests.len() > 1 {
@@ -185,6 +215,7 @@ fn expand_stacked(requests: Vec<RenderRequest>) -> Vec<RenderRequest> {
 /// Only`, the labels over `features = ["terrain"]`) is skipped, and it is an
 /// error only when they leave nothing of a whole group. A name warns only
 /// when it matches nothing in any part of its group.
+#[doc(hidden)]
 pub fn render_stack(requests: Vec<RenderRequest>) -> Result<RenderResult, BasemapError> {
     let mut requests = expand_stacked(requests);
     let first = requests.first().ok_or_else(|| BasemapError::RenderError("no styles to render".into()))?;
@@ -292,6 +323,7 @@ fn composite_over(dst: &mut [u8], src: &[u8]) {
 /// absolute). Detecting raster or vector may fetch a tile or the archive
 /// header. Returns the style JSON and the `paint` keys that matched no
 /// generated layer.
+#[doc(hidden)]
 pub fn tile_style(
     input: &str,
     options: &TileStyleOptions,
@@ -367,6 +399,7 @@ pub fn list_layers(style: &str, auth_token: Option<&str>, filter: &LayerFilter) 
 /// [`Basemap`] takes): every source the styles draw from contributes its
 /// attribution (from the style, its TileJSON or PMTiles metadata), as plain
 /// text, without duplicates, joined with `" | "`. Empty when none is given.
+#[doc(hidden)]
 pub fn attribution(styles: &[String], auth_token: Option<&str>) -> Result<String, BasemapError> {
     RUNTIME.block_on(async {
         let client = http_client(std::time::Duration::from_secs(30))?;
@@ -375,6 +408,7 @@ pub fn attribution(styles: &[String], auth_token: Option<&str>) -> Result<String
 }
 
 /// Encode straight-alpha RGBA pixels as a PNG file.
+#[doc(hidden)]
 pub fn encode_png(pixels: &[u8], width: u32, height: u32) -> Result<Vec<u8>, BasemapError> {
     use image::ImageEncoder;
     let mut buf = Vec::new();
@@ -1311,11 +1345,13 @@ async fn fetch_vector_inputs(
 // ──────────────────────────────────────────────────────────────────────────────
 
 /// Render a vector style as an SVG document (see [`render_svg_stack`]).
+#[doc(hidden)]
 pub fn render_svg(request: RenderRequest) -> Result<String, BasemapError> {
     render_svg_stack(vec![request])
 }
 
 /// [`render_svg`] with options (see [`render_svg_stack_with`]).
+#[doc(hidden)]
 pub fn render_svg_with(request: RenderRequest, options: &SvgOptions) -> Result<String, BasemapError> {
     render_svg_stack_with(vec![request], options)
 }
@@ -1326,13 +1362,25 @@ pub fn render_svg_with(request: RenderRequest, options: &SvgOptions) -> Result<S
 /// outlines traced from the style's SDF glyphs; non-SDF icons are embedded
 /// sprite images. All requests must share bbox, width and height, and use
 /// vector tile sources.
+#[doc(hidden)]
 pub fn render_svg_stack(requests: Vec<RenderRequest>) -> Result<String, BasemapError> {
     render_svg_stack_with(requests, &SvgOptions::default())
 }
 
 /// [`render_svg_stack`] with options: label text as editable `<text>` with
 /// embedded fonts (default) or as traced glyph outlines.
+#[doc(hidden)]
 pub fn render_svg_stack_with(requests: Vec<RenderRequest>, options: &SvgOptions) -> Result<String, BasemapError> {
+    render_svg_document(requests, options, None)
+}
+
+/// [`render_svg_stack_with`], clipped to `clip` (polygons in Web Mercator):
+/// an SVG `<clipPath>` around the whole map.
+pub(crate) fn render_svg_document(
+    requests: Vec<RenderRequest>,
+    options: &SvgOptions,
+    clip: Option<&mask::Shape>,
+) -> Result<String, BasemapError> {
     use std::fmt::Write as _;
     let requests = expand_stacked(requests);
     let first = requests.first().ok_or_else(|| BasemapError::RenderError("no styles to render".into()))?;
@@ -1351,9 +1399,9 @@ pub fn render_svg_stack_with(requests: Vec<RenderRequest>, options: &SvgOptions)
         let client = http_client(std::time::Duration::from_millis(timeout.max(15_000) as u64))?;
         // Every style's tiles and assets first, so the fonts of the whole
         // document are resolved (and embedded) once.
-        // As render_stack: filters apply to the stack as one basemap.
+        // As render_stack: filters apply to each group (style) as one map.
         let stacked = requests.len() > 1;
-        let mut present: Vec<&'static str> = Vec::new();
+        let mut groups: Vec<(u32, bool, Vec<&'static str>)> = Vec::new();
         let mut inputs = Vec::new();
         for request in &requests {
             let raw_json = request.style_input.resolve(&client, &request_auth(request)).await?;
@@ -1361,14 +1409,22 @@ pub fn render_svg_stack_with(requests: Vec<RenderRequest>, options: &SvgOptions)
             let style_json = if stacked {
                 let (selection, _) =
                     apply_filters(&raw_json, request.layers.as_deref(), request.labels, request.features.as_deref())?;
+                let g = match groups.iter().position(|g| g.0 == request.group) {
+                    Some(i) => i,
+                    None => {
+                        groups.push((request.group, false, Vec::new()));
+                        groups.len() - 1
+                    }
+                };
                 for f in &selection.present {
-                    if !present.contains(f) {
-                        present.push(f);
+                    if !groups[g].2.contains(f) {
+                        groups[g].2.push(f);
                     }
                 }
                 if selection.empty && !selection.present.is_empty() {
                     continue;
                 }
+                groups[g].1 = true;
                 selection.style
             } else {
                 select_style_layers(&raw_json, request)?.0
@@ -1383,8 +1439,9 @@ pub fn render_svg_stack_with(requests: Vec<RenderRequest>, options: &SvgOptions)
                 fetch_vector_inputs(request, &client, &style_json, &tile_source, bbox, width).await?;
             inputs.push((style_val, sources, assets));
         }
-        if inputs.is_empty() {
-            return Err(empty_filter_error(&present, "stack"));
+        if let Some(g) = groups.iter().find(|g| !g.1) {
+            let what = if groups.len() == 1 { "stack" } else { "style of the stack" };
+            return Err(empty_filter_error(&g.2, what));
         }
         let mut fonts = if options.text == SvgText::Editable {
             let mut stacks: Vec<String> = inputs.iter().flat_map(|i| i.2.glyphs.stacks.keys().cloned()).collect();
@@ -1415,6 +1472,11 @@ pub fn render_svg_stack_with(requests: Vec<RenderRequest>, options: &SvgOptions)
             if !css.is_empty() {
                 defs = format!("<style>{css}</style>{defs}");
             }
+        }
+        if let Some(shape) = clip {
+            let polygons = shape.to_pixels(bbox, width as f64, height as f64, true);
+            defs.push_str(&mask::svg_clip_path("basemapper-clip", &polygons, width as f64, height as f64, shape.keep));
+            body = format!(r#"<g clip-path="url(#basemapper-clip)">{body}</g>"#);
         }
         Ok(format!(
             concat!(

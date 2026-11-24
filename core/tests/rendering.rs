@@ -2,7 +2,7 @@
 //! notes of what happened making it (docs/design/api-review.md §4.8). No
 //! network: inline styles, and a local server for tiles.
 
-use basemapper_core::{Basemap, Level, Style};
+use basemapper_core::{Basemap, Context, FetchOptions, Level, Style};
 use httptest::{matchers::request, responders::status_code, Expectation, Server};
 
 /// A vector style using what the renderer does not support: terrain,
@@ -28,14 +28,14 @@ fn kinds(r: &basemapper_core::Rendering) -> Vec<(&'static str, &'static str)> {
 #[test]
 fn a_rendering_knows_where_it_is_and_what_happened() {
     let m = Basemap::new(Style::new(UNSUPPORTED).layers(["bg", "dots", "movie", "no-such-layer"].map(String::from).to_vec()))
-        .size(200, 100)
+        .size(400, 200)
         .center(-111.89, 40.76)
         .zoom(10.0)
-        .pixel_ratio(2.0);
-    let r = m.render().expect("renders");
+        .dpi(192.0);
+    let r = m.render(&Context::Standalone).expect("renders");
     assert_eq!((r.width, r.height, r.dpi, r.zoom), (400, 200, 192.0, 10.0));
     assert_eq!(r.crs, "EPSG:3857");
-    assert_eq!(r.bounds, m.get_bounds(false));
+    assert_eq!(r.bounds, m.view(&Context::Standalone).unwrap().bounds);
     assert_eq!(&r.pixels[..4], &[0x33, 0x66, 0x99, 0xff]);
     let k = kinds(&r);
     for want in [
@@ -52,7 +52,7 @@ fn a_rendering_knows_where_it_is_and_what_happened() {
 #[test]
 fn scale_follows_zoom_and_latitude_not_dpi() {
     let style = r##"{"version":8,"sources":{},"layers":[{"id":"bg","type":"background","paint":{"background-color":"#fff"}}]}"##;
-    let at = |lat: f64, ratio: f64| Basemap::new(style).size(64, 64).center(0.0, lat).zoom(4.0).pixel_ratio(ratio).render().unwrap();
+    let at = |lat: f64, ratio: f64| Basemap::new(style).size(64, 64).center(0.0, lat).zoom(4.0).dpi(96.0 * ratio).render(&Context::Standalone).unwrap();
     // 512 px tiles: zoom 0 is 78 271.5 m per CSS pixel at the equator, a
     // CSS pixel 1/96 inch.
     let equator = at(0.0, 1.0).scale();
@@ -72,8 +72,8 @@ fn failed_and_coarsened_tiles_are_one_note_each() {
     let style = format!(
         r#"{{"version":8,"sources":{{"s":{{"type":"raster","tiles":["{tiles}"],"tileSize":256,"maxzoom":3}}}},"layers":[{{"id":"r","type":"raster","source":"s"}}]}}"#
     );
-    let wide = Basemap::new(style.as_str()).size(1024, 512).center(0.0, 0.0).zoom(2.0).max_tiles(4);
-    let r = wide.render().expect("failed tiles leave gaps, not an error");
+    let wide = Basemap::new(style.as_str()).size(1024, 512).center(0.0, 0.0).zoom(2.0).fetch(FetchOptions::new().max_tiles(4));
+    let r = wide.render(&Context::Standalone).expect("failed tiles leave gaps, not an error");
     let k = kinds(&r);
     assert!(k.contains(&("adjusted", "tiles_coarsened")), "{k:?}");
     let skipped: Vec<_> = r.notes.iter().filter(|n| n.kind == "tile_skipped").collect();
@@ -81,7 +81,7 @@ fn failed_and_coarsened_tiles_are_one_note_each() {
     assert!(skipped[0].count >= 2 && skipped[0].details.len() as u32 == skipped[0].count, "{:?}", skipped[0]);
 
     let deep = Basemap::new(style.as_str()).size(256, 256).center(0.0, 0.0).zoom(8.0);
-    let k = kinds(&deep.render().unwrap());
+    let k = kinds(&deep.render(&Context::Standalone).unwrap());
     assert!(k.contains(&("adjusted", "tiles_overzoomed")), "{k:?}");
     assert!(!k.contains(&("adjusted", "tiles_coarsened")), "{k:?}");
 }
@@ -90,7 +90,7 @@ fn failed_and_coarsened_tiles_are_one_note_each() {
 fn a_stack_collects_the_notes_of_every_style() {
     // Stacked styles render in their own tasks; their notes still arrive.
     let plain = r##"{"version":8,"sources":{},"layers":[{"id":"bg","type":"background","paint":{"background-color":"#fff"}}]}"##;
-    let r = Basemap::stack(vec![Style::new(plain), Style::new(UNSUPPORTED)]).size(64, 32).render().unwrap();
+    let r = Basemap::stack(vec![Style::new(plain), Style::new(UNSUPPORTED)]).center(0.0, 0.0).zoom(2.0).size(64, 32).render(&Context::Standalone).unwrap();
     let k = kinds(&r);
     assert!(k.contains(&("adjusted", "terrain_unsupported")) && k.contains(&("problem", "source_unsupported")), "{k:?}");
 }

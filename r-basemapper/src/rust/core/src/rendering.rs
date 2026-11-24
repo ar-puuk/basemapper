@@ -8,6 +8,7 @@ use crate::{BasemapError, RenderRequest, RenderResult};
 
 /// A rendered map: straight-alpha RGBA pixels and where they are.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Rendering {
     /// Row-major RGBA, `width * height * 4` bytes.
     pub pixels: Vec<u8>,

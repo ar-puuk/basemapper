@@ -86,18 +86,23 @@ fn inputs_of(c: &Value) -> ViewInputs {
         let (x1, y1) = view::lonlat_to_mercator(v[2], v[3]);
         [x0, y0, x1, y1]
     });
-    let size = match (num(&i["width"]), num(&i["height"])) {
-        (Some(w), Some(h)) => Some((w, h)),
-        _ => None,
-    };
-    ViewInputs {
-        bounds,
-        center: pair(&i["center"]),
-        zoom: num(&i["zoom"]),
-        size,
-        units: i["units"].as_str().map(|u| Units::parse(u).unwrap()).unwrap_or_default(),
-        dpi: num(&i["dpi"]),
+    let mut v = ViewInputs::new();
+    if let Some(b) = bounds {
+        v = v.bounds(b);
     }
+    if let Some((lon, lat)) = pair(&i["center"]) {
+        v = v.center(lon, lat);
+    }
+    if let Some(z) = num(&i["zoom"]) {
+        v = v.zoom(z);
+    }
+    if let (Some(w), Some(h)) = (num(&i["width"]), num(&i["height"])) {
+        v = v.size(w, h, i["units"].as_str().map(|u| Units::parse(u).unwrap()).unwrap_or_default());
+    }
+    if let Some(d) = num(&i["dpi"]) {
+        v = v.dpi(d);
+    }
+    v
 }
 
 fn context_of(c: &Value) -> Context {

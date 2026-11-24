@@ -43,6 +43,7 @@ impl Level {
 /// One note: its level, a stable kind (for code to match on), a message for
 /// people, and the details of a note that happened several times.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct Note {
     pub level: Level,
     /// A stable identifier, e.g. `"effective_dpi"`, `"tile_skipped"`.

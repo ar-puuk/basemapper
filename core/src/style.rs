@@ -44,6 +44,7 @@ impl StyleInput {
 /// ArcGIS service); [`Source::provider`], [`Source::tiles`], [`Source::wms`]
 /// and [`Source::wmts`] take each kind of source's own options.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum Source {
     /// Detected from the string.
     Auto(String),
@@ -117,6 +118,7 @@ impl Source {
 /// credential. Each style of a stack is filtered on its own; a catalogue
 /// stack (`"UGRC.Lite"`) is one style, its services filtered as one map.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Style {
     pub source: Source,
     /// Layer ids or patterns to keep, or (`-`-prefixed) to drop.

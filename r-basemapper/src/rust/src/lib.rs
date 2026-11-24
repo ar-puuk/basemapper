@@ -2,7 +2,8 @@
 //! `render_basemap_raw()`, the providers, ...) wrap these through `.Call()`;
 //! the same core backs the Python package, so both return the same results
 //! for the same call.
-use basemapper_core::{providers, render_stack, render_svg_stack_with, FontEmbed, RenderRequest, StyleInput, SvgOptions, SvgText};
+use basemapper_core::internal::{render_stack, render_svg_stack_with, RenderRequest, StyleInput};
+use basemapper_core::{providers, FontEmbed, SvgOptions, SvgText};
 use extendr_api::prelude::*;
 use extendr_api::Result;
 
@@ -159,7 +160,7 @@ fn encode_png_raw(pixels: Raw, width: i32, height: i32) -> Result<Raw> {
     if px.len() != width as usize * height as usize * 4 {
         return Err(err("pixel buffer size does not match width * height * 4"));
     }
-    let png = basemapper_core::encode_png(px, width, height).map_err(core_err)?;
+    let png = basemapper_core::internal::encode_png(px, width, height).map_err(core_err)?;
     Ok(Raw::from_bytes(&png))
 }
 
@@ -213,7 +214,7 @@ fn render_svg_raw(
 #[extendr]
 fn bbox_from_center_raw(lon: f64, lat: f64, zoom: f64, width: i32, height: i32) -> Result<Vec<f64>> {
     let (width, height) = (positive("width", width)?, positive("height", height)?);
-    Ok(basemapper_core::bbox_from_center(lon, lat, zoom, width, height).to_vec())
+    Ok(basemapper_core::internal::bbox_from_center(lon, lat, zoom, width, height).to_vec())
 }
 
 /// c(lon, lat, zoom) of the view MapLibre shows for a requested centre and
@@ -221,7 +222,7 @@ fn bbox_from_center_raw(lon: f64, lat: f64, zoom: f64, width: i32, height: i32) 
 #[extendr]
 fn constrain_view_raw(lon: f64, lat: f64, zoom: f64, width: i32, height: i32) -> Result<Vec<f64>> {
     let (width, height) = (positive("width", width)?, positive("height", height)?);
-    let (lon, lat, zoom) = basemapper_core::constrain_view(lon, lat, zoom, width, height);
+    let (lon, lat, zoom) = basemapper_core::internal::constrain_view(lon, lat, zoom, width, height);
     Ok(vec![lon, lat, zoom])
 }
 
@@ -233,14 +234,14 @@ fn fit_bounds_raw(bounds_3857: Vec<f64>, width: i32, height: i32) -> Result<Vec<
     }
     let b = [bounds_3857[0], bounds_3857[1], bounds_3857[2], bounds_3857[3]];
     let (width, height) = (positive("width", width)?, positive("height", height)?);
-    let (lon, lat, zoom) = basemapper_core::fit_bounds(b, width, height);
+    let (lon, lat, zoom) = basemapper_core::internal::fit_bounds(b, width, height);
     Ok(vec![lon, lat, zoom])
 }
 
 /// The attribution text of stacked styles (plain text joined with " | ").
 #[extendr]
 fn attribution_raw(styles: Vec<String>, auth_token: Nullable<String>) -> Result<String> {
-    basemapper_core::attribution(&styles, opt(auth_token).as_deref()).map_err(core_err)
+    basemapper_core::internal::attribution(&styles, opt(auth_token).as_deref()).map_err(core_err)
 }
 
 /// A style's layer ids in drawing order, with their types and features as
@@ -365,7 +366,7 @@ fn tile_style_raw(
         source_layers: opt(source_layers),
         paint,
     };
-    let (style, dropped) = basemapper_core::tile_style(input, &opts, opt(auth_token).as_deref()).map_err(core_err)?;
+    let (style, dropped) = basemapper_core::internal::tile_style(input, &opts, opt(auth_token).as_deref()).map_err(core_err)?;
     let mut out: Robj = style.into();
     out.set_attrib("dropped", dropped)?;
     Ok(out)

@@ -1,46 +1,35 @@
-//! `Basemap`: a map view to render, the Rust counterpart of R's
-//! `basemap()` and Python's `basemapper.basemap()` / `Basemap`.
+//! `Basemap`: what to draw and how to fetch it, the Rust counterpart of R's
+//! and Python's `basemap()` (docs/design/api-review.md §4.1, D9).
 //!
-//! The same verbs exist in all three languages: R `verb(m, ...)`, Python
-//! `m.verb(...)`, Rust `m.verb(...)`:
+//! A basemap is a value: styles, the view inputs (any of extent, zoom,
+//! image size, dpi), fetch options and an optional clip. Rendering it in a
+//! [`Context`] resolves the view ([`crate::view::resolve`]) and returns a
+//! [`Rendering`]:
 //!
-//! | Task | Rust |
-//! |---|---|
-//! | create | `Basemap::new(style)` + `.size()`, `.center()`, `.zoom()`, `.bounds()`, `.pixel_ratio()`, ... |
-//! | change the view | `set_view(center, zoom)`, `set_bounds(bounds, crs)` |
-//! | read the view | `get_bounds(lonlat)`, `get_center()`, `get_zoom()`, `get_size()` |
-//! | render | `render_array()`, `render_png(path)`, `render_svg(path, options)` |
+//! ```no_run
+//! use basemapper_core::{Basemap, Context};
+//! let r = Basemap::new("OpenFreeMap.Liberty").center(-111.89, 40.76).zoom(12.0).render(&Context::Standalone)?;
+//! std::fs::write("map.png", r.to_png()?)?;
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
+//! A map in another CRS is two steps, because its mesh depends on the image
+//! size: [`Basemap::view`], then [`Basemap::render_view`] with a [`Warp`].
 
-use crate::bbox::{bbox_from_center, constrain_view, fit_bounds, RenderRequest, RenderResult};
-use crate::{encode_png, render_stack, render_svg_stack_with, BasemapError, Style, SvgOptions};
-use std::path::Path;
+use crate::bbox::RenderRequest;
+use crate::fetch::{FetchOptions, OnError};
+use crate::mask::Shape;
+use crate::notes::Level;
+use crate::view::{self, Context, Units, View, ViewInputs, CSS_DPI};
+use crate::warp::{self, Image, Mesh, Warp};
+use crate::{BasemapError, Rendering, Style, SvgOptions};
 
-const EARTH_HALF: f64 = 20_037_508.342_789_244;
-
-/// A map view: one style, or several stacked bottom to top (each with its
-/// own filters and key, see [`Style`]), a size in CSS pixels, a centre and MapLibre zoom (512 px tiles, fractional allowed),
-/// and a device pixel ratio (images are `pixel_ratio` times larger with the
-/// same view and label layout).
-#[derive(Clone, Debug)]
-pub struct Basemap {
-    styles: Vec<Style>,
-    width: u32,
-    height: u32,
-    center: (f64, f64),
-    zoom: f64,
-    pixel_ratio: f64,
-    tile_timeout_ms: u32,
-    max_tiles: u32,
-    tile_concurrency: u32,
-    fail_on_tile_error: bool,
-}
-
-/// Coordinate reference system of bounds given to [`Basemap::set_bounds`]:
-/// the core reads longitude/latitude and Web Mercator (R and Python
-/// reproject other CRSs before calling it).
+/// The CRS of bounds given to [`Basemap::bounds`]: the core reads
+/// longitude / latitude and Web Mercator (R and Python transform others).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Crs {
-    /// EPSG:4326 longitude/latitude degrees.
+    /// EPSG:4326 longitude / latitude degrees.
     LonLat,
     /// EPSG:3857 Web Mercator metres.
     WebMercator,
@@ -59,179 +48,202 @@ impl Crs {
     }
 }
 
-fn lonlat_to_3857(lon: f64, lat: f64) -> (f64, f64) {
-    let lat = lat.clamp(-85.051_128_779_806_59, 85.051_128_779_806_59);
-    let r = EARTH_HALF / std::f64::consts::PI;
-    (lon.to_radians() * r, (std::f64::consts::FRAC_PI_4 + lat.to_radians() / 2.0).tan().ln() * r)
-}
-
-fn mercator_to_lonlat(x: f64, y: f64) -> (f64, f64) {
-    let r = EARTH_HALF / std::f64::consts::PI;
-    ((x / r).to_degrees(), (2.0 * (y / r).exp().atan() - std::f64::consts::FRAC_PI_2).to_degrees())
+/// A basemap: one style, or several drawn bottom to top, with what is given
+/// of its view, how to fetch it, and an optional clip.
+#[derive(Clone, Debug)]
+pub struct Basemap {
+    styles: Vec<Style>,
+    inputs: ViewInputs,
+    fetch: FetchOptions,
+    clip: Option<Shape>,
 }
 
 impl Basemap {
-    /// A view of one style (a [`Style`], or a string: a catalogue name, a
-    /// style URL or JSON, tile data): 800 x 600 CSS pixels at zoom 0.
+    /// A basemap of one style (a [`Style`], or a string: a catalogue name,
+    /// a style URL or JSON, tile data), its view all derived or defaulted.
     pub fn new(style: impl Into<Style>) -> Self {
         Self::stack(vec![style.into()])
     }
 
-    /// A view of several styles drawn bottom to top (e.g. imagery under a
-    /// vector basemap's labels).
+    /// Several styles drawn bottom to top, each with its own filters.
     pub fn stack(styles: Vec<Style>) -> Self {
-        Basemap {
-            styles,
-            width: 800,
-            height: 600,
-            center: (0.0, 0.0),
-            zoom: 0.0,
-            pixel_ratio: 1.0,
-            tile_timeout_ms: 10_000,
-            max_tiles: 256,
-            tile_concurrency: 16,
-            fail_on_tile_error: false,
-        }
+        Basemap { styles, inputs: ViewInputs::new(), fetch: FetchOptions::default(), clip: None }
     }
 
-    // ── Builder (the constructor arguments of R / Python) ───────────────────
+    // ── What is given of the view ───────────────────────────────────────────
 
-    /// View size in CSS pixels.
-    pub fn size(mut self, width: u32, height: u32) -> Self {
-        self.width = width;
-        self.height = height;
-        self
-    }
-
-    /// View centre as (longitude, latitude).
-    pub fn center(mut self, longitude: f64, latitude: f64) -> Self {
-        self.center = (longitude, latitude);
-        self
-    }
-
-    /// MapLibre zoom (0-22, fractional allowed).
-    pub fn zoom(mut self, zoom: f64) -> Self {
-        self.zoom = zoom;
-        self
-    }
-
-    /// Fit `bounds` (`[xmin, ymin, xmax, ymax]` in `crs`) instead of a
-    /// centre and zoom. Apply after [`size`](Self::size).
-    pub fn bounds(mut self, bounds: [f64; 4], crs: Crs) -> Result<Self, BasemapError> {
-        self.set_bounds(bounds, crs)?;
-        Ok(self)
-    }
-
-    /// Device pixels per CSS pixel (MapLibre's `devicePixelRatio`).
-    pub fn pixel_ratio(mut self, pixel_ratio: f64) -> Self {
-        self.pixel_ratio = pixel_ratio;
-        self
-    }
-
-    /// Per-tile HTTP timeout in milliseconds.
-    pub fn tile_timeout_ms(mut self, ms: u32) -> Self {
-        self.tile_timeout_ms = ms;
-        self
-    }
-
-    /// Maximum tiles fetched per style.
-    pub fn max_tiles(mut self, n: u32) -> Self {
-        self.max_tiles = n;
-        self
-    }
-
-    /// Parallel tile downloads.
-    pub fn tile_concurrency(mut self, n: u32) -> Self {
-        self.tile_concurrency = n;
-        self
-    }
-
-    /// Abort on a failed tile instead of leaving it empty.
-    pub fn fail_on_tile_error(mut self, fail: bool) -> Self {
-        self.fail_on_tile_error = fail;
-        self
-    }
-
-    // ── View ────────────────────────────────────────────────────────────────
-
-    /// Set the centre and/or zoom (`None` keeps the current value).
-    pub fn set_view(&mut self, center: Option<(f64, f64)>, zoom: Option<f64>) -> Result<&mut Self, BasemapError> {
-        if let Some(z) = zoom {
-            if !(0.0..=22.0).contains(&z) {
-                return Err(BasemapError::InvalidInput("zoom must be between 0 and 22".into()));
-            }
-            self.zoom = z;
-        }
-        if let Some((lon, lat)) = center {
-            if !lon.is_finite() || !lat.is_finite() || !(-90.0..=90.0).contains(&lat) {
-                return Err(BasemapError::InvalidInput("center must be a finite longitude and a latitude between -90 and 90".into()));
-            }
-            self.center = (lon, lat);
-        }
-        Ok(self)
-    }
-
-    /// Fit the view to `bounds` in `crs`, keeping its size.
-    pub fn set_bounds(&mut self, bounds: [f64; 4], crs: Crs) -> Result<&mut Self, BasemapError> {
+    /// The area to show, `[xmin, ymin, xmax, ymax]` in `crs` (west > east
+    /// across the date line).
+    pub fn bounds(mut self, bounds: [f64; 4], crs: Crs) -> Self {
         let b = match crs {
             Crs::WebMercator => bounds,
             Crs::LonLat => {
-                let (x0, y0) = lonlat_to_3857(bounds[0], bounds[1]);
-                let (x1, y1) = lonlat_to_3857(bounds[2], bounds[3]);
+                let (x0, y0) = view::lonlat_to_mercator(bounds[0], bounds[1]);
+                let (x1, y1) = view::lonlat_to_mercator(bounds[2], bounds[3]);
                 [x0, y0, x1, y1]
             }
         };
-        if !(b[2] > b[0] && b[3] > b[1]) {
-            return Err(BasemapError::InvalidBbox("bounds must have xmin < xmax and ymin < ymax".into()));
+        self.inputs = self.inputs.bounds(b);
+        self
+    }
+
+    /// The camera's centre, longitude / latitude (needs a zoom).
+    pub fn center(mut self, lon: f64, lat: f64) -> Self {
+        self.inputs = self.inputs.center(lon, lat);
+        self
+    }
+
+    /// The MapLibre zoom: the detail of the map.
+    pub fn zoom(mut self, zoom: f64) -> Self {
+        self.inputs = self.inputs.zoom(zoom);
+        self
+    }
+
+    /// The image size in pixels.
+    pub fn size(self, width: u32, height: u32) -> Self {
+        self.size_in(width as f64, height as f64, Units::Px)
+    }
+
+    /// The image size in `units` (pixels, or inches / cm / mm at the dpi).
+    pub fn size_in(mut self, width: f64, height: f64, units: Units) -> Self {
+        self.inputs = self.inputs.size(width, height, units);
+        self
+    }
+
+    /// Image pixels per inch: the sharpness (96 = one pixel per CSS pixel).
+    pub fn dpi(mut self, dpi: f64) -> Self {
+        self.inputs = self.inputs.dpi(dpi);
+        self
+    }
+
+    /// How to fetch the data.
+    pub fn fetch(mut self, fetch: FetchOptions) -> Self {
+        self.fetch = fetch;
+        self
+    }
+
+    /// Draw only inside (or outside) polygons, given in the map's CRS. An
+    /// inside clip sets the default extent (its bounding box, which the core
+    /// reads as Web Mercator: for a map in another CRS, give the bounds).
+    pub fn clip(mut self, clip: Shape) -> Self {
+        self.clip = Some(clip);
+        self
+    }
+
+    pub fn styles(&self) -> &[Style] {
+        &self.styles
+    }
+
+    pub fn inputs(&self) -> &ViewInputs {
+        &self.inputs
+    }
+
+    pub fn fetch_options(&self) -> &FetchOptions {
+        &self.fetch
+    }
+
+    // ── Views and renderings ────────────────────────────────────────────────
+
+    /// The view in `context`: every value given, derived or defaulted.
+    pub fn view(&self, context: &Context) -> Result<View, BasemapError> {
+        let mut inputs = self.inputs.clone();
+        if let (Some(extent), Context::Standalone) = (self.clip.as_ref().and_then(Shape::extent), context) {
+            if inputs.bounds.is_none() && inputs.center.is_none() {
+                inputs = inputs.bounds(extent);
+            }
         }
-        let (lon, lat, zoom) = fit_bounds(b, self.width, self.height);
-        self.center = (lon, lat);
-        self.zoom = zoom.clamp(0.0, 22.0);
-        Ok(self)
+        view::resolve(&inputs, context)
     }
 
-    /// The view shown: the requested centre and zoom, constrained as MapLibre
-    /// constrains them (see [`constrain_view`]). The view keeps what was asked
-    /// for, so a later [`size`](Self::size) constrains it afresh.
-    fn view(&self) -> (f64, f64, f64) {
-        constrain_view(self.center.0, self.center.1, self.zoom, self.width, self.height)
+    /// Render in `context`, in Web Mercator.
+    pub fn render(&self, context: &Context) -> Result<Rendering, BasemapError> {
+        self.render_view(&self.view(context)?, None)
     }
 
-    /// The view's `[xmin, ymin, xmax, ymax]`: EPSG:3857 metres, or degrees
-    /// with `lonlat`.
-    pub fn get_bounds(&self, lonlat: bool) -> [f64; 4] {
-        let (lon, lat, zoom) = self.view();
-        let b = bbox_from_center(lon, lat, zoom, self.width, self.height);
-        if !lonlat {
-            return b;
+    /// Render a resolved `view` (from [`view`](Self::view)), in Web Mercator
+    /// or, with `warp`, in the warp's CRS: the map is drawn in Web Mercator
+    /// over the mesh's area at the view's zoom and dpi, then resampled.
+    pub fn render_view(&self, view: &View, warp: Option<&Warp>) -> Result<Rendering, BasemapError> {
+        self.fetch.validate()?;
+        let ratio = view.dpi / CSS_DPI;
+        let mut before = view.notes.clone();
+        before.extend(view.decided());
+        let mut r = match warp {
+            None => {
+                // CSS pixels are whole numbers; a size that is not a whole
+                // number of them is resampled to the exact pixels below.
+                let css = css_px(view.width, view.height, ratio);
+                let r = crate::rendering::render_collecting(|| self.requests(view.bounds, css, ratio), view.zoom, view.dpi, before)?;
+                if (r.width, r.height) == (view.width, view.height) {
+                    r
+                } else {
+                    let b = r.bounds;
+                    let mesh = Mesh::from_fn(2, 2, view.width, view.height, |x, y| {
+                        (b[0] + x / view.width as f64 * (b[2] - b[0]), b[3] - y / view.height as f64 * (b[3] - b[1]))
+                    })?;
+                    resampled(r, &mesh, view.width, view.height)?
+                }
+            }
+            Some(w) => {
+                let src = w.mesh.bounds(0.02).ok_or_else(|| {
+                    BasemapError::InvalidInput("the map's extent has no point in Web Mercator's area".into())
+                })?;
+                let m = view::metres_per_px(view.zoom);
+                let width_m = if src[0] > src[2] { src[2] + 2.0 * view::HALF - src[0] } else { src[2] - src[0] };
+                let css = ((width_m / m).ceil().max(1.0), ((src[3] - src[1]) / m).ceil().max(1.0));
+                if css.0 * ratio > MAX_SOURCE_PX || css.1 * ratio > MAX_SOURCE_PX {
+                    return Err(BasemapError::InvalidInput(format!(
+                        "drawing this extent at zoom {:.2} needs a {:.0} x {:.0} px image before warping; use a lower zoom or a smaller extent",
+                        view.zoom,
+                        css.0 * ratio,
+                        css.1 * ratio
+                    )));
+                }
+                let css = (css.0 as u32, css.1 as u32);
+                let r = crate::rendering::render_collecting(|| self.requests(src, css, ratio), view.zoom, view.dpi, before)?;
+                let mut out = resampled(r, &w.mesh, view.width, view.height)?;
+                out.bounds = w.bounds;
+                out.crs = w.crs.clone();
+                out
+            }
+        };
+        if let Some(shape) = &self.clip {
+            let polygons = match warp {
+                Some(w) => shape.to_pixels(w.bounds, r.width as f64, r.height as f64, false),
+                None => shape.to_pixels(r.bounds, r.width as f64, r.height as f64, true),
+            };
+            crate::mask::apply(&mut r.pixels, &crate::mask::alpha_mask(&polygons, r.width, r.height, shape.keep));
         }
-        let (w, s) = mercator_to_lonlat(b[0], b[1]);
-        let (e, n) = mercator_to_lonlat(b[2], b[3]);
-        [w, s, e, n]
+        if self.fetch.on_error == OnError::Fail {
+            let problems: Vec<&str> = r.notes_at(Level::Problem).map(|n| n.message.as_str()).collect();
+            if !problems.is_empty() {
+                return Err(BasemapError::RenderError(format!("on_error = \"fail\": {}", problems.join("; "))));
+            }
+        }
+        Ok(r)
     }
 
-    /// The view centre as (longitude, latitude), as shown: a latitude whose
-    /// view would reach past a pole is moved so it stops at the pole.
-    pub fn get_center(&self) -> (f64, f64) {
-        let (lon, lat, _) = self.view();
-        (lon, lat)
+    /// An SVG document of the map in `context` (Web Mercator, CSS pixels).
+    pub fn render_svg(&self, context: &Context, options: &SvgOptions) -> Result<String, BasemapError> {
+        self.render_svg_view(&self.view(context)?, None, options)
     }
 
-    /// The view's MapLibre zoom, as shown: at least the zoom at which the
-    /// world fills the view.
-    pub fn get_zoom(&self) -> f64 {
-        self.view().2
+    /// An SVG document of a resolved `view`. A map in another CRS (a `warp`)
+    /// is an error until paths are warped: SVG output is Web Mercator.
+    pub fn render_svg_view(&self, view: &View, warp: Option<&Warp>, options: &SvgOptions) -> Result<String, BasemapError> {
+        if let Some(w) = warp {
+            return Err(BasemapError::InvalidInput(format!(
+                "SVG output is in Web Mercator only for now, not {}: render an image, or use the Web Mercator CRS",
+                w.crs
+            )));
+        }
+        self.fetch.validate()?;
+        let css = css_px(view.width, view.height, view.dpi / CSS_DPI);
+        crate::render_svg_document(self.requests(view.bounds, css, 1.0)?, options, self.clip.as_ref())
     }
 
-    /// Size of rendered images in device pixels (`width`, `height` times
-    /// `pixel_ratio`).
-    pub fn get_size(&self) -> (u32, u32) {
-        (crate::vector::render::device_px(self.width, self.pixel_ratio), crate::vector::render::device_px(self.height, self.pixel_ratio))
-    }
-
-    /// The attribution text the view's styles ask maps to show (see
-    /// [`crate::attribution()`]).
-    pub fn get_attribution(&self) -> Result<String, BasemapError> {
+    /// The attribution text the styles ask maps to show.
+    pub fn attribution(&self) -> Result<String, BasemapError> {
         let mut credits: Vec<String> = Vec::new();
         for style in &self.styles {
             for part in style.parts()? {
@@ -247,26 +259,8 @@ impl Basemap {
         Ok(credits.join(" | "))
     }
 
-    // ── Rendering ───────────────────────────────────────────────────────────
-
-    /// The view, checked: the builder setters take any value, so a bad
-    /// zoom or centre is reported when rendering.
-    fn check_view(&self) -> Result<(), BasemapError> {
-        let (lon, lat) = self.center;
-        if !self.zoom.is_finite() || !(0.0..=22.0).contains(&self.zoom) {
-            return Err(BasemapError::InvalidInput(format!("zoom {} must be between 0 and 22", self.zoom)));
-        }
-        if !lon.is_finite() || !lat.is_finite() || !(-90.0..=90.0).contains(&lat) {
-            return Err(BasemapError::InvalidInput(format!(
-                "center ({lon}, {lat}) must be a finite longitude and a latitude between -90 and 90"
-            )));
-        }
-        Ok(())
-    }
-
-    fn requests(&self) -> Result<Vec<RenderRequest>, BasemapError> {
-        self.check_view()?;
-        let bbox = self.get_bounds(false);
+    /// One request per part of each style, over `bbox` at `css` pixels.
+    fn requests(&self, bbox: [f64; 4], css: (u32, u32), ratio: f64) -> Result<Vec<RenderRequest>, BasemapError> {
         let mut requests = Vec::new();
         for (group, style) in self.styles.iter().enumerate() {
             for part in style.parts()? {
@@ -277,160 +271,170 @@ impl Basemap {
                     auth_token: part.auth_token,
                     auth_scope: part.token_scope,
                     group: group as u32,
-                    tile_timeout_ms: self.tile_timeout_ms,
-                    max_tiles: self.max_tiles,
-                    tile_concurrency: self.tile_concurrency,
-                    fail_on_tile_error: self.fail_on_tile_error,
-                    pixel_ratio: self.pixel_ratio,
-                    ..RenderRequest::new(bbox, self.width, self.height, part.input)
+                    tile_timeout_ms: self.fetch.timeout_ms(),
+                    max_tiles: self.fetch.max_tiles,
+                    tile_concurrency: self.fetch.concurrency,
+                    fail_on_tile_error: self.fetch.on_error == OnError::Fail,
+                    pixel_ratio: ratio,
+                    ..RenderRequest::new(bbox, css.0, css.1, part.input)
                 });
             }
         }
+        if requests.is_empty() {
+            return Err(BasemapError::InvalidInput("a basemap needs at least one style".into()));
+        }
         Ok(requests)
     }
+}
 
-    /// Render the view: the image, where it is, its zoom and dpi, and notes
-    /// on what was decided, adjusted or could not be done.
-    pub fn render(&self) -> Result<crate::Rendering, BasemapError> {
-        self.check_view()?;
-        let dpi = self.pixel_ratio * crate::view::CSS_DPI;
-        crate::rendering::render_collecting(|| self.requests(), self.get_zoom(), dpi, Vec::new())
-    }
+/// The largest image drawn before a warp, per side.
+const MAX_SOURCE_PX: f64 = 16_384.0;
 
-    /// Render to straight-alpha RGBA pixels (device pixels).
-    pub fn render_array(&self) -> Result<RenderResult, BasemapError> {
-        render_stack(self.requests()?)
-    }
+/// Whole CSS pixels for an image of `width x height` at `ratio`.
+fn css_px(width: u32, height: u32, ratio: f64) -> (u32, u32) {
+    (((width as f64 / ratio).round() as u32).max(1), ((height as f64 / ratio).round() as u32).max(1))
+}
 
-    /// Render a PNG, written to `path` when given; returns its bytes.
-    pub fn render_png(&self, path: Option<&Path>) -> Result<Vec<u8>, BasemapError> {
-        let r = self.render_array()?;
-        let png = encode_png(&r.pixels, r.width, r.height)?;
-        if let Some(p) = path {
-            std::fs::write(p, &png).map_err(|e| BasemapError::RenderError(format!("writing {}: {e}", p.display())))?;
-        }
-        Ok(png)
-    }
-
-    /// Render a vector SVG (`width` x `height` user units; `pixel_ratio`
-    /// does not apply), written to `path` when given; returns the document.
-    pub fn render_svg(&self, path: Option<&Path>, options: &SvgOptions) -> Result<String, BasemapError> {
-        let svg = render_svg_stack_with(self.requests()?, options)?;
-        if let Some(p) = path {
-            std::fs::write(p, &svg).map_err(|e| BasemapError::RenderError(format!("writing {}: {e}", p.display())))?;
-        }
-        Ok(svg)
-    }
+/// `r` resampled through `mesh` into `width x height` pixels.
+fn resampled(r: Rendering, mesh: &Mesh, width: u32, height: u32) -> Result<Rendering, BasemapError> {
+    let pixels = warp::warp(&Image { pixels: &r.pixels, width: r.width, height: r.height, bounds: r.bounds }, mesh, width, height)?;
+    Ok(Rendering { pixels, width, height, ..r })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mask::Keep;
+    use crate::view::{Device, Provenance};
 
-    #[test]
-    fn view_round_trips() {
-        let mut m = Basemap::new("https://example.com/style.json").size(800, 600).pixel_ratio(2.0);
-        m.set_view(Some((-111.89, 40.76)), Some(12.5)).unwrap();
-        assert_eq!(m.get_center(), (-111.89, 40.76));
-        assert_eq!(m.get_zoom(), 12.5);
-        assert_eq!(m.get_size(), (1600, 1200));
-        let b = m.get_bounds(true);
-        assert!(b[0] < -111.89 && b[2] > -111.89 && b[1] < 40.76 && b[3] > 40.76);
-        // Fitting the view's own bounds gives the same view back.
-        let mut n = Basemap::new("x").size(800, 600);
-        n.set_bounds(m.get_bounds(false), Crs::WebMercator).unwrap();
-        assert!((n.get_zoom() - 12.5).abs() < 1e-9);
-        assert!((n.get_center().0 + 111.89).abs() < 1e-9 && (n.get_center().1 - 40.76).abs() < 1e-9);
-        let mut l = Basemap::new("x").size(800, 600);
-        l.set_bounds(m.get_bounds(true), Crs::LonLat).unwrap();
-        assert!((l.get_zoom() - 12.5).abs() < 1e-6);
-        assert!(m.set_view(None, Some(23.0)).is_err());
-        assert_eq!(Crs::parse("epsg:3857").unwrap(), Crs::WebMercator);
-        assert!(Crs::parse("EPSG:2163").is_err());
-    }
+    const WORLD: f64 = view::HALF;
 
-    const WORLD: f64 = EARTH_HALF;
-
-    fn within_world(b: [f64; 4]) -> bool {
-        b[1] >= -WORLD && b[3] <= WORLD
-    }
-
-    #[test]
-    fn default_view_fits_the_world() {
-        // 800 x 600 at zoom 0: the world (512 px) is smaller than the view,
-        // so the zoom rises until it fills it (here its width).
-        let m = Basemap::new("x");
-        assert!((m.get_zoom() - (800f64 / 512.0).log2()).abs() < 1e-12, "{}", m.get_zoom());
-        assert_eq!(m.get_center(), (0.0, 0.0));
-        let b = m.get_bounds(false);
-        assert!(within_world(b), "{b:?}");
-        assert!((b[2] - b[0] - 2.0 * WORLD).abs() < 1e-3, "the view's width is the world's: {b:?}");
-        // A tall view fills the height; a view inside the world is not zoomed.
-        assert!((Basemap::new("x").size(300, 1024).get_zoom() - 1.0).abs() < 1e-12);
-        assert_eq!(Basemap::new("x").size(500, 400).get_zoom(), 0.0);
-        // And it renders (it used to be an invalid bbox).
-        let style = r##"{"version":8,"sources":{},"layers":[{"id":"bg","type":"background","paint":{"background-color":"#abcdef"}}]}"##;
-        let r = Basemap::new(style).render_array().expect("the default view renders");
-        assert_eq!((r.width, r.height, &r.pixels[..4]), (800, 600, &[0xab, 0xcd, 0xef, 0xff][..]));
-    }
-
-    #[test]
-    fn views_stop_at_the_poles() {
-        let mut m = Basemap::new("x").size(800, 600);
-        m.set_view(Some((10.0, 84.0)), Some(3.0)).unwrap();
-        let b = m.get_bounds(false);
-        assert!(within_world(b) && (b[3] - WORLD).abs() < 1e-3, "touches the north edge: {b:?}");
-        assert!(m.get_center().1 < 84.0 && m.get_center().0 == 10.0);
-        m.set_view(Some((0.0, -89.0)), None).unwrap();
-        let b = m.get_bounds(false);
-        assert!(within_world(b) && (b[1] + WORLD).abs() < 1e-3, "touches the south edge: {b:?}");
-        // The request is kept: a smaller view is constrained afresh.
-        let n = Basemap::new("x").size(800, 600).center(0.0, 40.0).zoom(0.0).size(200, 100);
-        assert_eq!((n.get_center(), n.get_zoom()), ((0.0, 40.0), 0.0));
+    fn plain(color: &str) -> String {
+        format!(r##"{{"version":8,"sources":{{}},"layers":[{{"id":"bg","type":"background","paint":{{"background-color":"{color}"}}}}]}}"##)
     }
 
     /// A style with a background and, with `label`, an (empty) label layer.
     fn inline(color: &str, label: bool) -> String {
-        let symbol = if label {
-            r#",{"id":"names","type":"symbol","source":"g","layout":{"text-field":"x"}}"#
-        } else {
-            ""
-        };
+        let symbol = if label { r#",{"id":"names","type":"symbol","source":"g","layout":{"text-field":"x"}}"# } else { "" };
         format!(
             r#"{{"version":8,"sources":{{"g":{{"type":"geojson","data":{{"type":"FeatureCollection","features":[]}}}}}},"layers":[{{"id":"bg","type":"background","paint":{{"background-color":"{color}"}}}}{symbol}]}}"#
         )
     }
 
     #[test]
+    fn the_view_comes_from_what_is_given() {
+        let m = Basemap::new("x").center(-111.89, 40.76).zoom(12.5).size(800, 600).dpi(192.0);
+        let v = m.view(&Context::Standalone).unwrap();
+        assert_eq!((v.width, v.height, v.zoom, v.dpi), (800, 600, 12.5, 192.0));
+        // Fitting that view's own bounds gives the same zoom back.
+        let n = Basemap::new("x").bounds(v.bounds, Crs::WebMercator).size(800, 600).dpi(192.0);
+        assert!((n.view(&Context::Standalone).unwrap().zoom - 12.5).abs() < 1e-9);
+        // Errors name what to drop.
+        let e = Basemap::new("x").center(0.0, 0.0).view(&Context::Standalone).unwrap_err().to_string();
+        assert!(e.contains("zoom"), "{e}");
+        assert_eq!(Crs::parse("epsg:3857").unwrap(), Crs::WebMercator);
+        assert!(Crs::parse("EPSG:2163").is_err());
+    }
+
+    #[test]
+    fn the_default_view_renders_the_world_and_says_so() {
+        let r = Basemap::new(plain("#abcdef")).render(&Context::Standalone).expect("renders");
+        assert_eq!((r.width, r.height, &r.pixels[..4]), (800, 600, &[0xab, 0xcd, 0xef, 0xff][..]));
+        assert!((r.bounds[2] - r.bounds[0] - 2.0 * WORLD).abs() < 1e-3, "{:?}", r.bounds);
+        let decided: Vec<&str> = r.notes_at(Level::Decided).map(|n| n.kind).collect();
+        assert_eq!(decided, ["zoom_auto", "dpi_default", "size_default", "extent_default"]);
+    }
+
+    #[test]
+    fn sizes_that_are_not_whole_css_pixels_are_exact() {
+        // 1001 px at 300 dpi is 320.32 CSS px.
+        let r = Basemap::new(plain("#123456")).center(0.0, 0.0).zoom(3.0).size(1001, 333).dpi(300.0).render(&Context::Standalone).unwrap();
+        assert_eq!((r.width, r.height, r.dpi), (1001, 333, 300.0));
+        assert_eq!(&r.pixels[(333 / 2 * 1001 + 500) * 4..][..4], &[0x12, 0x34, 0x56, 0xff]);
+    }
+
+    #[test]
+    fn a_clip_masks_and_an_inside_clip_frames() {
+        let d = 1_000_000.0;
+        let square = vec![vec![vec![(-d, -d), (d, -d), (d, d), (-d, d)]]];
+        let inside = Shape::new(square.clone(), Keep::Inside).unwrap();
+        let m = Basemap::new(plain("#ff0000")).size(100, 100).clip(inside.clone());
+        let v = m.view(&Context::Standalone).unwrap();
+        assert_eq!(v.provenance.extent, Provenance::Given, "the clip gives the extent");
+        let r = m.render(&Context::Standalone).unwrap();
+        assert_eq!((r.pixels[(50 * 100 + 50) * 4 + 3], r.pixels[3]), (255, 255), "the square fills the frame");
+        // Outside: no extent from the clip; the square is a hole.
+        let out = Basemap::new(plain("#ff0000")).size(100, 100).clip(Shape::new(square, Keep::Outside).unwrap());
+        assert_eq!(out.view(&Context::Standalone).unwrap().provenance.extent, Provenance::Default);
+        let r = out.render(&Context::Standalone).unwrap();
+        assert_eq!((r.pixels[(50 * 100 + 50) * 4 + 3], r.pixels[3]), (0, 255));
+        // In a plot, a clip is only a mask: the plot gives the extent.
+        let plot = Context::Plot { extent: [-4.0 * d, -4.0 * d, 4.0 * d, 4.0 * d], panel_px: (80, 80), device: Device::Screen { pixel_ratio: 1.0 } };
+        let v = Basemap::new(plain("#ff0000")).clip(inside).view(&plot).unwrap();
+        assert_eq!(v.provenance.extent, Provenance::Context);
+    }
+
+    #[test]
+    fn a_warp_resamples_into_the_maps_crs() {
+        // An identity "CRS": the warped map equals the Web Mercator one.
+        let m = Basemap::new(plain("#336699")).center(10.0, 20.0).zoom(5.0).size(120, 90);
+        let v = m.view(&Context::Standalone).unwrap();
+        let b = v.bounds;
+        let mesh = Mesh::from_fn(4, 4, v.width, v.height, |x, y| (b[0] + x / 120.0 * (b[2] - b[0]), b[3] - y / 90.0 * (b[3] - b[1]))).unwrap();
+        let w = Warp::new("EPSG:3857 (identity)", b, mesh).unwrap();
+        let r = m.render_view(&v, Some(&w)).unwrap();
+        assert_eq!((r.width, r.height, r.crs.as_str(), r.bounds), (120, 90, "EPSG:3857 (identity)", b));
+        assert!(r.pixels.chunks_exact(4).all(|p| p == [0x33, 0x66, 0x99, 0xff]));
+        // SVG of a warped map is an error, not a silent Web Mercator SVG.
+        let e = m.render_svg_view(&v, Some(&w), &SvgOptions::default()).unwrap_err().to_string();
+        assert!(e.contains("Web Mercator"), "{e}");
+    }
+
+    #[test]
+    fn svg_carries_the_clip() {
+        let d = 1_000_000.0;
+        let m = Basemap::new(plain("#ff0000"))
+            .center(0.0, 0.0)
+            .zoom(3.0)
+            .size(64, 64)
+            .clip(Shape::new(vec![vec![vec![(-d, -d), (d, -d), (d, d), (-d, d)]]], Keep::Outside).unwrap());
+        let svg = m.render_svg(&Context::Standalone, &SvgOptions::default()).unwrap();
+        assert!(svg.contains(r#"<clipPath id="basemapper-clip"><path clip-rule="evenodd" d="M0 0H64V64H0Z"#), "{svg}");
+        assert!(svg.contains(r#"<g clip-path="url(#basemapper-clip)">"#));
+    }
+
+    #[test]
+    fn on_error_fail_turns_problems_into_errors() {
+        let video = r##"{"version":8,"sources":{"g":{"type":"geojson","data":{"type":"FeatureCollection","features":[]}},"v":{"type":"video","urls":[]}},"layers":[{"id":"bg","type":"background","paint":{"background-color":"#fff"}},{"id":"d","type":"circle","source":"g"},{"id":"m","type":"raster","source":"v"}]}"##;
+        let m = Basemap::new(video).center(0.0, 0.0).zoom(2.0).size(32, 32);
+        assert!(m.render(&Context::Standalone).unwrap().notes_at(Level::Problem).count() > 0);
+        let e = m.fetch(FetchOptions::new().on_error(OnError::Fail)).render(&Context::Standalone).unwrap_err().to_string();
+        assert!(e.contains("on_error") && e.contains("video"), "{e}");
+    }
+
+    #[test]
     fn filters_belong_to_each_style_of_a_stack() {
-        let small = |styles: Vec<Style>| Basemap::stack(styles).size(64, 48).render_array();
+        let small = |styles: Vec<Style>| Basemap::stack(styles).center(0.0, 0.0).zoom(2.0).size(64, 48).render(&Context::Standalone);
         let labels = || vec!["labels".to_string()];
-        // The base drawn whole, only the labels of the top style: the top has
-        // no background, so the base shows through.
         let r = small(vec![Style::new(inline("#ff0000", false)), Style::new(inline("#0000ff", true)).features(labels())]).unwrap();
         assert_eq!(&r.pixels[..4], &[0xff, 0, 0, 0xff]);
-        // A filter on one style is that style's: here it leaves nothing of
-        // it, which is an error, though the other style would draw.
         let e = small(vec![Style::new(inline("#ff0000", false)).features(labels()), Style::new(inline("#0000ff", true))]).unwrap_err();
         assert!(e.to_string().contains("nothing of this style of the stack"), "{e}");
-        // One style on its own: the same error.
         let e = small(vec![Style::new(inline("#ff0000", false)).features(labels())]).unwrap_err();
         assert!(e.to_string().contains("nothing"), "{e}");
     }
 
     #[test]
     fn one_group_is_filtered_as_one_map() {
-        // The parts of one style (a catalogue stack's services) share their
-        // filter: a part it leaves nothing of is skipped.
         let req = |json: String| RenderRequest {
             labels: crate::Labels::Only,
             ..RenderRequest::new([-1e6, -1e6, 1e6, 1e6], 64, 48, crate::StyleInput::detect(&json))
         };
-        let r = render_stack(vec![req(inline("#ff0000", false)), req(inline("#0000ff", true))]).unwrap();
+        let r = crate::render_stack(vec![req(inline("#ff0000", false)), req(inline("#0000ff", true))]).unwrap();
         assert_eq!(r.pixels[3], 0, "labels only: no background drawn");
         let mut second = req(inline("#0000ff", true));
         second.group = 1;
-        let e = render_stack(vec![req(inline("#ff0000", false)), second]).unwrap_err();
+        let e = crate::render_stack(vec![req(inline("#ff0000", false)), second]).unwrap_err();
         assert!(e.to_string().contains("style of the stack"), "{e}");
     }
 }

@@ -4,10 +4,8 @@
 //! public Python API (`basemap()`, `render_basemap_raw()`, the providers, ...)
 //! wraps these functions; the same core backs the R package, so both return
 //! the same results for the same call.
-use basemapper_core::{
-    providers, render_stack, render_svg_stack_with, BasemapError, FontEmbed, RenderRequest, StyleInput, SvgOptions,
-    SvgText,
-};
+use basemapper_core::internal::{render_stack, render_svg_stack_with, RenderRequest, StyleInput};
+use basemapper_core::{providers, BasemapError, FontEmbed, SvgOptions, SvgText};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
@@ -141,7 +139,7 @@ fn encode_png(py: Python<'_>, pixels: &[u8], width: u32, height: u32) -> PyResul
     if pixels.len() != width as usize * height as usize * 4 {
         return Err(validation_error(py, "pixel buffer size does not match width * height * 4"));
     }
-    match basemapper_core::encode_png(pixels, width, height) {
+    match basemapper_core::internal::encode_png(pixels, width, height) {
         Ok(b) => Ok(PyBytes::new(py, &b).unbind()),
         Err(e) => Err(core_err_to_py(py, e)),
     }
@@ -213,7 +211,7 @@ fn svg_options(py: Python<'_>, text: &str, embed_fonts: &str, font_dirs: Option<
 /// EPSG:3857 bbox of a width x height CSS-pixel view at MapLibre zoom.
 #[pyfunction]
 fn bbox_from_center(lon: f64, lat: f64, zoom: f64, width: u32, height: u32) -> Vec<f64> {
-    basemapper_core::bbox_from_center(lon, lat, zoom, width, height).to_vec()
+    basemapper_core::internal::bbox_from_center(lon, lat, zoom, width, height).to_vec()
 }
 
 /// (lon, lat, zoom) of the view fitting EPSG:3857 bounds in width x height.
@@ -221,7 +219,7 @@ fn bbox_from_center(lon: f64, lat: f64, zoom: f64, width: u32, height: u32) -> V
 /// zoom: never beyond the poles.
 #[pyfunction]
 fn constrain_view(lon: f64, lat: f64, zoom: f64, width: u32, height: u32) -> (f64, f64, f64) {
-    basemapper_core::constrain_view(lon, lat, zoom, width, height)
+    basemapper_core::internal::constrain_view(lon, lat, zoom, width, height)
 }
 
 #[pyfunction]
@@ -229,14 +227,14 @@ fn fit_bounds(py: Python<'_>, bounds_3857: Vec<f64>, width: u32, height: u32) ->
     if bounds_3857.len() != 4 {
         return Err(validation_error(py, "bounds must have exactly 4 elements"));
     }
-    Ok(basemapper_core::fit_bounds([bounds_3857[0], bounds_3857[1], bounds_3857[2], bounds_3857[3]], width, height))
+    Ok(basemapper_core::internal::fit_bounds([bounds_3857[0], bounds_3857[1], bounds_3857[2], bounds_3857[3]], width, height))
 }
 
 /// The attribution text of stacked styles (plain text joined with " | ").
 #[pyfunction]
 #[pyo3(signature = (styles, auth_token=None))]
 fn attribution(py: Python<'_>, styles: Vec<String>, auth_token: Option<String>) -> PyResult<String> {
-    py.detach(|| basemapper_core::attribution(&styles, auth_token.as_deref())).map_err(|e| core_err_to_py(py, e))
+    py.detach(|| basemapper_core::internal::attribution(&styles, auth_token.as_deref())).map_err(|e| core_err_to_py(py, e))
 }
 
 /// A style's layers in drawing order as (id, type, source layer, feature),
@@ -356,7 +354,7 @@ fn tile_style(
         kind, tile_size, scheme, minzoom, maxzoom, attribution, source_layers, paint,
     };
     let input = input.to_owned();
-    match py.detach(|| basemapper_core::tile_style(&input, &opts, auth_token.as_deref())) {
+    match py.detach(|| basemapper_core::internal::tile_style(&input, &opts, auth_token.as_deref())) {
         Ok(r) => Ok(r),
         Err(e) => Err(core_err_to_py(py, e)),
     }

@@ -15,8 +15,8 @@
 
 use basemapper_core::mask::{alpha_mask, apply, Keep, Shape};
 use basemapper_core::view::lonlat_to_mercator;
-use basemapper_core::warp::{warp, Mesh, Source};
-use basemapper_core::{Basemap, Crs, Rendering};
+use basemapper_core::warp::{warp, Image, Mesh};
+use basemapper_core::{Basemap, Context, Crs, Rendering};
 use std::path::PathBuf;
 
 const R: f64 = 6_378_137.0;
@@ -72,10 +72,9 @@ fn colour_at(lon: f64, lat: f64) -> [u8; 3] {
 fn source_render(bounds_3857: [f64; 4], px: u32) -> Rendering {
     let aspect = (bounds_3857[3] - bounds_3857[1]) / (bounds_3857[2] - bounds_3857[0]);
     Basemap::new(checkerboard_style())
-        .size(px, (px as f64 * aspect).ceil() as u32)
         .bounds(bounds_3857, Crs::WebMercator)
-        .unwrap()
-        .render()
+        .size(px, (px as f64 * aspect).ceil() as u32)
+        .render(&Context::Standalone)
         .unwrap()
 }
 
@@ -91,7 +90,7 @@ fn mesh_bounds(mesh: &Mesh, pad: f64) -> [f64; 4] {
 
 fn warped(mesh: &Mesh, w: u32, h: u32) -> Vec<u8> {
     let src = source_render(mesh_bounds(mesh, 0.02), w.max(h) * 2);
-    warp(&Source { pixels: &src.pixels, width: src.width, height: src.height, bounds: src.bounds }, mesh, w, h).unwrap()
+    warp(&Image { pixels: &src.pixels, width: src.width, height: src.height, bounds: src.bounds }, mesh, w, h).unwrap()
 }
 
 fn rgb(px: &[u8], w: u32, x: u32, y: u32) -> [u8; 3] {

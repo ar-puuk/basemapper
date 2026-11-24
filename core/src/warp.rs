@@ -19,6 +19,7 @@ const CIRC: f64 = 2.0 * HALF;
 /// corners of the image). A node outside the CRS's valid area is NaN; pixels
 /// next to one are left transparent.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct Mesh {
     pub nx: usize,
     pub ny: usize,
@@ -73,9 +74,55 @@ impl Mesh {
     }
 }
 
+impl Mesh {
+    /// The Web Mercator area the mesh covers, `[xmin, ymin, xmax, ymax]`,
+    /// with a margin of `pad` (a fraction of its size) for interpolation at
+    /// the edges; across the date line as `xmin > xmax`. `None` when no node
+    /// is valid.
+    pub fn bounds(&self, pad: f64) -> Option<[f64; 4]> {
+        let valid: Vec<(f64, f64)> = self.nodes.iter().copied().filter(|p| p.0.is_finite() && p.1.is_finite()).collect();
+        let first = *valid.first()?;
+        // Longitudes unwrapped next to the first node, so a mesh across the
+        // date line is one span, not the whole world.
+        let mut b = [f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY];
+        for (x, y) in valid {
+            let dx = x - first.0;
+            let x = if dx > HALF { x - CIRC } else if dx < -HALF { x + CIRC } else { x };
+            b = [b[0].min(x), b[1].min(y), b[2].max(x), b[3].max(y)];
+        }
+        let (px, py) = ((b[2] - b[0]) * pad, (b[3] - b[1]) * pad);
+        let b = [b[0] - px, (b[1] - py).max(-HALF), b[2] + px, (b[3] + py).min(HALF)];
+        if b[2] - b[0] >= CIRC {
+            return Some([-HALF, b[1], HALF, b[3]]);
+        }
+        let wrap = |x: f64| (x + HALF).rem_euclid(CIRC) - HALF;
+        Some([wrap(b[0]), b[1], wrap(b[2]), b[3]])
+    }
+}
+
+/// A map in a CRS other than Web Mercator: its CRS (a label, e.g.
+/// `"EPSG:32612"`), its extent in that CRS, and the mesh from its pixels to
+/// Web Mercator, which the host computes.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct Warp {
+    pub crs: String,
+    pub bounds: [f64; 4],
+    pub mesh: Mesh,
+}
+
+impl Warp {
+    pub fn new(crs: impl Into<String>, bounds: [f64; 4], mesh: Mesh) -> Result<Warp, BasemapError> {
+        if bounds.iter().any(|v| !v.is_finite()) || bounds[0] >= bounds[2] || bounds[1] >= bounds[3] {
+            return Err(BasemapError::InvalidInput("a warp's bounds must be finite with xmin < xmax and ymin < ymax".into()));
+        }
+        Ok(Warp { crs: crs.into(), bounds, mesh })
+    }
+}
+
 /// A Web Mercator image to warp: straight-alpha RGBA and the extent it
 /// covers (`xmin > xmax` across the date line).
-pub struct Source<'a> {
+pub struct Image<'a> {
     pub pixels: &'a [u8],
     pub width: u32,
     pub height: u32,
@@ -85,7 +132,7 @@ pub struct Source<'a> {
 /// `source` resampled into a `width x height` image through `mesh`
 /// (straight-alpha RGBA). Output pixels whose position falls outside the
 /// source are transparent.
-pub fn warp(source: &Source, mesh: &Mesh, width: u32, height: u32) -> Result<Vec<u8>, BasemapError> {
+pub fn warp(source: &Image, mesh: &Mesh, width: u32, height: u32) -> Result<Vec<u8>, BasemapError> {
     let (sw, sh) = (source.width as usize, source.height as usize);
     if source.pixels.len() != sw * sh * 4 || sw == 0 || sh == 0 {
         return Err(BasemapError::InvalidInput("warp: the source pixels do not match its size".into()));
@@ -171,7 +218,7 @@ mod tests {
         let px = gradient(w, h);
         let b = [-4000.0, -3000.0, 4000.0, 3000.0];
         let mesh = Mesh::from_fn(5, 4, w, h, |x, y| (b[0] + x / w as f64 * 8000.0, b[3] - y / h as f64 * 6000.0)).unwrap();
-        let out = warp(&Source { pixels: &px, width: w, height: h, bounds: b }, &mesh, w, h).unwrap();
+        let out = warp(&Image { pixels: &px, width: w, height: h, bounds: b }, &mesh, w, h).unwrap();
         assert_eq!(out, px);
     }
 
@@ -182,7 +229,7 @@ mod tests {
         let b = [0.0, 0.0, 20.0, 10.0];
         // The output starts 5 source pixels west of the source.
         let mesh = Mesh::from_fn(2, 2, w, h, |x, y| (x - 5.0, 10.0 - y)).unwrap();
-        let out = warp(&Source { pixels: &px, width: w, height: h, bounds: b }, &mesh, w, h).unwrap();
+        let out = warp(&Image { pixels: &px, width: w, height: h, bounds: b }, &mesh, w, h).unwrap();
         let at = |v: &[u8], x: u32, y: u32| v[((y * w + x) * 4) as usize..((y * w + x) * 4 + 4) as usize].to_vec();
         assert_eq!(at(&out, 2, 3)[3], 0, "west of the source: transparent");
         assert_eq!(at(&out, 7, 3), at(&px, 2, 3));
@@ -193,14 +240,14 @@ mod tests {
         // Red next to transparent black: halfway between, still pure red.
         let px = vec![255, 0, 0, 255, 0, 0, 0, 0];
         let mesh = Mesh::from_fn(2, 2, 1, 1, |_, _| (1.0, 0.5)).unwrap();
-        let out = warp(&Source { pixels: &px, width: 2, height: 1, bounds: [0.0, 0.0, 2.0, 1.0] }, &mesh, 1, 1).unwrap();
+        let out = warp(&Image { pixels: &px, width: 2, height: 1, bounds: [0.0, 0.0, 2.0, 1.0] }, &mesh, 1, 1).unwrap();
         assert_eq!(out, [255, 0, 0, 128]);
     }
 
     #[test]
     fn invalid_nodes_and_the_date_line() {
         let px = gradient(8, 4);
-        let src = Source { pixels: &px, width: 8, height: 4, bounds: [HALF - 4.0, 0.0, -HALF + 4.0, 4.0] };
+        let src = Image { pixels: &px, width: 8, height: 4, bounds: [HALF - 4.0, 0.0, -HALF + 4.0, 4.0] };
         // Across the date line: a point just east of it is in the image's
         // east half.
         let mesh = Mesh::from_fn(2, 2, 1, 1, |_, _| (-HALF + 2.5, 1.5)).unwrap();
@@ -211,5 +258,14 @@ mod tests {
         assert_eq!(warp(&src, &mesh, 1, 1).unwrap(), [0, 0, 0, 0]);
         assert!(Mesh::new(1, 2, vec![(0.0, 0.0); 2]).is_err());
         assert!(Mesh::new(2, 2, vec![(0.0, 0.0); 3]).is_err());
+    }
+
+    #[test]
+    fn mesh_bounds_across_the_date_line() {
+        let m = Mesh::new(2, 2, vec![(HALF - 100.0, 0.0), (-HALF + 100.0, 0.0), (HALF - 100.0, 50.0), (-HALF + 100.0, 50.0)]).unwrap();
+        let b = m.bounds(0.0).unwrap();
+        assert!((b[0] - (HALF - 100.0)).abs() < 1e-6 && (b[2] - (-HALF + 100.0)).abs() < 1e-6, "{b:?}");
+        assert_eq!(Mesh::new(2, 2, vec![(f64::NAN, 0.0); 4]).unwrap().bounds(0.0), None);
+        assert_eq!(Mesh::from_fn(2, 2, 1, 1, |x, y| (x * 10.0, y * 10.0)).unwrap().bounds(0.1), Some([-1.0, -1.0, 11.0, 11.0]));
     }
 }

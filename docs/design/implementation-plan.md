@@ -178,6 +178,33 @@ moves to 1e.
 byte-identical; new references for warped (UTM, lon/lat) and masked (inside,
 outside, holes) renders; bench within noise.
 
+**1e done, and phase 1 complete (2026-11-23):**
+
+- `Basemap { styles, inputs, fetch, clip }` with `view(context)`,
+  `render(context)`, `render_view(view, warp)` (the two steps a host takes
+  for another CRS, since the mesh depends on the image size), `render_svg`
+  and `render_svg_view` (an error for a warped map), and `attribution()`.
+  The Rust `FetchOptions` matches R's `fetch_options()`; `on_error = Fail`
+  makes any *problem* note an error. An inside clip gives the default
+  extent, standalone only. Sizes that aren't whole CSS pixels are resampled
+  to the exact pixel size.
+- Renderings carry *decided* notes (auto zoom, default dpi, size, extent).
+- The SVG stack filters each style on its own, as raster stacks do, and
+  carries the clip as a `<clipPath>`.
+- The documented API is the facade. Internal modules and the old entry
+  points are `#[doc(hidden)]`; the bindings reach them through
+  `basemapper_core::internal` until phases 3–4, and the test suites keep
+  using it. `Rendering`, `Note`, `Style`, `Source`, `View`, `ViewInputs`,
+  `FetchOptions`, `Mesh`, `Warp` and the view enums are `#[non_exhaustive]`.
+  `LayerFilter`, `TileStyleOptions` and `ProviderOptions` aren't yet: the
+  bindings build them literally, and they move behind `Source` in phases 3–4.
+- The Rust guide and examples use the facade. The quickstart renders
+  pixel-identical to the published guide image.
+- Exit checks: all contract cases pass; the 255 golden renders are
+  byte-identical; the warp and mask references are in place; bench within
+  noise of `bench-baseline-0.2.json` (every case within ±1.5%, except
+  +0.2 ms on a 3 ms raster render), with the same request counts.
+
 ---
 
 ## Phase 2: plot support in the core

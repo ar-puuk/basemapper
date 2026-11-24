@@ -71,7 +71,7 @@ impl Shape {
     /// The polygons in pixels of a `width x height` image of `bounds` (in
     /// the polygons' CRS, y up). Web Mercator bounds across the date line
     /// (`xmin > xmax`) are unwrapped. Each ring is simplified to
-    /// [`TOLERANCE`] pixels.
+    /// a sixteenth of a pixel.
     pub fn to_pixels(&self, bounds: [f64; 4], width: f64, height: f64, crs_3857: bool) -> Vec<Polygon> {
         const CIRC: f64 = 2.0 * 20_037_508.342_789_244;
         let across = crs_3857 && bounds[0] > bounds[2];

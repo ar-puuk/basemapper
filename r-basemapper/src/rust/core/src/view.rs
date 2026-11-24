@@ -22,7 +22,8 @@
 use crate::notes::{Level, Note};
 use crate::BasemapError;
 
-const HALF: f64 = 20_037_508.342_789_244;
+/// Half the Web Mercator world's width, in metres.
+pub const HALF: f64 = 20_037_508.342_789_244;
 const CIRC: f64 = 2.0 * HALF;
 /// A CSS pixel is 1/96 inch, as in MapLibre and every browser.
 pub const CSS_DPI: f64 = 96.0;
@@ -37,6 +38,7 @@ const MAX_LAT: f64 = 85.051_128_779_806_59;
 
 /// The unit of `width` and `height`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum Units {
     /// Image pixels.
     #[default]
@@ -71,6 +73,7 @@ impl Units {
 
 /// What the user gave for a view; `None` for what they left out.
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct ViewInputs {
     /// An area in Web Mercator metres, `[xmin, ymin, xmax, ymax]`
     /// (`xmin > xmax` across the date line).
@@ -87,6 +90,7 @@ pub struct ViewInputs {
 
 /// The kind of device a plot is drawn on, which decides its dpi.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub enum Device {
     /// A screen: 96 dpi times its pixel ratio (2 on most high-density screens).
     Screen { pixel_ratio: f64 },
@@ -96,8 +100,45 @@ pub enum Device {
     VectorExport,
 }
 
+impl ViewInputs {
+    /// Nothing given: everything derived or defaulted.
+    pub fn new() -> Self {
+        ViewInputs::default()
+    }
+
+    /// An area in Web Mercator metres (`xmin > xmax` across the date line).
+    pub fn bounds(mut self, bounds: [f64; 4]) -> Self {
+        self.bounds = Some(bounds);
+        self
+    }
+
+    /// The camera's centre, longitude / latitude (with a zoom).
+    pub fn center(mut self, lon: f64, lat: f64) -> Self {
+        self.center = Some((lon, lat));
+        self
+    }
+
+    pub fn zoom(mut self, zoom: f64) -> Self {
+        self.zoom = Some(zoom);
+        self
+    }
+
+    /// The image's width and height, in `units`.
+    pub fn size(mut self, width: f64, height: f64, units: Units) -> Self {
+        self.size = Some((width, height));
+        self.units = units;
+        self
+    }
+
+    pub fn dpi(mut self, dpi: f64) -> Self {
+        self.dpi = Some(dpi);
+        self
+    }
+}
+
 /// Where a view is drawn.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[non_exhaustive]
 pub enum Context {
     /// On its own.
     #[default]
@@ -129,6 +170,7 @@ impl Provenance {
 
 /// Where each of a view's four values came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Provenances {
     pub extent: Provenance,
     pub size: Provenance,
@@ -138,6 +180,7 @@ pub struct Provenances {
 
 /// A resolved view: everything a render needs, always consistent.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct View {
     /// The extent shown, Web Mercator metres (`xmin > xmax` across the date line).
     pub bounds: [f64; 4],
@@ -151,6 +194,26 @@ pub struct View {
 }
 
 impl View {
+    /// The values basemapper chose because nothing gave them: *decided*
+    /// notes (§4.8), shown on request, never interrupting.
+    pub fn decided(&self) -> Vec<Note> {
+        let mut notes = Vec::new();
+        let p = &self.provenance;
+        if p.zoom == Provenance::Derived {
+            notes.push(Note::new(Level::Decided, "zoom_auto", format!("zoom {:.2} (auto)", self.zoom)));
+        }
+        if p.dpi == Provenance::Default {
+            notes.push(Note::new(Level::Decided, "dpi_default", format!("{} dpi (default)", self.dpi)));
+        }
+        if p.size == Provenance::Default {
+            notes.push(Note::new(Level::Decided, "size_default", format!("{} x {} px (default)", self.width, self.height)));
+        }
+        if p.extent == Provenance::Default {
+            notes.push(Note::new(Level::Decided, "extent_default", "the whole world (no bounds, center or clip given)"));
+        }
+        notes
+    }
+
     /// MapLibre's device pixels per CSS pixel.
     pub fn pixel_ratio(&self) -> f64 {
         self.dpi / CSS_DPI
