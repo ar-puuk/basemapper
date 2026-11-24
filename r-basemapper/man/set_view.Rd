@@ -3,28 +3,35 @@
 \name{set_view}
 \alias{set_view}
 \alias{set_bounds}
-\title{Change a basemap view}
+\title{Change a basemap}
 \usage{
-set_view(m, center = NULL, zoom = NULL)
+set_view(m, ..., center, zoom, width, height, units, dpi)
 
-set_bounds(m, bounds, crs = NULL)
+set_bounds(m, bounds)
 }
 \arguments{
 \item{m}{A \code{\link[=basemap]{basemap()}} object.}
 
-\item{center}{\code{c(longitude, latitude)}, or \code{NULL} to keep it.}
+\item{...}{Not used: the arguments after \code{m} must be named.}
 
-\item{zoom}{MapLibre zoom, or \code{NULL} to keep it.}
+\item{center, zoom, width, height, units, dpi}{As in \code{\link[=basemap]{basemap()}}; left out,
+they keep their value.}
 
-\item{bounds}{Bounds to fit instead of \code{center}/\code{zoom}: \code{c(xmin, ymin, xmax, ymax)} in \code{crs} (default EPSG:4326), an \code{\link[sf:st_bbox]{sf::st_bbox()}} result, or
-an \code{sf} / \code{sfc} object.}
-
-\item{crs}{CRS of \code{bounds} (anything \code{\link[sf:st_crs]{sf::st_crs()}} accepts).}
+\item{bounds}{As in \code{\link[=basemap]{basemap()}}.}
 }
 \value{
-The modified \code{basemap}.
+A new \code{basemap}.
 }
 \description{
-\code{set_view()} sets the centre and/or zoom; \code{set_bounds()} fits bounds
-(keeping the view's size). Python: \code{m.set_view()}, \code{m.set_bounds()}.
+A basemap never changes: these return a new one (value semantics, as
+everything in R). \code{set_view()} changes what is given of the view (\code{NULL}
+unsets a value; a \code{center} replaces the bounds); \code{set_bounds()} shows an
+area (the centre is unset). Python: \code{m.set_view()}, \code{m.set_bounds()}.
+}
+\examples{
+\dontrun{
+m <- basemap("OpenFreeMap.Liberty", center = c(-111.89, 40.76), zoom = 12)
+set_view(m, zoom = 10)
+set_view(m, dpi = 300, width = 6, height = 4, units = "in")
+}
 }

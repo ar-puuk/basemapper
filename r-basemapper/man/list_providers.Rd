@@ -16,8 +16,9 @@ the forms it has); \code{api_key_env} (the environment variable its API key
 is read from, \code{NA} when it needs none); and \code{attribution}.
 }
 \description{
-The basemaps \code{\link[=basemap_provider]{basemap_provider()}} knows, with the forms each comes in.
-Python: \code{basemapper.list_providers()}.
+The named basemaps: their names work as styles (\code{"CartoDB.Positron"}),
+and with \code{\link[=provider]{provider()}} for a chosen form. Python:
+\code{basemapper.list_providers()}.
 }
 \examples{
 list_providers()

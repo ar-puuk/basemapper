@@ -11,7 +11,6 @@ one. The same object exists in R (``basemap()``) and Rust (``Basemap``).
 from __future__ import annotations
 
 import dataclasses
-import math
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from . import _crs
@@ -153,15 +152,7 @@ class Basemap:
     @property
     def center(self) -> Tuple[float, float]:
         """``(longitude, latitude)`` of the map's centre."""
-        b = self.bounds
-        if self._prepared["frame"] is not None:
-            to = _crs._transformer(self.crs, _crs.crs_of(_crs.LONLAT))
-            return tuple(to.transform((b[0] + b[2]) / 2, (b[1] + b[3]) / 2))
-        width = b[2] - b[0] if b[2] >= b[0] else b[2] + 2 * 20_037_508.342_789_244 - b[0]
-        x = b[0] + width / 2
-        if x > 20_037_508.342_789_244:
-            x -= 2 * 20_037_508.342_789_244
-        return _crs.mercator_to_lonlat(x, (b[1] + b[3]) / 2)
+        return tuple(self._view["center"])
 
     @property
     def zoom(self) -> float:
@@ -335,11 +326,18 @@ class Basemap:
             raise ValidationError(
                 "a basemap in a plot takes its CRS from the plot: remove crs (give the plot's CRS to add_to(ax, crs=...))"
             )
+        from . import _basemapper as _core
+
         inputs = self._base_inputs()
         if self.bounds_arg is not None or self.center_arg is not None:
             inputs["bounds" if self.bounds_arg is not None else "center"] = (
                 [0.0, 0.0, 1.0, 1.0] if self.bounds_arg is not None else self.center_arg
             )
+        # The core's plot rules, on a stand-in panel: a conflict is an error
+        # now, not when the plot is drawn.
+        probe = {"limits": [0.0, 0.0, 1.0, 1.0], "crs": "EPSG:3857", "px": (100, 100),
+                 "device": {"kind": "raster_export", "dpi": 96.0}}
+        _core.plan(inputs, probe)
         return [s._spec() for s in self.styles], inputs
 
     # ── Display ─────────────────────────────────────────────────────────────

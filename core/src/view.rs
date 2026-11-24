@@ -194,6 +194,13 @@ pub struct View {
 }
 
 impl View {
+    /// The centre of the view, longitude / latitude (across the date line
+    /// when `xmin > xmax`).
+    pub fn center(&self) -> (f64, f64) {
+        let (x, y) = centre(self.bounds);
+        mercator_to_lonlat(x, y)
+    }
+
     /// The true map scale at the centre latitude, as N of 1:N (see
     /// [`scale_at`]).
     pub fn scale(&self) -> f64 {
@@ -246,6 +253,12 @@ pub fn scale_at(zoom: f64, y: f64) -> f64 {
     let r = HALF / std::f64::consts::PI;
     let lat = 2.0 * (y / r).exp().atan() - std::f64::consts::FRAC_PI_2;
     metres_per_px(zoom) * lat.cos() * CSS_DPI / 0.0254
+}
+
+/// Longitude / latitude of a Web Mercator point.
+pub fn mercator_to_lonlat(x: f64, y: f64) -> (f64, f64) {
+    let r = HALF / std::f64::consts::PI;
+    ((x / r).to_degrees(), (2.0 * (y / r).exp().atan() - std::f64::consts::FRAC_PI_2).to_degrees())
 }
 
 /// Web Mercator metres per CSS pixel at `zoom` (512 px tiles).
@@ -665,5 +678,22 @@ mod tests {
         // An extent is required, and the frame is checked.
         assert!(resolve_in_crs(&ViewInputs::new(), &frame).unwrap_err().to_string().contains("TEST:1"));
         assert!(CrsFrame::new("x", (0.0, 0.0), (0.0, 0.0), 0.0).is_err());
+    }
+}
+
+#[cfg(test)]
+mod center_tests {
+    use super::*;
+
+    #[test]
+    fn the_centre_crosses_the_date_line() {
+        let (x0, y0) = lonlat_to_mercator(170.0, -10.0);
+        let (x1, y1) = lonlat_to_mercator(-170.0, 10.0);
+        let v = resolve(&ViewInputs::new().bounds([x0, y0, x1, y1]), &Context::Standalone).unwrap();
+        let (lon, lat) = v.center();
+        assert!((lon.abs() - 180.0).abs() < 1e-9 && lat.abs() < 1e-9, "({lon}, {lat})");
+        let (x, y) = lonlat_to_mercator(-111.9, 40.7);
+        let (lon, lat) = mercator_to_lonlat(x, y);
+        assert!((lon + 111.9).abs() < 1e-12 && (lat - 40.7).abs() < 1e-12);
     }
 }

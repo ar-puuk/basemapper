@@ -310,6 +310,7 @@ fn view_dict<'py>(py: Python<'py>, v: &View) -> PyResult<Bound<'py, PyDict>> {
     d.set_item("dpi", v.dpi)?;
     d.set_item("zoom", v.zoom)?;
     d.set_item("scale", v.scale())?;
+    d.set_item("center", v.center())?;
     let p = PyDict::new(py);
     p.set_item("extent", v.provenance.extent.name())?;
     p.set_item("size", v.provenance.size.name())?;

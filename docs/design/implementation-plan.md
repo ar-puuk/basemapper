@@ -349,6 +349,70 @@ matplotlib and plotnine; parity check passes for Python.
 **Exit:** the contract cases pass from R; F1 and F4 tests green for ggplot2
 and tmap; `R CMD check` clean; parity check passes for R.
 
+**Done (2026-11-23):**
+
+- **The model in R.**
+  - `basemap(style, ..., bounds, center, zoom, width, height, units, dpi,
+    crs, clip, fetch)` is an S3 value. Its view is resolved by the core when
+    it is made and again on every `set_view()` / `set_bounds()`, which return
+    new basemaps.
+  - Reading the view: `get_bounds()`, `get_center()`, `get_zoom()`,
+    `get_size()`; `print()` shows each value's provenance.
+  - Styles: `style()`, `provider()`, `tiles()`, `wms()`, `wmts()`; also
+    `around()`, `outside()`, `fetch_options()`.
+  - `render()` returns a rendering holding raw bytes, converted with
+    `write_png()`, `as_array()`, `as_raster()`, `plot()` (via a
+    `nativeRaster`) and `knit_print()`. `render_svg()` is an error outside
+    Web Mercator.
+  - Notes: *decided* in `print()` and with `options(basemapper.verbose =
+    TRUE)`; *adjusted* as a `basemapper_adjustment` message once per kind;
+    *problems* as a `basemapper_problem` warning every time (an error with
+    `on_error = "fail"`).
+  - Removed 0.2 functions are defunct stubs and removed arguments are
+    errors; both name the replacement and link the migration guide.
+- **The binding's boundary.** extendr 0.9's named-list support crashes on
+  Windows with the GNU toolchain (it reaches names through R symbols; the R
+  session dies with exit 139). So values cross as JSON (specs and results)
+  plus plain vectors (pixels, mesh coordinates, clip rings). That is also
+  simpler than list handling.
+- **The core** gains `View::center()` and `mercator_to_lonlat`. Both bindings
+  report the core's centre, and Python dropped its own date-line arithmetic.
+  R converts lon/lat ↔ Web Mercator through the core, so plain numbers and
+  `around()` need no sf.
+- **CRS (host side, `R/crs.R`).** The same rules as Python, with sf
+  (`sf_project` for frames and meshes, `st_transform` / `st_cast` for clips),
+  needed only outside Web Mercator and WGS 84.
+- **Plots.**
+  - ggplot2: `ggplot(nc) + m` (a `ggplot_add` method) and the alias
+    `geom_basemap()`.
+  - tmap: `tm_basemap(m)` / `tm_basemap(style, ...)`. Both render on the
+    core's plan, warped into the plot's CRS. tmap's `terra::project` path and
+    its forcing of EPSG:3857 (the `"tm_basemap"` subclass) are gone.
+  - D16 per device: vector devices 300 dpi; screen devices 96 (R does not
+    report a pixel ratio, the D16 fallback); others at their dpi.
+  - Plot conflicts (an extent, CRS or size of the basemap's own) are errors
+    when the basemap is added: the core's plan runs on a stand-in panel.
+    Python now does the same.
+  - The credit line uses the core's layout.
+  - `coord_sf()`'s `x_range` / `y_range` are the panel's extent in its CRS. A
+    plot whose only layer is the basemap has none (ggplot2 falls back to
+    0-1), as before.
+- **Tests (R, offline).** All pass.
+  - The contract (every case, shared with Rust and Python).
+  - F1 for ggplot2 and tmap: the basemap within 2 px of the data on a lon/lat
+    map, where 0.2 was about 65 px off. F4: date-line boxes.
+  - `test-api`, `test-crs` (UTM alignment within a pixel), `test-plots`
+    (devices, effective dpi, D15, credit line, tmap) and `test-styles`.
+- **`R CMD check`.** 0 errors, the CI gate. The warnings and notes were there
+  before (a local Windows `libR.dll.a`, the Rust version line, top-level
+  Cargo / pkgdown files, `call_core()`'s `.Call(.NAME)`), except the
+  migration guide's URL returning 404 until phase 5 publishes it.
+- **Parity.** `tools/api_parity.py`: 13 of 14 paired functions have the same
+  arguments. The difference is `geom_basemap(crs=)` in Python, deliberate:
+  plotnine has no spatial coordinates.
+- **For phase 5.** The R vignettes and README use the 0.2 API, as Python's
+  user guide does.
+
 ---
 
 ## Phase 5: documentation and release

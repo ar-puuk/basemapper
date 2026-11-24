@@ -2,7 +2,7 @@
 % Please edit documentation in R/errors.R
 \name{basemapper-errors}
 \alias{basemapper-errors}
-\title{Errors raised by basemapper}
+\title{Errors and notes from basemapper}
 \description{
 Errors carry classes, so code can handle a kind of failure (as Python's
 \code{basemapper.ValidationError}, \code{StyleError} and \code{NetworkError}):
@@ -10,19 +10,32 @@ Errors carry classes, so code can handle a kind of failure (as Python's
 \details{
 \itemize{
 \item \code{basemapper_validation_error}: invalid input, found before anything is
-downloaded (bounds, sizes, filters, \code{max_tiles} exceeded).
+downloaded (a view, style, filter, CRS or clip that cannot work).
 \item \code{basemapper_style_error}: the style could not be downloaded or read.
-\item \code{basemapper_network_error}: tiles could not be downloaded (a wrong or
+\item \code{basemapper_network_error}: data could not be downloaded (a wrong or
 missing API key, a server down).
-\item \code{basemapper_render_error}: anything else (an undecodable tile, ...).
+\item \code{basemapper_render_error}: anything else.
 }
 
 Every one also has class \code{basemapper_error}.
+
+Renders also carry \strong{notes} on what basemapper decided, adjusted or could
+not do (see \code{\link[=render]{render()}}). They are shown by their level:
+\itemize{
+\item \emph{decided} (a value nothing gave, such as the automatic zoom): in
+\code{print()}, and as messages with \code{options(basemapper.verbose = TRUE)};
+\item \emph{adjusted} (something asked for was changed, such as an effective dpi
+for a zoom chosen in a plot): a message of class
+\code{basemapper_adjustment}, once per kind per session;
+\item \emph{problem} (the output is incomplete, such as tiles that failed): a
+warning of class \code{basemapper_problem}, every time, or an error with
+\code{fetch_options(on_error = "fail")}.
+}
 }
 \examples{
 \dontrun{
 tryCatch(
-  render_png(basemap("https://example.com/missing.json")),
+  render(basemap("https://example.com/missing.json")),
   basemapper_style_error = function(e) message("no style: ", conditionMessage(e))
 )
 }

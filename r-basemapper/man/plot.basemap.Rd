@@ -3,14 +3,14 @@
 \name{plot.basemap}
 \alias{plot.basemap}
 \alias{knit_print.basemap}
-\title{Show a basemap view}
+\title{Show a basemap}
 \usage{
 \method{plot}{basemap}(x, ...)
 
 \method{knit_print}{basemap}(x, options = list(), ...)
 }
 \arguments{
-\item{x}{A view from \code{\link[=basemap]{basemap()}}.}
+\item{x}{A \code{\link[=basemap]{basemap()}} object.}
 
 \item{...}{Unused.}
 
@@ -20,14 +20,8 @@
 \code{x}, invisibly (\code{plot()}); a knitr image (\code{knit_print()}).
 }
 \description{
-\code{plot()} renders the view and draws it on the current graphics device.
-In R Markdown and Quarto documents, a view printed by a chunk (\code{m} on its
-own line) renders and shows as an image at its CSS pixel size, sharp at
-any \code{pixel_ratio}; \code{print(m)} describes the view instead.
-}
-\examples{
-\dontrun{
-m <- basemap("OpenFreeMap.Positron", 800, 450, center = c(-111.8887, 40.7556), zoom = 12.4)
-plot(m)
-}
+\code{plot()} renders the basemap and draws it on the current graphics device.
+In R Markdown and Quarto documents, a basemap printed by a chunk renders
+and shows as an image at its CSS size, sharp at any dpi; \code{print(m)}
+describes it instead.
 }

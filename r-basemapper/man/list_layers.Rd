@@ -2,50 +2,34 @@
 % Please edit documentation in R/layer_utils.R
 \name{list_layers}
 \alias{list_layers}
-\title{List a style's layers, or preview a filter}
+\title{The layers a style draws}
 \usage{
-list_layers(
-  style,
-  auth_token = NULL,
-  layers = NULL,
-  labels = TRUE,
-  features = NULL
-)
+list_layers(style)
 }
 \arguments{
-\item{style}{A style (anything \code{\link[=basemap]{basemap()}} takes).}
-
-\item{auth_token}{Optional access token for the style URL.}
-
-\item{layers, labels, features}{Filters to preview, as the renderers take
-them (see \code{\link[=basemap]{basemap()}}).}
+\item{style}{A style (anything \code{\link[=style]{style()}} takes).}
 }
 \value{
 A data frame with columns \code{id}, \code{type}, \code{source_layer} and
 \code{feature}.
 }
 \description{
-The layers of a style in drawing order: their \code{id} (what \code{layers}
-matches), \code{type} (\code{symbol} layers are the labels \code{labels} keeps or
-drops), \code{source_layer} (the vector tile layer drawn; \code{NA} for background
-and raster layers) and \code{feature} (what \code{features} matches). With
-\code{layers}, \code{labels} or \code{features}, the layers a render with those filters
-draws; no rows when they leave nothing. Python:
-\code{basemapper.list_layers()}.
+A style's layers in drawing order, with its filters applied: their \code{id}
+(what a style's \code{layers} matches), \code{type} (\code{symbol} layers are the
+labels), \code{source_layer} (the vector tile layer drawn; \code{NA} for background
+and raster layers) and \code{feature} (what \code{features} matches). A style with
+filters lists the layers it keeps, so this previews a filter:
+\code{list_layers(style(s, features = "roads"))}. A catalogue stack lists every
+part's layers, bottom to top. Python: \code{basemapper.list_layers()}.
 }
 \details{
 A layer's feature comes from its source layer, with tables for the
-OpenMapTiles (OpenFreeMap, Stadia, MapTiler), Protomaps (CARTO) and
-Shortbread (VersaTiles) schemas and keywords for others (Esri's
-descriptive names, layer ids). The features are background, water,
-landcover, parks, buildings, roads, rail, boundaries, places, poi,
-terrain and other. They are a convenience: check them here, and use
-\code{layers} for exact control.
+OpenMapTiles, Protomaps and Shortbread schemas and keywords for others: a
+convenience to check here, with \code{layers} for exact control.
 }
 \examples{
 \dontrun{
 list_layers("OpenFreeMap.Positron")
-list_layers("OpenFreeMap.Positron", labels = "only")      # what would be drawn
-list_layers("OpenFreeMap.Positron", layers = "highway_*")
+list_layers(style("OpenFreeMap.Positron", features = "labels"))   # what would be drawn
 }
 }

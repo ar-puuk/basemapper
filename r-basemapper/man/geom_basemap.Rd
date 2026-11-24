@@ -2,92 +2,41 @@
 % Please edit documentation in R/geom_basemap.R
 \name{geom_basemap}
 \alias{geom_basemap}
-\title{Add a styled basemap layer to a ggplot2 spatial plot.}
+\title{Basemaps in ggplot2}
 \usage{
-geom_basemap(
-  style,
-  ...,
-  tile_zoom = NULL,
-  alpha = 1,
-  layers = NULL,
-  labels = TRUE,
-  features = NULL,
-  pixel_ratio = NULL,
-  auth_token = NULL,
-  fetch = fetch_options(),
-  attribution = TRUE
-)
+geom_basemap(style, ..., alpha = 1, attribution = TRUE)
 }
 \arguments{
-\item{style}{A MapLibre GL style URL or JSON string (e.g. from
-\code{\link[=basemap_provider]{basemap_provider()}}), or a vector / list of styles stacked bottom to
-top.}
+\item{style}{A style, a list of styles, or a \code{\link[=basemap]{basemap()}}.}
 
-\item{...}{Other arguments passed on to \code{\link[ggplot2:layer]{ggplot2::layer()}}; they must be
-named. (The deprecated \code{tile_timeout_ms} and \code{max_tiles} are still
-accepted, with a warning: use \code{fetch}.)}
+\item{...}{\code{\link[=basemap]{basemap()}}'s arguments that apply in a plot: \code{zoom} or \code{dpi},
+\code{clip}, \code{fetch}.}
 
-\item{tile_zoom}{Tile detail override: the tile zoom on the 256 px grid
-(vector sources use one less, their tiles being 512 px), or \code{NULL} to
-pick tiles as MapLibre does for the view.}
+\item{alpha}{The basemap's opacity (0--1).}
 
-\item{alpha}{Opacity of the basemap layer (0--1).}
-
-\item{layers}{Optional layer filter applied to every style: plain IDs keep
-only those layers, minus-prefixed IDs drop them; \code{*} and \verb{?} are
-wildcards (\code{"-label_*"}). See \code{\link[=list_layers]{list_layers()}}. Names that match no
-layer of any style warn.}
-
-\item{labels}{\code{"all"} (or \code{TRUE}) keeps every layer, \code{"none"} (or \code{FALSE}) drops the labels (text and
-icons), \code{"only"} keeps only the labels on a transparent background, to
-stack over another map. Catalogue raster basemaps switch to their
-label-free or label-only tiles.}
-
-\item{features}{Optional feature filter applied to every style: plain
-names keep those features, minus-prefixed names drop them, e.g.
-\code{c("water", "roads")} or \code{"-buildings"}. Features: background, water,
-landcover, parks, buildings, roads, rail, boundaries, places, poi,
-terrain, other (the \code{feature} column of \code{\link[=list_layers]{list_layers()}}). Features no
-layer of any style belongs to warn.}
-
-\item{pixel_ratio}{Device pixels per CSS pixel (MapLibre's
-devicePixelRatio). Default: device dpi / 96, so lines and labels keep
-their physical size at any resolution. Larger values draw map symbols
-smaller.}
-
-\item{auth_token}{Optional access token for the tile service (sent only to the style's own server).}
-
-\item{fetch}{How tiles are downloaded: a \code{\link[=fetch_options]{fetch_options()}} object
-(timeout, tile limit, parallel downloads, what a failed tile does).}
-
-\item{attribution}{The credit line the basemap's providers ask for, drawn
-small in the bottom-right corner of each panel: \code{TRUE} (the default)
-for the styles' own (see \code{\link[=get_attribution]{get_attribution()}}), \code{FALSE} for none, or
-your own text. It is drawn with the basemap, so later layers can cover
-it.}
+\item{attribution}{The providers' credit line in the bottom-right corner
+of each panel: \code{TRUE} (their own, see \code{\link[=get_attribution]{get_attribution()}}), \code{FALSE}
+(none), or your text.}
 }
 \value{
-A ggplot2 layer object.
+A ggplot2 layer.
 }
 \description{
-Wraps a lazy \code{GeomBasemap} ggproto layer that defers tile fetching until
-\code{coord_sf()} has established the panel's geographic extent.
-}
-\details{
-The basemap is rendered when the plot is drawn, for the panel's size at
-the device's resolution: \code{ggsave(dpi = 300)} gets a basemap rendered
-natively at 300 dpi (and PDF / SVG output at 300 dpi), not an upscaled
-screen image. Python (plotnine): \code{basemapper.geom_basemap()}, with the same
-arguments.
+\code{ggplot(nc) + m} puts a \code{\link[=basemap]{basemap()}} under the plot's layers;
+\code{geom_basemap()} is an alias that builds the basemap from the same
+arguments. The plot gives the extent (the panel's limits), the CRS
+(\code{coord_sf()}'s; the basemap is warped into it), the image size (the
+panel) and the dpi: on screen 96, in a raster export (\code{ggsave()}, \code{png()},
+ragg) the device's dpi, in PDF / SVG 300. The basemap may give a \code{zoom}
+(then the dpi is derived, an effective dpi reported once) or a \code{dpi}; an
+extent, a CRS or a size of its own is an error. A clip is a mask, in the
+plot's CRS. Python (plotnine): \code{ggplot(df) + m}, \code{geom_basemap()}.
 }
 \examples{
 \dontrun{
 library(ggplot2)
-library(sf)
-nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-ggplot(nc) +
-  geom_basemap("OpenFreeMap.Positron") +
-  geom_sf(fill = NA, color = "steelblue") +
-  coord_sf()
+nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
+ggplot(nc) + basemap("OpenFreeMap.Positron") + geom_sf(fill = NA)
+ggplot(nc) + geom_basemap("OpenFreeMap.Positron", zoom = 8) + geom_sf(fill = NA)
 }
 }
