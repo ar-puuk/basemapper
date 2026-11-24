@@ -1,0 +1,21 @@
+{
+  "stack": [
+    "ugrc_hillshade_tract_x175",
+    "ugrc_litebase_tract_x175",
+    "ugrc_litelabels_tract_x175"
+  ],
+  "note": "Full UGRC Lite basemap (Hillshade, Lite Base, Lite Labels, bottom to top). The WFRC Opportunity Zones tract view: a 720 x 1000 px plot panel at 168 dpi (devicePixelRatio 1.75, 411.43 CSS px wide) is drawn as this 412 x 572 CSS px render (721 x 1001 device px, the view's own pixel grid from its top-left corner) and cropped. Fractional MapLibre zoom 13.141.",
+  "bbox": [
+    -12469979.0,
+    5026391.854167,
+    -12466409.048611,
+    5031348.194444
+  ],
+  "width": 412,
+  "height": 572,
+  "zoom": 14,
+  "attribution": "Utah Geospatial Resource Center (UGRC), State of Utah",
+  "pixel_ratio": 1.75,
+  "max_bad_pixel_frac": 7e-05,
+  "max_mean_diff": 0.016
+}

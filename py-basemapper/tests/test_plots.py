@@ -141,3 +141,79 @@ def test_plotnine_reads_a_geodataframes_crs():
     img = [a for a in fig.axes[0].images][-1]
     assert img.rendering.crs.to_epsg() == 32612
     plt.close(fig)
+
+
+# The WFRC tract view's Web Mercator limits: a 720 x 1000 px panel.
+TRACT = (-12_469_979.0, 5_026_396.805555556, -12_466_414.0, 5_031_348.194444444)
+
+
+def line_style(x_3857: float, width_css: float) -> str:
+    """A white map with a black vertical line at Web Mercator ``x``."""
+    lon = x_3857 / 20_037_508.342_789_244 * 180
+    return json.dumps({"version": 8,
+                       "sources": {"l": {"type": "geojson", "data": {"type": "LineString", "coordinates": [[lon, -80], [lon, 80]]}}},
+                       "layers": [{"id": "bg", "type": "background", "paint": {"background-color": "#ffffff"}},
+                                  {"id": "l", "type": "line", "source": "l", "paint": {"line-color": "#000000", "line-width": width_css}}]})
+
+
+def dark_centre(row: np.ndarray, lo: int, hi: int) -> float:
+    d = 255.0 - row[lo:hi].astype(float)
+    return float((d * np.arange(lo, hi)).sum() / d.sum())
+
+
+def test_a_web_mercator_panel_shows_the_rendering_pixel_for_pixel():
+    # A panel of whole device pixels in Web Mercator: no warp, no resample.
+    # The image is the rendering, and a line one device pixel wide at the
+    # centre of column 300 is there, to a tenth of a pixel.
+    x0, y0, x1, y1 = TRACT
+    mx = (x1 - x0) / 720
+    style = line_style(x0 + 300.5 * mx, 1 / 1.75)
+    fig = plt.figure(figsize=(7.2, 10), dpi=100)
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_axis_off()
+    ax.set_xlim(x0, x1)
+    ax.set_ylim(y0, y1)
+    artist = basemap(style, dpi=168).add_to(ax, crs=3857, attribution=False)
+    fig.canvas.draw()
+    r = artist.rendering
+    assert (r.width, r.height, r.dpi, r.crs.to_epsg()) == (720, 1000, 168, 3857)
+    assert r.bounds == pytest.approx(TRACT, abs=1e-6)
+    drawn = np.asarray(fig.canvas.buffer_rgba())[..., :3]
+    assert np.array_equal(drawn, r.to_numpy()[..., :3]), "the panel shows the rendering's pixels"
+    for y in (10, 500, 990):
+        assert abs(dark_centre(drawn[y, :, 0], 290, 311) - 300) < 0.1
+    plt.close(fig)
+
+
+def test_a_plotnine_web_mercator_panel_shows_the_rendering_pixel_for_pixel():
+    pytest.importorskip("plotnine")
+    gpd = pytest.importorskip("geopandas")
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from plotnine import aes, coord_cartesian, geom_blank, ggplot, scale_x_continuous, scale_y_continuous, theme, theme_void
+    from shapely.geometry import Point
+
+    x0, y0, x1, y1 = TRACT
+    mx = (x1 - x0) / 720
+    layer = basemapper.geom_basemap(line_style(x0 + 300.5 * mx, 1 / 1.75), dpi=168, attribution=False)
+    df = gpd.GeoDataFrame({"x": [x0, x1], "y": [y0, y1]}, geometry=[Point(x0, y0), Point(x1, y1)], crs=3857)
+    p = (ggplot(df, aes("x", "y")) + layer + geom_blank()
+         + scale_x_continuous(expand=(0, 0)) + scale_y_continuous(expand=(0, 0))
+         + coord_cartesian(xlim=(x0, x1), ylim=(y0, y1), expand=False)
+         + theme_void() + theme(figure_size=(7.2, 10), dpi=100, plot_margin=0))
+    fig = p.draw()
+    canvas = FigureCanvasAgg(fig)
+    canvas.draw()
+    drawn = np.asarray(canvas.buffer_rgba())[..., :3]
+    ax = fig.axes[0]
+    bb = ax.get_window_extent(canvas.get_renderer())
+    img = next(a for a in ax.get_images())
+    r = img.rendering
+    assert (r.width, r.height) == (round(bb.width), round(bb.height)), "the image is the panel's size"
+    # The panel's pixels in the figure (from the top-left).
+    left, top = int(round(bb.x0)), int(round(drawn.shape[0] - bb.y1))
+    panel = drawn[top:top + r.height, left:left + r.width]
+    assert np.array_equal(panel, r.to_numpy()[..., :3]), "the panel shows the rendering's pixels"
+    col = (300.5 * 720 / r.width) if r.width != 720 else 300.5
+    for y in (10, r.height // 2, r.height - 10):
+        assert abs(dark_centre(panel[y, :, 0], int(col) - 10, int(col) + 11) - (col - 0.5)) < 0.1
+    plt.close(fig)

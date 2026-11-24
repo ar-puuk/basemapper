@@ -1,0 +1,18 @@
+{
+  "fixture_from": "ugrc_hillshade_tract_x175",
+  "note": "300 dpi (devicePixelRatio 3.125 = 25/8) at fractional zoom 13.141, 232 x 320 CSS px (725 x 1000 device px), over the x175 case's tiles.",
+  "pixel_ratio": 3.125,
+  "bbox": [
+    -12469201.631944,
+    5027486.111111,
+    -12467191.368056,
+    5030258.888889
+  ],
+  "width": 232,
+  "height": 320,
+  "zoom": 14,
+  "attribution": "Utah Geospatial Resource Center (UGRC), State of Utah",
+  "max_bad_pixel_frac": 5e-05,
+  "max_mean_diff": 0.007,
+  "fonts_from": "ugrc_litebase_slc"
+}

@@ -7,9 +7,19 @@ for users of each package,
 in more words: [R](r-basemapper/NEWS.md) and
 [Python](py-basemapper/CHANGELOG.md).
 
-## v0.3.1
+## v0.3.2
 
-Tagged v0.3.1 when merged into `main`; until then on `dev`.
+Tagged v0.3.2 when merged into `main`; until then on `dev`.
+
+### Fixes
+
+- **svg,plots:** seamless SVG tiles; MapLibre checks at plot dpis ([9b4328f](https://github.com/ar-puuk/basemapper/commit/9b4328f645442f47d58956de8d822248c2e36856))
+
+### Maintenance
+
+- release 0.3.2 ([82aef3a](https://github.com/ar-puuk/basemapper/commit/82aef3afa29cb940d65bafd8454eb01c260f46ae))
+
+## [v0.3.1](https://github.com/ar-puuk/basemapper/releases/tag/v0.3.1) (2026-11-24): [#10](https://github.com/ar-puuk/basemapper/pull/10) Release v0.3.1: sharp renders at any dpi
 
 ### Fixes
 
@@ -17,6 +27,7 @@ Tagged v0.3.1 when merged into `main`; until then on `dev`.
 
 ### Documentation
 
+- changelog for v0.3.1 ([a50a50c](https://github.com/ar-puuk/basemapper/commit/a50a50c4ccfacbc1c3c3afc8fe40c7337e9749a5))
 - keep the audit and review notes ([03beae3](https://github.com/ar-puuk/basemapper/commit/03beae342833dfc74067e84a55413526b3e2d700))
 
 ### Maintenance

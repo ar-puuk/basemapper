@@ -268,7 +268,9 @@ impl Basemap {
         }
         self.fetch.validate()?;
         let css = css_px(view.width, view.height, view.dpi / CSS_DPI);
-        crate::render_svg_document(self.requests(view.bounds, css, 1.0)?, options, self.clip.as_ref())
+        // At the view's ratio: layers that stay raster are embedded at the
+        // output's dpi. Paths and text are in CSS pixels either way.
+        crate::render_svg_document(self.requests(view.bounds, css, view.dpi / CSS_DPI)?, options, self.clip.as_ref())
     }
 
     /// The attribution text the styles ask maps to show.

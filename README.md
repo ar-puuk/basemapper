@@ -486,7 +486,7 @@ supported yet, and how fidelity is verified.
 
 | What | Command | Notes |
 |---|---|---|
-| Rust core: unit, integration and golden-image tests | `cargo test -p basemapper-core` | 199 golden cases (some also at 192 dpi) compared with MapLibre GL JS references, run in parallel; `"svg": true` cases also score the SVG output (rasterised with resvg) |
+| Rust core: unit, integration and golden-image tests | `cargo test -p basemapper-core` | 212 golden cases (some at 168, 192, 200 and 300 dpi) compared with MapLibre GL JS references, run in parallel; `"svg": true` cases also score the SVG output (rasterised with resvg); `svg_seams` checks SVG tile edges as PDF viewers draw them |
 | Python | build the wheel with `maturin build`, install it with `pytest plotnine`, then run `pytest` in `py-basemapper/` | Includes end-to-end renders against the golden fixtures |
 | R | `R CMD INSTALL r-basemapper`, then `testthat::test_dir("r-basemapper/tests/testthat")` | |
 | Visual comparison | open `check/index.html` after `cargo test` | Overview grid, side-by-side, swipe, blink and diff views |

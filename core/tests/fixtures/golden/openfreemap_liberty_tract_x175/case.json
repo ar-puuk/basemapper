@@ -1,0 +1,20 @@
+{
+  "attribution": "OpenFreeMap, \u00a9 OpenMapTiles, \u00a9 OpenStreetMap contributors",
+  "bbox": [
+    -12469979.0,
+    5026391.854167,
+    -12466409.048611,
+    5031348.194444
+  ],
+  "fonts_from": null,
+  "height": 572,
+  "layers": null,
+  "source_style": "https://tiles.openfreemap.org/styles/liberty",
+  "tiles_from": null,
+  "width": 412,
+  "zoom": 14,
+  "note": "OpenFreeMap Liberty over WFRC Opportunity Zones tract view: a 720 x 1000 px plot panel at 168 dpi (devicePixelRatio 1.75, 411.43 CSS px wide) is drawn as this 412 x 572 CSS px render (721 x 1001 device px, the view's own pixel grid from its top-left corner) and cropped. Fractional MapLibre zoom 13.141.",
+  "pixel_ratio": 1.75,
+  "max_bad_pixel_frac": 6e-05,
+  "max_mean_diff": 0.019
+}

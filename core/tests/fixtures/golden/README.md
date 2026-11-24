@@ -14,9 +14,67 @@ The limits are a ratchet toward 0: when a change improves fidelity, the test
 prints a `[ratchet: ...]` hint; lower the limits in `case.json` to lock the gain
 in. A pixel counts as "bad" when any channel differs by more than 24/255.
 
+## Tolerances
+
+Each case passes when both of its limits hold:
+
+- `max_bad_pixel_frac`: the share of pixels where any channel (RGBA)
+  differs from MapLibre's by more than 24 of 255.
+- `max_mean_diff`: the mean absolute difference over all channels and
+  pixels, in levels of 255.
+
+Limits are set to the measured values plus 0.005% (bad pixels) and 0.005
+(mean difference). This leaves room for floating-point noise between
+machines, and nothing else. Stacked cases are compared after compositing
+their members bottom to top, on both sides.
+
+For a sense of scale: a half-pixel offset, an (N-1)/N rescale or a blur
+moves every edge in the map. That puts several percent of pixels over the
+threshold and the mean difference above 1. The `*_tract_*` cases (real
+plot sizes at 168, 200 and 300 dpi) score at most 0.02% bad pixels and a
+mean difference of 0.02.
+
+`"svg": true` cases also rasterise the SVG output with resvg and score it
+against the same reference, with the limits `max_bad_pixel_frac_svg` and
+`max_mean_diff_svg`. Those are looser, because SVG is drawn by a different
+rasteriser. `core/tests/svg_seams.rs` checks the SVG separately:
+
+- It rasterises the SVG at 3x without `shape-rendering` hints, as a PDF
+  viewer draws it (every clip edge antialiased).
+- A tile boundary fails when its pixels are lighter than both sides, 2-3 px
+  away, more often than on lines that are not tile boundaries (+0.5
+  percentage points).
+- The SVG at 1x must also match the PNG render: mean luminance difference
+  under 2, under 1% of pixels off by more than 24.
+
+## Pixel ratios that are not whole numbers
+
+MapLibre sizes its drawing buffer as `floor(css size x devicePixelRatio)`
+and fits the CSS view into it. basemapper lays device pixels `1 / ratio`
+CSS pixel wide from the view's top-left corner. The two agree exactly when
+`css size x ratio` is a whole number, so cases use CSS sizes for which it
+is:
+
+- multiples of 4 at 1.75 (168 dpi);
+- multiples of 12 at 2.0833 (200 dpi);
+- multiples of 8 at 3.125 (300 dpi).
+
+A plot panel whose size is not a whole number of CSS pixels (720 px at 168
+dpi is 411.43) is drawn as a slightly larger render on the same pixel grid
+and cropped. The `*_tract_x175` cases are that larger render
+(412 x 572 CSS px for a 720 x 1000 px panel). The core test
+`a_size_that_is_not_whole_css_pixels_is_not_resampled` checks the crop
+pixel for pixel. The R and Python plot tests check that a Web Mercator
+panel shows the rendering's pixels unchanged: ggplot2, tmap, matplotlib and
+plotnine, with a 1-pixel line centred on its column to within 0.1 px.
+
 ## Workflows
 
 ```sh
+# Run the comparison (offline; writes target/golden-output/<case>/)
+cargo test -p basemapper-core --release --test golden -- --nocapture
+cargo test -p basemapper-core --release --test svg_seams
+
 # Add a case (downloads style + exactly the tiles needed)
 cargo run -p basemapper-core --example capture_fixture -- \
   --name <case> --style <style URL or inline JSON> \
@@ -79,6 +137,10 @@ against the no-labels reference.
 | `pmtiles_*` | PMTiles sources over archives packed at test time from other fixtures' tiles (no archives are committed): `pmtiles_liberty_z5` (vector and raster sources in a vector style), `pmtiles_hillshade` (raster-dem), `pmtiles_osm_raster_slc` (raster-only style). The references equal those of the source cases pixel for pixel |
 | `synthetic_*` | Hand-written styles over existing fixture tiles for features no captured style uses; `synthetic_icon_text_fit`: icon-text-fit both/width/height with a generated nine-slice sprite; `synthetic_variable_anchor`: text-variable-anchor (radial / text-offset), text-variable-anchor-offset, text-justify auto; `synthetic_line_pattern_z13` / `_x2`: line-pattern with a generated sprite (data-driven names and widths, offset, @2x); `synthetic_fill_extrusion_pattern_z13` / `_x2`: fill-extrusion-pattern over inline GeoJSON buildings (data-driven names, heights and bases, a hole, a missing image, a translucent constant pattern, viewport light, @2x); `synthetic_vertical_z10` / `_x2`: vertical text (point labels with text-writing-mode vertical, verticalized punctuation, mixed Latin, wrapped and Latin-only labels, a crowded layer falling back from horizontal to vertical, CJK line labels on vertical, upward, steep and wavy lines) with Noto Sans glyphs from OpenFreeMap; `synthetic_rtl_z10` / `_x2`: right-to-left labels (Arabic shaping with tashkeel, lam-alef, Persian, Urdu and ZWNJ; Hebrew; mixed-direction text, numbers, brackets, wrapped and two-paragraph labels, line-placed labels) with Noto Sans glyphs from OpenFreeMap; `synthetic_hillshade_*`: hillshade methods (standard, multidirectional, combined at pixel ratio 2, stacked basic/igor/standard, igor with nearest resampling) over terrarium DEM tiles stored in `synthetic_hillshade_standard/tiles/dem`; `synthetic_geojson_z13` / `_z6`: GeoJSON sources (URL and inline data: polygons with holes, multipolygons, a long simplified line, points, labels, dashes, line offset) |
 | `osm_raster_slc` | OpenStreetMap raster tiles |
+| `ugrc_{hillshade,litebase,litelabels,full}_tract_x175` | A real plot: a 720 x 1000 px panel (3.6 x 5 in at 200 dpi) drawn at 168 dpi (devicePixelRatio 1.75) at the fractional zoom 13.141 over a Utah census tract. This is the 412 x 572 CSS px render that the panel is cropped from |
+| `ugrc_*_tract_x2083` | 200 dpi (devicePixelRatio 25/12) at zoom 12.1726, 348 x 480 CSS px |
+| `ugrc_*_tract_x3125` | 300 dpi (devicePixelRatio 3.125) at zoom 13.141, 232 x 320 CSS px, over the x175 cases' tiles (`fixture_from`) |
+| `openfreemap_liberty_tract_x175` | OpenFreeMap Liberty over the x175 tract view (`--all-sources`) |
 
 The test always writes `actual.png` and `diff.png` (bad pixels in red) to
 `target/golden-output/<case>/`.
