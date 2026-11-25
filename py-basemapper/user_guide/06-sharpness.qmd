@@ -1,0 +1,259 @@
+---
+title: "Sharpness, detail and size"
+---
+
+Think of printing a road map onto a rectangle of paper. A plot already
+fixes the area shown and the size of the rectangle (the axes). Two choices
+are left, and each has one place:
+
+- **Sharpness**, how fine the printer is: the figure's dpi,
+  `savefig(dpi=300)`, the figure's `dpi` on screen, or 300 dpi for PDF and
+  SVG. It gives more pixels for the same map and changes nothing else: not
+  the zoom, not the size of labels, not what is drawn. A basemap's `dpi` is
+  an error in a plot.
+- **What the map shows**, how big the text and roads are: `zoom` *or*
+  `symbol_scale`, in `basemap()` (or `add_basemap()`, `geom_basemap()`).
+  One dial: the area is fixed, so big labels leave room for only the main
+  streets, and small labels let many more fit. `zoom` says how much detail;
+  `symbol_scale` says how big lines, labels and icons are. Like °F and °C,
+  you give one and the other follows; giving both is an error. With neither,
+  the symbol scale is 1.
+
+Every picture below is the same 12 km square of Salt Lake City in
+OpenFreeMap Liberty, drawn by this code:
+
+```{python}
+import os
+import tempfile
+
+import basemapper as bm
+import geopandas as gpd
+import matplotlib.pyplot as plt
+from shapely.geometry import Point
+
+centre = gpd.GeoSeries([Point(-111.891, 40.760)], crs=4326).to_crs(3857)[0]
+area = gpd.GeoSeries([centre.buffer(6000).envelope], crs=3857)
+xmin, ymin, xmax, ymax = area.total_bounds
+
+
+def panel(path, size=2.4, dpi=200, **knob):
+    """Save the area in a square axes of `size` inches at `dpi`; `knob` is a
+    zoom or a symbol_scale. Returns what the plot drew at."""
+    fig = plt.figure(figsize=(size, size))
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    ax.set_axis_off()
+    bm.basemap("OpenFreeMap.Liberty", **knob).add_to(ax, crs=3857, attribution=False)
+    fig.savefig(path, dpi=dpi)
+    plt.close(fig)
+    return bm.last_rendering()  # .zoom, .symbol_scale, .dpi
+
+
+out = tempfile.mkdtemp()
+```
+
+```{python}
+#| echo: false
+# Lay out saved panels in a row of figures, each captioned with what was
+# given and what the plot drew at. Not part of the lesson.
+import base64
+import io
+
+from IPython.display import HTML
+from PIL import Image
+
+
+def middle_third(path):
+    """The middle third of a PNG, to show its pixels."""
+    im = Image.open(path)
+    w, h = im.size
+    buf = io.BytesIO()
+    im.crop((w // 3, h // 3, 2 * w // 3, 2 * h // 3)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def chip(text, hot=False):
+    return f'<span class="bm-chip{" hot" if hot else ""}">{text}</span>'
+
+
+def knob_row(cells, crop=False):
+    """`cells`: dicts of path, given, r, hot ("zoom", "symbol" or "px"),
+    alt and optionally width (a share of the cell)."""
+    html = []
+    for c in cells:
+        data = middle_third(c["path"]) if crop else open(c["path"], "rb").read()
+        src = "data:image/png;base64," + base64.b64encode(data).decode()
+        r, hot = c["r"], c.get("hot")
+        chips = " ".join([
+            chip(f"zoom {r.zoom:.2f}", hot == "zoom"),
+            chip(f"symbol scale {r.symbol_scale:.2f}", hot == "symbol"),
+            chip(f"{r.width} &times; {r.height} px", hot == "px"),
+        ])
+        style = f' style="width:{100 * c["width"]:.0f}%"' if "width" in c else ""
+        cls = ' class="bm-pixels"' if crop else ""
+        html.append(f'<figure class="bm-knob"><img src="{src}" alt="{c["alt"]}"{cls}{style}>'
+                    f'<figcaption><code>{c["given"]}</code><span class="bm-chips">{chips}</span></figcaption></figure>')
+    return HTML('<div class="bm-knobs">' + "\n".join(html) + "</div>")
+```
+
+## The figure's dpi: the same map, only sharper
+
+The same 2.4 inch axes saved at 96, 200 and 300 dpi. Shown is the middle
+0.8 inch of each, enlarged so you can see the pixels. The zoom and the
+label size don't move.
+
+```{python}
+row_dpi = []
+for d in (96, 200, 300):
+    path = os.path.join(out, f"dpi-{d}.png")
+    row_dpi.append(dict(path=path, given=f"savefig(dpi={d})", r=panel(path, dpi=d), hot="px"))
+```
+
+```{python}
+#| echo: false
+for c, look in zip(row_dpi, ("blocky at 96 dpi", "smoother at 200 dpi", "smoothest at 300 dpi")):
+    c["alt"] = f"The middle of the Salt Lake City map saved with {c['given']}, enlarged: the same streets and labels, {look}"
+knob_row(row_dpi, crop=True)
+```
+
+## `symbol_scale`: you set the label size, the zoom follows
+
+Half the designed size, the designed size, and twice it. Halving the labels
+frees room for one more zoom level of streets; doubling them takes one
+away. Saved at 200 dpi.
+
+```{python}
+row_symbol = []
+for s in (0.5, 1, 2):
+    path = os.path.join(out, f"symbol-{s}.png")
+    row_symbol.append(dict(path=path, given=f"symbol_scale={s}", r=panel(path, symbol_scale=s), hot="zoom"))
+```
+
+```{python}
+#| echo: false
+for c, look in zip(row_symbol, ("small labels and many streets", "the style's designed label size", "large labels and only the main roads")):
+    c["alt"] = f"Salt Lake City with {c['given']}: {look}"
+knob_row(row_symbol)
+```
+
+## `zoom`: you set the detail, the label size follows
+
+Zoom 10, 12 and 14, two levels apart. More detail in the same axes means
+everything has to be drawn smaller: at zoom 14, labels are a small fraction
+of their designed size. Saved at 200 dpi.
+
+```{python}
+row_zoom = []
+for z in (10, 12, 14):
+    path = os.path.join(out, f"zoom-{z}.png")
+    row_zoom.append(dict(path=path, given=f"zoom={z}", r=panel(path, zoom=z), hot="symbol"))
+```
+
+```{python}
+#| echo: false
+for c, look in zip(row_zoom, ("large labels and only highways", "streets and neighbourhood names", "every street, with tiny labels")):
+    c["alt"] = f"Salt Lake City with {c['given']}: {look}"
+knob_row(row_zoom)
+```
+
+These two rows are the same dial: `symbol_scale=0.5` drew at
+
+```{python}
+round(row_symbol[0]["r"].zoom, 2)
+```
+
+and that `zoom` draws the identical picture. Giving both would set the dial
+twice, which is why it's an error.
+
+## Changing the axes size
+
+Where the two differ: the same area saved in axes of 1.4, 2.4 and 3.4
+inches, shown at their relative sizes.
+
+With `symbol_scale` held (here left at 1), labels keep their printed size
+and the detail changes: smaller axes have room for less.
+
+```{python}
+sizes = (1.4, 2.4, 3.4)
+row_panel_symbol = []
+for s in sizes:
+    path = os.path.join(out, f"panel-symbol-{s}.png")
+    row_panel_symbol.append(dict(path=path, given=f"figsize=({s}, {s})", r=panel(path, size=s), hot="zoom", width=s / max(sizes)))
+```
+
+```{python}
+#| echo: false
+for c, s, look in zip(row_panel_symbol, sizes, ("with only the main roads", "with more streets", "with the most streets")):
+    c["alt"] = f"Salt Lake City in {s} inch axes at symbol scale 1: labels the same printed size, {look}"
+knob_row(row_panel_symbol)
+```
+
+With `zoom` held, the picture stays the same and is resized, labels
+included. `zoom_for()` gives the zoom that 3.4 inch axes draw at symbol
+scale 1, so the small maps are shrunken copies of the large one:
+
+```{python}
+z = bm.zoom_for(area, 3.4)
+print(round(z, 2))
+row_panel_zoom = []
+for s in sizes:
+    path = os.path.join(out, f"panel-zoom-{s}.png")
+    row_panel_zoom.append(dict(path=path, given=f"figsize=({s}, {s})", r=panel(path, size=s, zoom=z), hot="symbol", width=s / max(sizes)))
+```
+
+```{python}
+#| echo: false
+for c, s, look in zip(row_panel_zoom, sizes, ("shrunk, labels too", "a little smaller", "at full size")):
+    c["alt"] = f"Salt Lake City in {s} inch axes at the same zoom: the same map, {look}"
+knob_row(row_panel_zoom)
+```
+
+```{python}
+#| echo: false
+HTML(f'<p class="bm-credit">Map data: {bm.get_attribution(bm.basemap("OpenFreeMap.Liberty"))}</p>')
+```
+
+## Choosing
+
+| I want | Set | What else changes |
+|---|---|---|
+| A sharper image of the same map | the figure's dpi: `savefig(dpi=300)` | nothing |
+| Bigger or smaller lines and labels | `symbol_scale` | the detail: a smaller symbol scale shows more roads and labels (a higher zoom), a larger one fewer |
+| Exactly this level of detail | `zoom` | the size of lines and labels follows the axes size |
+| The same map on a page and in a thumbnail | the same `zoom` for both, e.g. `zoom_for(bbox, 3.6, symbol_scale=0.84)` | the thumbnail is the page map shrunk, labels too |
+| Labels the same printed size on maps of different sizes | the same `symbol_scale` for all | each map gets the zoom that fits its axes |
+| To know what a plot drew at | `bm.last_rendering()` after drawing | nothing: it reads `.zoom`, `.symbol_scale`, `.dpi` |
+
+`symbol_scale=1` draws the style at its designed sizes, with a CSS pixel
+1/96 inch on the page: a label the style sizes at 12 px prints at 9 pt.
+`0.84` prints it at 84% of that. To keep the look of 0.3's
+`basemap(s, dpi=d)` in a figure saved with `savefig(dpi=D)`, use
+`symbol_scale=d / D`.
+
+## Outside a plot
+
+The same rule holds for `basemap()` on its own, where you give what a plot
+would: any three of the extent, the zoom, the printed size and the symbol
+scale give the fourth, and `dpi` only turns the printed size into pixels.
+A size in inches (`units="in"`) is the printed size, so a higher dpi is the
+same map with more pixels:
+
+```{python}
+m = bm.basemap("OpenFreeMap.Liberty", bounds=area, width=2.4, height=2.4, units="in")
+r96, r300 = m.render(dpi=96), m.render(dpi=300)
+print(round(r96.zoom, 2), round(r300.zoom, 2))
+print(r96.width, r300.width)
+```
+
+A size in pixels prints at pixels ÷ dpi inches, so there a higher dpi with
+the same pixels prints the map smaller: with the extent fixed, at a lower
+zoom:
+
+```{python}
+m = bm.basemap("OpenFreeMap.Liberty", bounds=area, width=480, height=480)
+print(round(m.render(dpi=96).zoom, 2), round(m.render(dpi=192).zoom, 2))
+```
+
+R's `basemap()` and Rust's `Basemap` take the same settings; the rules are
+in the [API reference](https://github.com/ar-puuk/basemapper/blob/main/docs/api.md).

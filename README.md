@@ -254,9 +254,10 @@ from plotnine import geom_map, ggplot
 ggplot(nc) + bm.basemap("OpenFreeMap.Positron") + geom_map(fill=None)
 ```
 
-In a plot, a basemap may give a `zoom` (more or less detail; the dpi then
-follows, reported once) or a `dpi`, a `clip` (a mask) and `fetch` options;
-the plot gives the rest. `alpha` fades it, and `attribution` (on by
+In a plot, a basemap may give a `zoom` (the detail) or a `symbol_scale`
+(the size of lines and labels; each sets the other, so give one), a `clip`
+(a mask) and `fetch` options; the plot gives the rest, and the device's dpi
+is the sharpness only (a basemap's `dpi` is an error in a plot). `alpha` fades it, and `attribution` (on by
 default) puts the providers' credit line in the panel's corner. The layer
 functions `geom_basemap()`, `tm_basemap()` and `add_basemap()` take the
 same arguments as `basemap()`. Plots render at the output resolution

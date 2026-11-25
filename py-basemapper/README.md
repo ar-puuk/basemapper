@@ -107,8 +107,8 @@ plotnine too (or `basemapper[all]`), e.g.
 ```python
 import basemapper as bm
 
-# A style plus what you know of the map; any three of extent, zoom, image
-# size and dpi give the fourth
+# A style plus what you know of the map; any three of extent, zoom, printed
+# size and symbol scale give the fourth; dpi is sharpness only
 m = bm.basemap("OpenFreeMap.Liberty", center=(-122.45, 37.75), zoom=12, dpi=192)
 m                                  # the view: what was given, derived or defaulted
 r = m.render()                     # 1600 x 1200: the default 800 x 600 view, sharper

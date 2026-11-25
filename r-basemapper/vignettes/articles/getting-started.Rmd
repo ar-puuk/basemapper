@@ -144,6 +144,39 @@ cat(sprintf(
 ))
 ```
 
+### Saving a basemap on its own
+
+Without a plot, a rendering is saved directly. Give the size in inches for
+a printed size: the dpi then sets the pixels (here 7 × 4 inches at 300 dpi,
+2100 × 1200 pixels). PNG keeps transparency; SVG is vector. For the other
+formats, `as_raster()` gives a {terra} raster that knows its bounds and CRS,
+and GDAL writes it: a GeoTIFF, a JPEG (no transparency; the georeferencing
+goes in a `.aux.xml` file beside it) or a GeoPDF. GDAL writes PDF and JPEG
+only by copying, so those two are translated from the GeoTIFF; `DPI=300`
+gives the PDF page its printed size.
+
+```{r}
+page <- basemap("OpenFreeMap.Liberty", center = slc, zoom = 11.5,
+                width = 7, height = 4, units = "in", dpi = 300)
+page_img <- render(page)
+path <- function(file) file.path(tempdir(), file)
+
+write_png(page_img, path("slc.png"))           # PNG
+render_svg(page, path("slc.svg"))              # SVG
+
+rgb <- as_raster(page_img)[[1:3]]              # red, green, blue, with bounds and CRS
+terra::writeRaster(rgb, path("slc.tif"), datatype = "INT1U", overwrite = TRUE)  # GeoTIFF
+sf::gdal_utils("translate", path("slc.tif"), path("slc.jpg"),                   # JPEG
+               options = c("-of", "JPEG", "-co", "QUALITY=90"))
+sf::gdal_utils("translate", path("slc.tif"), path("slc.pdf"),                   # GeoPDF
+               options = c("-of", "PDF", "-co", "DPI=300"))
+
+terra::rast(path("slc.pdf"))                   # georeferenced, in Web Mercator
+```
+
+In a plot, `ggsave()` and `tmap_save()` save the whole figure; see
+[Saving](plotting.html#saving).
+
 ## Any CRS
 
 A map is drawn in Web Mercator, as every web map, unless it says otherwise:

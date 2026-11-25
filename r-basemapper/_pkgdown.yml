@@ -43,7 +43,8 @@ reference:
   - title: Basemaps
     desc: >
       A basemap is styles plus what you know of the view: any three of
-      extent, zoom, image size and dpi give the fourth. Change the view with
+      extent, zoom, printed size and symbol scale give the fourth, and the
+      dpi is the sharpness. Change the view with
       `set_view()` / `set_bounds()` and read it with `get_bounds()`,
       `get_center()`, `get_zoom()` and `get_size()`. The same functions and
       arguments exist in Python and Rust.
@@ -107,5 +108,6 @@ articles:
       - articles/getting-started
       - articles/gallery
       - articles/plotting
+      - articles/sharpness
       - articles/layers
       - articles/own-data
