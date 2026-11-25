@@ -152,15 +152,30 @@ last_rendering <- function() {
 
 #' Basemaps in ggplot2
 #'
-#' `ggplot(nc) + m` puts a [basemap()] under the plot's layers;
-#' `geom_basemap()` is an alias that builds the basemap from the same
-#' arguments. The plot gives the extent (the panel's limits), the CRS
+#' Two ways to put a basemap in a ggplot, drawing the same layer:
+#'
+#' * `ggplot(nc) + basemap(...)`: the usual way. [basemap()] describes the
+#'   map (its style, `zoom` or `symbol_scale`, `clip`, `fetch`); added to a
+#'   plot, it is drawn at full opacity with the providers' credit line in the
+#'   corner.
+#' * `ggplot(nc) + geom_basemap(...)`: when you need a setting of the layer
+#'   itself, which a basemap does not have: `alpha` (fade it) or
+#'   `attribution` (turn the credit line off, or write your own). It takes
+#'   [basemap()]'s arguments, or a basemap you already made:
+#'   `geom_basemap(m, alpha = 0.5)`.
+#'
+#' So `+ basemap("OpenFreeMap.Liberty", zoom = 8)` and
+#' `+ geom_basemap("OpenFreeMap.Liberty", zoom = 8)` are the same plot; only
+#' `alpha` and `attribution` need `geom_basemap()`. In {tmap},
+#' [tm_basemap()] takes all of these.
+#'
+#' The plot gives the extent (the panel's limits), the CRS
 #' (`coord_sf()`'s; the basemap is warped into it), the image size (the
 #' panel) and the sharpness: on screen 96 dpi, in a raster export
 #' (`ggsave()`, `png()`, ragg) the device's dpi, in PDF / SVG 300 dpi.
 #'
-#' What the map shows is set in one place, in `geom_basemap()` (or the
-#' [basemap()]): `zoom` (the detail; the size of lines and labels follows) or
+#' What the map shows is set in one place, in [basemap()] (or
+#' `geom_basemap()`): `zoom` (the detail; the size of lines and labels follows) or
 #' `symbol_scale` (the size of lines and labels; the zoom follows). Give one.
 #' The plot fixes the extent, so a larger symbol scale also means a lower
 #' zoom (fewer roads and labels) and a smaller one more detail. With
@@ -183,11 +198,18 @@ last_rendering <- function() {
 #' \dontrun{
 #' library(ggplot2)
 #' nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
+#' # The usual way: a basemap added to the plot
 #' ggplot(nc) + basemap("OpenFreeMap.Positron") + geom_sf(fill = NA)
-#' ggplot(nc) + geom_basemap("OpenFreeMap.Positron", zoom = 8) + geom_sf(fill = NA)
+#' ggplot(nc) + basemap("OpenFreeMap.Positron", zoom = 8) + geom_sf(fill = NA)
 #' # Smaller lines and labels, more detail; ggsave() sets the sharpness
-#' p <- ggplot(nc) + geom_basemap("OpenFreeMap.Positron", symbol_scale = 0.8) + geom_sf(fill = NA)
+#' p <- ggplot(nc) + basemap("OpenFreeMap.Positron", symbol_scale = 0.8) + geom_sf(fill = NA)
 #' ggsave("nc.png", p, width = 8, height = 3, dpi = 300)
+#' # geom_basemap() for the layer's own settings: faded, credit in a caption
+#' m <- basemap("OpenFreeMap.Positron")
+#' ggplot(nc) +
+#'   geom_basemap(m, alpha = 0.5, attribution = FALSE) +
+#'   geom_sf(fill = NA) +
+#'   labs(caption = get_attribution(m))
 #' }
 geom_basemap <- function(style, ..., alpha = 1, attribution = TRUE) {
   m <- if (inherits(style, "basemap")) {

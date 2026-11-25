@@ -22,7 +22,9 @@
 #' scaled with the dpi), extent (the world); the zoom is never a default.
 #' Over-determined requests are errors that say what to drop. In a plot, the
 #' plot gives the extent and printed size and the device the dpi: give a
-#' `zoom` or a `symbol_scale` (see [geom_basemap()]).
+#' `zoom` or a `symbol_scale`. Add it to a ggplot with `+`; use
+#' [geom_basemap()] instead only to set the layer's `alpha` or
+#' `attribution`.
 #'
 #' @param style A style, or a list (or character vector) of styles stacked
 #'   bottom to top: a catalogue name (`"OpenFreeMap.Liberty"`), a style URL

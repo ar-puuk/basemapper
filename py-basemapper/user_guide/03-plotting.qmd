@@ -27,7 +27,10 @@ nc = gpd.read_file(geodatasets.get_path("geoda.sids"))
 `m.add_to(ax)` draws under what the axes already show, and returns the
 basemap's artist. Plain axes carry no CRS, so give it the data's with
 `crs=` (cartopy GeoAxes are read). `bm.add_basemap(ax, style, ...)` is the
-same in one call:
+same in one call: `bm.add_basemap(ax, "OpenFreeMap.Positron", crs=nc.crs)`
+is `bm.basemap("OpenFreeMap.Positron").add_to(ax, crs=nc.crs)`. Both take
+the layer's own settings, `alpha` and `attribution`, so use whichever reads
+better; this guide mostly uses `add_to()`.
 
 ```{python}
 #| fig-alt: "matplotlib choropleth of North Carolina's counties by sudden infant deaths per 1,000 births in 1979, in orange-red shades over the light grey OpenFreeMap Positron basemap, with a colour bar."
@@ -157,10 +160,18 @@ fig.text(0.98, 0.02, bm.get_attribution(gray), ha="right", fontsize=6, color="0.
 
 ## plotnine
 
-Add a basemap to a plotnine plot like a layer. plotnine has no spatial
-coordinates: the basemap reads the CRS of a GeoDataFrame's data, else takes
-`geom_basemap(crs=...)`, else longitude / latitude. `bm.geom_basemap()`
-builds one from `basemap()`'s arguments:
+Add a basemap to a plotnine plot with `+`, like a layer. Two ways put the
+same layer in the plot:
+
+| | Takes | Use it |
+|---|---|---|
+| `+ bm.basemap(...)` | what the map is: the style, `zoom` or `symbol_scale`, `clip`, `fetch` | usually |
+| `+ bm.geom_basemap(...)` | all of that, plus the layer's own settings: `alpha`, `attribution` and `crs` | to fade the basemap, change its credit line, or give the CRS |
+
+plotnine has no spatial coordinates: the basemap reads the CRS of a
+GeoDataFrame's data, else takes `geom_basemap(crs=...)`, else longitude /
+latitude. `geom_basemap()` also takes a basemap you already made:
+`bm.geom_basemap(m, alpha=0.5)`.
 
 ```{python}
 #| fig-alt: "plotnine map of North Carolina's counties in shades of blue by births in 1979, with white borders, over the light grey OpenFreeMap Positron basemap, and a legend."

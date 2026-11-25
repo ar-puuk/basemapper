@@ -94,7 +94,9 @@ this order: dpi (96), symbol scale (1), image size (800 x 600 px at 96 dpi,
 scaled with the dpi), extent (the world); the zoom is never a default.
 Over-determined requests are errors that say what to drop. In a plot, the
 plot gives the extent and printed size and the device the dpi: give a
-\code{zoom} or a \code{symbol_scale} (see \code{\link[=geom_basemap]{geom_basemap()}}).
+\code{zoom} or a \code{symbol_scale}. Add it to a ggplot with \code{+}; use
+\code{\link[=geom_basemap]{geom_basemap()}} instead only to set the layer's \code{alpha} or
+\code{attribution}.
 }
 \examples{
 \dontrun{

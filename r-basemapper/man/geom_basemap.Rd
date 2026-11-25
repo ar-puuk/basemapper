@@ -22,16 +22,33 @@ of each panel: \code{TRUE} (their own, see \code{\link[=get_attribution]{get_att
 A ggplot2 layer.
 }
 \description{
-\code{ggplot(nc) + m} puts a \code{\link[=basemap]{basemap()}} under the plot's layers;
-\code{geom_basemap()} is an alias that builds the basemap from the same
-arguments. The plot gives the extent (the panel's limits), the CRS
+Two ways to put a basemap in a ggplot, drawing the same layer:
+}
+\details{
+\itemize{
+\item \code{ggplot(nc) + basemap(...)}: the usual way. \code{\link[=basemap]{basemap()}} describes the
+map (its style, \code{zoom} or \code{symbol_scale}, \code{clip}, \code{fetch}); added to a
+plot, it is drawn at full opacity with the providers' credit line in the
+corner.
+\item \code{ggplot(nc) + geom_basemap(...)}: when you need a setting of the layer
+itself, which a basemap does not have: \code{alpha} (fade it) or
+\code{attribution} (turn the credit line off, or write your own). It takes
+\code{\link[=basemap]{basemap()}}'s arguments, or a basemap you already made:
+\code{geom_basemap(m, alpha = 0.5)}.
+}
+
+So \code{+ basemap("OpenFreeMap.Liberty", zoom = 8)} and
+\code{+ geom_basemap("OpenFreeMap.Liberty", zoom = 8)} are the same plot; only
+\code{alpha} and \code{attribution} need \code{geom_basemap()}. In {tmap},
+\code{\link[=tm_basemap]{tm_basemap()}} takes all of these.
+
+The plot gives the extent (the panel's limits), the CRS
 (\code{coord_sf()}'s; the basemap is warped into it), the image size (the
 panel) and the sharpness: on screen 96 dpi, in a raster export
 (\code{ggsave()}, \code{png()}, ragg) the device's dpi, in PDF / SVG 300 dpi.
-}
-\details{
-What the map shows is set in one place, in \code{geom_basemap()} (or the
-\code{\link[=basemap]{basemap()}}): \code{zoom} (the detail; the size of lines and labels follows) or
+
+What the map shows is set in one place, in \code{\link[=basemap]{basemap()}} (or
+\code{geom_basemap()}): \code{zoom} (the detail; the size of lines and labels follows) or
 \code{symbol_scale} (the size of lines and labels; the zoom follows). Give one.
 The plot fixes the extent, so a larger symbol scale also means a lower
 zoom (fewer roads and labels) and a smaller one more detail. With
@@ -45,10 +62,17 @@ mask, in the plot's CRS. \code{\link[=last_rendering]{last_rendering()}} reads w
 \dontrun{
 library(ggplot2)
 nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
+# The usual way: a basemap added to the plot
 ggplot(nc) + basemap("OpenFreeMap.Positron") + geom_sf(fill = NA)
-ggplot(nc) + geom_basemap("OpenFreeMap.Positron", zoom = 8) + geom_sf(fill = NA)
+ggplot(nc) + basemap("OpenFreeMap.Positron", zoom = 8) + geom_sf(fill = NA)
 # Smaller lines and labels, more detail; ggsave() sets the sharpness
-p <- ggplot(nc) + geom_basemap("OpenFreeMap.Positron", symbol_scale = 0.8) + geom_sf(fill = NA)
+p <- ggplot(nc) + basemap("OpenFreeMap.Positron", symbol_scale = 0.8) + geom_sf(fill = NA)
 ggsave("nc.png", p, width = 8, height = 3, dpi = 300)
+# geom_basemap() for the layer's own settings: faded, credit in a caption
+m <- basemap("OpenFreeMap.Positron")
+ggplot(nc) +
+  geom_basemap(m, alpha = 0.5, attribution = FALSE) +
+  geom_sf(fill = NA) +
+  labs(caption = get_attribution(m))
 }
 }
