@@ -25,8 +25,7 @@ nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
 
 ## ggplot2
 
-Add a basemap to a plot like a layer. `geom_basemap()` does the same, taking
-`basemap()`'s arguments:
+Add a basemap to a plot with `+`, like a layer:
 
 ```{r ggplot-choropleth, fig.alt = "Choropleth of North Carolina's counties by sudden infant deaths per 1,000 births in 1979, in orange-red shades over the light grey OpenFreeMap Positron basemap."}
 ggplot(nc) +
@@ -35,6 +34,21 @@ ggplot(nc) +
   scale_fill_distiller("SIDS per 1,000\nbirths, 1979", palette = "OrRd", direction = 1) +
   theme_void()
 ```
+
+### `basemap()` or `geom_basemap()`?
+
+Both put the same layer in the plot. The difference is what they take:
+
+| | Takes | Use it |
+|---|---|---|
+| `+ basemap(...)` | what the map is: the style, `zoom` or `symbol_scale`, `clip`, `fetch` | usually |
+| `+ geom_basemap(...)` | all of that, plus the layer's own settings: `alpha` (opacity) and `attribution` (the credit line) | only to fade the basemap or change its credit line |
+
+So `+ basemap("OpenFreeMap.Liberty", zoom = 8)` and
+`+ geom_basemap("OpenFreeMap.Liberty", zoom = 8)` draw the same plot.
+`geom_basemap()` also takes a basemap you already made:
+`geom_basemap(m, alpha = 0.5)`. The examples below use `basemap()` unless
+they need `alpha` or `attribution`.
 
 ### Projected data
 
@@ -58,7 +72,8 @@ ggplot(nc_sp) +
 
 For a data map, a basemap often reads better without its labels, faded, or
 with only some of its features. Filters belong to the style (see [Stacking,
-labels and features](layers.html)); `alpha` fades the layer:
+labels and features](layers.html)); `alpha` fades the layer, so this one
+is added with `geom_basemap()`:
 
 ```{r, fig.alt = "North Carolina's counties shaded by the share of births to non-white mothers in 1974, on a viridis scale, over a faded OpenFreeMap Liberty basemap without labels, roads or rail."}
 quiet <- style("OpenFreeMap.Liberty", features = c("-labels", "-roads", "-rail"))
@@ -77,8 +92,8 @@ Each has one place:
 - **Sharpness** is the device's dpi: `ggsave(dpi = 300)`, `png(res = 200)`,
   or 300 dpi for PDF and SVG. It makes the map sharper and changes nothing
   else. A basemap's `dpi` is an error in a plot.
-- **What the map shows** goes in `geom_basemap()`: either `zoom` (the
-  detail) or `symbol_scale` (the size of lines, labels and icons). Each sets
+- **What the map shows** goes in `basemap()` (or `geom_basemap()`): either
+  `zoom` (the detail) or `symbol_scale` (the size of lines, labels and icons). Each sets
   the other, so give one. With neither, the symbol scale is 1.
 
 [Sharpness, detail and size](sharpness.html) shows each of them side by
@@ -86,7 +101,7 @@ side, what changes with the panel size, and which to set for what you want.
 
 ```r
 p <- ggplot(nc) +
-  geom_basemap("OpenFreeMap.Liberty", symbol_scale = 0.8) +  # smaller labels, more detail
+  basemap("OpenFreeMap.Liberty", symbol_scale = 0.8) +       # smaller labels, more detail
   geom_sf(fill = NA)
 ggsave("nc.png", p, width = 8, height = 3.5, dpi = 300)       # sharpness only
 last_rendering()$zoom                                          # the zoom it drew at

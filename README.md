@@ -214,7 +214,7 @@ library(basemapper)
 nc <- st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
 
 ggplot(nc) +
-  basemap("OpenFreeMap.Positron") +       # or geom_basemap("OpenFreeMap.Positron")
+  basemap("OpenFreeMap.Positron") +       # geom_basemap() only for alpha / attribution
   geom_sf(fill = NA, colour = "steelblue")
 ```
 
@@ -257,10 +257,13 @@ ggplot(nc) + bm.basemap("OpenFreeMap.Positron") + geom_map(fill=None)
 In a plot, a basemap may give a `zoom` (the detail) or a `symbol_scale`
 (the size of lines and labels; each sets the other, so give one), a `clip`
 (a mask) and `fetch` options; the plot gives the rest, and the device's dpi
-is the sharpness only (a basemap's `dpi` is an error in a plot). `alpha` fades it, and `attribution` (on by
-default) puts the providers' credit line in the panel's corner. The layer
-functions `geom_basemap()`, `tm_basemap()` and `add_basemap()` take the
-same arguments as `basemap()`. Plots render at the output resolution
+is the sharpness only (a basemap's `dpi` is an error in a plot). Two
+settings belong to the layer rather than the map: `alpha` fades it, and
+`attribution` (on by default) puts the providers' credit line in the
+panel's corner. `+ basemap(...)` adds a basemap with both at their
+defaults; to change them, use `geom_basemap()` (ggplot2, plotnine),
+`tm_basemap()` (tmap) or `m.add_to(ax)` / `add_basemap()` (matplotlib),
+which take `basemap()`'s arguments as well. Plots render at the output resolution
 (`ggsave(dpi = 300)`, `savefig(dpi=300)`; PDF and SVG at 300 dpi), and the
 alignment is tested in every plotting library, in Web Mercator, longitude /
 latitude and projected CRSs.

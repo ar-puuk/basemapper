@@ -16,7 +16,7 @@ are left, and each has one place:
   not the size of labels, not what is drawn. A basemap's `dpi` is an error in
   a plot.
 - **What the map shows**, how big the text and roads are: `zoom` *or*
-  `symbol_scale`, in `geom_basemap()` (or `basemap()`, `tm_basemap()`). One
+  `symbol_scale`, in `basemap()` (or `geom_basemap()`, `tm_basemap()`). One
   dial: the area is fixed, so big labels leave room for only the main
   streets, and small labels let many more fit. `zoom` says how much detail;
   `symbol_scale` says how big lines, labels and icons are. Like °F and °C,
@@ -34,8 +34,9 @@ library(sf)
 centre <- st_transform(st_sfc(st_point(c(-111.891, 40.760)), crs = 4326), 3857)
 area <- st_as_sfc(st_bbox(st_buffer(centre, 6000)))
 
-# Save the area in a square panel of `size` inches at `dpi`; `...` goes to
-# geom_basemap(): a zoom or a symbol_scale.
+# Save the area in a square panel of `size` inches at `dpi`; `...` is a zoom
+# or a symbol_scale. geom_basemap() rather than basemap() only to turn the
+# credit line off in these small panels (it is given once, below them).
 panel <- function(file, ..., size = 2.4, dpi = 200) {
   p <- ggplot(area) +
     geom_basemap("OpenFreeMap.Liberty", ..., attribution = FALSE) +
